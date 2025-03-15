@@ -26,7 +26,6 @@ services:
     environment:
       - NGINX_ENTRYPOINT_QUIET_LOGS=1
     depends_on:
-      - frontend
       - backend
 
   postgres:
