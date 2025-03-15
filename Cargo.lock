@@ -278,21 +278,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ace50bade8e6234aa140d9a2f552bbee1db4d353f69b8217bc503490fc1a9f26"
 
 [[package]]
-name = "backend"
-version = "0.1.0"
-dependencies = [
- "dotenv",
- "log",
- "loki-logger",
- "openssl",
- "reqwest 0.12.14",
- "rocket",
- "rocket_cors",
- "serde",
- "thiserror 2.0.12",
-]
-
-[[package]]
 name = "backtrace"
 version = "0.3.74"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3399,6 +3384,21 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-plugin-opener",
+]
+
+[[package]]
+name = "proton-backend"
+version = "0.1.0"
+dependencies = [
+ "dotenv",
+ "log",
+ "loki-logger",
+ "openssl",
+ "reqwest 0.12.14",
+ "rocket",
+ "rocket_cors",
+ "serde",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
