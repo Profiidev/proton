@@ -1,4 +1,4 @@
-use rocket::{Route, get};
+use rocket::{get, Route};
 
 pub fn routes() -> Vec<Route> {
   rocket::routes![dummy]

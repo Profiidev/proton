@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use cors::cors;
 #[cfg(debug_assertions)]
 use dotenv::dotenv;
-use rocket::{Build, Config, Rocket, Route, launch};
+use rocket::{launch, Build, Config, Rocket, Route};
 
 mod auth;
 mod cors;
