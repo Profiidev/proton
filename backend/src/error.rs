@@ -1,8 +1,10 @@
 use rocket::{http::Status, response::Responder, serde::json};
 use thiserror::Error;
 
+#[allow(unused)]
 pub type Result<T> = std::result::Result<T, Error>;
 
+#[allow(unused)]
 #[derive(Error, Debug)]
 pub enum Error {
   #[error("BadRequest")]
