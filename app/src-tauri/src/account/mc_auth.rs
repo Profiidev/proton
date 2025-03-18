@@ -8,13 +8,10 @@ use tauri::{AppHandle, Url, UserAttentionType, WebviewWindowBuilder};
 use thiserror::Error;
 use tokio::time::sleep;
 
-use crate::store::TauriAppStoreExt;
-
 const CLIENT_ID: &str = "dd35660a-6381-41f8-bb34-2a36669581d0";
 const REDIRECT_URI: &str = "https://proton.profidev.io/backend";
 const SCOPE: &str = "XboxLive.signin offline_access";
 
-const AUTH_KEY: &str = "mc_auth_info";
 const SANDBOX_ID: &str = "RETAIL";
 const TOKEN_TYPE: &str = "JWT";
 const XBOX_SECURITY_RELYING_PARTY: &str = "rp://api.minecraftservices.com/";
@@ -28,24 +25,31 @@ const XBOX_TOKEN_URL: &str = "https://user.auth.xboxlive.com/user/authenticate";
 const MS_TOKEN_URL: &str = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token";
 const MS_AUTHORIZE_URL: &str = "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize";
 
-#[derive(Serialize, Deserialize, Default, Debug)]
-struct AuthInfo {
-  mc_token: String,
-  mc_token_expire: DateTime<Utc>,
-  user_hash: String,
-  xbox_security_token: String,
-  xbox_security_token_expire: DateTime<Utc>,
-  xbox_token: String,
-  xbox_token_expire: DateTime<Utc>,
-  ms_access_token: String,
-  ms_access_token_expire: DateTime<Utc>,
-  ms_refresh_token: String,
+pub struct Token {
+  pub token: String,
+  pub expires: DateTime<Utc>,
+}
+
+pub struct TokenUserHash {
+  pub token: String,
+  pub expires: DateTime<Utc>,
+  pub user_hash: String,
+}
+
+pub struct MsToken {
+  pub access_token: String,
+  pub access_token_expires: DateTime<Utc>,
+  pub refresh_token: String,
 }
 
 #[derive(Error, Debug)]
 enum AuthError {
   #[error("Other Error")]
   Other,
+  #[error("Timeout")]
+  Timeout,
+  #[error("Invalid Response")]
+  InvalidRes,
 }
 
 #[derive(Serialize)]
@@ -60,34 +64,25 @@ struct MCTokenRes {
   expires_in: u32,
 }
 
-pub async fn get_minecraft_token(handle: AppHandle, client: &Client) -> Result<String> {
-  let store = handle.app_store()?;
-  let mut info: AuthInfo = store.get_or_default(AUTH_KEY)?;
-
-  if Utc::now() < info.mc_token_expire {
-    return Ok(info.mc_token);
-  }
-
-  check_xbox_security_token(client, &mut info, handle).await?;
-
-  let mc_res: MCTokenRes = client
+pub async fn get_minecraft_token(
+  client: &Client,
+  user_hash: &str,
+  xbox_security_token: &str,
+) -> Result<Token> {
+  let res: MCTokenRes = client
     .post(MC_TOKEN_URL)
     .json(&MCTokenReq {
-      identity_token: format!("XBL3.0 x={};{}", &info.user_hash, &info.xbox_security_token),
+      identity_token: format!("XBL3.0 x={};{}", user_hash, xbox_security_token),
     })
     .send()
     .await?
     .json()
     .await?;
 
-  info.mc_token = mc_res.access_token;
-  info.mc_token_expire = Utc::now() + Duration::seconds(mc_res.expires_in as i64);
-
-  store.set(AUTH_KEY, &info)?;
-
-  store.store.save()?;
-
-  Ok(info.mc_token)
+  Ok(Token {
+    token: res.access_token,
+    expires: Utc::now() + Duration::seconds(res.expires_in as i64),
+  })
 }
 
 #[derive(Serialize)]
@@ -128,23 +123,13 @@ struct XboxAuthRes {
   display_claims: HashMap<String, Vec<HashMap<String, String>>>,
 }
 
-async fn check_xbox_security_token(
-  client: &Client,
-  info: &mut AuthInfo,
-  handle: AppHandle,
-) -> Result<()> {
-  if Utc::now() < info.xbox_security_token_expire {
-    return Ok(());
-  }
-
-  check_xbox_token(client, info, handle).await?;
-
+pub async fn get_xbox_security_token(client: &Client, xbox_token: &str) -> Result<Token> {
   let res: XboxAuthRes = client
     .post(XBOX_SECURITY_TOKEN_URL)
     .json(&XboxAuthReq {
       properties: XboxAuthProps::Security(XboxAuthPropsSecurity {
         sandbox_id: SANDBOX_ID.into(),
-        user_tokens: vec![info.xbox_token.clone()],
+        user_tokens: vec![xbox_token.to_string()],
       }),
       relying_party: XBOX_SECURITY_RELYING_PARTY.into(),
       token_type: TOKEN_TYPE.into(),
@@ -154,26 +139,20 @@ async fn check_xbox_security_token(
     .json()
     .await?;
 
-  info.xbox_security_token = res.token;
-  info.xbox_security_token_expire = res.not_after;
-
-  Ok(())
+  Ok(Token {
+    token: res.token,
+    expires: res.not_after,
+  })
 }
 
-async fn check_xbox_token(client: &Client, info: &mut AuthInfo, handle: AppHandle) -> Result<()> {
-  if Utc::now() < info.xbox_token_expire {
-    return Ok(());
-  }
-
-  check_ms_token(client, info, handle).await?;
-
+pub async fn get_xbox_token(client: &Client, ms_access_token: &str) -> Result<TokenUserHash> {
   let res: XboxAuthRes = client
     .post(XBOX_TOKEN_URL)
     .json(&XboxAuthReq {
       properties: XboxAuthProps::Normal(XboxAuthPropsNormal {
         auth_method: XBOX_AUTH_METHOD.into(),
         site_name: XBOX_SITE_NAME.into(),
-        rps_ticket: format!("d={}", info.ms_access_token),
+        rps_ticket: format!("d={}", ms_access_token),
       }),
       relying_party: XBOX_RELYING_PARTY.into(),
       token_type: TOKEN_TYPE.into(),
@@ -183,16 +162,18 @@ async fn check_xbox_token(client: &Client, info: &mut AuthInfo, handle: AppHandl
     .json()
     .await?;
 
-  info.xbox_token = res.token;
-  info.xbox_token_expire = res.not_after;
-  info.user_hash = res
+  let user_hash = res
     .display_claims
     .get("xui")
     .and_then(|list| list.first().and_then(|map| map.get("uhs")))
-    .ok_or(AuthError::Other)?
+    .ok_or(AuthError::InvalidRes)?
     .clone();
 
-  Ok(())
+  Ok(TokenUserHash {
+    token: res.token,
+    expires: res.not_after,
+    user_hash,
+  })
 }
 
 #[derive(Deserialize)]
@@ -202,41 +183,36 @@ struct MSTokenRes {
   refresh_token: String,
 }
 
-async fn check_ms_token(client: &Client, info: &mut AuthInfo, handle: AppHandle) -> Result<()> {
-  if Utc::now() < info.ms_access_token_expire {
-    return Ok(());
-  }
-
+pub async fn refresh_ms_token(client: &Client, ms_refresh_token: &str) -> Result<Option<MsToken>> {
   let res = client
     .post(MS_TOKEN_URL)
     .form(&vec![
       ("client_id", CLIENT_ID),
       ("scope", SCOPE),
-      ("refresh_token", &info.ms_refresh_token),
+      ("refresh_token", ms_refresh_token),
       ("grant_type", "refresh_token"),
     ])
     .send()
     .await?;
 
   if res.status() != StatusCode::OK {
-    ms_auth(client, info, handle).await?;
-    return Ok(());
+    return Ok(None);
   }
 
   let res: MSTokenRes = res.json().await?;
 
-  info.ms_access_token = res.access_token;
-  info.ms_access_token_expire = Utc::now() + Duration::seconds(res.expires_in as i64);
-  info.ms_refresh_token = res.refresh_token;
-
-  Ok(())
+  Ok(Some(MsToken {
+    access_token: res.access_token,
+    access_token_expires: Utc::now() + Duration::seconds(res.expires_in as i64),
+    refresh_token: res.refresh_token,
+  }))
 }
 
-async fn ms_auth(client: &Client, info: &mut AuthInfo, handle: AppHandle) -> Result<()> {
+pub async fn get_ms_token(client: &Client, handle: &AppHandle) -> Result<MsToken> {
   let start = Utc::now();
 
   let window = WebviewWindowBuilder::new(
-    &handle,
+    handle,
     "auth",
     tauri::WebviewUrl::External(Url::parse_with_params(
       MS_AUTHORIZE_URL,
@@ -248,9 +224,6 @@ async fn ms_auth(client: &Client, info: &mut AuthInfo, handle: AppHandle) -> Res
       ],
     )?),
   )
-  .min_inner_size(420.0, 632.0)
-  .inner_size(420.0, 632.0)
-  .max_inner_size(420.0, 632.0)
   .zoom_hotkeys_enabled(false)
   .title("Sign into Proton")
   .always_on_top(true)
@@ -262,11 +235,7 @@ async fn ms_auth(client: &Client, info: &mut AuthInfo, handle: AppHandle) -> Res
   while (Utc::now() - start) < Duration::minutes(10) {
     window.title().map_err(|_| AuthError::Other)?;
 
-    if window
-      .url()?
-      .as_str()
-      .starts_with("https://proton.profidev.io/backend")
-    {
+    if window.url()?.as_str().starts_with(REDIRECT_URI) {
       let url = window.url()?;
 
       let code = url.query_pairs().find(|(key, _)| key == "code");
@@ -288,11 +257,11 @@ async fn ms_auth(client: &Client, info: &mut AuthInfo, handle: AppHandle) -> Res
         .json()
         .await?;
 
-      info.ms_access_token = res.access_token;
-      info.ms_access_token_expire = Utc::now() + Duration::seconds(res.expires_in as i64);
-      info.ms_refresh_token = res.refresh_token;
-
-      return Ok(());
+      return Ok(MsToken {
+        access_token: res.access_token,
+        access_token_expires: Utc::now() + Duration::seconds(res.expires_in as i64),
+        refresh_token: res.refresh_token,
+      });
     }
 
     sleep(std::time::Duration::from_millis(50)).await;
@@ -300,5 +269,5 @@ async fn ms_auth(client: &Client, info: &mut AuthInfo, handle: AppHandle) -> Res
 
   window.close()?;
 
-  Ok(())
+  Err(AuthError::Timeout.into())
 }

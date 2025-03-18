@@ -8,5 +8,5 @@
 </script>
 
 <main class="bg-black h-full">
-  <Button.Button onclick={auth}>Testing</Button.Button>
+  <Button onclick={auth}>Testing</Button>
 </main>
