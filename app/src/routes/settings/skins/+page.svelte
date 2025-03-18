@@ -23,18 +23,6 @@
               {#each skins as skin}
                 <MiniSkinViewer skin={skin.data} />
               {/each}
-              {#each skins as skin}
-                <MiniSkinViewer skin={skin.data} />
-              {/each}
-              {#each skins as skin}
-                <MiniSkinViewer skin={skin.data} />
-              {/each}
-              {#each skins as skin}
-                <MiniSkinViewer skin={skin.data} />
-              {/each}
-              {#each skins as skin}
-                <MiniSkinViewer skin={skin.data} />
-              {/each}
             </div>
           </ScrollArea.ScrollArea>
         </div>
