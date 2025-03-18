@@ -13,6 +13,7 @@
     "windows": [
       {
         "title": "Proton",
+        "label": "main",
         "width": 1300,
         "height": 800,
         "decorations": false

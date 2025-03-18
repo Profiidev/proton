@@ -36,8 +36,9 @@ export enum SkinVariant {
 }
 
 export interface SkinData {
+  id: string;
   data: string;
-  head?: string;
+  head: string;
 }
 
 const account_list_ = async (): Promise<
@@ -108,10 +109,17 @@ export const account_remove = async (id: string) => {
 
 export const account_get_skin = async (
   url: string,
-  head: boolean,
 ): Promise<undefined | SkinData> => {
   try {
-    return await invoke("account_get_skin", { url, head });
+    return await invoke("account_get_skin", { url });
+  } catch (e) {}
+};
+
+export const account_get_cape = async (
+  url: string,
+): Promise<undefined | SkinData> => {
+  try {
+    return await invoke("account_get_cape", { url });
   } catch (e) {}
 };
 
@@ -123,3 +131,28 @@ export const account_clear_skins = async () => {
     return false;
   }
 };
+
+export const account_add_skin = async (skin: Uint8Array) => {
+  try {
+    await invoke("account_add_skin", { skin });
+    return true;
+  } catch (e) {
+    return false;
+  }
+};
+
+export const account_remove_skin = async (id: string) => {
+  try {
+    await invoke("account_remove_skin", { id });
+    return true;
+  } catch (e) {
+    return false;
+  }
+};
+
+const account_list_skins_ = async (): Promise<SkinData[] | undefined> => {
+  try {
+    return await invoke("account_list_skins");
+  } catch (e) {}
+};
+export const account_list_skins = create_data_state(account_list_skins_);

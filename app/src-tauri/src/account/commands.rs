@@ -5,7 +5,10 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Result, State, Url};
 use tokio::sync::Mutex;
 
-use crate::{account::skin_store::Skin, store::TauriAppStoreExt};
+use crate::{
+  account::skin_store::{Cape, Skin},
+  store::TauriAppStoreExt,
+};
 
 use super::{
   auth::{ms_mc_login, refresh_mc_token, AuthInfo},
@@ -140,10 +143,47 @@ pub async fn account_get_skin(
   client: State<'_, Client>,
   handle: AppHandle,
   url: Url,
-  head: bool,
 ) -> Result<Skin> {
   let mut store = state.lock().await;
-  Ok(store.get(&handle, client.inner(), url, head).await?)
+  Ok(store.get_skin_by_url(&handle, client.inner(), url).await?)
+}
+
+#[tauri::command]
+pub async fn account_get_cape(
+  state: State<'_, Mutex<SkinStore>>,
+  client: State<'_, Client>,
+  handle: AppHandle,
+  url: Url,
+) -> Result<Cape> {
+  let mut store = state.lock().await;
+  Ok(store.get_cape_by_url(&handle, client.inner(), url).await?)
+}
+
+#[tauri::command]
+pub async fn account_add_skin(
+  state: State<'_, Mutex<SkinStore>>,
+  handle: AppHandle,
+  skin: &[u8],
+) -> Result<Skin> {
+  let mut store = state.lock().await;
+  Ok(store.add_skin(&handle, None, skin)?)
+}
+
+#[tauri::command]
+pub async fn account_remove_skin(
+  state: State<'_, Mutex<SkinStore>>,
+  handle: AppHandle,
+  id: &str,
+) -> Result<()> {
+  let mut store = state.lock().await;
+  store.remove_skin(id, &handle)?;
+  Ok(())
+}
+
+#[tauri::command]
+pub async fn account_list_skins(state: State<'_, Mutex<SkinStore>>) -> Result<Vec<Skin>> {
+  let store = state.lock().await;
+  Ok(store.list_skins().to_vec())
 }
 
 #[tauri::command]
@@ -152,7 +192,7 @@ pub async fn account_clear_skins(
   handle: AppHandle,
 ) -> Result<()> {
   let mut store = state.lock().await;
-  store.clear(&handle)?;
+  store.clear_skins(&handle)?;
 
   Ok(())
 }

@@ -10,14 +10,14 @@
   let { skin_url }: Props = $props();
 </script>
 
-{#await skin_url ? account_get_skin(skin_url, true) : Promise.resolve(undefined)}
+{#await skin_url ? account_get_skin(skin_url) : Promise.resolve(undefined)}
   <Skeleton class="size-8" />
 {:then skin}
   {#if skin}
     <img
       class="size-8 rounded"
       style="image-rendering: pixelated;"
-      src={`data:image/png;base64, ${skin?.head}`}
+      src={`data:image/png;base64, ${skin.head}`}
       alt=""
     />
   {:else}
