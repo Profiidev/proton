@@ -51,7 +51,7 @@
   };
 </script>
 
-<div class="ml-4 mt-2">
+<div class="ml-4 mt-2 flex-1">
   <div class="flex items-center">
     <p class="text-xl">Accounts</p>
     <Button
@@ -80,7 +80,7 @@
               (s) => s.state === State.Active,
             )?.url}
             <AccountImage {skin_url} />
-            <div class="flex flex-col justify-start flex-grow-1 min-w-0">
+            <div class="flex flex-col justify-start flex-1 min-w-0">
               <p class="truncate text-start text-sm">{info.name}</p>
               <p class="truncate text-start text-sm text-muted-foreground">
                 {info.id}

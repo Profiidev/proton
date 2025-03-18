@@ -59,7 +59,7 @@
             <div class="size-10 min-w-10 flex items-center justify-center">
               <CircleHelp />
             </div>
-            <div class="flex flex-col justify-start flex-grow-1 min-w-0">
+            <div class="flex flex-col justify-start flex-1 min-w-0">
               <p class="truncate text-start text-sm">Login failed</p>
               <p class="truncate text-start text-sm text-muted-foreground">
                 {id}
@@ -86,7 +86,7 @@
   {@const skin_url = info.skins.find((s) => s.state === State.Active)?.url}
   <Button class="justify-start p-2 h-12 w-full" variant="ghost" {onclick}>
     <AccountImage {skin_url} />
-    <div class="flex flex-col justify-start flex-grow-1 min-w-0">
+    <div class="flex flex-col justify-start flex-1 min-w-0">
       <p class="truncate text-start text-sm">{info.name}</p>
       <p class="truncate text-start text-sm text-muted-foreground">{info.id}</p>
     </div>

@@ -19,11 +19,13 @@
   ];
 </script>
 
-<div class="flex flex-col lg:flex-row">
+<div class="flex flex-col lg:flex-row h-full">
   <aside class="lg:max-w-32 lg:w-52">
     <SimpleSidebar {items} class="" />
   </aside>
-  <div class="flex-1 lg:space-x-12 lg:space-y-0 space-y-8">
+  <div
+    class="flex-1 flex min-h-0 lg:h-full lg:space-x-12 lg:space-y-0 space-y-8"
+  >
     {@render children()}
   </div>
 </div>

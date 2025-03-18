@@ -39,6 +39,13 @@ export interface SkinData {
   id: string;
   data: string;
   head: string;
+  url: string;
+}
+
+export interface CapeData {
+  id: string;
+  data: string;
+  url: string;
 }
 
 const account_list_ = async (): Promise<
@@ -117,7 +124,7 @@ export const account_get_skin = async (
 
 export const account_get_cape = async (
   url: string,
-): Promise<undefined | SkinData> => {
+): Promise<undefined | CapeData> => {
   try {
     return await invoke("account_get_cape", { url });
   } catch (e) {}
