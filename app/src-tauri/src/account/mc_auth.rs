@@ -4,13 +4,15 @@ use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Url, UserAttentionType, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, Url, UserAttentionType, WebviewWindowBuilder};
 use thiserror::Error;
 use tokio::time::sleep;
 
 const CLIENT_ID: &str = "dd35660a-6381-41f8-bb34-2a36669581d0";
 const REDIRECT_URI: &str = "https://proton.profidev.io/backend";
 const SCOPE: &str = "XboxLive.signin offline_access";
+const AUTH_WINDOW_LABEL: &str = "ms_auth";
+const PROMPT: &str = "select_account";
 
 const SANDBOX_ID: &str = "RETAIL";
 const TOKEN_TYPE: &str = "JWT";
@@ -211,9 +213,13 @@ pub async fn refresh_ms_token(client: &Client, ms_refresh_token: &str) -> Result
 pub async fn get_ms_token(client: &Client, handle: &AppHandle) -> Result<MsToken> {
   let start = Utc::now();
 
+  if let Some(window) = handle.get_webview_window(AUTH_WINDOW_LABEL) {
+    window.close()?;
+  }
+
   let window = WebviewWindowBuilder::new(
     handle,
-    "auth",
+    AUTH_WINDOW_LABEL,
     tauri::WebviewUrl::External(Url::parse_with_params(
       MS_AUTHORIZE_URL,
       vec![
@@ -221,6 +227,7 @@ pub async fn get_ms_token(client: &Client, handle: &AppHandle) -> Result<MsToken
         ("response_type", "code"),
         ("scope", SCOPE),
         ("redirect_uri", REDIRECT_URI),
+        ("prompt", PROMPT),
       ],
     )?),
   )
