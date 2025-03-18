@@ -2,13 +2,15 @@ use std::collections::HashMap;
 
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Result, State};
+use tauri::{AppHandle, Result, State, Url};
+use tokio::sync::Mutex;
 
-use crate::store::TauriAppStoreExt;
+use crate::{account::skin_store::Skin, store::TauriAppStoreExt};
 
 use super::{
   auth::{ms_mc_login, refresh_mc_token, AuthInfo},
   info::{get_profile_info, ProfileInfo},
+  skin_store::SkinStore,
 };
 
 const ACCOUNT_KEY: &str = "account_info";
@@ -106,4 +108,27 @@ fn save_accounts(
 fn load_accounts(handle: &AppHandle) -> anyhow::Result<HashMap<String, Option<AccountInfo>>> {
   let store = handle.app_store()?;
   store.get_or_default(ACCOUNT_KEY)
+}
+
+#[tauri::command]
+pub async fn account_get_skin(
+  state: State<'_, Mutex<SkinStore>>,
+  client: State<'_, Client>,
+  handle: AppHandle,
+  url: Url,
+  head: bool,
+) -> Result<Skin> {
+  let mut store = state.lock().await;
+  Ok(store.get(&handle, client.inner(), url, head).await?)
+}
+
+#[tauri::command]
+pub async fn account_clear_skins(
+  state: State<'_, Mutex<SkinStore>>,
+  handle: AppHandle,
+) -> Result<()> {
+  let mut store = state.lock().await;
+  store.clear(&handle)?;
+
+  Ok(())
 }

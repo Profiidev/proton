@@ -1,7 +1,15 @@
 use reqwest::Client;
 use store::TauriAppStoreExt;
 
-use account::commands::{account_list, account_login, account_refresh, account_refresh_one};
+use account::{
+  commands::{
+    account_clear_skins, account_get_skin, account_list, account_login, account_refresh,
+    account_refresh_one,
+  },
+  skin_store::SkinStore,
+};
+use tauri::Manager;
+use tokio::sync::Mutex;
 
 mod account;
 mod store;
@@ -16,10 +24,14 @@ pub fn run() {
       account_refresh,
       account_refresh_one,
       account_list,
+      account_clear_skins,
+      account_get_skin
     ])
-    .manage(Client::new())
     .setup(|app| {
       let _ = app.handle().app_store()?;
+
+      app.manage(Mutex::new(SkinStore::new(app.handle())));
+      app.manage(Client::new());
 
       Ok(())
     })

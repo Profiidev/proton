@@ -32,6 +32,11 @@ export enum SkinVariant {
   Slim = "SLIM",
 }
 
+export interface SkinData {
+  data: string;
+  head?: string;
+}
+
 export const account_list = async (): Promise<
   | {
       [key: string]: ProfileInfo | null;
@@ -64,6 +69,24 @@ export const account_refresh_one = async (id: string) => {
 export const account_login = async () => {
   try {
     await invoke("account_login");
+    return true;
+  } catch (e) {
+    return false;
+  }
+};
+
+export const account_get_skin = async (
+  url: string,
+  head: boolean,
+): Promise<undefined | SkinData> => {
+  try {
+    return await invoke("account_get_skin", { url, head });
+  } catch (e) {}
+};
+
+export const account_clear_skins = async () => {
+  try {
+    await invoke("account_clear_skins");
     return true;
   } catch (e) {
     return false;
