@@ -3,8 +3,8 @@ use store::TauriAppStoreExt;
 
 use account::{
   commands::{
-    account_clear_skins, account_get_skin, account_list, account_login, account_refresh,
-    account_refresh_one,
+    account_clear_skins, account_get_active, account_get_skin, account_list, account_login,
+    account_refresh, account_refresh_one, account_remove, account_set_active,
   },
   skin_store::SkinStore,
 };
@@ -25,12 +25,15 @@ pub fn run() {
       account_refresh_one,
       account_list,
       account_clear_skins,
-      account_get_skin
+      account_get_skin,
+      account_get_active,
+      account_set_active,
+      account_remove
     ])
     .setup(|app| {
       let _ = app.handle().app_store()?;
 
-      app.manage(Mutex::new(SkinStore::new(app.handle())));
+      app.manage(Mutex::new(SkinStore::new(app.handle())?));
       app.manage(Client::new());
 
       Ok(())

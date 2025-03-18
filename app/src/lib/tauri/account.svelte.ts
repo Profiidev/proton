@@ -1,4 +1,7 @@
+import { create_data_state } from "$lib/data_state.svelte";
 import { invoke } from "@tauri-apps/api/core";
+
+export type Accounts = { [key: string]: ProfileInfo | null };
 
 export interface ProfileInfo {
   id: string;
@@ -37,7 +40,7 @@ export interface SkinData {
   head?: string;
 }
 
-export const account_list = async (): Promise<
+const account_list_ = async (): Promise<
   | {
       [key: string]: ProfileInfo | null;
     }
@@ -47,6 +50,8 @@ export const account_list = async (): Promise<
     return await invoke("account_list");
   } catch (e) {}
 };
+
+export const account_list = create_data_state(account_list_);
 
 export const account_refresh = async () => {
   try {
@@ -69,6 +74,32 @@ export const account_refresh_one = async (id: string) => {
 export const account_login = async () => {
   try {
     await invoke("account_login");
+    return true;
+  } catch (e) {
+    return false;
+  }
+};
+
+const account_get_active = async (): Promise<undefined | string> => {
+  try {
+    return await invoke("account_get_active");
+  } catch (e) {}
+};
+
+export const account_active = create_data_state(account_get_active);
+
+export const account_set_active = async (id: string) => {
+  try {
+    await invoke("account_set_active", { id });
+    return true;
+  } catch (e) {
+    return false;
+  }
+};
+
+export const account_remove = async (id: string) => {
+  try {
+    await invoke("account_remove", { id });
     return true;
   } catch (e) {
     return false;

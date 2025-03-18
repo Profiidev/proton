@@ -14,6 +14,7 @@ use super::{
 };
 
 const ACCOUNT_KEY: &str = "account_info";
+const ACTIVE_ACCOUNT_KEY: &str = "active_account";
 
 #[derive(Serialize, Deserialize)]
 struct AccountInfo {
@@ -90,6 +91,29 @@ pub async fn account_login(client: State<'_, Client>, handle: AppHandle) -> Resu
   let mut accounts = load_accounts(&handle)?;
   accounts.insert(profile.id.clone(), Some(AccountInfo { auth, profile }));
   save_accounts(&handle, &accounts)?;
+
+  Ok(())
+}
+
+#[tauri::command]
+pub fn account_remove(handle: AppHandle, id: &str) -> Result<()> {
+  let mut accounts = load_accounts(&handle)?;
+  accounts.remove(id);
+  save_accounts(&handle, &accounts)?;
+
+  Ok(())
+}
+
+#[tauri::command]
+pub fn account_get_active(handle: AppHandle) -> Result<String> {
+  let store = handle.app_store()?;
+  Ok(store.get_or_default(ACTIVE_ACCOUNT_KEY)?)
+}
+
+#[tauri::command]
+pub fn account_set_active(handle: AppHandle, id: &str) -> Result<()> {
+  let store = handle.app_store()?;
+  store.set(ACTIVE_ACCOUNT_KEY, &id.to_string())?;
 
   Ok(())
 }
