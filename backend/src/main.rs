@@ -3,9 +3,8 @@ use std::collections::HashMap;
 use cors::cors;
 #[cfg(debug_assertions)]
 use dotenv::dotenv;
-use rocket::{Build, Config, Rocket, Route, launch};
+use rocket::{launch, Build, Config, Rocket, Route};
 
-mod auth;
 mod cors;
 mod error;
 
@@ -42,7 +41,12 @@ async fn rocket() -> _ {
 }
 
 fn routes() -> Vec<Route> {
-  auth::routes()
+  rocket::routes![dummy]
+}
+
+#[rocket::get("/dummy")]
+fn dummy() -> String {
+  "dummy".into()
 }
 
 fn state(server: Rocket<Build>) -> Rocket<Build> {
