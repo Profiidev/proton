@@ -15,7 +15,7 @@
   const init = () => {
     viewer = new SkinViewer({
       canvas,
-      width: 160,
+      width: 148,
       height: 220,
       zoom: 0.8,
       skin: `data:image/png;base64, ${skin}`,
@@ -29,9 +29,9 @@
   });
 </script>
 
-<div class="w-40 h-55 relative">
-  <canvas bind:this={canvas} class="border w-40 h-55 select-none"></canvas>
+<div class="w-37 h-55 relative">
+  <canvas bind:this={canvas} class="border w-37 h-55 select-none"></canvas>
   {#if !viewer}
-    <Skeleton class="w-40 h-55 absolute top-0 left-0" />
+    <Skeleton class="w-37 h-55 absolute top-0 left-0" />
   {/if}
 </div>

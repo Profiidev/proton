@@ -13,13 +13,13 @@
   </div>
   <div class="flex flex-1 min-h-0">
     <MainSkinViewer />
-    <Separator class="mx-4" orientation="vertical" />
+    <Separator class="mx-3" orientation="vertical" />
     <div class="h-full flex-1 flex flex-col min-h-0">
       <p class="my-2 w-full text-center">Library</p>
       {#if skins && skins.length > 0}
         <div class="flex-1 min-h-0">
           <ScrollArea.ScrollArea class="h-full">
-            <div class="grid w-full gap-3 grid-cols-[repeat(auto-fill,10rem)]">
+            <div class="grid w-full gap-3 grid-cols-[repeat(auto-fill,9rem)]">
               {#each skins as skin}
                 <MiniSkinViewer skin={skin.data} />
               {/each}
