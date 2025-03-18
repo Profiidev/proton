@@ -6,7 +6,7 @@
     account_list,
     State,
   } from "$lib/tauri/account.svelte";
-  import { Label, Select } from "positron-components/components/ui";
+  import { Label, Select, Skeleton } from "positron-components/components/ui";
   import {
     IdleAnimation,
     PlayerAnimation,
@@ -99,7 +99,7 @@
     }
   });
 
-  onMount(() => {
+  const init = () => {
     mainViewer = new SkinViewer({
       canvas,
       width: 280,
@@ -108,12 +108,21 @@
     });
 
     mainViewer.controls.enableZoom = false;
+  };
+
+  onMount(() => {
+    setTimeout(init);
   });
 </script>
 
 <div class="flex flex-col w-70 h-full">
   <p class="my-2 w-full text-center">Active</p>
-  <canvas class="w-full h-100 select-none" bind:this={canvas}> </canvas>
+  <div class="w-full h-100 relative">
+    <canvas bind:this={canvas} class="w-full h-100 select-none"></canvas>
+    {#if !mainViewer}
+      <Skeleton class="w-full h-100 absolute top-0 left-0" />
+    {/if}
+  </div>
   <p class="w-full text-center">Display Options</p>
   <Label class="my-2">Animation</Label>
   <Select.Root bind:value={animation} type="single">
