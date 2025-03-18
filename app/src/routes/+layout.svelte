@@ -1,9 +1,13 @@
 <script lang="ts">
   import { setMode } from "mode-watcher";
-  import { ModeWatcher, Toaster } from "positron-components/components/ui";
+  import {
+    ModeWatcher,
+    Separator,
+    Toaster,
+  } from "positron-components/components/ui";
   import "../app.css";
   import Header from "$lib/components/Header.svelte";
-  import ProfileSelector from "$lib/components/ProfileSelector.svelte";
+  import Sidebar from "$lib/components/Sidebar.svelte";
   let { children } = $props();
 
   setMode("dark");
@@ -14,8 +18,12 @@
 
 <div class="h-full flex flex-col">
   <Header />
-  <ProfileSelector />
-  <main class="flex-grow-1">
-    {@render children()}
-  </main>
+  <Separator />
+  <div class="flex-grow-1 flex">
+    <Sidebar />
+    <Separator orientation="vertical" />
+    <main class="flex-grow-1 m-2">
+      {@render children()}
+    </main>
+  </div>
 </div>
