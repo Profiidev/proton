@@ -29,13 +29,7 @@ impl SkinStore {
     Ok(SkinStore { skins })
   }
 
-  fn add_skin(
-    &mut self,
-    handle: &AppHandle,
-    url: Url,
-    skin: &[u8],
-    head: bool,
-  ) -> Result<Skin> {
+  fn add_skin(&mut self, handle: &AppHandle, url: Url, skin: &[u8], head: bool) -> Result<Skin> {
     let head = if head {
       let image = image::load_from_memory(skin)?;
       let head = image.crop_imm(8, 8, 8, 8);
