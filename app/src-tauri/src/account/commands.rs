@@ -181,9 +181,12 @@ pub async fn account_remove_skin(
 }
 
 #[tauri::command]
-pub async fn account_list_skins(state: State<'_, Mutex<SkinStore>>) -> Result<Vec<Skin>> {
+pub async fn account_list_skins(
+  state: State<'_, Mutex<SkinStore>>,
+  handle: AppHandle,
+) -> Result<Vec<Skin>> {
   let store = state.lock().await;
-  Ok(store.list_skins().to_vec())
+  Ok(store.list_skins(&handle))
 }
 
 #[tauri::command]
