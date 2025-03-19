@@ -40,7 +40,6 @@
     let bytes = await file_to_bytes(file);
 
     if (await account_add_skin(bytes)) {
-      await account_list_skins.update();
       toast.success("Successfully added Skin");
     } else {
       toast.error("Failed to add Skin");
@@ -54,8 +53,6 @@
     if (!active_account) return;
 
     if (await account_change_skin(id, active_account)) {
-      await account_list_skins.update();
-      await account_list.update();
       toast.success("Successfully changed Skin");
     } else {
       toast.error("Failed to change Skin");

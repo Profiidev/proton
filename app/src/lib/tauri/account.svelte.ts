@@ -1,4 +1,4 @@
-import { create_data_state } from "$lib/data_state.svelte";
+import { create_data_state, UpdateType } from "$lib/data_state.svelte";
 import { invoke } from "@tauri-apps/api/core";
 
 export type Accounts = { [key: string]: ProfileInfo | null };
@@ -59,7 +59,10 @@ const account_list_ = async (): Promise<
   } catch (e) {}
 };
 
-export const account_list = create_data_state(account_list_);
+export const account_list = create_data_state(
+  account_list_,
+  UpdateType.Accounts,
+);
 
 export const account_refresh = async () => {
   try {
@@ -94,7 +97,10 @@ const account_get_active = async (): Promise<undefined | string> => {
   } catch (e) {}
 };
 
-export const account_active = create_data_state(account_get_active);
+export const account_active = create_data_state(
+  account_get_active,
+  UpdateType.AccountActive,
+);
 
 export const account_set_active = async (id: string) => {
   try {
@@ -153,7 +159,10 @@ const account_list_skins_ = async (): Promise<SkinData[] | undefined> => {
     return await invoke("account_list_skins");
   } catch (e) {}
 };
-export const account_list_skins = create_data_state(account_list_skins_);
+export const account_list_skins = create_data_state(
+  account_list_skins_,
+  UpdateType.AccountSkins,
+);
 
 export const account_change_skin = async (id: string, account: string) => {
   try {

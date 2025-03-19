@@ -7,7 +7,6 @@
     account_get_cape,
     account_get_skin,
     account_list,
-    account_list_skins,
     State,
   } from "$lib/tauri/account.svelte";
   import {
@@ -33,8 +32,6 @@
     if (!active_account) return;
 
     if (await account_change_cape(id, active_account)) {
-      await account_list_skins.update();
-      await account_list.update();
       toast.success("Successfully changed Cape");
     } else {
       toast.error("Failed to change Cape");
@@ -44,7 +41,7 @@
 
 <div class="ml-4 mt-2 flex-1 flex flex-col min-h-0">
   <div class="flex items-center">
-    <p class="text-xl">Skins</p>
+    <p class="text-xl">Capes</p>
   </div>
   <div class="flex flex-1 min-h-0">
     <MainSkinViewer flipped={true} />
@@ -79,7 +76,7 @@
         </div>
       {:else}
         <div class="flex items-center justify-center flex-1">
-          <p>No Skins available</p>
+          <p>No Capes available</p>
         </div>
       {/if}
     </div>

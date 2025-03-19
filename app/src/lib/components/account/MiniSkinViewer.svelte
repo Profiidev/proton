@@ -55,7 +55,6 @@
 
   const remove = async () => {
     if (await account_remove_skin(id)) {
-      await account_list_skins.update();
       toast.success("Successfully removed Skin");
     } else {
       toast.error("Failed to remove Skin");
