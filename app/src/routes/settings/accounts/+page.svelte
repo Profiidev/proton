@@ -48,7 +48,7 @@
 
   const add = async () => {
     add_loading = true;
-    login_toast = toast.loading("Waiting for Microsoft Token", {
+    login_toast = toast.loading("Waiting for Microsoft Login", {
       duration: LOGIN_TOAST_DURATION,
       id: login_toast,
     });
@@ -70,18 +70,18 @@
 
     switch (e.payload as LoginStatus) {
       case LoginStatus.Ms:
-        toast.loading("Retrieving Xbox Token", {
+        toast.loading("Logging in to Xbox", {
           id: login_toast,
           duration: LOGIN_TOAST_DURATION,
         });
         break;
       case LoginStatus.Xbox:
-        toast.loading("Retrieving Xbox Security Token", {
+        toast.loading("Logging in to Xbox Security", {
           id: login_toast,
           duration: LOGIN_TOAST_DURATION,
         });
       case LoginStatus.XboxSecurity:
-        toast.loading("Retrieving Minecraft Token", {
+        toast.loading("Logging in to Minecraft", {
           id: login_toast,
           duration: LOGIN_TOAST_DURATION,
         });
