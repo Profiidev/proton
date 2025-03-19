@@ -16,8 +16,8 @@ use tokio::sync::Mutex;
 mod account;
 mod macros;
 mod store;
-mod versions;
 mod updater;
+mod versions;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
