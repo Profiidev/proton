@@ -11,7 +11,6 @@ let updater_cbs = new Map<UpdateType, Map<string, () => void>>();
 const UPDATE_EVENT = "data-update";
 
 listen(UPDATE_EVENT, (e) => {
-  console.log(e.payload)
   Array.from(updater_cbs.get(e.payload as UpdateType)?.values() || []).forEach(
     (cb) => cb(),
   );
