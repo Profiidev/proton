@@ -8,6 +8,7 @@ use account::{
     account_remove, account_remove_skin, account_set_active,
   },
   skin_store::SkinStore,
+  store::AccountStore,
 };
 use tauri::Manager;
 use tokio::sync::Mutex;
@@ -47,6 +48,7 @@ pub fn run() {
       let _ = app.handle().app_store()?;
 
       app.manage(Mutex::new(SkinStore::new(app.handle())?));
+      app.manage(Mutex::new(AccountStore::new(app.handle())?));
       app.manage(Client::new());
 
       Ok(())

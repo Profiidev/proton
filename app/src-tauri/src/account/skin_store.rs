@@ -194,10 +194,12 @@ impl SkinStore {
     let data_dir = path!(handle.path().app_data_dir()?, SKIN_STORE_FOLDER);
 
     let data_path = path!(&data_dir, format!("{}.png", id));
-    std::fs::remove_file(data_path)?;
+    //ignore result to prevent inconsistent saved data
+    let _ = std::fs::remove_file(data_path);
 
     let head_path = path!(&data_dir, format!("{}_head.png", id));
-    std::fs::remove_file(head_path)?;
+    //ignore result to prevent inconsistent saved data
+    let _ = std::fs::remove_file(head_path);
 
     self.skins.retain(|s| s.id != id);
     self.save(handle)
@@ -250,9 +252,8 @@ impl SkinStore {
 
       if let Some(new_skin) = profile.skins.iter().find(|s| s.state == State::Active) {
         skin.url = Some(new_skin.url.clone());
+        self.save(handle)?;
       }
-
-      self.save(handle)?;
 
       profile
     };
