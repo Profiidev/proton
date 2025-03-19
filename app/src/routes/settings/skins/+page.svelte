@@ -4,6 +4,7 @@
   import {
     account_active,
     account_add_skin,
+    account_change_skin,
     account_list,
     account_list_skins,
     State,
@@ -48,6 +49,18 @@
     add_loading = false;
     upload_input.value = "";
   };
+
+  const change = async (id: string) => {
+    if (!active_account) return;
+
+    if (await account_change_skin(id, active_account)) {
+      await account_list_skins.update();
+      await account_list.update();
+      toast.success("Successfully changed Skin");
+    } else {
+      toast.error("Failed to change Skin");
+    }
+  };
 </script>
 
 <div class="ml-4 mt-2 flex-1 flex flex-col min-h-0">
@@ -62,7 +75,7 @@
         <p class="my-2 w-full text-center">Library</p>
         <Button
           size="icon"
-          class="size-6 absolute right-0 bottom-0 mb-2"
+          class="size-6 absolute right-0 bottom-0 mb-2 mr-1"
           onclick={() => upload_input?.click()}
           disabled={add_loading}
         >
@@ -89,6 +102,7 @@
                   id={skin.id}
                   skin={skin.data}
                   selected={selected?.url === skin.url}
+                  change_fn={change}
                 />
               {/each}
             </div>

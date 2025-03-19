@@ -17,6 +17,12 @@
   } from "skinview3d";
   import { onMount } from "svelte";
 
+  interface Props {
+    flipped?: boolean;
+  }
+
+  let { flipped }: Props = $props();
+
   let accounts = $derived(account_list.value);
   let active_account = $derived(account_active.value);
   let account = $derived(
@@ -108,6 +114,9 @@
     });
 
     mainViewer.controls.enableZoom = false;
+    if (flipped) {
+      mainViewer.camera.position.z = -50;
+    }
   };
 
   onMount(() => {

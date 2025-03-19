@@ -4,6 +4,7 @@ use anyhow::Result;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
+use thiserror::Error;
 
 use crate::store::TauriAppStoreExt;
 
@@ -14,6 +15,8 @@ use super::{
 
 const ACCOUNT_KEY: &str = "account_info";
 const ACTIVE_ACCOUNT_KEY: &str = "active_account";
+
+const CAPE_CHANGE_URL: &str = "https://api.minecraftservices.com/minecraft/profile/capes/active";
 
 pub struct AccountStore {
   accounts: HashMap<String, Option<AccountInfo>>,
@@ -137,4 +140,44 @@ impl AccountStore {
     }
     self.save(handle)
   }
+
+  pub async fn select_cape_by_id(
+    &mut self,
+    account: &str,
+    id: &str,
+    handle: &AppHandle,
+    client: &Client,
+  ) -> Result<()> {
+    self.refresh_auth(account, client, handle).await?;
+
+    if let Some(Some(account)) = self.accounts.get_mut(account) {
+      let profile: ProfileInfo = client
+        .put(CAPE_CHANGE_URL)
+        .bearer_auth(&account.auth.mc_token)
+        .json(&CapeChangeReq {
+          cape_id: id.to_string(),
+        })
+        .send()
+        .await?
+        .json()
+        .await?;
+
+      account.profile = profile;
+      return self.save(handle);
+    }
+
+    Err(CapeChangeError::Other.into())
+  }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CapeChangeReq {
+  cape_id: String,
+}
+
+#[derive(Error, Debug)]
+enum CapeChangeError {
+  #[error("Cape change error")]
+  Other,
 }

@@ -163,3 +163,20 @@ pub async fn account_change_skin(
 
   Ok(())
 }
+
+#[tauri::command]
+pub async fn account_change_cape(
+  accounts: State<'_, Mutex<AccountStore>>,
+  client: State<'_, Client>,
+  handle: AppHandle,
+  account: &str,
+  id: &str,
+) -> Result<()> {
+  let mut accounts_store = accounts.lock().await;
+
+  accounts_store
+    .select_cape_by_id(account, id, &handle, client.inner())
+    .await?;
+
+  Ok(())
+}

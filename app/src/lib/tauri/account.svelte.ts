@@ -163,3 +163,12 @@ export const account_change_skin = async (id: string, account: string) => {
     return false;
   }
 };
+
+export const account_change_cape = async (id: string, account: string) => {
+  try {
+    await invoke("account_change_cape", { id, account });
+    return true;
+  } catch (e) {
+    return false;
+  }
+};

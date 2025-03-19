@@ -1,8 +1,5 @@
 <script lang="ts">
   import {
-    account_active,
-    account_change_skin,
-    account_list,
     account_list_skins,
     account_remove_skin,
   } from "$lib/tauri/account.svelte";
@@ -20,13 +17,17 @@
     id: string;
     skin: string;
     selected: boolean;
+    change_fn: (id: string) => Promise<void>;
+    cape?: string;
+    flipped?: boolean;
+    delete_disabled?: boolean;
   }
 
-  let { id, skin, selected }: Props = $props();
+  let { id, skin, selected, change_fn, cape, flipped, delete_disabled }: Props =
+    $props();
 
   let canvas: HTMLCanvasElement | undefined = $state();
   let viewer: SkinViewer | undefined = $state();
-  let active_account = $derived(account_active.value);
   let change_loading = $state(false);
 
   const init = () => {
@@ -38,7 +39,14 @@
       skin: `data:image/png;base64, ${skin}`,
     });
 
+    if (cape) {
+      viewer.loadCape(`data:image/png;base64, ${cape}`);
+    }
+
     viewer.controls.enableZoom = false;
+    if (flipped) {
+      viewer.camera.position.z = -50;
+    }
   };
 
   onMount(() => {
@@ -55,16 +63,9 @@
   };
 
   const change = async () => {
-    if (!active_account) return;
     change_loading = true;
 
-    if (await account_change_skin(id, active_account)) {
-      await account_list_skins.update();
-      await account_list.update();
-      toast.success("Successfully changed Skin");
-    } else {
-      toast.error("Failed to change Skin");
-    }
+    await change_fn(id);
 
     change_loading = false;
   };
@@ -90,9 +91,17 @@
         <Check />
       {/if}
     </Button>
-    <Button size="icon" class="size-6" variant="destructive" onclick={remove}>
-      <Trash />
-    </Button>
+    {#if !delete_disabled}
+      <Button
+        size="icon"
+        class="size-6"
+        variant="destructive"
+        onclick={remove}
+        disabled={selected}
+      >
+        <Trash />
+      </Button>
+    {/if}
   </div>
   {#if selected}
     <div class="flex justify-center w-full bottom-0 absolute">
