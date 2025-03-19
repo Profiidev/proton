@@ -1,9 +1,12 @@
 <script lang="ts">
   import {
+    account_active,
+    account_change_skin,
+    account_list,
     account_list_skins,
     account_remove_skin,
   } from "$lib/tauri/account.svelte";
-  import { Check, Trash } from "lucide-svelte";
+  import { Check, LoaderCircle, Trash } from "lucide-svelte";
   import {
     Badge,
     Button,
@@ -23,6 +26,8 @@
 
   let canvas: HTMLCanvasElement | undefined = $state();
   let viewer: SkinViewer | undefined = $state();
+  let active_account = $derived(account_active.value);
+  let change_loading = $state(false);
 
   const init = () => {
     viewer = new SkinViewer({
@@ -48,6 +53,21 @@
       toast.error("Failed to remove Skin");
     }
   };
+
+  const change = async () => {
+    if (!active_account) return;
+    change_loading = true;
+
+    if (await account_change_skin(id, active_account)) {
+      await account_list_skins.update();
+      await account_list.update();
+      toast.success("Successfully changed Skin");
+    } else {
+      toast.error("Failed to change Skin");
+    }
+
+    change_loading = false;
+  };
 </script>
 
 <div class="relative">
@@ -58,8 +78,17 @@
     {/if}
   </div>
   <div class="flex absolute w-full top-0 p-2 justify-between">
-    <Button size="icon" class="size-6" disabled={selected}>
-      <Check />
+    <Button
+      size="icon"
+      class="size-6"
+      disabled={selected || change_loading}
+      onclick={change}
+    >
+      {#if change_loading}
+        <LoaderCircle class="animate-spin" />
+      {:else}
+        <Check />
+      {/if}
     </Button>
     <Button size="icon" class="size-6" variant="destructive" onclick={remove}>
       <Trash />

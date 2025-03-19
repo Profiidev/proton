@@ -3,6 +3,7 @@
   import {
     ModeWatcher,
     Separator,
+    toast,
     Toaster,
   } from "positron-components/components/ui";
   import "../app.css";
@@ -14,7 +15,11 @@
 
   setMode("dark");
 
-  onMount(account_refresh);
+  onMount(async () => {
+    if (!await account_refresh()) {
+      toast.error("Failed to refresh Accounts");
+    }
+  });
 </script>
 
 <ModeWatcher />

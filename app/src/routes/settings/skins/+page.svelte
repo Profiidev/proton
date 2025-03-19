@@ -9,7 +9,7 @@
     State,
   } from "$lib/tauri/account.svelte";
   import { file_to_bytes } from "$lib/util.svelte";
-  import { Plus } from "lucide-svelte";
+  import { LoaderCircle, Plus } from "lucide-svelte";
   import {
     Button,
     Input,
@@ -66,7 +66,11 @@
           onclick={() => upload_input?.click()}
           disabled={add_loading}
         >
-          <Plus />
+          {#if add_loading}
+            <LoaderCircle class="animate-spin" />
+          {:else}
+            <Plus />
+          {/if}
         </Button>
         <Input
           class="hidden"
