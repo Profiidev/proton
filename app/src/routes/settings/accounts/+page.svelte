@@ -9,6 +9,11 @@
     State,
     type Accounts,
   } from "$lib/tauri/account.svelte";
+  import {
+    ACCOUNT_LOGIN_STATUS_EVENT,
+    LoginStatus,
+  } from "$lib/tauri/events.svelte";
+  import { listen } from "@tauri-apps/api/event";
   import { LoaderCircle, Plus, Trash } from "lucide-svelte";
   import {
     toast,
@@ -20,7 +25,9 @@
   let accounts: Accounts | undefined = $derived(account_list.value);
   let active = $derived(account_active.value);
   let add_loading = $state(false);
-  $inspect(active).with(console.log);
+  let login_toast: string | number | undefined;
+  //10 minutes
+  const LOGIN_TOAST_DURATION = 600000;
 
   const change = async (id: string) => {
     if (await account_set_active(id)) {
@@ -41,14 +48,50 @@
 
   const add = async () => {
     add_loading = true;
+    login_toast = toast.loading("Waiting for Microsoft Token", {
+      duration: LOGIN_TOAST_DURATION,
+      id: login_toast,
+    });
+
     if (await account_login()) {
       account_list.update();
       toast.success("Successfully added Account");
     } else {
       toast.error("Failed to add Account");
     }
+
+    toast.dismiss(login_toast);
+    login_toast = undefined;
     add_loading = false;
   };
+
+  listen(ACCOUNT_LOGIN_STATUS_EVENT, (e) => {
+    if (!login_toast) return;
+
+    switch (e.payload as LoginStatus) {
+      case LoginStatus.Ms:
+        toast.loading("Retrieving Xbox Token", {
+          id: login_toast,
+          duration: LOGIN_TOAST_DURATION,
+        });
+        break;
+      case LoginStatus.Xbox:
+        toast.loading("Retrieving Xbox Security Token", {
+          id: login_toast,
+          duration: LOGIN_TOAST_DURATION,
+        });
+      case LoginStatus.XboxSecurity:
+        toast.loading("Retrieving Minecraft Token", {
+          id: login_toast,
+          duration: LOGIN_TOAST_DURATION,
+        });
+      case LoginStatus.Mc:
+        toast.loading("Retrieving Minecraft Profile", {
+          id: login_toast,
+          duration: LOGIN_TOAST_DURATION,
+        });
+    }
+  });
 </script>
 
 <div class="ml-4 mt-2 flex-1">

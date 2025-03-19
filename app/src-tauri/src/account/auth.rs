@@ -2,11 +2,21 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 
 use super::mc_auth::{
   get_minecraft_token, get_ms_token, get_xbox_security_token, get_xbox_token, refresh_ms_token,
 };
+
+const ACCOUNT_LOGIN_STATUS_EVENT: &str = "account-login-status";
+
+#[derive(Serialize, Clone)]
+enum LoginStatus {
+  Ms,
+  Xbox,
+  XboxSecurity,
+  Mc,
+}
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub struct AuthInfo {
@@ -24,10 +34,17 @@ pub struct AuthInfo {
 
 pub async fn ms_mc_login(client: &Client, handle: &AppHandle) -> Result<AuthInfo> {
   let ms_token = get_ms_token(client, handle).await?;
+  handle.emit(ACCOUNT_LOGIN_STATUS_EVENT, LoginStatus::Ms)?;
+
   let xbox_token = get_xbox_token(client, &ms_token.access_token).await?;
+  handle.emit(ACCOUNT_LOGIN_STATUS_EVENT, LoginStatus::Xbox)?;
+
   let xbox_security_token = get_xbox_security_token(client, &xbox_token.token).await?;
+  handle.emit(ACCOUNT_LOGIN_STATUS_EVENT, LoginStatus::XboxSecurity)?;
+
   let mc_token =
     get_minecraft_token(client, &xbox_token.user_hash, &xbox_security_token.token).await?;
+  handle.emit(ACCOUNT_LOGIN_STATUS_EVENT, LoginStatus::Mc)?;
 
   Ok(AuthInfo {
     mc_token: mc_token.token,
