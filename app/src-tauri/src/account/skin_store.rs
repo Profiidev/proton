@@ -6,13 +6,18 @@ use image::ImageFormat;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, Url};
+use thiserror::Error;
 use uuid::Uuid;
 
 use crate::{path, store::TauriAppStoreExt};
 
+use super::info::{ProfileInfo, SkinVariant, State};
+
 const SKIN_STORE_KEY_SKINS: &str = "skin_store.skins";
 const SKIN_STORE_KEY_CAPES: &str = "skin_store.capes";
 const SKIN_STORE_FOLDER: &str = "account_skins";
+
+const SKIN_CHANGE_URL: &str = "https://api.minecraftservices.com/minecraft/profile/skins";
 
 pub struct SkinStore {
   skins: Vec<SkinInfo>,
@@ -67,9 +72,11 @@ pub struct Cape {
 
 impl CapeInfo {
   fn load_cape(self, handle: &AppHandle) -> Result<Cape> {
-    let mut data_path = handle.path().app_data_dir()?;
-    data_path.push(SKIN_STORE_FOLDER);
-    data_path.push(format!("{}.png", &self.id));
+    let data_path = path!(
+      handle.path().app_data_dir()?,
+      SKIN_STORE_FOLDER,
+      format!("{}.png", &self.id)
+    );
     let data = std::fs::read(data_path)?;
 
     Ok(Cape {
@@ -195,4 +202,76 @@ impl SkinStore {
     self.skins.retain(|s| s.id != id);
     self.save(handle)
   }
+
+  pub async fn select_skin(
+    &mut self,
+    id: &str,
+    client: &Client,
+    handle: &AppHandle,
+    mc_token: &str,
+  ) -> Result<ProfileInfo> {
+    let Some(skin) = self.skins.iter_mut().find(|s| s.id == id) else {
+      return Err(SkinChangeError::NotFound.into());
+    };
+
+    let profile = if let Some(url) = &skin.url {
+      client
+        .post(SKIN_CHANGE_URL)
+        .bearer_auth(mc_token)
+        .json(&SkinChangeReq {
+          variant: SkinVariant::Classic,
+          url: Some(url.clone()),
+          file: None,
+        })
+        .send()
+        .await?
+        .json()
+        .await?
+    } else {
+      let data_path = path!(
+        handle.path().app_data_dir()?,
+        SKIN_STORE_FOLDER,
+        format!("{}.png", &skin.id)
+      );
+      let data = std::fs::read(data_path)?;
+
+      let profile: ProfileInfo = client
+        .post(SKIN_CHANGE_URL)
+        .bearer_auth(mc_token)
+        .form(&SkinChangeReq {
+          variant: SkinVariant::Classic,
+          url: None,
+          file: Some(data),
+        })
+        .send()
+        .await?
+        .json()
+        .await?;
+
+      if let Some(new_skin) = profile.skins.iter().find(|s| s.state == State::Active) {
+        skin.url = Some(new_skin.url.clone());
+      }
+
+      self.save(handle)?;
+
+      profile
+    };
+
+    Ok(profile)
+  }
+}
+
+#[derive(Serialize)]
+struct SkinChangeReq {
+  variant: SkinVariant,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  url: Option<Url>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  file: Option<Vec<u8>>,
+}
+
+#[derive(Error, Debug)]
+enum SkinChangeError {
+  #[error("Not Found")]
+  NotFound,
 }

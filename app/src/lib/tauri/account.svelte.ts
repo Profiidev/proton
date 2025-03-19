@@ -154,3 +154,12 @@ const account_list_skins_ = async (): Promise<SkinData[] | undefined> => {
   } catch (e) {}
 };
 export const account_list_skins = create_data_state(account_list_skins_);
+
+export const account_change_skin = async (id: string, account: string) => {
+  try {
+    await invoke("account_change_skin", { id, account });
+    return true;
+  } catch (e) {
+    return false;
+  }
+};

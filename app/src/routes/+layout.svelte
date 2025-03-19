@@ -8,9 +8,13 @@
   import "../app.css";
   import Header from "$lib/components/Header.svelte";
   import Sidebar from "$lib/components/Sidebar.svelte";
+  import { onMount } from "svelte";
+  import { account_refresh } from "$lib/tauri/account.svelte";
   let { children } = $props();
 
   setMode("dark");
+
+  onMount(account_refresh);
 </script>
 
 <ModeWatcher />

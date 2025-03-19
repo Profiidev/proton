@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Result, State, Url};
+use tauri::{AppHandle, Error, Result, State, Url};
 use tokio::sync::Mutex;
 
 use crate::{
@@ -187,4 +187,37 @@ pub async fn account_list_skins(
 ) -> Result<Vec<Skin>> {
   let store = state.lock().await;
   Ok(store.list_skins(&handle))
+}
+
+#[tauri::command]
+pub async fn account_change_skin(
+  state: State<'_, Mutex<SkinStore>>,
+  handle: AppHandle,
+  client: State<'_, Client>,
+  id: &str,
+  account: &str,
+) -> Result<()> {
+  let mut store = state.lock().await;
+  let mut accounts = load_accounts(&handle)?;
+
+  if let Some(Some(account_info)) = accounts.get_mut(account) {
+    if let Some(auth) = refresh_mc_token(client.inner(), account_info.auth.clone()).await? {
+      account_info.auth = auth;
+    } else {
+      accounts.insert(account.to_string(), None);
+      save_accounts(&handle, &accounts)?;
+      //just any error
+      return Err(Error::UnknownPath);
+    };
+
+    let profile = store
+      .select_skin(id, client.inner(), &handle, &account_info.auth.mc_token)
+      .await?;
+    account_info.profile = profile;
+  } else {
+    //just any error
+    return Err(Error::UnknownPath);
+  }
+
+  Ok(())
 }

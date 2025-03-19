@@ -23,7 +23,7 @@ pub struct Skin {
   pub variant: SkinVariant,
 }
 
-#[derive(Deserialize, Serialize, Clone)]
+#[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum State {
   Active,
