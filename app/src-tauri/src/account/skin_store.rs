@@ -9,7 +9,11 @@ use tauri::{AppHandle, Manager, Url};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::{path, store::TauriAppStoreExt};
+use crate::{
+  path,
+  store::TauriAppStoreExt,
+  updater::{update_data, UpdateType},
+};
 
 use super::info::{ProfileInfo, SkinVariant, State};
 
@@ -120,6 +124,8 @@ impl SkinStore {
     self.skins.push(skin_info.clone());
     self.save(handle)?;
 
+    update_data(handle, UpdateType::AccountSkins);
+
     Ok(Skin {
       id: skin_info.id,
       url: skin_info.url,
@@ -202,7 +208,10 @@ impl SkinStore {
     let _ = std::fs::remove_file(head_path);
 
     self.skins.retain(|s| s.id != id);
-    self.save(handle)
+    self.save(handle)?;
+
+    update_data(handle, UpdateType::AccountSkins);
+    Ok(())
   }
 
   pub async fn select_skin(

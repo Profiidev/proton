@@ -30,16 +30,13 @@
   const LOGIN_TOAST_DURATION = 600000;
 
   const change = async (id: string) => {
-    if (await account_set_active(id)) {
-      account_active.update();
-    } else {
+    if (!(await account_set_active(id))) {
       toast.error("Failed to switch Account");
     }
   };
 
   const remove = async (id: string) => {
     if (await account_remove(id)) {
-      account_list.update();
       toast.success("Successfully removed Account");
     } else {
       toast.error("Failed to remove Account");
@@ -54,7 +51,6 @@
     });
 
     if (await account_login()) {
-      await account_list.update();
       toast.success("Successfully added Account");
     } else {
       toast.error("Failed to add Account");

@@ -50,7 +50,6 @@
             info,
             onclick: async () => {
               await account_set_active(id);
-              account_active.update();
               open = false;
             },
           })}

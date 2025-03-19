@@ -6,7 +6,10 @@ use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 use thiserror::Error;
 
-use crate::store::TauriAppStoreExt;
+use crate::{
+  store::TauriAppStoreExt,
+  updater::{update_data, UpdateType},
+};
 
 use super::{
   auth::{ms_mc_login, refresh_mc_token, AuthInfo},
@@ -77,7 +80,10 @@ impl AccountStore {
     //ignore result to prevent inconsistent saved data
     let _ = self.refresh_token(id, client).await;
     let _ = self.refresh_profile(id, client).await;
-    self.save(handle)
+    self.save(handle)?;
+
+    update_data(handle, UpdateType::Accounts);
+    Ok(())
   }
 
   pub async fn refresh_all(&mut self, client: &Client, handle: &AppHandle) -> Result<()> {
@@ -89,7 +95,10 @@ impl AccountStore {
       let _ = self.refresh_profile(id, client).await;
     }
 
-    self.save(handle)
+    self.save(handle)?;
+
+    update_data(handle, UpdateType::Accounts);
+    Ok(())
   }
 
   pub fn active(&self) -> &str {
@@ -105,12 +114,18 @@ impl AccountStore {
 
   pub fn set_active(&mut self, id: String, handle: &AppHandle) -> Result<()> {
     self.active = id;
-    self.save(handle)
+    self.save(handle)?;
+
+    update_data(handle, UpdateType::AccountActive);
+    Ok(())
   }
 
   pub fn remove_account(&mut self, id: &str, handle: &AppHandle) -> Result<()> {
     self.accounts.remove(id);
-    self.save(handle)
+    self.save(handle)?;
+
+    update_data(handle, UpdateType::Accounts);
+    Ok(())
   }
 
   pub async fn login(&mut self, client: &Client, handle: &AppHandle) -> Result<()> {
@@ -121,7 +136,10 @@ impl AccountStore {
       .accounts
       .insert(profile.id.clone(), Some(AccountInfo { auth, profile }));
 
-    self.save(handle)
+    self.save(handle)?;
+
+    update_data(handle, UpdateType::Accounts);
+    Ok(())
   }
 
   pub async fn refresh_auth(
@@ -138,7 +156,10 @@ impl AccountStore {
     if let Some(Some(account)) = self.accounts.get_mut(&profile.id) {
       account.profile = profile;
     }
-    self.save(handle)
+    self.save(handle)?;
+
+    update_data(handle, UpdateType::Accounts);
+    Ok(())
   }
 
   pub async fn select_cape_by_id(
@@ -163,7 +184,10 @@ impl AccountStore {
         .await?;
 
       account.profile = profile;
-      return self.save(handle);
+      self.save(handle)?;
+
+      update_data(handle, UpdateType::Accounts);
+      return Ok(());
     }
 
     Err(CapeChangeError::Other.into())
