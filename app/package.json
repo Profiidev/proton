@@ -20,11 +20,11 @@
   },
   "devDependencies": {
     "@sveltejs/adapter-static": "^3.0.6",
-    "@sveltejs/kit": "^2.9.0",
+    "@sveltejs/kit": "^2.20.1",
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
     "@tailwindcss/postcss": "^4.0.14",
     "@tauri-apps/cli": "^2",
-    "svelte": "^5.0.0",
+    "svelte": "^5.23.2",
     "svelte-check": "^4.0.0",
     "tailwindcss": "^4.0.12",
     "typescript": "~5.8.2",
