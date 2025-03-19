@@ -12,9 +12,11 @@
   "app": {
     "windows": [
       {
-        "title": "proton",
-        "width": 800,
-        "height": 600
+        "title": "Proton",
+        "label": "main",
+        "width": 1300,
+        "height": 800,
+        "decorations": false
       }
     ],
     "security": {
