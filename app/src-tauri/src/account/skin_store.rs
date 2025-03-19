@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, Url};
 use uuid::Uuid;
 
-use crate::store::TauriAppStoreExt;
+use crate::{path, store::TauriAppStoreExt};
 
 const SKIN_STORE_KEY_SKINS: &str = "skin_store.skins";
 const SKIN_STORE_KEY_CAPES: &str = "skin_store.capes";
@@ -35,15 +35,12 @@ pub struct Skin {
 
 impl SkinInfo {
   fn load_skin(self, handle: &AppHandle) -> Result<Skin> {
-    let mut data_dir = handle.path().app_data_dir()?;
-    data_dir.push(SKIN_STORE_FOLDER);
+    let data_dir = path!(handle.path().app_data_dir()?, SKIN_STORE_FOLDER);
 
-    let mut data_path = data_dir.clone();
-    data_path.push(format!("{}.png", &self.id));
+    let data_path = path!(&data_dir, format!("{}.png", &self.id));
     let data = std::fs::read(data_path)?;
 
-    let mut head_path = data_dir.clone();
-    head_path.push(format!("{}_head.png", &self.id));
+    let head_path = path!(&data_dir, format!("{}_head.png", &self.id));
     let head = std::fs::read(head_path)?;
 
     Ok(Skin {
@@ -102,17 +99,13 @@ impl SkinStore {
 
     let id = Uuid::new_v4().to_string();
 
-    let mut data_dir = handle.path().app_data_dir()?;
-    data_dir.push(SKIN_STORE_FOLDER);
-
+    let data_dir = path!(handle.path().app_data_dir()?, SKIN_STORE_FOLDER);
     std::fs::create_dir_all(&data_dir)?;
 
-    let mut data_path = data_dir.clone();
-    data_path.push(format!("{}.png", id));
+    let data_path = path!(&data_dir, format!("{}.png", id));
     std::fs::write(data_path, skin)?;
 
-    let mut head_path = data_dir.clone();
-    head_path.push(format!("{}_head.png", id));
+    let head_path = path!(&data_dir, format!("{}_head.png", id));
     std::fs::write(head_path, &head)?;
 
     let skin_info = SkinInfo { url, id };
@@ -129,10 +122,15 @@ impl SkinStore {
   }
 
   fn add_cape(&mut self, handle: &AppHandle, url: Url, cape: &[u8]) -> Result<Cape> {
-    let cape_info = CapeInfo {
-      url,
-      id: Uuid::new_v4().to_string(),
-    };
+    let id = Uuid::new_v4().to_string();
+
+    let mut data_path = path!(handle.path().app_data_dir()?, SKIN_STORE_FOLDER);
+    std::fs::create_dir_all(&data_path)?;
+
+    data_path.push(format!("{}.png", id));
+    std::fs::write(data_path, cape)?;
+
+    let cape_info = CapeInfo { url, id };
     self.capes.push(cape_info.clone());
     self.save(handle)?;
 

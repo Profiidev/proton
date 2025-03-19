@@ -13,6 +13,7 @@ use tauri::Manager;
 use tokio::sync::Mutex;
 
 mod account;
+mod macros;
 mod store;
 mod versions;
 
