@@ -9,7 +9,7 @@
   import { Label, Select, Skeleton } from "positron-components/components/ui";
   import {
     IdleAnimation,
-    PlayerAnimation,
+    type PlayerAnimation,
     SkinViewer,
     WalkingAnimation,
     WaveAnimation,

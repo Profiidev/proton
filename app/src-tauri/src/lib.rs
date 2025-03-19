@@ -14,6 +14,7 @@ use tokio::sync::Mutex;
 
 mod account;
 mod store;
+mod versions;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
