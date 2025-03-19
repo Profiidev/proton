@@ -175,11 +175,6 @@ impl SkinStore {
     }
   }
 
-  pub fn clear_skins(&mut self, handle: &AppHandle) -> Result<()> {
-    self.skins.clear();
-    self.save(handle)
-  }
-
   pub fn list_skins(&self, handle: &AppHandle) -> Vec<Skin> {
     self
       .skins
@@ -189,6 +184,14 @@ impl SkinStore {
   }
 
   pub fn remove_skin(&mut self, id: &str, handle: &AppHandle) -> Result<()> {
+    let data_dir = path!(handle.path().app_data_dir()?, SKIN_STORE_FOLDER);
+
+    let data_path = path!(&data_dir, format!("{}.png", id));
+    std::fs::remove_file(data_path)?;
+
+    let head_path = path!(&data_dir, format!("{}_head.png", id));
+    std::fs::remove_file(head_path)?;
+
     self.skins.retain(|s| s.id != id);
     self.save(handle)
   }

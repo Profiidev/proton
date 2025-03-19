@@ -54,7 +54,7 @@
     });
 
     if (await account_login()) {
-      account_list.update();
+      await account_list.update();
       toast.success("Successfully added Account");
     } else {
       toast.error("Failed to add Account");

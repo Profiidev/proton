@@ -3,9 +3,9 @@ use store::TauriAppStoreExt;
 
 use account::{
   commands::{
-    account_add_skin, account_clear_skins, account_get_active, account_get_cape, account_get_skin,
-    account_list, account_list_skins, account_login, account_refresh, account_refresh_one,
-    account_remove, account_remove_skin, account_set_active,
+    account_add_skin, account_get_active, account_get_cape, account_get_skin, account_list,
+    account_list_skins, account_login, account_refresh, account_refresh_one, account_remove,
+    account_remove_skin, account_set_active,
   },
   skin_store::SkinStore,
 };
@@ -33,7 +33,6 @@ pub fn run() {
       account_refresh,
       account_refresh_one,
       account_list,
-      account_clear_skins,
       account_get_skin,
       account_get_active,
       account_set_active,

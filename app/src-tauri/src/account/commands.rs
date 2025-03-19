@@ -163,10 +163,10 @@ pub async fn account_get_cape(
 pub async fn account_add_skin(
   state: State<'_, Mutex<SkinStore>>,
   handle: AppHandle,
-  skin: &[u8],
+  skin: Vec<u8>,
 ) -> Result<Skin> {
   let mut store = state.lock().await;
-  Ok(store.add_skin(&handle, None, skin)?)
+  Ok(store.add_skin(&handle, None, &skin)?)
 }
 
 #[tauri::command]
@@ -187,15 +187,4 @@ pub async fn account_list_skins(
 ) -> Result<Vec<Skin>> {
   let store = state.lock().await;
   Ok(store.list_skins(&handle))
-}
-
-#[tauri::command]
-pub async fn account_clear_skins(
-  state: State<'_, Mutex<SkinStore>>,
-  handle: AppHandle,
-) -> Result<()> {
-  let mut store = state.lock().await;
-  store.clear_skins(&handle)?;
-
-  Ok(())
 }

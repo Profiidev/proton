@@ -130,15 +130,6 @@ export const account_get_cape = async (
   } catch (e) {}
 };
 
-export const account_clear_skins = async () => {
-  try {
-    await invoke("account_clear_skins");
-    return true;
-  } catch (e) {
-    return false;
-  }
-};
-
 export const account_add_skin = async (skin: Uint8Array) => {
   try {
     await invoke("account_add_skin", { skin });
