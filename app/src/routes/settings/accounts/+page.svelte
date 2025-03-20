@@ -107,7 +107,7 @@
     </Button>
   </div>
   <div class="rounded-lg border mt-2">
-    {#if accounts}
+    {#if accounts && Object.entries(accounts).length > 0}
       {#each Object.entries(accounts).sort( (a, b) => a[0].localeCompare(b[0]), ) as [id, info], i}
         <Button
           class="gap-2 w-full p-3 h-14"

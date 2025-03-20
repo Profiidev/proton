@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use tauri::Url;
@@ -29,9 +31,10 @@ pub struct ManifestVersion {
   pub url: Url,
   pub time: DateTime<Utc>,
   pub release_time: DateTime<Utc>,
+  pub sha1: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum VersionType {
   Release,
@@ -73,11 +76,11 @@ pub struct Download {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct AssetIndex {
-  id: String,
-  sha1: String,
-  size: usize,
-  total_size: usize,
-  url: Url,
+  pub id: String,
+  pub sha1: String,
+  pub size: usize,
+  pub total_size: usize,
+  pub url: Url,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -149,4 +152,17 @@ pub struct ArgumentRule {
 pub enum ArgumentValue {
   String(String),
   List(Vec<String>),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct Assets {
+  pub objects: HashMap<String, Asset>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct Asset {
+  pub hash: String,
+  pub size: usize,
 }

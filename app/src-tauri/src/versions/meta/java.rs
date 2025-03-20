@@ -1,6 +1,7 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Display};
 
 use serde::{Deserialize, Serialize};
+use serde_json::{value::Serializer, Value};
 use tauri::Url;
 
 use super::Rule;
@@ -8,7 +9,7 @@ use super::Rule;
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct JavaVersion {
-  pub component: String,
+  pub component: Component,
   pub major_version: u16,
 }
 
@@ -16,9 +17,33 @@ impl Default for JavaVersion {
   #[inline(always)]
   fn default() -> Self {
     Self {
-      component: "jre-legacy".to_string(),
+      component: Component::JreLegacy,
       major_version: 8,
     }
+  }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Copy)]
+#[serde(rename_all = "kebab-case")]
+pub enum Component {
+  JavaRuntimeAlpha,
+  JavaRuntimeBeta,
+  JavaRuntimeDelta,
+  JavaRuntimeGamma,
+  JavaRuntimeGammaSnapshot,
+  JreLegacy,
+  #[serde(other)]
+  Unknown,
+}
+
+impl Display for Component {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    let value = serde_json::to_value(self).unwrap();
+    let Value::String(value) = value.serialize(Serializer).unwrap() else {
+      unreachable!()
+    };
+
+    write!(f, "{}", value)
   }
 }
 
@@ -117,5 +142,5 @@ pub struct Downloads {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Files {
-  files: HashMap<String, File>,
+  pub files: HashMap<String, File>,
 }

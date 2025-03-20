@@ -1,3 +1,3 @@
 # Proton
 
-A universal Minecraft client
+A universal Minecraft Launcher

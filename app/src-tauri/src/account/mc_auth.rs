@@ -8,8 +8,11 @@ use tauri::{AppHandle, Manager, Url, UserAttentionType, WebviewWindowBuilder};
 use thiserror::Error;
 use tokio::time::sleep;
 
-const CLIENT_ID: &str = "dd35660a-6381-41f8-bb34-2a36669581d0";
-const REDIRECT_URI: &str = "https://proton.profidev.io/backend";
+const CLIENT_ID: &str = "74909cec-49b6-4fee-aa60-1b2a57ef72e1";
+const REDIRECT_URI: &str = "http://localhost:6565";
+//const CLIENT_ID: &str = "dd35660a-6381-41f8-bb34-2a36669581d0";
+//const REDIRECT_URI: &str = "https://proton.profidev.io/backend";
+
 const SCOPE: &str = "XboxLive.signin offline_access";
 const AUTH_WINDOW_LABEL: &str = "ms_auth";
 const PROMPT: &str = "select_account";
