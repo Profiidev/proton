@@ -1,13 +1,16 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc, time::Instant};
 
 use anyhow::Result;
 use log::{debug, info};
 use reqwest::Client;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use tauri::{AppHandle, Manager, Url};
+use tauri::{AppHandle, Emitter, Manager, Url};
 use tokio::join;
 
-use crate::path;
+use crate::{
+  path,
+  versions::event::{CheckStatus, VERSION_CHECK_STATUS_EVENT},
+};
 
 use super::{
   download::{
@@ -54,21 +57,29 @@ impl McVersionStore {
   pub async fn check_or_download(
     &self,
     id: &str,
-    client: &Client,
+    client: Arc<Client>,
     handle: &AppHandle,
   ) -> Result<()> {
+    let start = Instant::now();
     info!("Checking minecraft version {}", id);
     let data_dir = handle.path().app_data_dir()?;
-    let version = self.get_version_manifest(id, &data_dir, client).await?;
-    let assets = download_assets_manifest(&data_dir, client, &version).await?;
+    let version = self.get_version_manifest(id, &data_dir, &client).await?;
+    let assets = download_assets_manifest(&data_dir, &client, &version).await?;
+    let (java, java_component) = self.get_java_manifest(&data_dir, &client, &version).await?;
+    handle.emit(VERSION_CHECK_STATUS_EVENT, CheckStatus::Manifest)?;
 
-    download_client(&data_dir, client, &version).await?;
-    download_version_assets(client, &data_dir, &assets).await?;
+    download_client(&data_dir, &client, &version).await?;
+    download_version_assets(client.clone(), &data_dir, &assets).await?;
+    handle.emit(VERSION_CHECK_STATUS_EVENT, CheckStatus::Assets)?;
 
-    let (java, java_component) = self.get_java_manifest(&data_dir, client, &version).await?;
-    download_java_files(client, &data_dir, &java, java_component).await?;
+    download_java_files(client.clone(), &data_dir, &java, java_component).await?;
     download_version_java_libraries(client, &data_dir, &version).await?;
-    info!("Finished checking minecraft version {}", id);
+    handle.emit(VERSION_CHECK_STATUS_EVENT, CheckStatus::Java)?;
+    info!(
+      "Finished checking minecraft version {} in {:?}",
+      id,
+      start.elapsed()
+    );
 
     Ok(())
   }

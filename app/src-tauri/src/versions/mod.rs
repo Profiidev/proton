@@ -3,6 +3,7 @@ mod download;
 mod meta;
 pub mod store;
 mod util;
+mod event;
 
 const JAVA_DIR: &str = "java";
 

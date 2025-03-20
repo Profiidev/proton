@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::Result;
 use reqwest::Client;
 use store::TauriAppStoreExt;
@@ -58,13 +60,13 @@ pub fn run() {
 
       app.manage(Mutex::new(SkinStore::new(app.handle())?));
       app.manage(Mutex::new(AccountStore::new(app.handle())?));
-      app.manage(Client::new());
+      app.manage(Arc::new(Client::new()));
 
       let handle = app.handle().clone();
       tauri::async_runtime::spawn(async move {
-        async_setup(handle)
-          .await
-          .expect("Failed to init async state")
+        if async_setup(handle).await.is_err() {
+          std::process::exit(0)
+        }
       });
 
       Ok(())
@@ -74,12 +76,12 @@ pub fn run() {
 }
 
 async fn async_setup(handle: AppHandle) -> Result<()> {
-  let client = Client::new();
+  let client = Arc::new(Client::new());
   let (mc_version_store,) = join!(McVersionStore::new(&client));
 
   let store = mc_version_store?;
   store
-    .check_or_download("1.21.4", &client, &handle)
+    .check_or_download("1.21.4", client, &handle)
     .await
     .unwrap();
 

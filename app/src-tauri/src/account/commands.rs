@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use reqwest::Client;
 use tauri::{AppHandle, Result, State, Url};
@@ -18,7 +18,7 @@ pub async fn account_list(
 
 #[tauri::command]
 pub async fn account_refresh(
-  client: State<'_, Client>,
+  client: State<'_, Arc<Client>>,
   handle: AppHandle,
   state: State<'_, Mutex<AccountStore>>,
 ) -> Result<()> {
@@ -30,7 +30,7 @@ pub async fn account_refresh(
 
 #[tauri::command]
 pub async fn account_refresh_one(
-  client: State<'_, Client>,
+  client: State<'_, Arc<Client>>,
   handle: AppHandle,
   id: &str,
   state: State<'_, Mutex<AccountStore>>,
@@ -43,7 +43,7 @@ pub async fn account_refresh_one(
 
 #[tauri::command]
 pub async fn account_login(
-  client: State<'_, Client>,
+  client: State<'_, Arc<Client>>,
   handle: AppHandle,
   state: State<'_, Mutex<AccountStore>>,
 ) -> Result<()> {
@@ -86,7 +86,7 @@ pub async fn account_set_active(
 #[tauri::command]
 pub async fn account_get_skin(
   state: State<'_, Mutex<SkinStore>>,
-  client: State<'_, Client>,
+  client: State<'_, Arc<Client>>,
   handle: AppHandle,
   url: Url,
 ) -> Result<Skin> {
@@ -97,7 +97,7 @@ pub async fn account_get_skin(
 #[tauri::command]
 pub async fn account_get_cape(
   state: State<'_, Mutex<SkinStore>>,
-  client: State<'_, Client>,
+  client: State<'_, Arc<Client>>,
   handle: AppHandle,
   url: Url,
 ) -> Result<Cape> {
@@ -140,7 +140,7 @@ pub async fn account_change_skin(
   state: State<'_, Mutex<SkinStore>>,
   accounts: State<'_, Mutex<AccountStore>>,
   handle: AppHandle,
-  client: State<'_, Client>,
+  client: State<'_, Arc<Client>>,
   id: &str,
   account: &str,
 ) -> Result<()> {
@@ -167,7 +167,7 @@ pub async fn account_change_skin(
 #[tauri::command]
 pub async fn account_change_cape(
   accounts: State<'_, Mutex<AccountStore>>,
-  client: State<'_, Client>,
+  client: State<'_, Arc<Client>>,
   handle: AppHandle,
   account: &str,
   id: &str,

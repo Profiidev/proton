@@ -1,11 +1,13 @@
 use std::{
   fs::{self, File},
   path::PathBuf,
+  sync::Arc,
 };
 
 use anyhow::Result;
 use log::debug;
 use reqwest::Client;
+use tauri::Url;
 use thiserror::Error;
 
 use crate::{
@@ -74,11 +76,12 @@ pub async fn download_assets_manifest(
 }
 
 pub async fn download_java_files(
-  client: &Client,
+  client: Arc<Client>,
   data_dir: &PathBuf,
   files: &Files,
   component: Component,
 ) -> Result<()> {
+  let mut handles = Vec::new();
   let id = component.to_string();
 
   for (path, file) in &files.files {
@@ -94,26 +97,55 @@ pub async fn download_java_files(
       } => {
         let download = &downloads.raw;
         debug!("Checking java file {}", path.display());
-        download_file(client, &path, download.url.clone(), &download.sha1).await?;
-
+        let client = client.clone();
+        let url = download.url.clone();
+        let hash = download.sha1.clone();
         #[cfg(target_family = "unix")]
-        if *executable {
-          use std::os::unix::fs::PermissionsExt;
-          let file = File::open(&path)?;
-          file.set_permissions(fs::Permissions::from_mode(0o755))?;
-        }
+        let executable = *executable;
+
+        handles.push(tauri::async_runtime::spawn(async move {
+          download_java_file(&client, path, url, hash, executable).await
+        }));
       }
     }
+  }
+
+  let mut res = Ok(());
+  for handle in handles {
+    if let Err(error) = handle.await? {
+      res = Err(error);
+    }
+  }
+
+  res
+}
+
+async fn download_java_file(
+  client: &Client,
+  path: PathBuf,
+  url: Url,
+  hash: String,
+  #[cfg(target_family = "unix")] executable: bool,
+) -> Result<()> {
+  download_file(client, &path, url, &hash).await?;
+
+  #[cfg(target_family = "unix")]
+  if executable {
+    use std::os::unix::fs::PermissionsExt;
+    let file = File::open(&path)?;
+    file.set_permissions(fs::Permissions::from_mode(0o755))?;
   }
 
   Ok(())
 }
 
 pub async fn download_version_java_libraries(
-  client: &Client,
+  client: Arc<Client>,
   data_dir: &PathBuf,
   version: &Version,
 ) -> Result<()> {
+  let mut handles = Vec::new();
+
   'l: for library in &version.libraries {
     let Some(downloads) = &library.downloads else {
       continue;
@@ -140,13 +172,12 @@ pub async fn download_version_java_libraries(
 
       let path = path!(data_dir, MC_DIR, LIBRARY_DIR, &library_download.path);
       debug!("Checking native java library {}", path.display());
-      download_file(
-        client,
-        &path,
-        library_download.url.clone(),
-        &library_download.sha1,
-      )
-      .await?;
+      let client = client.clone();
+      let url = library_download.url.clone();
+      let hash = library_download.sha1.clone();
+      handles.push(tauri::async_runtime::spawn(async move {
+        download_file(&client, &path, url, &hash).await
+      }));
     }
 
     if let Some(rules) = &library.rules {
@@ -160,35 +191,52 @@ pub async fn download_version_java_libraries(
     if let Some(library_download) = &downloads.artifact {
       let path = path!(data_dir, MC_DIR, LIBRARY_DIR, &library_download.path);
       debug!("Checking java library {}", path.display());
-      download_file(
-        client,
-        &path,
-        library_download.url.clone(),
-        &library_download.sha1,
-      )
-      .await?;
+      let client = client.clone();
+      let url = library_download.url.clone();
+      let hash = library_download.sha1.clone();
+      handles.push(tauri::async_runtime::spawn(async move {
+        download_file(&client, &path, url, &hash).await
+      }));
     }
   }
 
-  Ok(())
+  let mut res = Ok(());
+  for handle in handles {
+    if let Err(error) = handle.await? {
+      res = Err(error);
+    }
+  }
+
+  res
 }
 
 pub async fn download_version_assets(
-  client: &Client,
+  client: Arc<Client>,
   data_dir: &PathBuf,
   assets: &Assets,
 ) -> Result<()> {
+  let mut handles = Vec::new();
   for asset in assets.objects.values() {
     let prefix_hash = &asset.hash[0..2];
-    let hash = &asset.hash;
-    let path = path!(data_dir, MC_DIR, ASSETS_DIR, "objects", prefix_hash, hash);
+    let hash = asset.hash.clone();
+    let path = path!(data_dir, MC_DIR, ASSETS_DIR, "objects", prefix_hash, &hash);
     let url = format!("{}/{}/{}", MC_RESOURCES_URL, prefix_hash, hash).parse()?;
 
+    let client = client.clone();
     debug!("Checking asset file {}", path.display());
-    download_file(client, &path, url, hash).await?;
+    handles.push(tauri::async_runtime::spawn(async move {
+      download_file(&client, &path, url, &hash).await
+    }));
   }
 
-  Ok(())
+  let mut res = Ok(());
+  for handle in handles {
+    if let Err(error) = handle.await? {
+      res = Err(error);
+    }
+  }
+
+  res
 }
 
 fn check_rule(rule: &Rule) -> bool {
