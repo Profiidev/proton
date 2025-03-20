@@ -7,7 +7,7 @@
 
   const download = async () => {
     let res = await invoke('versions_launch', {
-      version: '1.0',
+      version: '1.21.4',
       account: active
     });
     console.log(res);
