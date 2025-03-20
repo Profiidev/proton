@@ -13,15 +13,19 @@ use account::{
   skin_store::SkinStore,
   store::AccountStore,
 };
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 use tokio::{join, sync::Mutex};
-use versions::{commands::versions_download, store::McVersionStore};
+use versions::{commands::versions_launch, store::McVersionStore};
 
 mod account;
 mod macros;
 mod store;
 mod updater;
 mod versions;
+
+const CLIENT_ID: &str = "dd35660a-6381-41f8-bb34-2a36669581d0";
+
+const ASYNC_STATE_LOADED_EVENT: &str = "async-state-loaded";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -53,7 +57,7 @@ pub fn run() {
       account_change_skin,
       account_change_cape,
       //versions
-      versions_download,
+      versions_launch,
     ])
     .setup(|app| {
       let _ = app.handle().app_store()?;
@@ -63,11 +67,12 @@ pub fn run() {
       app.manage(Arc::new(Client::new()));
 
       let handle = app.handle().clone();
-      tauri::async_runtime::spawn(async move {
+      let handle = tauri::async_runtime::spawn(async move {
         if async_setup(handle).await.is_err() {
           std::process::exit(0)
         }
       });
+      app.manage(handle);
 
       Ok(())
     })
@@ -76,16 +81,11 @@ pub fn run() {
 }
 
 async fn async_setup(handle: AppHandle) -> Result<()> {
-  let client = Arc::new(Client::new());
+  let client = Client::new();
   let (mc_version_store,) = join!(McVersionStore::new(&client));
 
-  let store = mc_version_store?;
-  store
-    .check_or_download("1.21.4", client, &handle)
-    .await
-    .unwrap();
-
-  handle.manage(store);
+  handle.manage(Mutex::new(mc_version_store?));
+  handle.emit(ASYNC_STATE_LOADED_EVENT, ())?;
 
   Ok(())
 }

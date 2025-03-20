@@ -1,5 +1,6 @@
 use std::{
   fs::{self, File},
+  io,
   path::PathBuf,
   sync::Arc,
 };
@@ -9,20 +10,18 @@ use log::debug;
 use reqwest::Client;
 use tauri::Url;
 use thiserror::Error;
+use zip::ZipArchive;
 
 use crate::{
   path,
-  versions::{
-    meta::{Action, Os, Rule},
-    LIBRARY_DIR,
-  },
+  versions::{util::create_or_open_file, LIBRARY_DIR, NATIVE_DIR},
 };
 
 use super::{
+  check_rule,
   meta::{
     java::{self, Component, Files},
     minecraft::{Assets, Version},
-    Arch, OsName,
   },
   util::{download_and_parse_file, download_file},
   ASSETS_DIR, ASSETS_INDEX_DIR, JAVA_DIR, MC_DIR, VERSION_DIR,
@@ -104,7 +103,15 @@ pub async fn download_java_files(
         let executable = *executable;
 
         handles.push(tauri::async_runtime::spawn(async move {
-          download_java_file(&client, path, url, hash, executable).await
+          download_java_file(
+            &client,
+            path,
+            url,
+            hash,
+            #[cfg(target_family = "unix")]
+            executable,
+          )
+          .await
         }));
       }
     }
@@ -175,8 +182,10 @@ pub async fn download_version_java_libraries(
       let client = client.clone();
       let url = library_download.url.clone();
       let hash = library_download.sha1.clone();
+      let data_dir = data_dir.clone();
+
       handles.push(tauri::async_runtime::spawn(async move {
-        download_file(&client, &path, url, &hash).await
+        download_native_library(&data_dir, &client, path, url, hash).await
       }));
     }
 
@@ -195,7 +204,7 @@ pub async fn download_version_java_libraries(
       let url = library_download.url.clone();
       let hash = library_download.sha1.clone();
       handles.push(tauri::async_runtime::spawn(async move {
-        download_file(&client, &path, url, &hash).await
+        download_file(&client, &path, url, &hash).await.map(|_| ())
       }));
     }
   }
@@ -208,6 +217,32 @@ pub async fn download_version_java_libraries(
   }
 
   res
+}
+
+async fn download_native_library(
+  data_dir: &PathBuf,
+  client: &Client,
+  path: PathBuf,
+  url: Url,
+  hash: String,
+) -> Result<()> {
+  download_file(client, &path, url, &hash).await?;
+
+  let file = File::open(&path)?;
+  let mut zip = ZipArchive::new(&file)?;
+  for i in 0..zip.len() {
+    let mut zip_file = zip.by_index(i)?;
+    let name = zip_file.name();
+    if !(name.ends_with(".so") || name.ends_with(".dll") || name.ends_with(".dylib")) {
+      continue;
+    }
+    let path = path!(data_dir, MC_DIR, NATIVE_DIR, name);
+    debug!("Extracting file {}", path.display());
+    let mut file = create_or_open_file(&path)?;
+    io::copy(&mut zip_file, &mut file)?;
+  }
+
+  Ok(())
 }
 
 pub async fn download_version_assets(
@@ -237,40 +272,4 @@ pub async fn download_version_assets(
   }
 
   res
-}
-
-fn check_rule(rule: &Rule) -> bool {
-  #[cfg(target_os = "linux")]
-  const OS_NAME: Option<OsName> = Some(OsName::Linux);
-  #[cfg(target_os = "windows")]
-  const OS_NAME: Option<OsName> = Some(OsName::Windows);
-  #[cfg(target_os = "macos")]
-  const OS_NAME: Option<OsName> = Some(OsName::Osx);
-  #[cfg(target_arch = "x86")]
-  const ARCH: Option<Arch> = Some(Arch::X86);
-  #[cfg(not(target_arch = "x86"))]
-  const ARCH: Option<Arch> = None;
-
-  let Rule { action, os, .. } = rule;
-
-  match (os, action) {
-    (
-      Some(Os {
-        name: OS_NAME,
-        arch: ARCH,
-      }),
-      Action::Allow,
-    ) => true,
-    (
-      Some(Os {
-        name: OS_NAME,
-        arch: ARCH,
-      }),
-      Action::Disallow,
-    ) => false,
-    (None, Action::Allow) => true,
-    (None, Action::Disallow) => false,
-    (_, Action::Disallow) => true,
-    (_, Action::Allow) => false,
-  }
 }

@@ -1,7 +1,8 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Display};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use serde_json::{value::Serializer, Value};
 use tauri::Url;
 
 use super::{
@@ -41,6 +42,17 @@ pub enum VersionType {
   Snapshot,
   OldBeta,
   OldAlpha,
+}
+
+impl Display for VersionType {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    let value = serde_json::to_value(self).unwrap();
+    let Value::String(value) = value.serialize(Serializer).unwrap() else {
+      unreachable!()
+    };
+
+    write!(f, "{}", value)
+  }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]

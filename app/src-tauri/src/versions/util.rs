@@ -1,7 +1,7 @@
 use std::{
   fs::{self, File},
   io::{self, Write},
-  path::PathBuf,
+  path::{Path, PathBuf},
 };
 
 use anyhow::Result;
@@ -65,4 +65,17 @@ pub fn hash_bytes(hash: &str, bytes: &[u8]) -> Result<bool> {
   hasher.write_all(bytes)?;
   let found_hash = hex::encode(hasher.finalize());
   Ok(hash == found_hash)
+}
+
+pub fn read_parse_file<R: DeserializeOwned>(path: &PathBuf) -> Result<R> {
+  let data = std::fs::read_to_string(path)?;
+  Ok(serde_json::from_str(&data)?)
+}
+
+pub fn create_or_open_file(path: &PathBuf) -> Result<File> {
+  let path = Path::new(path);
+  if let Some(parent) = path.parent() {
+    fs::create_dir_all(parent)?;
+  }
+  Ok(File::create(path)?)
 }
