@@ -1,5 +1,8 @@
+use std::{collections::HashMap, fmt::Display};
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use serde_json::{value::Serializer, Value};
 use tauri::Url;
 
 use super::{
@@ -29,15 +32,27 @@ pub struct ManifestVersion {
   pub url: Url,
   pub time: DateTime<Utc>,
   pub release_time: DateTime<Utc>,
+  pub sha1: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum VersionType {
   Release,
   Snapshot,
   OldBeta,
   OldAlpha,
+}
+
+impl Display for VersionType {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    let value = serde_json::to_value(self).unwrap();
+    let Value::String(value) = value.serialize(Serializer).unwrap() else {
+      unreachable!()
+    };
+
+    write!(f, "{}", value)
+  }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -73,11 +88,11 @@ pub struct Download {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct AssetIndex {
-  id: String,
-  sha1: String,
-  size: usize,
-  total_size: usize,
-  url: Url,
+  pub id: String,
+  pub sha1: String,
+  pub size: usize,
+  pub total_size: usize,
+  pub url: Url,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -149,4 +164,17 @@ pub struct ArgumentRule {
 pub enum ArgumentValue {
   String(String),
   List(Vec<String>),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct Assets {
+  pub objects: HashMap<String, Asset>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct Asset {
+  pub hash: String,
+  pub size: usize,
 }

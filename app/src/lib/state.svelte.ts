@@ -8,7 +8,7 @@ const create_state = <T>(base: T) => {
 
     set value(v: T) {
       state = v;
-    },
+    }
   };
 };
 

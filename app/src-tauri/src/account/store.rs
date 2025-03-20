@@ -32,6 +32,12 @@ struct AccountInfo {
   profile: ProfileInfo,
 }
 
+pub struct LaunchInfo {
+  pub id: String,
+  pub name: String,
+  pub access_token: String,
+}
+
 impl AccountStore {
   pub fn new(handle: &AppHandle) -> Result<AccountStore> {
     let store = handle.app_store()?;
@@ -110,6 +116,16 @@ impl AccountStore {
       .accounts
       .get(id)
       .and_then(|a| a.as_ref().map(|a| &a.auth.mc_token))
+  }
+
+  pub fn launch_info(&self, id: &str) -> Option<LaunchInfo> {
+    self.accounts.get(id).and_then(|a| {
+      a.as_ref().map(|a| LaunchInfo {
+        id: a.profile.id.clone(),
+        name: a.profile.name.clone(),
+        access_token: a.auth.mc_token.clone(),
+      })
+    })
   }
 
   pub fn set_active(&mut self, id: String, handle: &AppHandle) -> Result<()> {

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import AccountImage from "$lib/components/account/AccountImage.svelte";
+  import AccountImage from '$lib/components/account/AccountImage.svelte';
   import {
     account_active,
     account_list,
@@ -7,20 +7,20 @@
     account_remove,
     account_set_active,
     State,
-    type Accounts,
-  } from "$lib/tauri/account.svelte";
+    type Accounts
+  } from '$lib/tauri/account.svelte';
   import {
     ACCOUNT_LOGIN_STATUS_EVENT,
-    LoginStatus,
-  } from "$lib/tauri/events.svelte";
-  import { listen } from "@tauri-apps/api/event";
-  import { LoaderCircle, Plus, Trash } from "lucide-svelte";
+    LoginStatus
+  } from '$lib/tauri/events.svelte';
+  import { listen } from '@tauri-apps/api/event';
+  import { LoaderCircle, Plus, Trash } from 'lucide-svelte';
   import {
     toast,
     Badge,
     Button,
-    Separator,
-  } from "positron-components/components/ui";
+    Separator
+  } from 'positron-components/components/ui';
 
   let accounts: Accounts | undefined = $derived(account_list.value);
   let active = $derived(account_active.value);
@@ -31,29 +31,29 @@
 
   const change = async (id: string) => {
     if (!(await account_set_active(id))) {
-      toast.error("Failed to switch Account");
+      toast.error('Failed to switch Account');
     }
   };
 
   const remove = async (id: string) => {
     if (await account_remove(id)) {
-      toast.success("Successfully removed Account");
+      toast.success('Successfully removed Account');
     } else {
-      toast.error("Failed to remove Account");
+      toast.error('Failed to remove Account');
     }
   };
 
   const add = async () => {
     add_loading = true;
-    login_toast = toast.loading("Waiting for Microsoft Login", {
+    login_toast = toast.loading('Waiting for Microsoft Login', {
       duration: LOGIN_TOAST_DURATION,
-      id: login_toast,
+      id: login_toast
     });
 
     if (await account_login()) {
-      toast.success("Successfully added Account");
+      toast.success('Successfully added Account');
     } else {
-      toast.error("Failed to add Account");
+      toast.error('Failed to add Account');
     }
 
     toast.dismiss(login_toast);
@@ -66,36 +66,36 @@
 
     switch (e.payload as LoginStatus) {
       case LoginStatus.Ms:
-        toast.loading("Logging in to Xbox", {
+        toast.loading('Logging in to Xbox', {
           id: login_toast,
-          duration: LOGIN_TOAST_DURATION,
+          duration: LOGIN_TOAST_DURATION
         });
         break;
       case LoginStatus.Xbox:
-        toast.loading("Logging in to Xbox Security", {
+        toast.loading('Logging in to Xbox Security', {
           id: login_toast,
-          duration: LOGIN_TOAST_DURATION,
+          duration: LOGIN_TOAST_DURATION
         });
       case LoginStatus.XboxSecurity:
-        toast.loading("Logging in to Minecraft", {
+        toast.loading('Logging in to Minecraft', {
           id: login_toast,
-          duration: LOGIN_TOAST_DURATION,
+          duration: LOGIN_TOAST_DURATION
         });
       case LoginStatus.Mc:
-        toast.loading("Retrieving Minecraft Profile", {
+        toast.loading('Retrieving Minecraft Profile', {
           id: login_toast,
-          duration: LOGIN_TOAST_DURATION,
+          duration: LOGIN_TOAST_DURATION
         });
     }
   });
 </script>
 
-<div class="ml-4 mt-2 flex-1">
+<div class="mt-2 ml-4 flex-1">
   <div class="flex items-center">
     <p class="text-xl">Accounts</p>
     <Button
       size="icon"
-      class="size-8 ml-auto mr-3.5"
+      class="mr-3.5 ml-auto size-8"
       onclick={add}
       disabled={add_loading}
     >
@@ -106,22 +106,22 @@
       {/if}
     </Button>
   </div>
-  <div class="rounded-lg border mt-2">
-    {#if accounts}
-      {#each Object.entries(accounts).sort( (a, b) => a[0].localeCompare(b[0]), ) as [id, info], i}
+  <div class="mt-2 rounded-lg border">
+    {#if accounts && Object.entries(accounts).length > 0}
+      {#each Object.entries(accounts).sort( (a, b) => a[0].localeCompare(b[0]) ) as [id, info], i}
         <Button
-          class="gap-2 w-full p-3 h-14"
+          class="h-14 w-full gap-2 p-3"
           variant="ghost"
           onclick={() => change(id)}
         >
           {#if info}
             {@const skin_url = info.skins.find(
-              (s) => s.state === State.Active,
+              (s) => s.state === State.Active
             )?.url}
             <AccountImage {skin_url} />
-            <div class="flex flex-col justify-start flex-1 min-w-0">
+            <div class="flex min-w-0 flex-1 flex-col justify-start">
               <p class="truncate text-start text-sm">{info.name}</p>
-              <p class="truncate text-start text-sm text-muted-foreground">
+              <p class="text-muted-foreground truncate text-start text-sm">
                 {info.id}
               </p>
             </div>

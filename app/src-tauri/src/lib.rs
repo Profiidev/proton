@@ -1,3 +1,6 @@
+use std::sync::Arc;
+
+use anyhow::Result;
 use reqwest::Client;
 use store::TauriAppStoreExt;
 
@@ -10,8 +13,9 @@ use account::{
   skin_store::SkinStore,
   store::AccountStore,
 };
-use tauri::Manager;
-use tokio::sync::Mutex;
+use tauri::{AppHandle, Emitter, Manager};
+use tokio::{join, sync::Mutex};
+use versions::{commands::versions_launch, store::McVersionStore};
 
 mod account;
 mod macros;
@@ -19,8 +23,14 @@ mod store;
 mod updater;
 mod versions;
 
+const CLIENT_ID: &str = "dd35660a-6381-41f8-bb34-2a36669581d0";
+
+const ASYNC_STATE_LOADED_EVENT: &str = "async-state-loaded";
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+  env_logger::init();
+
   tauri::Builder::default()
     .plugin(tauri_plugin_single_instance::init(|app, _, _| {
       let _ = app
@@ -31,6 +41,7 @@ pub fn run() {
     .plugin(tauri_plugin_store::Builder::new().build())
     .plugin(tauri_plugin_opener::init())
     .invoke_handler(tauri::generate_handler![
+      //accounts
       account_login,
       account_refresh,
       account_refresh_one,
@@ -45,16 +56,36 @@ pub fn run() {
       account_remove_skin,
       account_change_skin,
       account_change_cape,
+      //versions
+      versions_launch,
     ])
     .setup(|app| {
       let _ = app.handle().app_store()?;
 
       app.manage(Mutex::new(SkinStore::new(app.handle())?));
       app.manage(Mutex::new(AccountStore::new(app.handle())?));
-      app.manage(Client::new());
+      app.manage(Arc::new(Client::new()));
+
+      let handle = app.handle().clone();
+      let handle = tauri::async_runtime::spawn(async move {
+        if async_setup(handle).await.is_err() {
+          std::process::exit(0)
+        }
+      });
+      app.manage(handle);
 
       Ok(())
     })
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
+}
+
+async fn async_setup(handle: AppHandle) -> Result<()> {
+  let client = Client::new();
+  let (mc_version_store,) = join!(McVersionStore::new(&client));
+
+  handle.manage(Mutex::new(mc_version_store?));
+  handle.emit(ASYNC_STATE_LOADED_EVENT, ())?;
+
+  Ok(())
 }

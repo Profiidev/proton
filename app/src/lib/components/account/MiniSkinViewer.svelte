@@ -1,17 +1,17 @@
 <script lang="ts">
   import {
     account_list_skins,
-    account_remove_skin,
-  } from "$lib/tauri/account.svelte";
-  import { Check, LoaderCircle, Trash } from "lucide-svelte";
+    account_remove_skin
+  } from '$lib/tauri/account.svelte';
+  import { Check, LoaderCircle, Trash } from 'lucide-svelte';
   import {
     Badge,
     Button,
     Skeleton,
-    toast,
-  } from "positron-components/components/ui";
-  import { SkinViewer } from "skinview3d";
-  import { onMount } from "svelte";
+    toast
+  } from 'positron-components/components/ui';
+  import { SkinViewer } from 'skinview3d';
+  import { onMount } from 'svelte';
 
   interface Props {
     id: string;
@@ -36,7 +36,7 @@
       width: 148,
       height: 220,
       zoom: 0.8,
-      skin: `data:image/png;base64, ${skin}`,
+      skin: `data:image/png;base64, ${skin}`
     });
 
     if (cape) {
@@ -55,9 +55,9 @@
 
   const remove = async () => {
     if (await account_remove_skin(id)) {
-      toast.success("Successfully removed Skin");
+      toast.success('Successfully removed Skin');
     } else {
-      toast.error("Failed to remove Skin");
+      toast.error('Failed to remove Skin');
     }
   };
 
@@ -71,13 +71,13 @@
 </script>
 
 <div class="relative">
-  <div class="w-37 h-55 relative">
-    <canvas bind:this={canvas} class="w-37 h-55 select-none"></canvas>
+  <div class="relative h-55 w-37">
+    <canvas bind:this={canvas} class="h-55 w-37 select-none"></canvas>
     {#if !viewer}
-      <Skeleton class="w-37 h-55 absolute top-0 left-0" />
+      <Skeleton class="absolute top-0 left-0 h-55 w-37" />
     {/if}
   </div>
-  <div class="flex absolute w-full top-0 p-2 justify-between">
+  <div class="absolute top-0 flex w-full justify-between p-2">
     <Button
       size="icon"
       class="size-6"
@@ -103,7 +103,7 @@
     {/if}
   </div>
   {#if selected}
-    <div class="flex justify-center w-full bottom-0 absolute">
+    <div class="absolute bottom-0 flex w-full justify-center">
       <Badge>Selected</Badge>
     </div>
   {/if}
