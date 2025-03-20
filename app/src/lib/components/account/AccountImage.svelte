@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { account_get_skin } from "$lib/tauri/account.svelte";
-  import { CircleHelp } from "lucide-svelte";
-  import { Skeleton, Tooltip } from "positron-components/components/ui";
+  import { account_get_skin } from '$lib/tauri/account.svelte';
+  import { CircleHelp } from 'lucide-svelte';
+  import { Skeleton, Tooltip } from 'positron-components/components/ui';
 
   interface Props {
     skin_url?: string;
@@ -24,7 +24,7 @@
     <Tooltip.Provider>
       <Tooltip.Root>
         <Tooltip.Trigger
-          class="size-10 min-w-10 flex items-center justify-center"
+          class="flex size-10 min-w-10 items-center justify-center"
         >
           <CircleHelp />
         </Tooltip.Trigger>

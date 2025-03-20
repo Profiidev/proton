@@ -1,30 +1,30 @@
 <script lang="ts">
-  import { SimpleSidebar } from "positron-components/components";
+  import { SimpleSidebar } from 'positron-components/components';
 
   let { children } = $props();
 
   let items = [
     {
-      href: "/settings/accounts",
-      title: "Accounts",
+      href: '/settings/accounts',
+      title: 'Accounts'
     },
     {
-      href: "/settings/skins",
-      title: "Skins",
+      href: '/settings/skins',
+      title: 'Skins'
     },
     {
-      href: "/settings/capes",
-      title: "Capes",
-    },
+      href: '/settings/capes',
+      title: 'Capes'
+    }
   ];
 </script>
 
-<div class="flex flex-col lg:flex-row h-full">
-  <aside class="lg:max-w-32 lg:w-52">
+<div class="flex h-full flex-col lg:flex-row">
+  <aside class="lg:w-52 lg:max-w-32">
     <SimpleSidebar {items} class="" />
   </aside>
   <div
-    class="flex-1 flex min-h-0 lg:h-full lg:space-x-12 lg:space-y-0 space-y-8"
+    class="flex min-h-0 flex-1 space-y-8 lg:h-full lg:space-y-0 lg:space-x-12"
   >
     {@render children()}
   </div>

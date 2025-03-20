@@ -1,18 +1,18 @@
-import { listen } from "@tauri-apps/api/event";
-import { tick } from "svelte";
+import { listen } from '@tauri-apps/api/event';
+import { tick } from 'svelte';
 
 export enum UpdateType {
-  Accounts = "Accounts",
-  AccountActive = "AccountActive",
-  AccountSkins = "AccountSkins",
+  Accounts = 'Accounts',
+  AccountActive = 'AccountActive',
+  AccountSkins = 'AccountSkins'
 }
 
 let updater_cbs = new Map<UpdateType, Map<string, () => void>>();
-const UPDATE_EVENT = "data-update";
+const UPDATE_EVENT = 'data-update';
 
 listen(UPDATE_EVENT, (e) => {
   Array.from(updater_cbs.get(e.payload as UpdateType)?.values() || []).forEach(
-    (cb) => cb(),
+    (cb) => cb()
   );
 });
 
@@ -33,7 +33,7 @@ export const unregister_cb = (uuid: string, type: UpdateType) => {
 
 export const create_data_state = <T>(
   update: () => Promise<T | undefined>,
-  type: UpdateType,
+  type: UpdateType
 ) => {
   let value: T | undefined = $state();
 
@@ -68,6 +68,6 @@ export const create_data_state = <T>(
     },
     update: async () => {
       update().then((v) => (value = v));
-    },
+    }
   };
 };

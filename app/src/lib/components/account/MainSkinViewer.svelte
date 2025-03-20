@@ -4,18 +4,18 @@
     account_get_cape,
     account_get_skin,
     account_list,
-    State,
-  } from "$lib/tauri/account.svelte";
-  import { Label, Select, Skeleton } from "positron-components/components/ui";
+    State
+  } from '$lib/tauri/account.svelte';
+  import { Label, Select, Skeleton } from 'positron-components/components/ui';
   import {
     IdleAnimation,
     type PlayerAnimation,
     SkinViewer,
     WalkingAnimation,
     WaveAnimation,
-    type BackEquipment,
-  } from "skinview3d";
-  import { onMount } from "svelte";
+    type BackEquipment
+  } from 'skinview3d';
+  import { onMount } from 'svelte';
 
   interface Props {
     flipped?: boolean;
@@ -26,33 +26,33 @@
   let accounts = $derived(account_list.value);
   let active_account = $derived(account_active.value);
   let account = $derived(
-    accounts && Object.entries(accounts).find((a) => a[0] === active_account),
+    accounts && Object.entries(accounts).find((a) => a[0] === active_account)
   );
 
   let canvas: HTMLCanvasElement | undefined = $state();
   let mainViewer: SkinViewer | undefined = $state();
-  let animation: string = $state("Idle");
-  let cape_option: string = $state("Cape");
+  let animation: string = $state('Idle');
+  let cape_option: string = $state('Cape');
 
   let animations: {
     key: string;
     value: PlayerAnimation;
   }[] = [
     {
-      key: "Idle",
-      value: new IdleAnimation(),
+      key: 'Idle',
+      value: new IdleAnimation()
     },
     {
-      key: "Walking",
-      value: new WalkingAnimation(),
+      key: 'Walking',
+      value: new WalkingAnimation()
     },
     {
-      key: "Waving",
-      value: new WaveAnimation(),
-    },
+      key: 'Waving',
+      value: new WaveAnimation()
+    }
   ];
 
-  let cape_options: string[] = ["None", "Cape", "Elytra"];
+  let cape_options: string[] = ['None', 'Cape', 'Elytra'];
 
   $effect(() => {
     animation;
@@ -88,14 +88,14 @@
             let backEquipment: BackEquipment | undefined;
 
             switch (cape_option) {
-              case "None":
+              case 'None':
                 mainViewer.loadCape(null);
                 break;
-              case "Elytra":
-                backEquipment = "elytra";
-              case "Cape":
+              case 'Elytra':
+                backEquipment = 'elytra';
+              case 'Cape':
                 mainViewer.loadCape(`data:image/png;base64, ${data.data}`, {
-                  backEquipment,
+                  backEquipment
                 });
                 break;
             }
@@ -110,7 +110,7 @@
       canvas,
       width: 280,
       height: 400,
-      zoom: 0.8,
+      zoom: 0.8
     });
 
     mainViewer.controls.enableZoom = false;
@@ -124,12 +124,12 @@
   });
 </script>
 
-<div class="flex flex-col w-70 h-full">
+<div class="flex h-full w-70 flex-col">
   <p class="my-2 w-full text-center">Active</p>
-  <div class="w-full h-100 relative">
-    <canvas bind:this={canvas} class="w-full h-100 select-none"></canvas>
+  <div class="relative h-100 w-full">
+    <canvas bind:this={canvas} class="h-100 w-full select-none"></canvas>
     {#if !mainViewer}
-      <Skeleton class="w-full h-100 absolute top-0 left-0" />
+      <Skeleton class="absolute top-0 left-0 h-100 w-full" />
     {/if}
   </div>
   <p class="w-full text-center">Display Options</p>
