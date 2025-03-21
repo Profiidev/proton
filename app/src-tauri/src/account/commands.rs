@@ -7,7 +7,7 @@ use tokio::sync::Mutex;
 
 use crate::{
   account::skin_store::{Cape, Skin},
-  log::ResultLogExt,
+  utils::log::ResultLogExt,
 };
 
 use super::{info::ProfileInfo, skin_store::SkinStore, store::AccountStore};

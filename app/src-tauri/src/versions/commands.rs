@@ -6,7 +6,7 @@ use tauri::{AppHandle, Manager, Result, State};
 use thiserror::Error;
 use tokio::sync::Mutex;
 
-use crate::{account::store::AccountStore, log::ResultLogExt};
+use crate::{account::store::AccountStore, utils::log::ResultLogExt};
 
 use super::{
   launch::{launch_minecraft_version, LaunchArgs},
@@ -15,8 +15,8 @@ use super::{
 
 #[derive(Error, Debug)]
 enum LaunchError {
-  #[error("Account not found")]
-  AccountNotFound,
+  #[error("No Account found")]
+  NoAccountFound,
 }
 
 #[tauri::command]
@@ -38,7 +38,7 @@ pub async fn versions_launch(
     .log()?;
 
   let Some(info) = auth_store.launch_info(account) else {
-    let err: anyhow::Result<()> = Err(LaunchError::AccountNotFound.into()).log();
+    let err: anyhow::Result<()> = Err(LaunchError::NoAccountFound.into()).log();
     return Ok(err?);
   };
 

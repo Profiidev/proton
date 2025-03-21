@@ -13,14 +13,14 @@ use uuid::Uuid;
 use crate::{
   path,
   store::TauriAppStoreExt,
-  updater::{update_data, UpdateType},
+  utils::updater::{update_data, UpdateType},
 };
 
 use super::info::{ProfileInfo, SkinVariant, State};
 
 const SKIN_STORE_KEY_SKINS: &str = "skin_store.skins";
 const SKIN_STORE_KEY_CAPES: &str = "skin_store.capes";
-const SKIN_STORE_FOLDER: &str = "account_skins";
+const SKIN_STORE_FOLDER: &str = "skins";
 
 const SKIN_CHANGE_URL: &str = "https://api.minecraftservices.com/minecraft/profile/skins";
 

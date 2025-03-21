@@ -3,6 +3,7 @@ use std::{
   io,
   path::PathBuf,
   sync::Arc,
+  time::Instant,
 };
 
 use anyhow::Result;
@@ -14,6 +15,7 @@ use zip::ZipArchive;
 
 use crate::{
   path,
+  utils::future::FuturePool,
   versions::{util::create_or_open_file, LIBRARY_DIR, NATIVE_DIR},
 };
 
@@ -80,7 +82,9 @@ pub async fn download_java_files(
   files: &Files,
   component: Component,
 ) -> Result<()> {
-  let mut handles = Vec::new();
+  debug!("Collecting checks/downloads for java");
+  let start = Instant::now();
+  let mut futures = Vec::new();
   let id = component.to_string();
 
   for (path, file) in &files.files {
@@ -102,7 +106,7 @@ pub async fn download_java_files(
         #[cfg(target_family = "unix")]
         let executable = *executable;
 
-        handles.push(tauri::async_runtime::spawn(async move {
+        futures.push(async move {
           download_java_file(
             &client,
             path,
@@ -112,19 +116,24 @@ pub async fn download_java_files(
             executable,
           )
           .await
-        }));
+        });
       }
     }
   }
 
-  let mut res = Ok(());
-  for handle in handles {
-    if let Err(error) = handle.await? {
-      res = Err(error);
-    }
-  }
+  debug!("Got {} checks/downloads for java", futures.len());
+  let pool = FuturePool::new(futures);
 
-  res
+  let res = pool.run(None).await;
+  for result in res {
+    result??;
+  }
+  debug!(
+    "Completed all checks/downloads for java in {:?}",
+    start.elapsed()
+  );
+
+  Ok(())
 }
 
 async fn download_java_file(
@@ -151,7 +160,10 @@ pub async fn download_version_java_libraries(
   data_dir: &PathBuf,
   version: &Version,
 ) -> Result<()> {
-  let mut handles = Vec::new();
+  debug!("Collecting checks/downloads for java libraries");
+  let start = Instant::now();
+  let mut futures_1 = Vec::new();
+  let mut futures_2 = Vec::new();
 
   'l: for library in &version.libraries {
     let Some(downloads) = &library.downloads else {
@@ -184,9 +196,8 @@ pub async fn download_version_java_libraries(
       let hash = library_download.sha1.clone();
       let data_dir = data_dir.clone();
 
-      handles.push(tauri::async_runtime::spawn(async move {
-        download_native_library(&data_dir, &client, path, url, hash).await
-      }));
+      futures_1
+        .push(async move { download_native_library(&data_dir, &client, path, url, hash).await });
     }
 
     if let Some(rules) = &library.rules {
@@ -203,20 +214,31 @@ pub async fn download_version_java_libraries(
       let client = client.clone();
       let url = library_download.url.clone();
       let hash = library_download.sha1.clone();
-      handles.push(tauri::async_runtime::spawn(async move {
-        download_file(&client, &path, url, &hash).await.map(|_| ())
-      }));
+      futures_2.push(async move { download_file(&client, &path, url, &hash).await });
     }
   }
 
-  let mut res = Ok(());
-  for handle in handles {
-    if let Err(error) = handle.await? {
-      res = Err(error);
-    }
-  }
+  debug!(
+    "Got {} checks/downloads for java libraries",
+    futures_1.len() + futures_2.len()
+  );
+  let pool_1 = FuturePool::new(futures_1);
+  let pool_2 = FuturePool::new(futures_2);
 
-  res
+  let res = pool_1.run(None).await;
+  for result in res {
+    result??;
+  }
+  let res = pool_2.run(None).await;
+  for result in res {
+    result??;
+  }
+  debug!(
+    "Completed all checks/downloads for java libraries in {:?}",
+    start.elapsed()
+  );
+
+  Ok(())
 }
 
 async fn download_native_library(
@@ -250,7 +272,10 @@ pub async fn download_version_assets(
   data_dir: &PathBuf,
   assets: &Assets,
 ) -> Result<()> {
-  let mut handles = Vec::new();
+  debug!("Collecting checks/downloads for assets");
+  let start = Instant::now();
+  let mut futures = Vec::new();
+
   for asset in assets.objects.values() {
     let prefix_hash = &asset.hash[0..2];
     let hash = asset.hash.clone();
@@ -259,17 +284,20 @@ pub async fn download_version_assets(
 
     let client = client.clone();
     debug!("Checking asset file {}", path.display());
-    handles.push(tauri::async_runtime::spawn(async move {
-      download_file(&client, &path, url, &hash).await
-    }));
+    futures.push(async move { download_file(&client, &path, url, &hash).await });
   }
 
-  let mut res = Ok(());
-  for handle in handles {
-    if let Err(error) = handle.await? {
-      res = Err(error);
-    }
-  }
+  debug!("Got {} checks/downloads for assets", futures.len());
+  let pool = FuturePool::new(futures);
 
-  res
+  let res = pool.run(None).await;
+  for result in res {
+    result??;
+  }
+  debug!(
+    "Completed all checks/downloads for assets in {:?}",
+    start.elapsed()
+  );
+
+  Ok(())
 }

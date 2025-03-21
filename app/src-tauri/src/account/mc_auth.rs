@@ -49,8 +49,10 @@ pub struct MsToken {
 
 #[derive(Error, Debug)]
 enum AuthError {
-  #[error("Other Error")]
-  Other,
+  #[error("Could not find code in redirect url")]
+  NoCode,
+  #[error("User closed login window")]
+  Closed,
   #[error("Timeout")]
   Timeout,
   #[error("Invalid Response")]
@@ -250,7 +252,10 @@ pub async fn get_ms_token(client: &Client, handle: &AppHandle) -> Result<MsToken
   window.request_user_attention(Some(UserAttentionType::Critical))?;
 
   while (Utc::now() - start) < Duration::minutes(10) {
-    window.title().map_err(|_| AuthError::Other)?;
+    if window.title().is_err() {
+      debug!("User closed window canceling");
+      return Err(AuthError::Closed.into());
+    }
 
     if window.url()?.as_str().starts_with(REDIRECT_URI) {
       let url = window.url()?;
@@ -259,7 +264,7 @@ pub async fn get_ms_token(client: &Client, handle: &AppHandle) -> Result<MsToken
 
       window.close()?;
 
-      let code = code.ok_or(AuthError::Other)?.1.to_string();
+      let code = code.ok_or(AuthError::NoCode)?.1.to_string();
 
       let req = client.post(MS_TOKEN_URL).form(&vec![
         ("client_id", CLIENT_ID),
