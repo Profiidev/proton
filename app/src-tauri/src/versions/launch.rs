@@ -76,6 +76,10 @@ impl LaunchArgs {
 }
 
 pub fn launch_minecraft_version(args: &LaunchArgs) -> Result<Child> {
+  debug!(
+    "Collecting args to start minecraft version: {}",
+    &args.version
+  );
   let path = path!(
     &args.data_dir,
     MC_DIR,
