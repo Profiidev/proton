@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use chrono::Local;
 use reqwest::Client;
 use store::TauriAppStoreExt;
 
@@ -14,15 +15,16 @@ use account::{
   store::AccountStore,
 };
 use tauri::{AppHandle, Emitter, Manager};
+use tauri_plugin_log::{RotationStrategy, Target, TargetKind, TimezoneStrategy};
 use tokio::{join, sync::Mutex};
 use versions::{commands::versions_launch, store::McVersionStore};
 
 mod account;
+mod log;
 mod macros;
 mod store;
 mod updater;
 mod versions;
-mod log;
 
 const CLIENT_ID: &str = "dd35660a-6381-41f8-bb34-2a36669581d0";
 
@@ -33,7 +35,16 @@ pub fn run() {
   env_logger::init();
 
   tauri::Builder::default()
-    .plugin(tauri_plugin_log::Builder::new().build())
+    .plugin(
+      tauri_plugin_log::Builder::new()
+        .target(Target::new(TargetKind::Stdout))
+        .target(Target::new(TargetKind::LogDir {
+          file_name: Some(format!("{}", Local::now())),
+        }))
+        .rotation_strategy(RotationStrategy::KeepAll)
+        .timezone_strategy(TimezoneStrategy::UseLocal)
+        .build(),
+    )
     .plugin(tauri_plugin_single_instance::init(|app, _, _| {
       let _ = app
         .get_webview_window("main")
