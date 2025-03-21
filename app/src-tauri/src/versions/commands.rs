@@ -1,15 +1,23 @@
 use std::sync::Arc;
 
+use log::trace;
 use reqwest::Client;
 use tauri::{AppHandle, Manager, Result, State};
+use thiserror::Error;
 use tokio::sync::Mutex;
 
-use crate::account::store::AccountStore;
+use crate::{account::store::AccountStore, log::ResultLogExt};
 
 use super::{
   launch::{launch_minecraft_version, LaunchArgs},
   store::McVersionStore,
 };
+
+#[derive(Error, Debug)]
+enum LaunchError {
+  #[error("Account not found")]
+  AccountNotFound,
+}
 
 #[tauri::command]
 pub async fn versions_launch(
@@ -20,15 +28,18 @@ pub async fn versions_launch(
   version: &str,
   account: &str,
 ) -> Result<()> {
+  trace!("Command version_launch called");
   let store = state.lock().await;
   let auth_store = auth.lock().await;
 
   store
     .check_or_download(version, client.inner().clone(), &handle)
-    .await?;
+    .await
+    .log()?;
 
   let Some(info) = auth_store.launch_info(account) else {
-    panic!("Error")
+    let err: anyhow::Result<()> = Err(LaunchError::AccountNotFound.into()).log();
+    return Ok(err?);
   };
 
   launch_minecraft_version(&LaunchArgs {
@@ -40,7 +51,8 @@ pub async fn versions_launch(
     user_type: "msa".into(),
     data_dir: handle.path().app_data_dir()?,
     version: version.into(),
-  })?;
+  })
+  .log()?;
 
   Ok(())
 }

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
+use log::debug;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
@@ -56,6 +57,7 @@ impl AccountStore {
   }
 
   async fn refresh_token(&mut self, id: &str, client: &Client) -> Result<()> {
+    debug!("Refreshing mc token for {}", id);
     if let Some(Some(account)) = self.accounts.get_mut(id) {
       if let Some(auth) = refresh_mc_token(client, account.auth.clone()).await? {
         account.auth = auth;
@@ -68,6 +70,7 @@ impl AccountStore {
   }
 
   async fn refresh_profile(&mut self, id: &str, client: &Client) -> Result<()> {
+    debug!("Refreshing mc profile for {}", id);
     if let Some(Some(account)) = self.accounts.get_mut(id) {
       let profile = get_profile_info(client, &account.auth.mc_token).await?;
       account.profile = profile;
@@ -129,6 +132,7 @@ impl AccountStore {
   }
 
   pub fn set_active(&mut self, id: String, handle: &AppHandle) -> Result<()> {
+    debug!("Changing active account to {}", id);
     self.active = id;
     self.save(handle)?;
 
@@ -137,6 +141,7 @@ impl AccountStore {
   }
 
   pub fn remove_account(&mut self, id: &str, handle: &AppHandle) -> Result<()> {
+    debug!("Removing account {}", id);
     self.accounts.remove(id);
     self.save(handle)?;
 
@@ -145,6 +150,7 @@ impl AccountStore {
   }
 
   pub async fn login(&mut self, client: &Client, handle: &AppHandle) -> Result<()> {
+    debug!("Adding new account");
     let auth = ms_mc_login(client, handle).await?;
     let profile = get_profile_info(client, &auth.mc_token).await?;
 
@@ -185,19 +191,21 @@ impl AccountStore {
     handle: &AppHandle,
     client: &Client,
   ) -> Result<()> {
+    debug!("Selecting cape {} for account {}", id, account);
     self.refresh_auth(account, client, handle).await?;
 
     if let Some(Some(account)) = self.accounts.get_mut(account) {
-      let profile: ProfileInfo = client
+      let res = client
         .put(CAPE_CHANGE_URL)
         .bearer_auth(&account.auth.mc_token)
         .json(&CapeChangeReq {
           cape_id: id.to_string(),
         })
         .send()
-        .await?
-        .json()
         .await?;
+      debug!("Got response with code: {}", res.status());
+
+      let profile: ProfileInfo = res.json().await?;
 
       account.profile = profile;
       self.save(handle)?;

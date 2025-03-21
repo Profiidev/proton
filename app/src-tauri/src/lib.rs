@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use chrono::Local;
 use reqwest::Client;
 use store::TauriAppStoreExt;
 
@@ -14,10 +15,12 @@ use account::{
   store::AccountStore,
 };
 use tauri::{AppHandle, Emitter, Manager};
+use tauri_plugin_log::{RotationStrategy, Target, TargetKind, TimezoneStrategy};
 use tokio::{join, sync::Mutex};
 use versions::{commands::versions_launch, store::McVersionStore};
 
 mod account;
+mod log;
 mod macros;
 mod store;
 mod updater;
@@ -29,9 +32,18 @@ const ASYNC_STATE_LOADED_EVENT: &str = "async-state-loaded";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-  env_logger::init();
-
   tauri::Builder::default()
+    .plugin(
+      tauri_plugin_log::Builder::new()
+        .clear_targets()
+        .target(Target::new(TargetKind::Stdout))
+        .target(Target::new(TargetKind::LogDir {
+          file_name: Some(Local::now().to_rfc3339()),
+        }))
+        .rotation_strategy(RotationStrategy::KeepAll)
+        .timezone_strategy(TimezoneStrategy::UseLocal)
+        .build(),
+    )
     .plugin(tauri_plugin_single_instance::init(|app, _, _| {
       let _ = app
         .get_webview_window("main")
