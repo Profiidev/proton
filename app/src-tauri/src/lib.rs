@@ -20,10 +20,8 @@ use tokio::{join, sync::Mutex};
 use versions::{commands::versions_launch, store::McVersionStore};
 
 mod account;
-mod log;
-mod macros;
 mod store;
-mod updater;
+mod utils;
 mod versions;
 
 const CLIENT_ID: &str = "dd35660a-6381-41f8-bb34-2a36669581d0";

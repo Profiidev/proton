@@ -13,7 +13,7 @@ use uuid::Uuid;
 use crate::{
   path,
   store::TauriAppStoreExt,
-  updater::{update_data, UpdateType},
+  utils::updater::{update_data, UpdateType},
 };
 
 use super::info::{ProfileInfo, SkinVariant, State};
