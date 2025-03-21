@@ -35,9 +35,10 @@ pub fn run() {
   tauri::Builder::default()
     .plugin(
       tauri_plugin_log::Builder::new()
+        .clear_targets()
         .target(Target::new(TargetKind::Stdout))
         .target(Target::new(TargetKind::LogDir {
-          file_name: Some(format!("{}", Local::now())),
+          file_name: Some(Local::now().to_rfc3339()),
         }))
         .rotation_strategy(RotationStrategy::KeepAll)
         .timezone_strategy(TimezoneStrategy::UseLocal)
