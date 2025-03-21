@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
+use log::debug;
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, Url, UserAttentionType, WebviewWindowBuilder};
@@ -73,15 +74,17 @@ pub async fn get_minecraft_token(
   user_hash: &str,
   xbox_security_token: &str,
 ) -> Result<Token> {
-  let res: MCTokenRes = client
+  debug!("Sending mc token request");
+  let res = client
     .post(MC_TOKEN_URL)
     .json(&MCTokenReq {
       identity_token: format!("XBL3.0 x={};{}", user_hash, xbox_security_token),
     })
     .send()
-    .await?
-    .json()
     .await?;
+  debug!("Got response with code: {}", res.status());
+
+  let res: MCTokenRes = res.json().await?;
 
   Ok(Token {
     token: res.access_token,
@@ -128,7 +131,8 @@ struct XboxAuthRes {
 }
 
 pub async fn get_xbox_security_token(client: &Client, xbox_token: &str) -> Result<Token> {
-  let res: XboxAuthRes = client
+  debug!("Sending xbox security token request");
+  let res = client
     .post(XBOX_SECURITY_TOKEN_URL)
     .json(&XboxAuthReq {
       properties: XboxAuthProps::Security(XboxAuthPropsSecurity {
@@ -139,9 +143,10 @@ pub async fn get_xbox_security_token(client: &Client, xbox_token: &str) -> Resul
       token_type: TOKEN_TYPE.into(),
     })
     .send()
-    .await?
-    .json()
     .await?;
+  debug!("Got response with code: {}", res.status());
+
+  let res: XboxAuthRes = res.json().await?;
 
   Ok(Token {
     token: res.token,
@@ -150,7 +155,8 @@ pub async fn get_xbox_security_token(client: &Client, xbox_token: &str) -> Resul
 }
 
 pub async fn get_xbox_token(client: &Client, ms_access_token: &str) -> Result<TokenUserHash> {
-  let res: XboxAuthRes = client
+  debug!("Sending xbox token request");
+  let res = client
     .post(XBOX_TOKEN_URL)
     .json(&XboxAuthReq {
       properties: XboxAuthProps::Normal(XboxAuthPropsNormal {
@@ -162,9 +168,10 @@ pub async fn get_xbox_token(client: &Client, ms_access_token: &str) -> Result<To
       token_type: TOKEN_TYPE.into(),
     })
     .send()
-    .await?
-    .json()
     .await?;
+  debug!("Got response with code: {}", res.status());
+
+  let res: XboxAuthRes = res.json().await?;
 
   let user_hash = res
     .display_claims
@@ -188,6 +195,7 @@ struct MSTokenRes {
 }
 
 pub async fn refresh_ms_token(client: &Client, ms_refresh_token: &str) -> Result<Option<MsToken>> {
+  debug!("Sending ms token refresh request");
   let res = client
     .post(MS_TOKEN_URL)
     .form(&vec![
@@ -199,6 +207,7 @@ pub async fn refresh_ms_token(client: &Client, ms_refresh_token: &str) -> Result
     .send()
     .await?;
 
+  debug!("Got response with code: {}", res.status());
   if res.status() != StatusCode::OK {
     return Ok(None);
   }
@@ -219,25 +228,24 @@ pub async fn get_ms_token(client: &Client, handle: &AppHandle) -> Result<MsToken
     window.close()?;
   }
 
-  let window = WebviewWindowBuilder::new(
-    handle,
-    AUTH_WINDOW_LABEL,
-    tauri::WebviewUrl::External(Url::parse_with_params(
-      MS_AUTHORIZE_URL,
-      vec![
-        ("client_id", CLIENT_ID),
-        ("response_type", "code"),
-        ("scope", SCOPE),
-        ("redirect_uri", REDIRECT_URI),
-        ("prompt", PROMPT),
-      ],
-    )?),
-  )
-  .zoom_hotkeys_enabled(false)
-  .title("Sign into Proton")
-  .always_on_top(true)
-  .center()
-  .build()?;
+  let url = tauri::WebviewUrl::External(Url::parse_with_params(
+    MS_AUTHORIZE_URL,
+    vec![
+      ("client_id", CLIENT_ID),
+      ("response_type", "code"),
+      ("scope", SCOPE),
+      ("redirect_uri", REDIRECT_URI),
+      ("prompt", PROMPT),
+    ],
+  )?);
+
+  debug!("Opening Login Window with url: {}", &url);
+  let window = WebviewWindowBuilder::new(handle, AUTH_WINDOW_LABEL, url)
+    .zoom_hotkeys_enabled(false)
+    .title("Sign into Proton")
+    .always_on_top(true)
+    .center()
+    .build()?;
 
   window.request_user_attention(Some(UserAttentionType::Critical))?;
 
@@ -253,18 +261,18 @@ pub async fn get_ms_token(client: &Client, handle: &AppHandle) -> Result<MsToken
 
       let code = code.ok_or(AuthError::Other)?.1.to_string();
 
-      let res: MSTokenRes = client
-        .post(MS_TOKEN_URL)
-        .form(&vec![
-          ("client_id", CLIENT_ID),
-          ("code", &code),
-          ("redirect_uri", REDIRECT_URI),
-          ("grant_type", "authorization_code"),
-        ])
-        .send()
-        .await?
-        .json()
-        .await?;
+      let req = client.post(MS_TOKEN_URL).form(&vec![
+        ("client_id", CLIENT_ID),
+        ("code", &code),
+        ("redirect_uri", REDIRECT_URI),
+        ("grant_type", "authorization_code"),
+      ]);
+      debug!("Retrieving ms token with code: {}", &code);
+
+      let res = req.send().await?;
+      debug!("Got response with code: {}", res.status());
+
+      let res: MSTokenRes = res.json().await?;
 
       return Ok(MsToken {
         access_token: res.access_token,
@@ -275,6 +283,8 @@ pub async fn get_ms_token(client: &Client, handle: &AppHandle) -> Result<MsToken
 
     sleep(std::time::Duration::from_millis(50)).await;
   }
+
+  debug!("Login timed out");
 
   window.close()?;
 

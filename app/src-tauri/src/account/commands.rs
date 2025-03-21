@@ -1,10 +1,14 @@
 use std::{collections::HashMap, sync::Arc};
 
+use log::{trace, warn};
 use reqwest::Client;
 use tauri::{AppHandle, Result, State, Url};
 use tokio::sync::Mutex;
 
-use crate::account::skin_store::{Cape, Skin};
+use crate::{
+  account::skin_store::{Cape, Skin},
+  log::ResultLogExt,
+};
 
 use super::{info::ProfileInfo, skin_store::SkinStore, store::AccountStore};
 
@@ -12,6 +16,7 @@ use super::{info::ProfileInfo, skin_store::SkinStore, store::AccountStore};
 pub async fn account_list(
   state: State<'_, Mutex<AccountStore>>,
 ) -> Result<HashMap<String, Option<ProfileInfo>>> {
+  trace!("Command account_list called");
   let store = state.lock().await;
   Ok(store.list_profiles())
 }
@@ -22,8 +27,9 @@ pub async fn account_refresh(
   handle: AppHandle,
   state: State<'_, Mutex<AccountStore>>,
 ) -> Result<()> {
+  trace!("Command account_refresh called");
   let mut store = state.lock().await;
-  store.refresh_all(client.inner(), &handle).await?;
+  store.refresh_all(client.inner(), &handle).await.log()?;
 
   Ok(())
 }
@@ -35,8 +41,9 @@ pub async fn account_refresh_one(
   id: &str,
   state: State<'_, Mutex<AccountStore>>,
 ) -> Result<()> {
+  trace!("Command account_refresh_one called");
   let mut store = state.lock().await;
-  store.refresh(id, client.inner(), &handle).await?;
+  store.refresh(id, client.inner(), &handle).await.log()?;
 
   Ok(())
 }
@@ -47,8 +54,9 @@ pub async fn account_login(
   handle: AppHandle,
   state: State<'_, Mutex<AccountStore>>,
 ) -> Result<()> {
+  trace!("Command account_login called");
   let mut store = state.lock().await;
-  store.login(client.inner(), &handle).await?;
+  store.login(client.inner(), &handle).await.log()?;
 
   Ok(())
 }
@@ -59,14 +67,16 @@ pub async fn account_remove(
   id: &str,
   handle: AppHandle,
 ) -> Result<()> {
+  trace!("Command account_remove called");
   let mut store = state.lock().await;
-  store.remove_account(id, &handle)?;
+  store.remove_account(id, &handle).log()?;
 
   Ok(())
 }
 
 #[tauri::command]
 pub async fn account_get_active(state: State<'_, Mutex<AccountStore>>) -> Result<String> {
+  trace!("Command account_get_active called");
   let store = state.lock().await;
   Ok(store.active().to_string())
 }
@@ -77,8 +87,9 @@ pub async fn account_set_active(
   id: &str,
   handle: AppHandle,
 ) -> Result<()> {
+  trace!("Command account_set_active called");
   let mut store = state.lock().await;
-  store.set_active(id.to_string(), &handle)?;
+  store.set_active(id.to_string(), &handle).log()?;
 
   Ok(())
 }
@@ -90,8 +101,14 @@ pub async fn account_get_skin(
   handle: AppHandle,
   url: Url,
 ) -> Result<Skin> {
+  trace!("Command account_get_skin called");
   let mut store = state.lock().await;
-  Ok(store.get_skin_by_url(&handle, client.inner(), url).await?)
+  Ok(
+    store
+      .get_skin_by_url(&handle, client.inner(), url)
+      .await
+      .log()?,
+  )
 }
 
 #[tauri::command]
@@ -101,8 +118,14 @@ pub async fn account_get_cape(
   handle: AppHandle,
   url: Url,
 ) -> Result<Cape> {
+  trace!("Command account_get_cape called");
   let mut store = state.lock().await;
-  Ok(store.get_cape_by_url(&handle, client.inner(), url).await?)
+  Ok(
+    store
+      .get_cape_by_url(&handle, client.inner(), url)
+      .await
+      .log()?,
+  )
 }
 
 #[tauri::command]
@@ -111,8 +134,9 @@ pub async fn account_add_skin(
   handle: AppHandle,
   skin: Vec<u8>,
 ) -> Result<Skin> {
+  trace!("Command account_add_skin called");
   let mut store = state.lock().await;
-  Ok(store.add_skin(&handle, None, &skin)?)
+  Ok(store.add_skin(&handle, None, &skin).log()?)
 }
 
 #[tauri::command]
@@ -121,8 +145,9 @@ pub async fn account_remove_skin(
   handle: AppHandle,
   id: &str,
 ) -> Result<()> {
+  trace!("Command account_remove_skin called");
   let mut store = state.lock().await;
-  store.remove_skin(id, &handle)?;
+  store.remove_skin(id, &handle).log()?;
   Ok(())
 }
 
@@ -131,6 +156,7 @@ pub async fn account_list_skins(
   state: State<'_, Mutex<SkinStore>>,
   handle: AppHandle,
 ) -> Result<Vec<Skin>> {
+  trace!("Command account_list_skins called");
   let store = state.lock().await;
   Ok(store.list_skins(&handle))
 }
@@ -144,19 +170,23 @@ pub async fn account_change_skin(
   id: &str,
   account: &str,
 ) -> Result<()> {
+  trace!("Command account_change_skin called");
   let mut store = state.lock().await;
   let mut accounts_store = accounts.lock().await;
 
   accounts_store
     .refresh_auth(account, client.inner(), &handle)
-    .await?;
+    .await
+    .log()?;
 
   if let Some(token) = accounts_store.mc_token(account) {
     let profile = store
       .select_skin(id, client.inner(), &handle, token)
-      .await?;
+      .await
+      .log()?;
     accounts_store.update_profile(profile, &handle)?;
   } else {
+    warn!("Account {} not found", account);
     //just any error
     return Err(tauri::Error::WindowNotFound);
   }
@@ -172,11 +202,13 @@ pub async fn account_change_cape(
   account: &str,
   id: &str,
 ) -> Result<()> {
+  trace!("Command account_change_cape called");
   let mut accounts_store = accounts.lock().await;
 
   accounts_store
     .select_cape_by_id(account, id, &handle, client.inner())
-    .await?;
+    .await
+    .log()?;
 
   Ok(())
 }

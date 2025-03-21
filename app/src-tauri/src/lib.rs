@@ -22,6 +22,7 @@ mod macros;
 mod store;
 mod updater;
 mod versions;
+mod log;
 
 const CLIENT_ID: &str = "dd35660a-6381-41f8-bb34-2a36669581d0";
 
@@ -32,6 +33,7 @@ pub fn run() {
   env_logger::init();
 
   tauri::Builder::default()
+    .plugin(tauri_plugin_log::Builder::new().build())
     .plugin(tauri_plugin_single_instance::init(|app, _, _| {
       let _ = app
         .get_webview_window("main")

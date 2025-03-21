@@ -1,4 +1,5 @@
 use anyhow::Result;
+use log::debug;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tauri::Url;
@@ -46,13 +47,13 @@ pub struct Cape {
 }
 
 pub async fn get_profile_info(client: &Client, mc_token: &str) -> Result<ProfileInfo> {
-  Ok(
-    client
-      .get(MC_PROFILE_URL)
-      .bearer_auth(mc_token)
-      .send()
-      .await?
-      .json()
-      .await?,
-  )
+  debug!("Retrieving player profile");
+  let res = client
+    .get(MC_PROFILE_URL)
+    .bearer_auth(mc_token)
+    .send()
+    .await?;
+  debug!("Got response with code: {}", res.status());
+
+  Ok(res.json().await?)
 }
