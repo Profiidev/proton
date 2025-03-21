@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use chrono::Local;
+use log::LevelFilter;
 use reqwest::Client;
 use store::TauriAppStoreExt;
 
@@ -40,6 +41,7 @@ pub fn run() {
         }))
         .rotation_strategy(RotationStrategy::KeepAll)
         .timezone_strategy(TimezoneStrategy::UseLocal)
+        .level(LevelFilter::Info)
         .build(),
     )
     .plugin(tauri_plugin_single_instance::init(|app, _, _| {

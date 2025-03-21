@@ -15,8 +15,8 @@ use super::{
 
 #[derive(Error, Debug)]
 enum LaunchError {
-  #[error("Account not found")]
-  AccountNotFound,
+  #[error("No Account found")]
+  NoAccountFound,
 }
 
 #[tauri::command]
@@ -38,7 +38,7 @@ pub async fn versions_launch(
     .log()?;
 
   let Some(info) = auth_store.launch_info(account) else {
-    let err: anyhow::Result<()> = Err(LaunchError::AccountNotFound.into()).log();
+    let err: anyhow::Result<()> = Err(LaunchError::NoAccountFound.into()).log();
     return Ok(err?);
   };
 
