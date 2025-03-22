@@ -1,12 +1,7 @@
 <script lang="ts">
   import { account_remove_skin } from '$lib/tauri/account.svelte';
   import { Check, LoaderCircle, Trash } from 'lucide-svelte';
-  import {
-    Badge,
-    Button,
-    Skeleton,
-    toast
-  } from 'positron-components/components/ui';
+  import { Badge, Button, toast } from 'positron-components/components/ui';
   import { SkinViewer } from 'skinview3d';
   import { onMount } from 'svelte';
 
@@ -51,7 +46,7 @@
   });
 
   const remove = async () => {
-    if (await account_remove_skin(id)) {
+    if (!await account_remove_skin(id)) {
       toast.success('Successfully removed Skin');
     } else {
       toast.error('Failed to remove Skin');

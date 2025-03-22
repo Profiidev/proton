@@ -16,7 +16,7 @@
   setMode('dark');
 
   onMount(async () => {
-    if (!(await account_refresh())) {
+    if (await account_refresh()) {
       toast.error('Failed to refresh Accounts');
     }
   });

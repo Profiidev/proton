@@ -7,13 +7,13 @@ use super::store::{LoaderType, Profile, ProfileStore};
 pub async fn profile_create(
   state: State<'_, Mutex<ProfileStore>>,
   name: String,
-  icon: Option<&[u8]>,
+  icon: Option<Vec<u8>>,
   version: String,
   loader: LoaderType,
   loader_version: Option<String>,
 ) -> Result<()> {
   let mut store = state.lock().await;
-  store.create_profile(name, icon, version, loader, loader_version)?;
+  store.create_profile(name, icon.as_deref(), version, loader, loader_version)?;
   Ok(())
 }
 
@@ -28,10 +28,10 @@ pub async fn profile_update(state: State<'_, Mutex<ProfileStore>>, profile: Prof
 pub async fn profile_update_icon(
   state: State<'_, Mutex<ProfileStore>>,
   profile: &str,
-  icon: &[u8],
+  icon: Vec<u8>,
 ) -> Result<()> {
   let mut store = state.lock().await;
-  store.update_profile_icon(profile, icon)?;
+  store.update_profile_icon(profile, &icon)?;
   Ok(())
 }
 
