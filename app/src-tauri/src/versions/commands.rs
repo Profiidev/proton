@@ -1,7 +1,4 @@
-use std::sync::Arc;
-
 use log::trace;
-use reqwest::Client;
 use tauri::{AppHandle, Manager, Result, State};
 use thiserror::Error;
 use tokio::sync::Mutex;
@@ -23,7 +20,6 @@ enum LaunchError {
 pub async fn versions_launch(
   state: State<'_, Mutex<McVersionStore>>,
   auth: State<'_, Mutex<AccountStore>>,
-  client: State<'_, Arc<Client>>,
   handle: AppHandle,
   version: &str,
   account: &str,
@@ -32,10 +28,7 @@ pub async fn versions_launch(
   let store = state.lock().await;
   let auth_store = auth.lock().await;
 
-  store
-    .check_or_download(version, client.inner().clone(), &handle)
-    .await
-    .log()?;
+  store.check_or_download(version).await.log()?;
 
   let Some(info) = auth_store.launch_info(account) else {
     let err: anyhow::Result<()> = Err(LaunchError::NoAccountFound.into()).log();

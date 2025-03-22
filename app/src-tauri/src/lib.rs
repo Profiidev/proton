@@ -1,8 +1,5 @@
-use std::sync::Arc;
-
 use anyhow::Result;
 use chrono::Local;
-use reqwest::Client;
 use store::TauriAppStoreExt;
 
 use account::{
@@ -70,16 +67,14 @@ pub fn run() {
     .setup(|app| {
       let _ = app.handle().app_store()?;
 
-      app.manage(Mutex::new(SkinStore::new(app.handle())?));
-      app.manage(Mutex::new(AccountStore::new(app.handle())?));
-      app.manage(Arc::new(Client::new()));
+      app.manage(Mutex::new(SkinStore::new(app.handle().clone())?));
+      app.manage(Mutex::new(AccountStore::new(app.handle().clone())?));
 
-      let client = Client::new();
-      let handle = app.handle().clone();
       app.manage(Mutex::new(tauri::async_runtime::block_on(
-        McVersionStore::new(&client, &handle),
+        McVersionStore::new(app.handle().clone()),
       )?));
 
+      let handle = app.handle().clone();
       app.manage(tauri::async_runtime::spawn(async move {
         if let Err(err) = async_setup_refresh(handle).await {
           log::error!("Error: {}", err);
@@ -94,11 +89,9 @@ pub fn run() {
 }
 
 async fn async_setup_refresh(handle: AppHandle) -> Result<()> {
-  let client = Client::new();
-
   let version_state = handle.state::<Mutex<McVersionStore>>();
   let mut version_store = version_state.lock().await;
-  version_store.refresh_manifests(&client, &handle).await?;
+  version_store.refresh_manifests().await?;
 
   Ok(())
 }
