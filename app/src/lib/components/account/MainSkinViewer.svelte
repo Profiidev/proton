@@ -6,7 +6,8 @@
     account_list,
     State
   } from '$lib/tauri/account.svelte';
-  import { Label, Select, Skeleton } from 'positron-components/components/ui';
+  import { LoaderCircle } from 'lucide-svelte';
+  import { Label, Select } from 'positron-components/components/ui';
   import {
     IdleAnimation,
     type PlayerAnimation,
@@ -129,7 +130,11 @@
   <div class="relative h-100 w-full">
     <canvas bind:this={canvas} class="h-100 w-full select-none"></canvas>
     {#if !mainViewer}
-      <Skeleton class="absolute top-0 left-0 h-100 w-full" />
+      <div
+        class="absolute top-0 left-0 flex h-100 w-full items-center justify-center"
+      >
+        <LoaderCircle class="size-16 animate-spin" />
+      </div>
     {/if}
   </div>
   <p class="w-full text-center">Display Options</p>

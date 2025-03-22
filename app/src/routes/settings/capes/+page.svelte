@@ -9,10 +9,10 @@
     account_list,
     State
   } from '$lib/tauri/account.svelte';
+  import { LoaderCircle } from 'lucide-svelte';
   import {
     ScrollArea,
     Separator,
-    Skeleton,
     toast
   } from 'positron-components/components/ui';
 
@@ -54,7 +54,9 @@
             <div class="grid w-full grid-cols-[repeat(auto-fill,9rem)] gap-3">
               {#each account[1].capes as cape}
                 {#await Promise.all( [account_get_cape(cape.url), account_get_skin(selected_skin.url)] )}
-                  <Skeleton class="h-55 w-37" />
+                  <div class="flex h-55 w-37 items-center justify-center">
+                    <LoaderCircle class="size-10 animate-spin" />
+                  </div>
                 {:then [cape_data, skin_data]}
                   {#if cape_data && skin_data}
                     <MiniSkinViewer
@@ -67,7 +69,9 @@
                       delete_disabled={true}
                     />
                   {:else}
-                    <Skeleton class="h-55 w-37" />
+                    <div class="flex h-55 w-37 items-center justify-center">
+                      <LoaderCircle class="size-10 animate-spin" />
+                    </div>
                   {/if}
                 {/await}
               {/each}

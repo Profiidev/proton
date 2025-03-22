@@ -1,8 +1,5 @@
 <script lang="ts">
-  import {
-    account_list_skins,
-    account_remove_skin
-  } from '$lib/tauri/account.svelte';
+  import { account_remove_skin } from '$lib/tauri/account.svelte';
   import { Check, LoaderCircle, Trash } from 'lucide-svelte';
   import {
     Badge,
@@ -74,7 +71,11 @@
   <div class="relative h-55 w-37">
     <canvas bind:this={canvas} class="h-55 w-37 select-none"></canvas>
     {#if !viewer}
-      <Skeleton class="absolute top-0 left-0 h-55 w-37" />
+      <div
+        class="absolute top-0 left-0 flex h-55 w-37 items-center justify-center"
+      >
+        <LoaderCircle class="size-10 animate-spin" />
+      </div>
     {/if}
   </div>
   <div class="absolute top-0 flex w-full justify-between p-2">
