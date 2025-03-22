@@ -1,5 +1,6 @@
 use anyhow::Result;
 use chrono::Local;
+use profiles::store::ProfileStore;
 use store::TauriAppStoreExt;
 
 use account::{
@@ -17,6 +18,7 @@ use tokio::sync::Mutex;
 use versions::{commands::versions_launch, store::McVersionStore};
 
 mod account;
+mod profiles;
 mod store;
 mod utils;
 mod versions;
@@ -69,6 +71,7 @@ pub fn run() {
 
       app.manage(Mutex::new(SkinStore::new(app.handle().clone())?));
       app.manage(Mutex::new(AccountStore::new(app.handle().clone())?));
+      app.manage(Mutex::new(ProfileStore::new(app.handle().clone())?));
 
       app.manage(Mutex::new(tauri::async_runtime::block_on(
         McVersionStore::new(app.handle().clone()),
