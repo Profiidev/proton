@@ -20,10 +20,6 @@ use crate::{
 
 use super::info::{ProfileInfo, SkinVariant, State};
 
-const SKIN_KEY: &str = "skins";
-const CAPE_KEY: &str = "capes";
-const SKIN_FOLDER: &str = "skins";
-
 const SKIN_CHANGE_URL: &str = "https://api.minecraftservices.com/minecraft/profile/skins";
 
 pub struct SkinStore {
@@ -50,7 +46,7 @@ pub struct Skin {
 impl SkinInfo {
   fn load_skin(self, handle: &AppHandle) -> Result<Skin> {
     debug!("Loading skin data: {}", &self.id);
-    let data_dir = path!(handle.path().app_data_dir()?, SKIN_FOLDER);
+    let data_dir = path!(handle.path().app_data_dir()?, SkinStore::SKIN_FOLDER);
 
     let data_path = path!(&data_dir, format!("{}.png", &self.id));
     let data = std::fs::read(data_path)?;
@@ -85,7 +81,7 @@ impl CapeInfo {
     debug!("Loading cape data: {}", &self.id);
     let data_path = path!(
       handle.path().app_data_dir()?,
-      SKIN_FOLDER,
+      SkinStore::SKIN_FOLDER,
       format!("{}.png", &self.id)
     );
     let data = std::fs::read(data_path)?;
@@ -99,10 +95,14 @@ impl CapeInfo {
 }
 
 impl SkinStore {
+  const SKIN_KEY: &str = "skins";
+  const CAPE_KEY: &str = "capes";
+  const SKIN_FOLDER: &str = "skins";
+
   pub fn new(handle: AppHandle) -> Result<SkinStore> {
     let store = handle.app_store()?;
-    let skins: Vec<SkinInfo> = store.get_or_default(SKIN_KEY)?;
-    let capes: Vec<CapeInfo> = store.get_or_default(CAPE_KEY)?;
+    let skins: Vec<SkinInfo> = store.get_or_default(Self::SKIN_KEY)?;
+    let capes: Vec<CapeInfo> = store.get_or_default(Self::CAPE_KEY)?;
 
     Ok(SkinStore {
       skins,
@@ -123,7 +123,7 @@ impl SkinStore {
     let id = bytes_hash(skin)?;
     debug!("Saving skin with id: {}", &id);
 
-    let data_dir = path!(self.handle.path().app_data_dir()?, SKIN_FOLDER);
+    let data_dir = path!(self.handle.path().app_data_dir()?, Self::SKIN_FOLDER);
     std::fs::create_dir_all(&data_dir)?;
 
     let data_path = path!(&data_dir, format!("{}.png", id));
@@ -151,7 +151,7 @@ impl SkinStore {
     let id = bytes_hash(cape)?;
     debug!("Saving cape with id: {}", &id);
 
-    let mut data_path = path!(&self.handle.path().app_data_dir()?, SKIN_FOLDER);
+    let mut data_path = path!(&self.handle.path().app_data_dir()?, Self::SKIN_FOLDER);
     std::fs::create_dir_all(&data_path)?;
 
     data_path.push(format!("{}.png", id));
@@ -170,8 +170,8 @@ impl SkinStore {
 
   fn save(&self) -> Result<()> {
     let store = self.handle.app_store()?;
-    store.set(CAPE_KEY, &self.capes)?;
-    store.set(SKIN_KEY, &self.skins)
+    store.set(Self::CAPE_KEY, &self.capes)?;
+    store.set(Self::SKIN_KEY, &self.skins)
   }
 
   pub async fn get_skin_by_url(&mut self, url: Url) -> Result<Skin> {
@@ -203,7 +203,7 @@ impl SkinStore {
   }
 
   pub fn remove_skin(&mut self, id: &str) -> Result<()> {
-    let data_dir = path!(&self.handle.path().app_data_dir()?, SKIN_FOLDER);
+    let data_dir = path!(&self.handle.path().app_data_dir()?, Self::SKIN_FOLDER);
     debug!("Deleting skin with id: {}", &id);
 
     let data_path = path!(&data_dir, format!("{}.png", id));
@@ -246,7 +246,7 @@ impl SkinStore {
       debug!("Skin with id {} has no url. uploading", id);
       let data_path = path!(
         self.handle.path().app_data_dir()?,
-        SKIN_FOLDER,
+        Self::SKIN_FOLDER,
         format!("{}.png", &skin.id)
       );
       let data = std::fs::read(data_path)?;
