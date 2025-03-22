@@ -7,7 +7,7 @@ use std::{
 use anyhow::Result;
 use log::debug;
 use reqwest::Client;
-use serde::de::DeserializeOwned;
+use serde::{de::DeserializeOwned, Serialize};
 use sha1::{Digest, Sha1};
 use tauri::Url;
 use thiserror::Error;
@@ -127,6 +127,12 @@ pub fn bytes_hash(bytes: &[u8]) -> Result<String> {
 pub fn read_parse_file<R: DeserializeOwned>(path: &PathBuf) -> Result<R> {
   let data = std::fs::read_to_string(path)?;
   Ok(serde_json::from_str(&data)?)
+}
+
+pub fn write_file<T: Serialize>(path: &PathBuf, data: &T) -> Result<()> {
+  let data = serde_json::to_string(data)?;
+  fs::write(path, data)?;
+  Ok(())
 }
 
 pub fn create_or_open_file(path: &PathBuf) -> Result<File> {

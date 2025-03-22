@@ -11,6 +11,8 @@ pub enum UpdateType {
   AccountSkins,
   //versions
   Versions,
+  //profiles
+  Profiles,
 }
 
 pub fn update_data(handle: &AppHandle, r#type: UpdateType) {

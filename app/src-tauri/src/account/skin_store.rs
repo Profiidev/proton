@@ -13,7 +13,7 @@ use crate::{
   path,
   store::TauriAppStoreExt,
   utils::{
-    download::bytes_hash,
+    file::bytes_hash,
     updater::{update_data, UpdateType},
   },
 };

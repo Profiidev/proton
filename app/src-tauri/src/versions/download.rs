@@ -16,7 +16,7 @@ use zip::ZipArchive;
 use crate::{
   path,
   utils::{
-    download::{create_or_open_file, download_and_parse_file, download_file},
+    file::{create_or_open_file, download_and_parse_file, download_file},
     future::FuturePool,
   },
 };

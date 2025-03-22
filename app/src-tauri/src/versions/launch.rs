@@ -7,7 +7,7 @@ use std::{
 use anyhow::Result;
 use log::debug;
 
-use crate::{path, utils::download::read_parse_file, CLIENT_ID};
+use crate::{path, utils::file::read_parse_file, CLIENT_ID};
 
 use super::{
   check_rule,

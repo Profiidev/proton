@@ -10,7 +10,7 @@ use tokio::join;
 use crate::{
   path,
   utils::{
-    download::{
+    file::{
       download_and_parse_file, download_and_parse_file_no_hash,
       download_and_parse_file_no_hash_force,
     },
