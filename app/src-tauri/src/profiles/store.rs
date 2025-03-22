@@ -6,8 +6,6 @@ use tauri::AppHandle;
 
 use crate::store::TauriAppStoreExt;
 
-const PROFILE_KEY: &str = "profiles";
-
 pub struct ProfileStore {
   profiles: Vec<String>,
   handle: AppHandle,
@@ -54,15 +52,17 @@ enum LoaderType {
 }
 
 impl ProfileStore {
+  const PROFILE_KEY: &str = "profiles";
+
   pub fn new(handle: AppHandle) -> Result<ProfileStore> {
     let store = handle.app_store()?;
-    let profiles = store.get_or_default(PROFILE_KEY)?;
+    let profiles = store.get_or_default(Self::PROFILE_KEY)?;
 
     Ok(ProfileStore { profiles, handle })
   }
 
   fn save(&self) -> Result<()> {
     let store = self.handle.app_store()?;
-    store.set(PROFILE_KEY, &self.profiles)
+    store.set(Self::PROFILE_KEY, &self.profiles)
   }
 }

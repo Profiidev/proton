@@ -17,9 +17,6 @@ use super::{
   info::{get_profile_info, ProfileInfo},
 };
 
-const ACCOUNT_KEY: &str = "accounts";
-const ACTIVE_ACCOUNT_KEY: &str = "active_account";
-
 const CAPE_CHANGE_URL: &str = "https://api.minecraftservices.com/minecraft/profile/capes/active";
 
 pub struct AccountStore {
@@ -42,10 +39,13 @@ pub struct LaunchInfo {
 }
 
 impl AccountStore {
+  const ACCOUNT_KEY: &str = "accounts";
+  const ACTIVE_ACCOUNT_KEY: &str = "active_account";
+
   pub fn new(handle: AppHandle) -> Result<AccountStore> {
     let store = handle.app_store()?;
-    let accounts: HashMap<String, Option<AccountInfo>> = store.get_or_default(ACCOUNT_KEY)?;
-    let active: String = store.get_or_default(ACTIVE_ACCOUNT_KEY)?;
+    let accounts: HashMap<String, Option<AccountInfo>> = store.get_or_default(Self::ACCOUNT_KEY)?;
+    let active: String = store.get_or_default(Self::ACTIVE_ACCOUNT_KEY)?;
 
     Ok(AccountStore {
       accounts,
@@ -88,8 +88,8 @@ impl AccountStore {
 
   fn save(&self) -> Result<()> {
     let store = self.handle.app_store()?;
-    store.set(ACCOUNT_KEY, &self.accounts)?;
-    store.set(ACTIVE_ACCOUNT_KEY, &self.active)
+    store.set(Self::ACCOUNT_KEY, &self.accounts)?;
+    store.set(Self::ACTIVE_ACCOUNT_KEY, &self.active)
   }
 
   pub async fn refresh(&mut self, id: &str) -> Result<()> {
@@ -191,7 +191,8 @@ impl AccountStore {
     self.refresh_auth(account).await?;
 
     if let Some(Some(account)) = self.accounts.get_mut(account) {
-      let res = self.client
+      let res = self
+        .client
         .put(CAPE_CHANGE_URL)
         .bearer_auth(&account.auth.mc_token)
         .json(&CapeChangeReq {
