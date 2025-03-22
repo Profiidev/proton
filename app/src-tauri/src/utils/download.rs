@@ -18,6 +18,38 @@ pub enum FileError {
   HashMismatch,
 }
 
+pub async fn download_file_no_hash_force(
+  client: &Client,
+  path: &PathBuf,
+  url: Url,
+) -> Result<Vec<u8>> {
+  debug!("Downloading file: {}", url.as_str());
+  let bytes = client.get(url).send().await?.bytes().await?;
+
+  if let Some(parent) = path.parent() {
+    fs::create_dir_all(parent)?;
+  }
+  fs::write(path, &bytes)?;
+
+  Ok(bytes.to_vec())
+}
+
+pub async fn download_file_no_hash(client: &Client, path: &PathBuf, url: Url) -> Result<Vec<u8>> {
+  if File::open(path).is_ok() {
+    return Ok(fs::read(path)?);
+  }
+
+  debug!("Downloading file: {}", url.as_str());
+  let bytes = client.get(url).send().await?.bytes().await?;
+
+  if let Some(parent) = path.parent() {
+    fs::create_dir_all(parent)?;
+  }
+  fs::write(path, &bytes)?;
+
+  Ok(bytes.to_vec())
+}
+
 pub async fn download_file(
   client: &Client,
   path: &PathBuf,
@@ -40,6 +72,24 @@ pub async fn download_file(
   fs::write(path, &bytes)?;
 
   Ok(bytes.to_vec())
+}
+
+pub async fn download_and_parse_file_no_hash_force<R: DeserializeOwned>(
+  client: &Client,
+  path: &PathBuf,
+  url: Url,
+) -> Result<R> {
+  let data = download_file_no_hash_force(client, path, url).await?;
+  Ok(serde_json::from_slice(&data)?)
+}
+
+pub async fn download_and_parse_file_no_hash<R: DeserializeOwned>(
+  client: &Client,
+  path: &PathBuf,
+  url: Url,
+) -> Result<R> {
+  let data = download_file_no_hash(client, path, url).await?;
+  Ok(serde_json::from_slice(&data)?)
 }
 
 pub async fn download_and_parse_file<R: DeserializeOwned>(
@@ -65,6 +115,13 @@ pub fn hash_bytes(hash: &str, bytes: &[u8]) -> Result<bool> {
   hasher.write_all(bytes)?;
   let found_hash = hex::encode(hasher.finalize());
   Ok(hash == found_hash)
+}
+
+pub fn bytes_hash(bytes: &[u8]) -> Result<String> {
+  let mut hasher = Sha1::new();
+  hasher.write_all(bytes)?;
+  let found_hash = hex::encode(hasher.finalize());
+  Ok(found_hash)
 }
 
 pub fn read_parse_file<R: DeserializeOwned>(path: &PathBuf) -> Result<R> {

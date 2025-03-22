@@ -5,9 +5,12 @@ const UPDATE_EVENT: &str = "data-update";
 
 #[derive(Serialize, Clone)]
 pub enum UpdateType {
+  //accounts
   Accounts,
   AccountActive,
   AccountSkins,
+  //versions
+  Versions,
 }
 
 pub fn update_data(handle: &AppHandle, r#type: UpdateType) {

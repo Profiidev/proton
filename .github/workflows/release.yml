@@ -11,10 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        item:
-          [
-            { df_path: ./backend, image: proton-backend },
-          ]
+        item: [{ df_path: ./backend, image: proton-backend }]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

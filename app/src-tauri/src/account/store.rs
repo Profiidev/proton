@@ -17,7 +17,7 @@ use super::{
   info::{get_profile_info, ProfileInfo},
 };
 
-const ACCOUNT_KEY: &str = "account_info";
+const ACCOUNT_KEY: &str = "accounts";
 const ACTIVE_ACCOUNT_KEY: &str = "active_account";
 
 const CAPE_CHANGE_URL: &str = "https://api.minecraftservices.com/minecraft/profile/capes/active";
