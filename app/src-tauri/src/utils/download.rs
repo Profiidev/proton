@@ -117,6 +117,13 @@ pub fn hash_bytes(hash: &str, bytes: &[u8]) -> Result<bool> {
   Ok(hash == found_hash)
 }
 
+pub fn bytes_hash(bytes: &[u8]) -> Result<String> {
+  let mut hasher = Sha1::new();
+  hasher.write_all(bytes)?;
+  let found_hash = hex::encode(hasher.finalize());
+  Ok(found_hash)
+}
+
 pub fn read_parse_file<R: DeserializeOwned>(path: &PathBuf) -> Result<R> {
   let data = std::fs::read_to_string(path)?;
   Ok(serde_json::from_str(&data)?)
