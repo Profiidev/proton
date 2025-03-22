@@ -51,6 +51,7 @@ pub async fn versions_launch(
     user_type: "msa".into(),
     data_dir: handle.path().app_data_dir()?,
     version: version.into(),
+    working_sub_dir: "testing".into(),
   })
   .log()?;
 

@@ -14,9 +14,9 @@ use account::{
   skin_store::SkinStore,
   store::AccountStore,
 };
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 use tauri_plugin_log::{RotationStrategy, Target, TargetKind, TimezoneStrategy};
-use tokio::{join, sync::Mutex};
+use tokio::sync::Mutex;
 use versions::{commands::versions_launch, store::McVersionStore};
 
 mod account;
@@ -25,8 +25,6 @@ mod utils;
 mod versions;
 
 const CLIENT_ID: &str = "dd35660a-6381-41f8-bb34-2a36669581d0";
-
-const ASYNC_STATE_LOADED_EVENT: &str = "async-state-loaded";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -76,13 +74,18 @@ pub fn run() {
       app.manage(Mutex::new(AccountStore::new(app.handle())?));
       app.manage(Arc::new(Client::new()));
 
+      let client = Client::new();
       let handle = app.handle().clone();
-      let handle = tauri::async_runtime::spawn(async move {
-        if async_setup(handle).await.is_err() {
-          std::process::exit(0)
+      app.manage(Mutex::new(tauri::async_runtime::block_on(
+        McVersionStore::new(&client, &handle),
+      )?));
+
+      app.manage(tauri::async_runtime::spawn(async move {
+        if let Err(err) = async_setup_refresh(handle).await {
+          log::error!("Error: {}", err);
+          std::process::exit(1);
         }
-      });
-      app.manage(handle);
+      }));
 
       Ok(())
     })
@@ -90,12 +93,12 @@ pub fn run() {
     .expect("error while running tauri application");
 }
 
-async fn async_setup(handle: AppHandle) -> Result<()> {
+async fn async_setup_refresh(handle: AppHandle) -> Result<()> {
   let client = Client::new();
-  let (mc_version_store,) = join!(McVersionStore::new(&client));
 
-  handle.manage(Mutex::new(mc_version_store?));
-  handle.emit(ASYNC_STATE_LOADED_EVENT, ())?;
+  let version_state = handle.state::<Mutex<McVersionStore>>();
+  let mut version_store = version_state.lock().await;
+  version_store.refresh_manifests(&client, &handle).await?;
 
   Ok(())
 }
