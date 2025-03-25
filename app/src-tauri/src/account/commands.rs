@@ -1,8 +1,7 @@
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 use log::{trace, warn};
-use reqwest::Client;
-use tauri::{AppHandle, Result, State, Url};
+use tauri::{Result, State, Url};
 use tokio::sync::Mutex;
 
 use crate::{
@@ -22,54 +21,37 @@ pub async fn account_list(
 }
 
 #[tauri::command]
-pub async fn account_refresh(
-  client: State<'_, Arc<Client>>,
-  handle: AppHandle,
-  state: State<'_, Mutex<AccountStore>>,
-) -> Result<()> {
+pub async fn account_refresh(state: State<'_, Mutex<AccountStore>>) -> Result<()> {
   trace!("Command account_refresh called");
   let mut store = state.lock().await;
-  store.refresh_all(client.inner(), &handle).await.log()?;
+  store.refresh_all().await.log()?;
 
   Ok(())
 }
 
 #[tauri::command]
-pub async fn account_refresh_one(
-  client: State<'_, Arc<Client>>,
-  handle: AppHandle,
-  id: &str,
-  state: State<'_, Mutex<AccountStore>>,
-) -> Result<()> {
+pub async fn account_refresh_one(id: &str, state: State<'_, Mutex<AccountStore>>) -> Result<()> {
   trace!("Command account_refresh_one called");
   let mut store = state.lock().await;
-  store.refresh(id, client.inner(), &handle).await.log()?;
+  store.refresh(id).await.log()?;
 
   Ok(())
 }
 
 #[tauri::command]
-pub async fn account_login(
-  client: State<'_, Arc<Client>>,
-  handle: AppHandle,
-  state: State<'_, Mutex<AccountStore>>,
-) -> Result<()> {
+pub async fn account_login(state: State<'_, Mutex<AccountStore>>) -> Result<()> {
   trace!("Command account_login called");
   let mut store = state.lock().await;
-  store.login(client.inner(), &handle).await.log()?;
+  store.login().await.log()?;
 
   Ok(())
 }
 
 #[tauri::command]
-pub async fn account_remove(
-  state: State<'_, Mutex<AccountStore>>,
-  id: &str,
-  handle: AppHandle,
-) -> Result<()> {
+pub async fn account_remove(state: State<'_, Mutex<AccountStore>>, id: &str) -> Result<()> {
   trace!("Command account_remove called");
   let mut store = state.lock().await;
-  store.remove_account(id, &handle).log()?;
+  store.remove_account(id).log()?;
 
   Ok(())
 }
@@ -82,91 +64,54 @@ pub async fn account_get_active(state: State<'_, Mutex<AccountStore>>) -> Result
 }
 
 #[tauri::command]
-pub async fn account_set_active(
-  state: State<'_, Mutex<AccountStore>>,
-  id: &str,
-  handle: AppHandle,
-) -> Result<()> {
+pub async fn account_set_active(state: State<'_, Mutex<AccountStore>>, id: &str) -> Result<()> {
   trace!("Command account_set_active called");
   let mut store = state.lock().await;
-  store.set_active(id.to_string(), &handle).log()?;
+  store.set_active(id.to_string()).log()?;
 
   Ok(())
 }
 
 #[tauri::command]
-pub async fn account_get_skin(
-  state: State<'_, Mutex<SkinStore>>,
-  client: State<'_, Arc<Client>>,
-  handle: AppHandle,
-  url: Url,
-) -> Result<Skin> {
+pub async fn account_get_skin(state: State<'_, Mutex<SkinStore>>, url: Url) -> Result<Skin> {
   trace!("Command account_get_skin called");
   let mut store = state.lock().await;
-  Ok(
-    store
-      .get_skin_by_url(&handle, client.inner(), url)
-      .await
-      .log()?,
-  )
+  Ok(store.get_skin_by_url(url).await.log()?)
 }
 
 #[tauri::command]
-pub async fn account_get_cape(
-  state: State<'_, Mutex<SkinStore>>,
-  client: State<'_, Arc<Client>>,
-  handle: AppHandle,
-  url: Url,
-) -> Result<Cape> {
+pub async fn account_get_cape(state: State<'_, Mutex<SkinStore>>, url: Url) -> Result<Cape> {
   trace!("Command account_get_cape called");
   let mut store = state.lock().await;
-  Ok(
-    store
-      .get_cape_by_url(&handle, client.inner(), url)
-      .await
-      .log()?,
-  )
+  Ok(store.get_cape_by_url(url).await.log()?)
 }
 
 #[tauri::command]
-pub async fn account_add_skin(
-  state: State<'_, Mutex<SkinStore>>,
-  handle: AppHandle,
-  skin: Vec<u8>,
-) -> Result<Skin> {
+pub async fn account_add_skin(state: State<'_, Mutex<SkinStore>>, skin: Vec<u8>) -> Result<Skin> {
   trace!("Command account_add_skin called");
   let mut store = state.lock().await;
-  Ok(store.add_skin(&handle, None, &skin).log()?)
+  Ok(store.add_skin(None, &skin).log()?)
 }
 
 #[tauri::command]
-pub async fn account_remove_skin(
-  state: State<'_, Mutex<SkinStore>>,
-  handle: AppHandle,
-  id: &str,
-) -> Result<()> {
+pub async fn account_remove_skin(state: State<'_, Mutex<SkinStore>>, id: &str) -> Result<()> {
   trace!("Command account_remove_skin called");
   let mut store = state.lock().await;
-  store.remove_skin(id, &handle).log()?;
+  store.remove_skin(id).log()?;
   Ok(())
 }
 
 #[tauri::command]
-pub async fn account_list_skins(
-  state: State<'_, Mutex<SkinStore>>,
-  handle: AppHandle,
-) -> Result<Vec<Skin>> {
+pub async fn account_list_skins(state: State<'_, Mutex<SkinStore>>) -> Result<Vec<Skin>> {
   trace!("Command account_list_skins called");
   let store = state.lock().await;
-  Ok(store.list_skins(&handle))
+  Ok(store.list_skins())
 }
 
 #[tauri::command]
 pub async fn account_change_skin(
   state: State<'_, Mutex<SkinStore>>,
   accounts: State<'_, Mutex<AccountStore>>,
-  handle: AppHandle,
-  client: State<'_, Arc<Client>>,
   id: &str,
   account: &str,
 ) -> Result<()> {
@@ -174,17 +119,11 @@ pub async fn account_change_skin(
   let mut store = state.lock().await;
   let mut accounts_store = accounts.lock().await;
 
-  accounts_store
-    .refresh_auth(account, client.inner(), &handle)
-    .await
-    .log()?;
+  accounts_store.refresh_auth(account).await.log()?;
 
   if let Some(token) = accounts_store.mc_token(account) {
-    let profile = store
-      .select_skin(id, client.inner(), &handle, token)
-      .await
-      .log()?;
-    accounts_store.update_profile(profile, &handle)?;
+    let profile = store.select_skin(id, token).await.log()?;
+    accounts_store.update_profile(profile)?;
   } else {
     warn!("Account {} not found", account);
     //just any error
@@ -197,18 +136,13 @@ pub async fn account_change_skin(
 #[tauri::command]
 pub async fn account_change_cape(
   accounts: State<'_, Mutex<AccountStore>>,
-  client: State<'_, Arc<Client>>,
-  handle: AppHandle,
   account: &str,
   id: &str,
 ) -> Result<()> {
   trace!("Command account_change_cape called");
   let mut accounts_store = accounts.lock().await;
 
-  accounts_store
-    .select_cape_by_id(account, id, &handle, client.inner())
-    .await
-    .log()?;
+  accounts_store.select_cape_by_id(account, id).await.log()?;
 
   Ok(())
 }

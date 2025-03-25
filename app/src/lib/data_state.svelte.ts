@@ -2,9 +2,14 @@ import { listen } from '@tauri-apps/api/event';
 import { tick } from 'svelte';
 
 export enum UpdateType {
+  //accounts
   Accounts = 'Accounts',
   AccountActive = 'AccountActive',
-  AccountSkins = 'AccountSkins'
+  AccountSkins = 'AccountSkins',
+  //versions
+  Versions = 'Versions',
+  //profiles
+  Profiles = 'Profiles'
 }
 
 let updater_cbs = new Map<UpdateType, Map<string, () => void>>();

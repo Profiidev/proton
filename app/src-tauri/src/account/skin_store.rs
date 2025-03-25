@@ -8,25 +8,25 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, Url};
 use thiserror::Error;
-use uuid::Uuid;
 
 use crate::{
   path,
   store::TauriAppStoreExt,
-  utils::updater::{update_data, UpdateType},
+  utils::{
+    file::bytes_hash,
+    updater::{update_data, UpdateType},
+  },
 };
 
 use super::info::{ProfileInfo, SkinVariant, State};
-
-const SKIN_STORE_KEY_SKINS: &str = "skin_store.skins";
-const SKIN_STORE_KEY_CAPES: &str = "skin_store.capes";
-const SKIN_STORE_FOLDER: &str = "skins";
 
 const SKIN_CHANGE_URL: &str = "https://api.minecraftservices.com/minecraft/profile/skins";
 
 pub struct SkinStore {
   skins: Vec<SkinInfo>,
   capes: Vec<CapeInfo>,
+  handle: AppHandle,
+  client: Client,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -46,7 +46,7 @@ pub struct Skin {
 impl SkinInfo {
   fn load_skin(self, handle: &AppHandle) -> Result<Skin> {
     debug!("Loading skin data: {}", &self.id);
-    let data_dir = path!(handle.path().app_data_dir()?, SKIN_STORE_FOLDER);
+    let data_dir = path!(handle.path().app_data_dir()?, SkinStore::SKIN_FOLDER);
 
     let data_path = path!(&data_dir, format!("{}.png", &self.id));
     let data = std::fs::read(data_path)?;
@@ -81,7 +81,7 @@ impl CapeInfo {
     debug!("Loading cape data: {}", &self.id);
     let data_path = path!(
       handle.path().app_data_dir()?,
-      SKIN_STORE_FOLDER,
+      SkinStore::SKIN_FOLDER,
       format!("{}.png", &self.id)
     );
     let data = std::fs::read(data_path)?;
@@ -95,15 +95,24 @@ impl CapeInfo {
 }
 
 impl SkinStore {
-  pub fn new(handle: &AppHandle) -> Result<SkinStore> {
-    let store = handle.app_store()?;
-    let skins: Vec<SkinInfo> = store.get_or_default(SKIN_STORE_KEY_SKINS)?;
-    let capes: Vec<CapeInfo> = store.get_or_default(SKIN_STORE_KEY_CAPES)?;
+  const SKIN_KEY: &str = "skins";
+  const CAPE_KEY: &str = "capes";
+  const SKIN_FOLDER: &str = "skins";
 
-    Ok(SkinStore { skins, capes })
+  pub fn new(handle: AppHandle) -> Result<SkinStore> {
+    let store = handle.app_store()?;
+    let skins: Vec<SkinInfo> = store.get_or_default(Self::SKIN_KEY)?;
+    let capes: Vec<CapeInfo> = store.get_or_default(Self::CAPE_KEY)?;
+
+    Ok(SkinStore {
+      skins,
+      capes,
+      handle,
+      client: Client::new(),
+    })
   }
 
-  pub fn add_skin(&mut self, handle: &AppHandle, url: Option<Url>, skin: &[u8]) -> Result<Skin> {
+  pub fn add_skin(&mut self, url: Option<Url>, skin: &[u8]) -> Result<Skin> {
     let image = image::load_from_memory(skin)?;
     let head = image.crop_imm(8, 8, 8, 8);
 
@@ -111,10 +120,10 @@ impl SkinStore {
     head.write_to(&mut cursor, ImageFormat::Png)?;
     let head = cursor.into_inner();
 
-    let id = Uuid::new_v4().to_string();
+    let id = bytes_hash(skin)?;
     debug!("Saving skin with id: {}", &id);
 
-    let data_dir = path!(handle.path().app_data_dir()?, SKIN_STORE_FOLDER);
+    let data_dir = path!(self.handle.path().app_data_dir()?, Self::SKIN_FOLDER);
     std::fs::create_dir_all(&data_dir)?;
 
     let data_path = path!(&data_dir, format!("{}.png", id));
@@ -126,9 +135,9 @@ impl SkinStore {
     let skin_info = SkinInfo { url, id };
 
     self.skins.push(skin_info.clone());
-    self.save(handle)?;
+    self.save()?;
 
-    update_data(handle, UpdateType::AccountSkins);
+    update_data(&self.handle, UpdateType::AccountSkins);
 
     Ok(Skin {
       id: skin_info.id,
@@ -138,11 +147,11 @@ impl SkinStore {
     })
   }
 
-  fn add_cape(&mut self, handle: &AppHandle, url: Url, cape: &[u8]) -> Result<Cape> {
-    let id = Uuid::new_v4().to_string();
+  fn add_cape(&mut self, url: Url, cape: &[u8]) -> Result<Cape> {
+    let id = bytes_hash(cape)?;
     debug!("Saving cape with id: {}", &id);
 
-    let mut data_path = path!(handle.path().app_data_dir()?, SKIN_STORE_FOLDER);
+    let mut data_path = path!(&self.handle.path().app_data_dir()?, Self::SKIN_FOLDER);
     std::fs::create_dir_all(&data_path)?;
 
     data_path.push(format!("{}.png", id));
@@ -150,7 +159,7 @@ impl SkinStore {
 
     let cape_info = CapeInfo { url, id };
     self.capes.push(cape_info.clone());
-    self.save(handle)?;
+    self.save()?;
 
     Ok(Cape {
       id: cape_info.id,
@@ -159,52 +168,42 @@ impl SkinStore {
     })
   }
 
-  fn save(&self, handle: &AppHandle) -> Result<()> {
-    let store = handle.app_store()?;
-    store.set(SKIN_STORE_KEY_CAPES, &self.capes)?;
-    store.set(SKIN_STORE_KEY_SKINS, &self.skins)
+  fn save(&self) -> Result<()> {
+    let store = self.handle.app_store()?;
+    store.set(Self::CAPE_KEY, &self.capes)?;
+    store.set(Self::SKIN_KEY, &self.skins)
   }
 
-  pub async fn get_skin_by_url(
-    &mut self,
-    handle: &AppHandle,
-    client: &Client,
-    url: Url,
-  ) -> Result<Skin> {
+  pub async fn get_skin_by_url(&mut self, url: Url) -> Result<Skin> {
     if let Some(skin) = self.skins.iter().find(|s| s.url.as_ref() == Some(&url)) {
-      skin.clone().load_skin(handle)
+      skin.clone().load_skin(&self.handle)
     } else {
       debug!("Skin with url {} not found. downloading", &url);
-      let skin = client.get(url.clone()).send().await?.bytes().await?;
-      self.add_skin(handle, Some(url), &skin)
+      let skin = self.client.get(url.clone()).send().await?.bytes().await?;
+      self.add_skin(Some(url), &skin)
     }
   }
 
-  pub async fn get_cape_by_url(
-    &mut self,
-    handle: &AppHandle,
-    client: &Client,
-    url: Url,
-  ) -> Result<Cape> {
+  pub async fn get_cape_by_url(&mut self, url: Url) -> Result<Cape> {
     if let Some(skin) = self.capes.iter().find(|c| c.url == url) {
-      skin.clone().load_cape(handle)
+      skin.clone().load_cape(&self.handle)
     } else {
       debug!("Cape with url {} not found. downloading", &url);
-      let cape = client.get(url.clone()).send().await?.bytes().await?;
-      self.add_cape(handle, url, &cape)
+      let cape = self.client.get(url.clone()).send().await?.bytes().await?;
+      self.add_cape(url, &cape)
     }
   }
 
-  pub fn list_skins(&self, handle: &AppHandle) -> Vec<Skin> {
+  pub fn list_skins(&self) -> Vec<Skin> {
     self
       .skins
       .iter()
-      .flat_map(|skin| skin.clone().load_skin(handle))
+      .flat_map(|skin| skin.clone().load_skin(&self.handle))
       .collect()
   }
 
-  pub fn remove_skin(&mut self, id: &str, handle: &AppHandle) -> Result<()> {
-    let data_dir = path!(handle.path().app_data_dir()?, SKIN_STORE_FOLDER);
+  pub fn remove_skin(&mut self, id: &str) -> Result<()> {
+    let data_dir = path!(&self.handle.path().app_data_dir()?, Self::SKIN_FOLDER);
     debug!("Deleting skin with id: {}", &id);
 
     let data_path = path!(&data_dir, format!("{}.png", id));
@@ -216,26 +215,21 @@ impl SkinStore {
     let _ = std::fs::remove_file(head_path);
 
     self.skins.retain(|s| s.id != id);
-    self.save(handle)?;
+    self.save()?;
 
-    update_data(handle, UpdateType::AccountSkins);
+    update_data(&self.handle, UpdateType::AccountSkins);
     Ok(())
   }
 
-  pub async fn select_skin(
-    &mut self,
-    id: &str,
-    client: &Client,
-    handle: &AppHandle,
-    mc_token: &str,
-  ) -> Result<ProfileInfo> {
+  pub async fn select_skin(&mut self, id: &str, mc_token: &str) -> Result<ProfileInfo> {
     debug!("Selecting skin with id: {}", id);
     let Some(skin) = self.skins.iter_mut().find(|s| s.id == id) else {
       return Err(SkinChangeError::NotFound.into());
     };
 
     let profile = if let Some(url) = &skin.url {
-      let res = client
+      let res = self
+        .client
         .post(SKIN_CHANGE_URL)
         .bearer_auth(mc_token)
         .json(&SkinChangeReq {
@@ -251,13 +245,14 @@ impl SkinStore {
     } else {
       debug!("Skin with id {} has no url. uploading", id);
       let data_path = path!(
-        handle.path().app_data_dir()?,
-        SKIN_STORE_FOLDER,
+        self.handle.path().app_data_dir()?,
+        Self::SKIN_FOLDER,
         format!("{}.png", &skin.id)
       );
       let data = std::fs::read(data_path)?;
 
-      let res = client
+      let res = self
+        .client
         .post(SKIN_CHANGE_URL)
         .bearer_auth(mc_token)
         .form(&SkinChangeReq {
@@ -273,7 +268,7 @@ impl SkinStore {
 
       if let Some(new_skin) = profile.skins.iter().find(|s| s.state == State::Active) {
         skin.url = Some(new_skin.url.clone());
-        self.save(handle)?;
+        self.save()?;
       }
 
       profile

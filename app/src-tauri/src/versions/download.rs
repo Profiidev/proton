@@ -15,8 +15,10 @@ use zip::ZipArchive;
 
 use crate::{
   path,
-  utils::future::FuturePool,
-  versions::{util::create_or_open_file, LIBRARY_DIR, NATIVE_DIR},
+  utils::{
+    file::{create_or_open_file, download_and_parse_file, download_file},
+    future::FuturePool,
+  },
 };
 
 use super::{
@@ -25,8 +27,7 @@ use super::{
     java::{self, Component, Files},
     minecraft::{Assets, Version},
   },
-  util::{download_and_parse_file, download_file},
-  ASSETS_DIR, ASSETS_INDEX_DIR, JAVA_DIR, MC_DIR, VERSION_DIR,
+  ASSETS_DIR, ASSETS_INDEX_DIR, JAVA_DIR, LIBRARY_DIR, MC_DIR, NATIVE_DIR, VERSION_DIR,
 };
 
 pub const MC_RESOURCES_URL: &str = "https://resources.download.minecraft.net";

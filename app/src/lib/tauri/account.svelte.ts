@@ -1,5 +1,6 @@
 import { create_data_state, UpdateType } from '$lib/data_state.svelte';
 import { invoke } from '@tauri-apps/api/core';
+import { RequestError } from 'positron-components/backend';
 
 export type Accounts = { [key: string]: ProfileInfo | null };
 
@@ -67,27 +68,24 @@ export const account_list = create_data_state(
 export const account_refresh = async () => {
   try {
     await invoke('account_refresh');
-    return true;
   } catch (e) {
-    return false;
+    return RequestError.Other;
   }
 };
 
 export const account_refresh_one = async (id: string) => {
   try {
     await invoke('account_refresh_one', { id });
-    return true;
   } catch (e) {
-    return false;
+    return RequestError.Other;
   }
 };
 
 export const account_login = async () => {
   try {
     await invoke('account_login');
-    return true;
   } catch (e) {
-    return false;
+    return RequestError.Other;
   }
 };
 
@@ -105,18 +103,16 @@ export const account_active = create_data_state(
 export const account_set_active = async (id: string) => {
   try {
     await invoke('account_set_active', { id });
-    return true;
   } catch (e) {
-    return false;
+    return RequestError.Other;
   }
 };
 
 export const account_remove = async (id: string) => {
   try {
     await invoke('account_remove', { id });
-    return true;
   } catch (e) {
-    return false;
+    return RequestError.Other;
   }
 };
 
@@ -139,18 +135,16 @@ export const account_get_cape = async (
 export const account_add_skin = async (skin: Uint8Array) => {
   try {
     await invoke('account_add_skin', { skin });
-    return true;
   } catch (e) {
-    return false;
+    return RequestError.Other;
   }
 };
 
 export const account_remove_skin = async (id: string) => {
   try {
     await invoke('account_remove_skin', { id });
-    return true;
   } catch (e) {
-    return false;
+    return RequestError.Other;
   }
 };
 
@@ -167,17 +161,15 @@ export const account_list_skins = create_data_state(
 export const account_change_skin = async (id: string, account: string) => {
   try {
     await invoke('account_change_skin', { id, account });
-    return true;
   } catch (e) {
-    return false;
+    return RequestError.Other;
   }
 };
 
 export const account_change_cape = async (id: string, account: string) => {
   try {
     await invoke('account_change_cape', { id, account });
-    return true;
   } catch (e) {
-    return false;
+    return RequestError.Other;
   }
 };

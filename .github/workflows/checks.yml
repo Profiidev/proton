@@ -15,17 +15,17 @@ jobs:
           token: ${{ secrets.PERSONAL_TOKEN }}
       - uses: dtolnay/rust-toolchain@stable
 
-      - name: Install Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          version: 1.0
 
       - name: Cache cargo and rust files
         id: rust_cache
         uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-          shared-key: "linter_cache"
+          shared-key: 'linter_cache'
 
       - uses: bahmutov/npm-install@v1
 
@@ -40,6 +40,6 @@ jobs:
           clippy: true
           auto_fix: true
           prettier: true
-          prettier_extensions: "css,html,js,json,jsx,md,sass,scss,ts,tsx,vue,yaml,yml,svelte"
+          prettier_extensions: 'css,html,js,json,jsx,md,sass,scss,ts,tsx,vue,yaml,yml,svelte'
           svelte: true
-          svelte_args: "--ignore target"
+          svelte_args: '--ignore target'

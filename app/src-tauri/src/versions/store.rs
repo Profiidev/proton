@@ -3,12 +3,19 @@ use std::{path::PathBuf, sync::Arc, time::Instant};
 use anyhow::Result;
 use log::{debug, info};
 use reqwest::Client;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, Url};
 use tokio::join;
 
 use crate::{
   path,
+  utils::{
+    file::{
+      download_and_parse_file, download_and_parse_file_no_hash,
+      download_and_parse_file_no_hash_force,
+    },
+    updater::{update_data, UpdateType},
+  },
   versions::event::{CheckStatus, VERSION_CHECK_STATUS_EVENT},
 };
 
@@ -21,7 +28,6 @@ use super::{
     java::{Component, Files, JavaVersions},
     minecraft::{Manifest, Version},
   },
-  util::download_and_parse_file,
   JAVA_DIR, MC_DIR, VERSION_DIR,
 };
 
@@ -30,9 +36,13 @@ const MC_VERSION_MANIFEST_URL: &str =
 const JAVA_VERSION_MANIFEST_URL: &str =
   "https://launchermeta.mojang.com/v1/products/java-runtime/2ec0cc96c44e5a76b9c8b7c39df7210883d12871/all.json";
 
+const MANIFEST_NAME: &str = "manifest.json";
+
 pub struct McVersionStore {
   mc_manifest: Manifest,
   java_manifest: JavaVersions,
+  handle: AppHandle,
+  client: Arc<Client>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -42,39 +52,94 @@ struct IndexInfo {
 }
 
 impl McVersionStore {
-  pub async fn new(client: &Client) -> Result<McVersionStore> {
+  pub async fn new(handle: AppHandle) -> Result<McVersionStore> {
+    let client = Client::new();
+    let data_dir = handle.path().app_data_dir()?;
+    let mc_manifest_path = path!(&data_dir, MC_DIR, MANIFEST_NAME);
+    let java_manifest_path = path!(&data_dir, JAVA_DIR, MANIFEST_NAME);
+
     let (mc_manifest, java_manifest) = join!(
-      download_parse(client, MC_VERSION_MANIFEST_URL),
-      download_parse(client, JAVA_VERSION_MANIFEST_URL)
+      download_and_parse_file_no_hash(
+        &client,
+        &mc_manifest_path,
+        MC_VERSION_MANIFEST_URL
+          .parse()
+          .expect("Failed to parse mc version url")
+      ),
+      download_and_parse_file_no_hash(
+        &client,
+        &java_manifest_path,
+        JAVA_VERSION_MANIFEST_URL
+          .parse()
+          .expect("Failed to parse java version url")
+      ),
     );
 
     Ok(McVersionStore {
       mc_manifest: mc_manifest?,
       java_manifest: java_manifest?,
+      handle,
+      client: Arc::new(client),
     })
   }
 
-  pub async fn check_or_download(
-    &self,
-    id: &str,
-    client: Arc<Client>,
-    handle: &AppHandle,
-  ) -> Result<()> {
+  pub async fn refresh_manifests(&mut self) -> Result<()> {
+    let data_dir = self.handle.path().app_data_dir()?;
+    let mc_manifest_path = path!(&data_dir, MC_DIR, MANIFEST_NAME);
+    let java_manifest_path = path!(&data_dir, JAVA_DIR, MANIFEST_NAME);
+
+    let (mc_manifest, java_manifest) = join!(
+      download_and_parse_file_no_hash_force(
+        &self.client,
+        &mc_manifest_path,
+        MC_VERSION_MANIFEST_URL
+          .parse()
+          .expect("Failed to parse mc version url")
+      ),
+      download_and_parse_file_no_hash_force(
+        &self.client,
+        &java_manifest_path,
+        JAVA_VERSION_MANIFEST_URL
+          .parse()
+          .expect("Failed to parse java version url")
+      )
+    );
+    let (mc_manifest, java_manifest) = (mc_manifest?, java_manifest?);
+
+    let update = self.mc_manifest != mc_manifest || self.java_manifest != java_manifest;
+
+    self.mc_manifest = mc_manifest;
+    self.java_manifest = java_manifest;
+
+    if update {
+      update_data(&self.handle, UpdateType::Versions);
+    }
+
+    Ok(())
+  }
+
+  pub async fn check_or_download(&self, id: &str) -> Result<()> {
     let start = Instant::now();
     info!("Checking minecraft version {}", id);
-    let data_dir = handle.path().app_data_dir()?;
-    let version = self.get_version_manifest(id, &data_dir, &client).await?;
-    let assets = download_assets_manifest(&data_dir, &client, &version).await?;
-    let (java, java_component) = self.get_java_manifest(&data_dir, &client, &version).await?;
-    handle.emit(VERSION_CHECK_STATUS_EVENT, CheckStatus::Manifest)?;
+    let data_dir = self.handle.path().app_data_dir()?;
+    let version = self.get_version_manifest(id, &data_dir).await?;
+    let assets = download_assets_manifest(&data_dir, &self.client, &version).await?;
+    let (java, java_component) = self.get_java_manifest(&data_dir, &version).await?;
+    self
+      .handle
+      .emit(VERSION_CHECK_STATUS_EVENT, CheckStatus::Manifest)?;
 
-    download_client(&data_dir, &client, &version).await?;
-    download_version_assets(client.clone(), &data_dir, &assets).await?;
-    handle.emit(VERSION_CHECK_STATUS_EVENT, CheckStatus::Assets)?;
+    download_client(&data_dir, &self.client, &version).await?;
+    download_version_assets(self.client.clone(), &data_dir, &assets).await?;
+    self
+      .handle
+      .emit(VERSION_CHECK_STATUS_EVENT, CheckStatus::Assets)?;
 
-    download_java_files(client.clone(), &data_dir, &java, java_component).await?;
-    download_version_java_libraries(client, &data_dir, &version).await?;
-    handle.emit(VERSION_CHECK_STATUS_EVENT, CheckStatus::Java)?;
+    download_java_files(self.client.clone(), &data_dir, &java, java_component).await?;
+    download_version_java_libraries(self.client.clone(), &data_dir, &version).await?;
+    self
+      .handle
+      .emit(VERSION_CHECK_STATUS_EVENT, CheckStatus::Java)?;
     info!(
       "Finished checking minecraft version {} in {:?}",
       id,
@@ -84,12 +149,7 @@ impl McVersionStore {
     Ok(())
   }
 
-  async fn get_version_manifest(
-    &self,
-    id: &str,
-    data_dir: &PathBuf,
-    client: &Client,
-  ) -> Result<Version> {
+  async fn get_version_manifest(&self, id: &str, data_dir: &PathBuf) -> Result<Version> {
     let manifest_version = self
       .mc_manifest
       .versions
@@ -100,7 +160,7 @@ impl McVersionStore {
     let path = path!(data_dir, MC_DIR, VERSION_DIR, id, format!("{}.json", id));
     debug!("Checking minecraft manifest for version {}", id);
     download_and_parse_file(
-      client,
+      &self.client,
       &path,
       manifest_version.url.clone(),
       &manifest_version.sha1,
@@ -111,7 +171,6 @@ impl McVersionStore {
   async fn get_java_manifest(
     &self,
     data_dir: &PathBuf,
-    client: &Client,
     version: &Version,
   ) -> Result<(Files, Component)> {
     let java_version = &version.java_version;
@@ -142,12 +201,8 @@ impl McVersionStore {
     let download = &version.manifest;
     debug!("Checking java manifest for version {}", id);
     let files =
-      download_and_parse_file(client, &path, download.url.clone(), &download.sha1).await?;
+      download_and_parse_file(&self.client, &path, download.url.clone(), &download.sha1).await?;
 
     Ok((files, *java_component))
   }
-}
-
-async fn download_parse<R: DeserializeOwned>(client: &Client, url: &str) -> Result<R> {
-  Ok(client.get(url).send().await?.json().await?)
 }

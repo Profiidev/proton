@@ -7,7 +7,7 @@
     type Accounts,
     type ProfileInfo
   } from '$lib/tauri/account.svelte';
-  import { CircleHelp, Settings } from 'lucide-svelte';
+  import { CircleHelp } from 'lucide-svelte';
   import { Popover, Button } from 'positron-components/components/ui';
   import AccountImage from './AccountImage.svelte';
 

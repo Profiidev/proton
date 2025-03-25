@@ -7,7 +7,7 @@ use std::{
 use anyhow::Result;
 use log::debug;
 
-use crate::{path, CLIENT_ID};
+use crate::{path, utils::file::read_parse_file, CLIENT_ID};
 
 use super::{
   check_rule,
@@ -15,7 +15,6 @@ use super::{
     java::{Download, Library},
     minecraft::{Argument, Version},
   },
-  util::read_parse_file,
   ASSETS_DIR, JAVA_DIR, LIBRARY_DIR, MC_DIR, NATIVE_DIR, SEPARATOR, VERSION_DIR,
 };
 
@@ -31,6 +30,7 @@ pub struct LaunchArgs {
   pub access_token: String,
   pub data_dir: PathBuf,
   pub version: String,
+  pub working_sub_dir: String,
 }
 
 impl LaunchArgs {
@@ -52,7 +52,9 @@ impl LaunchArgs {
       .replace("${auth_xuid}", "0")
       .replace(
         "${game_directory}",
-        &path!(&self.data_dir, MC_DIR).display().to_string(),
+        &path!(&self.data_dir, &self.working_sub_dir)
+          .display()
+          .to_string(),
       )
       .replace("${version_name}", &self.version)
       .replace(
@@ -92,7 +94,7 @@ pub fn launch_minecraft_version(args: &LaunchArgs) -> Result<Child> {
   let jvm_args = jvm_args(args, &version);
   let game_args = game_args(args, &version);
 
-  let game_path = path!(&args.data_dir, MC_DIR);
+  let game_path = path!(&args.data_dir, &args.working_sub_dir);
   let main_class = &version.main_class;
   let java_component = &version.java_version.component;
   #[cfg(target_family = "unix")]

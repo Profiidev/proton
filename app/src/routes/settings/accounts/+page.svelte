@@ -36,7 +36,7 @@
   };
 
   const remove = async (id: string) => {
-    if (await account_remove(id)) {
+    if (!(await account_remove(id))) {
       toast.success('Successfully removed Account');
     } else {
       toast.error('Failed to remove Account');
@@ -50,7 +50,7 @@
       id: login_toast
     });
 
-    if (await account_login()) {
+    if (!(await account_login())) {
       toast.success('Successfully added Account');
     } else {
       toast.error('Failed to add Account');

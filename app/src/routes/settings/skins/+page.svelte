@@ -39,7 +39,7 @@
     let file = upload_input.files[0];
     let bytes = await file_to_bytes(file);
 
-    if (await account_add_skin(bytes)) {
+    if (!(await account_add_skin(bytes))) {
       toast.success('Successfully added Skin');
     } else {
       toast.error('Failed to add Skin');
@@ -52,7 +52,7 @@
   const change = async (id: string) => {
     if (!active_account) return;
 
-    if (await account_change_skin(id, active_account)) {
+    if (!(await account_change_skin(id, active_account))) {
       toast.success('Successfully changed Skin');
     } else {
       toast.error('Failed to change Skin');
