@@ -20,7 +20,7 @@
     "@tauri-apps/plugin-store": "^2.2.0",
     "lucide-svelte": "^0.483.0",
     "mode-watcher": "^0.5.1",
-    "positron-components": "^1.0.2",
+    "positron-components": "^1.1.2",
     "skinview3d": "^3.1.0"
   },
   "devDependencies": {
