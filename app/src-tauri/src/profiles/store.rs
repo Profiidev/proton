@@ -178,4 +178,17 @@ impl ProfileStore {
 
     Ok(profiles)
   }
+
+  pub fn get_profile(&self, profile: &str) -> Result<Profile> {
+    let Some(path) = self.profiles.get(profile) else {
+      return Err(ProfileError::NotFound.into());
+    };
+    read_parse_file(&path!(path, ProfileStore::PROFILE_CONFIG))
+  }
+}
+
+impl Profile {
+  pub fn relative_to_data(&self) -> PathBuf {
+    path!(ProfileStore::PROFILE_DIR, &self.id)
+  }
 }

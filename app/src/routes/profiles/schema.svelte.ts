@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 export const profileCreateSchema = z.object({
   name: z.string().min(1, 'Name is required'),
-  version: z.string().min(1, 'Version is required'),
+  version: z.array(z.string()).min(1, 'Version is required'),
   loader: z.nativeEnum(LoaderType),
   loader_version: z.string().optional(),
   icon: z

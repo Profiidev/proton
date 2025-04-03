@@ -158,17 +158,17 @@ export const account_list_skins = create_data_state(
   UpdateType.AccountSkins
 );
 
-export const account_change_skin = async (id: string, account: string) => {
+export const account_change_skin = async (id: string) => {
   try {
-    await invoke('account_change_skin', { id, account });
+    await invoke('account_change_skin', { id });
   } catch (e) {
     return RequestError.Other;
   }
 };
 
-export const account_change_cape = async (id: string, account: string) => {
+export const account_change_cape = async (id: string) => {
   try {
-    await invoke('account_change_cape', { id, account });
+    await invoke('account_change_cape', { id });
   } catch (e) {
     return RequestError.Other;
   }

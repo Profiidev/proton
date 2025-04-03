@@ -31,7 +31,7 @@
   const change = async (id: string) => {
     if (!active_account) return;
 
-    if (!(await account_change_cape(id, active_account))) {
+    if (!(await account_change_cape(id))) {
       toast.success('Successfully changed Cape');
     } else {
       toast.error('Failed to change Cape');

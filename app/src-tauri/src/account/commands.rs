@@ -113,15 +113,15 @@ pub async fn account_change_skin(
   state: State<'_, Mutex<SkinStore>>,
   accounts: State<'_, Mutex<AccountStore>>,
   id: &str,
-  account: &str,
 ) -> Result<()> {
   trace!("Command account_change_skin called");
   let mut store = state.lock().await;
   let mut accounts_store = accounts.lock().await;
 
-  accounts_store.refresh_auth(account).await.log()?;
+  let account = accounts_store.active().to_string();
+  accounts_store.refresh_auth(&account).await.log()?;
 
-  if let Some(token) = accounts_store.mc_token(account) {
+  if let Some(token) = accounts_store.mc_token(&account) {
     let profile = store.select_skin(id, token).await.log()?;
     accounts_store.update_profile(profile)?;
   } else {
@@ -134,15 +134,12 @@ pub async fn account_change_skin(
 }
 
 #[tauri::command]
-pub async fn account_change_cape(
-  accounts: State<'_, Mutex<AccountStore>>,
-  account: &str,
-  id: &str,
-) -> Result<()> {
+pub async fn account_change_cape(accounts: State<'_, Mutex<AccountStore>>, id: &str) -> Result<()> {
   trace!("Command account_change_cape called");
   let mut accounts_store = accounts.lock().await;
 
-  accounts_store.select_cape_by_id(account, id).await.log()?;
+  let account = accounts_store.active().to_string();
+  accounts_store.select_cape_by_id(&account, id).await.log()?;
 
   Ok(())
 }

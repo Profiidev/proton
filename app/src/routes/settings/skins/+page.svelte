@@ -52,7 +52,7 @@
   const change = async (id: string) => {
     if (!active_account) return;
 
-    if (!(await account_change_skin(id, active_account))) {
+    if (!(await account_change_skin(id))) {
       toast.success('Successfully changed Skin');
     } else {
       toast.error('Failed to change Skin');

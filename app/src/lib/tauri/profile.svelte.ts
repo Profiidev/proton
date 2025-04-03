@@ -108,3 +108,13 @@ export const profile_list = create_data_state(
   profile_list_,
   UpdateType.Profiles
 );
+
+export const profile_launch = async (profile: string) => {
+  try {
+    await invoke('profile_launch', {
+      profile
+    });
+  } catch (e: any) {
+    return parseError(e);
+  }
+};
