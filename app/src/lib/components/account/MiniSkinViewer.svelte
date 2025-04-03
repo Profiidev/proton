@@ -1,15 +1,7 @@
 <script lang="ts">
-  import {
-    account_list_skins,
-    account_remove_skin
-  } from '$lib/tauri/account.svelte';
+  import { account_remove_skin } from '$lib/tauri/account.svelte';
   import { Check, LoaderCircle, Trash } from 'lucide-svelte';
-  import {
-    Badge,
-    Button,
-    Skeleton,
-    toast
-  } from 'positron-components/components/ui';
+  import { Badge, Button, toast } from 'positron-components/components/ui';
   import { SkinViewer } from 'skinview3d';
   import { onMount } from 'svelte';
 
@@ -54,7 +46,7 @@
   });
 
   const remove = async () => {
-    if (await account_remove_skin(id)) {
+    if (!(await account_remove_skin(id))) {
       toast.success('Successfully removed Skin');
     } else {
       toast.error('Failed to remove Skin');
@@ -74,7 +66,11 @@
   <div class="relative h-55 w-37">
     <canvas bind:this={canvas} class="h-55 w-37 select-none"></canvas>
     {#if !viewer}
-      <Skeleton class="absolute top-0 left-0 h-55 w-37" />
+      <div
+        class="absolute top-0 left-0 flex h-55 w-37 items-center justify-center"
+      >
+        <LoaderCircle class="size-10 animate-spin" />
+      </div>
     {/if}
   </div>
   <div class="absolute top-0 flex w-full justify-between p-2">

@@ -6,7 +6,6 @@ mod event;
 mod launch;
 mod meta;
 pub mod store;
-mod util;
 
 const JAVA_DIR: &str = "java";
 

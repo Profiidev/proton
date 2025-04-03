@@ -17,14 +17,13 @@ use super::{
   info::{get_profile_info, ProfileInfo},
 };
 
-const ACCOUNT_KEY: &str = "account_info";
-const ACTIVE_ACCOUNT_KEY: &str = "active_account";
-
 const CAPE_CHANGE_URL: &str = "https://api.minecraftservices.com/minecraft/profile/capes/active";
 
 pub struct AccountStore {
   accounts: HashMap<String, Option<AccountInfo>>,
   active: String,
+  handle: AppHandle,
+  client: Client,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -40,12 +39,20 @@ pub struct LaunchInfo {
 }
 
 impl AccountStore {
-  pub fn new(handle: &AppHandle) -> Result<AccountStore> {
-    let store = handle.app_store()?;
-    let accounts: HashMap<String, Option<AccountInfo>> = store.get_or_default(ACCOUNT_KEY)?;
-    let active: String = store.get_or_default(ACTIVE_ACCOUNT_KEY)?;
+  const ACCOUNT_KEY: &str = "accounts";
+  const ACTIVE_ACCOUNT_KEY: &str = "active_account";
 
-    Ok(AccountStore { accounts, active })
+  pub fn new(handle: AppHandle) -> Result<AccountStore> {
+    let store = handle.app_store()?;
+    let accounts: HashMap<String, Option<AccountInfo>> = store.get_or_default(Self::ACCOUNT_KEY)?;
+    let active: String = store.get_or_default(Self::ACTIVE_ACCOUNT_KEY)?;
+
+    Ok(AccountStore {
+      accounts,
+      active,
+      handle,
+      client: Client::new(),
+    })
   }
 
   pub fn list_profiles(&self) -> HashMap<String, Option<ProfileInfo>> {
@@ -56,10 +63,10 @@ impl AccountStore {
       .collect()
   }
 
-  async fn refresh_token(&mut self, id: &str, client: &Client) -> Result<()> {
+  async fn refresh_token(&mut self, id: &str) -> Result<()> {
     debug!("Refreshing mc token for {}", id);
     if let Some(Some(account)) = self.accounts.get_mut(id) {
-      if let Some(auth) = refresh_mc_token(client, account.auth.clone()).await? {
+      if let Some(auth) = refresh_mc_token(&self.client, account.auth.clone()).await? {
         account.auth = auth;
       } else {
         self.accounts.insert(id.to_string(), None);
@@ -69,44 +76,44 @@ impl AccountStore {
     Ok(())
   }
 
-  async fn refresh_profile(&mut self, id: &str, client: &Client) -> Result<()> {
+  async fn refresh_profile(&mut self, id: &str) -> Result<()> {
     debug!("Refreshing mc profile for {}", id);
     if let Some(Some(account)) = self.accounts.get_mut(id) {
-      let profile = get_profile_info(client, &account.auth.mc_token).await?;
+      let profile = get_profile_info(&self.client, &account.auth.mc_token).await?;
       account.profile = profile;
     }
 
     Ok(())
   }
 
-  fn save(&self, handle: &AppHandle) -> Result<()> {
-    let store = handle.app_store()?;
-    store.set(ACCOUNT_KEY, &self.accounts)?;
-    store.set(ACTIVE_ACCOUNT_KEY, &self.active)
+  fn save(&self) -> Result<()> {
+    let store = self.handle.app_store()?;
+    store.set(Self::ACCOUNT_KEY, &self.accounts)?;
+    store.set(Self::ACTIVE_ACCOUNT_KEY, &self.active)
   }
 
-  pub async fn refresh(&mut self, id: &str, client: &Client, handle: &AppHandle) -> Result<()> {
+  pub async fn refresh(&mut self, id: &str) -> Result<()> {
     //ignore result to prevent inconsistent saved data
-    let _ = self.refresh_token(id, client).await;
-    let _ = self.refresh_profile(id, client).await;
-    self.save(handle)?;
+    let _ = self.refresh_token(id).await;
+    let _ = self.refresh_profile(id).await;
+    self.save()?;
 
-    update_data(handle, UpdateType::Accounts);
+    update_data(&self.handle, UpdateType::Accounts);
     Ok(())
   }
 
-  pub async fn refresh_all(&mut self, client: &Client, handle: &AppHandle) -> Result<()> {
+  pub async fn refresh_all(&mut self) -> Result<()> {
     let keys: Vec<String> = self.accounts.keys().cloned().collect();
 
     for id in &keys {
       //ignore result to prevent inconsistent saved data
-      let _ = self.refresh_token(id, client).await;
-      let _ = self.refresh_profile(id, client).await;
+      let _ = self.refresh_token(id).await;
+      let _ = self.refresh_profile(id).await;
     }
 
-    self.save(handle)?;
+    self.save()?;
 
-    update_data(handle, UpdateType::Accounts);
+    update_data(&self.handle, UpdateType::Accounts);
     Ok(())
   }
 
@@ -131,71 +138,61 @@ impl AccountStore {
     })
   }
 
-  pub fn set_active(&mut self, id: String, handle: &AppHandle) -> Result<()> {
+  pub fn set_active(&mut self, id: String) -> Result<()> {
     debug!("Changing active account to {}", id);
     self.active = id;
-    self.save(handle)?;
+    self.save()?;
 
-    update_data(handle, UpdateType::AccountActive);
+    update_data(&self.handle, UpdateType::AccountActive);
     Ok(())
   }
 
-  pub fn remove_account(&mut self, id: &str, handle: &AppHandle) -> Result<()> {
+  pub fn remove_account(&mut self, id: &str) -> Result<()> {
     debug!("Removing account {}", id);
     self.accounts.remove(id);
-    self.save(handle)?;
+    self.save()?;
 
-    update_data(handle, UpdateType::Accounts);
+    update_data(&self.handle, UpdateType::Accounts);
     Ok(())
   }
 
-  pub async fn login(&mut self, client: &Client, handle: &AppHandle) -> Result<()> {
+  pub async fn login(&mut self) -> Result<()> {
     debug!("Adding new account");
-    let auth = ms_mc_login(client, handle).await?;
-    let profile = get_profile_info(client, &auth.mc_token).await?;
+    let auth = ms_mc_login(&self.client, &self.handle).await?;
+    let profile = get_profile_info(&self.client, &auth.mc_token).await?;
 
     self
       .accounts
       .insert(profile.id.clone(), Some(AccountInfo { auth, profile }));
 
-    self.save(handle)?;
+    self.save()?;
 
-    update_data(handle, UpdateType::Accounts);
+    update_data(&self.handle, UpdateType::Accounts);
     Ok(())
   }
 
-  pub async fn refresh_auth(
-    &mut self,
-    id: &str,
-    client: &Client,
-    handle: &AppHandle,
-  ) -> Result<()> {
-    self.refresh_token(id, client).await?;
-    self.save(handle)
+  pub async fn refresh_auth(&mut self, id: &str) -> Result<()> {
+    self.refresh_token(id).await?;
+    self.save()
   }
 
-  pub fn update_profile(&mut self, profile: ProfileInfo, handle: &AppHandle) -> Result<()> {
+  pub fn update_profile(&mut self, profile: ProfileInfo) -> Result<()> {
     if let Some(Some(account)) = self.accounts.get_mut(&profile.id) {
       account.profile = profile;
     }
-    self.save(handle)?;
+    self.save()?;
 
-    update_data(handle, UpdateType::Accounts);
+    update_data(&self.handle, UpdateType::Accounts);
     Ok(())
   }
 
-  pub async fn select_cape_by_id(
-    &mut self,
-    account: &str,
-    id: &str,
-    handle: &AppHandle,
-    client: &Client,
-  ) -> Result<()> {
+  pub async fn select_cape_by_id(&mut self, account: &str, id: &str) -> Result<()> {
     debug!("Selecting cape {} for account {}", id, account);
-    self.refresh_auth(account, client, handle).await?;
+    self.refresh_auth(account).await?;
 
     if let Some(Some(account)) = self.accounts.get_mut(account) {
-      let res = client
+      let res = self
+        .client
         .put(CAPE_CHANGE_URL)
         .bearer_auth(&account.auth.mc_token)
         .json(&CapeChangeReq {
@@ -208,9 +205,9 @@ impl AccountStore {
       let profile: ProfileInfo = res.json().await?;
 
       account.profile = profile;
-      self.save(handle)?;
+      self.save()?;
 
-      update_data(handle, UpdateType::Accounts);
+      update_data(&self.handle, UpdateType::Accounts);
       return Ok(());
     }
 
