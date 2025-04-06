@@ -14,7 +14,7 @@ const VERSION_DIR: &str = "versions";
 const LIBRARY_DIR: &str = "libraries";
 const NATIVE_DIR: &str = "bin";
 const ASSETS_DIR: &str = "assets";
-const ASSETS_INDEX_DIR: &str = "indices";
+const ASSETS_INDEX_DIR: &str = "indexes";
 
 #[cfg(target_os = "linux")]
 const OS_NAME: Option<OsName> = Some(OsName::Linux);

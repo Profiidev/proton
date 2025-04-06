@@ -9,7 +9,7 @@ use std::{
 use anyhow::Result;
 use log::debug;
 use reqwest::Client;
-use tauri::Url;
+use tauri::{AppHandle, Url};
 use thiserror::Error;
 use zip::ZipArchive;
 
@@ -19,6 +19,7 @@ use crate::{
     file::{create_or_open_file, download_and_parse_file, download_file},
     future::FuturePool,
   },
+  versions::event::{emit_check_status, CheckStatus},
 };
 
 use super::{
@@ -82,6 +83,7 @@ pub async fn download_java_files(
   data_dir: &PathBuf,
   files: &Files,
   component: Component,
+  handle: &AppHandle,
 ) -> Result<()> {
   debug!("Collecting checks/downloads for java");
   let start = Instant::now();
@@ -125,7 +127,11 @@ pub async fn download_java_files(
   debug!("Got {} checks/downloads for java", futures.len());
   let pool = FuturePool::new(futures);
 
-  let res = pool.run(None).await;
+  let res = pool
+    .run(None, |done, total| {
+      emit_check_status(handle, CheckStatus::Java(done, total))
+    })
+    .await;
   for result in res {
     result??;
   }
@@ -160,6 +166,7 @@ pub async fn download_version_java_libraries(
   client: Arc<Client>,
   data_dir: &PathBuf,
   version: &Version,
+  handle: &AppHandle,
 ) -> Result<()> {
   debug!("Collecting checks/downloads for java libraries");
   let start = Instant::now();
@@ -226,11 +233,19 @@ pub async fn download_version_java_libraries(
   let pool_1 = FuturePool::new(futures_1);
   let pool_2 = FuturePool::new(futures_2);
 
-  let res = pool_1.run(None).await;
+  let res = pool_1
+    .run(None, |done, total| {
+      emit_check_status(handle, CheckStatus::NativeLibrary(done, total))
+    })
+    .await;
   for result in res {
     result??;
   }
-  let res = pool_2.run(None).await;
+  let res = pool_2
+    .run(None, |done, total| {
+      emit_check_status(handle, CheckStatus::Library(done, total))
+    })
+    .await;
   for result in res {
     result??;
   }
@@ -272,6 +287,7 @@ pub async fn download_version_assets(
   client: Arc<Client>,
   data_dir: &PathBuf,
   assets: &Assets,
+  handle: &AppHandle,
 ) -> Result<()> {
   debug!("Collecting checks/downloads for assets");
   let start = Instant::now();
@@ -291,7 +307,11 @@ pub async fn download_version_assets(
   debug!("Got {} checks/downloads for assets", futures.len());
   let pool = FuturePool::new(futures);
 
-  let res = pool.run(None).await;
+  let res = pool
+    .run(None, |done, total| {
+      emit_check_status(handle, CheckStatus::Assets(done, total))
+    })
+    .await;
   for result in res {
     result??;
   }

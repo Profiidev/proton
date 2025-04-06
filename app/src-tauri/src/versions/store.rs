@@ -4,7 +4,7 @@ use anyhow::Result;
 use log::{debug, info};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, Manager, Url};
+use tauri::{AppHandle, Manager, Url};
 use tokio::join;
 
 use crate::{
@@ -14,11 +14,11 @@ use crate::{
   utils::{
     file::{
       download_and_parse_file, download_and_parse_file_no_hash,
-      download_and_parse_file_no_hash_force,
+      download_and_parse_file_no_hash_force, file_hash,
     },
     updater::{update_data, UpdateType},
   },
-  versions::event::{CheckStatus, VERSION_CHECK_STATUS_EVENT},
+  versions::event::CheckStatus,
 };
 
 use super::{
@@ -26,6 +26,7 @@ use super::{
     download_assets_manifest, download_client, download_java_files, download_version_assets,
     download_version_java_libraries, DownloadError,
   },
+  event::emit_check_status,
   launch::{launch_minecraft_version, LaunchArgs},
   meta::{
     java::{Component, Files, JavaVersions},
@@ -126,23 +127,26 @@ impl McVersionStore {
     info!("Checking minecraft version {}", id);
     let data_dir = self.handle.path().app_data_dir()?;
     let version = self.get_version_manifest(id, &data_dir).await?;
+    emit_check_status(&self.handle, CheckStatus::Manifest(1));
     let assets = download_assets_manifest(&data_dir, &self.client, &version).await?;
+    emit_check_status(&self.handle, CheckStatus::Manifest(2));
     let (java, java_component) = self.get_java_manifest(&data_dir, &version).await?;
-    self
-      .handle
-      .emit(VERSION_CHECK_STATUS_EVENT, CheckStatus::Manifest)?;
+    emit_check_status(&self.handle, CheckStatus::Manifest(3));
 
     download_client(&data_dir, &self.client, &version).await?;
-    download_version_assets(self.client.clone(), &data_dir, &assets).await?;
-    self
-      .handle
-      .emit(VERSION_CHECK_STATUS_EVENT, CheckStatus::Assets)?;
+    emit_check_status(&self.handle, CheckStatus::Client);
+    download_version_assets(self.client.clone(), &data_dir, &assets, &self.handle).await?;
+    download_java_files(
+      self.client.clone(),
+      &data_dir,
+      &java,
+      java_component,
+      &self.handle,
+    )
+    .await?;
+    download_version_java_libraries(self.client.clone(), &data_dir, &version, &self.handle).await?;
 
-    download_java_files(self.client.clone(), &data_dir, &java, java_component).await?;
-    download_version_java_libraries(self.client.clone(), &data_dir, &version).await?;
-    self
-      .handle
-      .emit(VERSION_CHECK_STATUS_EVENT, CheckStatus::Java)?;
+    emit_check_status(&self.handle, CheckStatus::Done);
     info!(
       "Finished checking minecraft version {} in {:?}",
       id,
@@ -150,6 +154,18 @@ impl McVersionStore {
     );
 
     Ok(())
+  }
+
+  pub fn check_meta(&self, id: &str) -> Result<bool> {
+    let data_dir = self.handle.path().app_data_dir()?;
+    let manifest_version = self
+      .mc_manifest
+      .versions
+      .iter()
+      .find(|v| v.id == id)
+      .ok_or(DownloadError::NotFound)?;
+    let path = path!(&data_dir, MC_DIR, VERSION_DIR, id, format!("{}.json", id));
+    file_hash(&manifest_version.sha1, &path)
   }
 
   async fn get_version_manifest(&self, id: &str, data_dir: &PathBuf) -> Result<Version> {
@@ -219,10 +235,8 @@ impl McVersionStore {
       .collect()
   }
 
-  pub async fn launch_version(&self, info: LaunchInfo, profile: &Profile) -> Result<()> {
+  pub fn launch_version(&self, info: LaunchInfo, profile: &Profile) -> Result<()> {
     let data_dir = self.handle.path().app_data_dir()?;
-
-    self.check_or_download(&profile.version).await?;
 
     launch_minecraft_version(&LaunchArgs {
       access_token: info.access_token,
