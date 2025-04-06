@@ -96,3 +96,20 @@ pub async fn profile_launch(
 
   Ok(())
 }
+
+#[tauri::command]
+pub async fn profile_repair(
+  state: State<'_, Mutex<ProfileStore>>,
+  versions: State<'_, Mutex<McVersionStore>>,
+  profile: &str,
+  id: usize,
+) -> Result<()> {
+  trace!("Command profile_repair called");
+  let store = state.lock().await;
+  let mc_store = versions.lock().await;
+
+  let profile = store.get_profile(profile)?;
+  mc_store.check_or_download(&profile.version, id).await?;
+
+  Ok(())
+}

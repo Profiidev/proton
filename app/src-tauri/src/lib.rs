@@ -13,7 +13,8 @@ use account::{
   store::AccountStore,
 };
 use profiles::commands::{
-  profile_create, profile_launch, profile_list, profile_remove, profile_update, profile_update_icon,
+  profile_create, profile_launch, profile_list, profile_remove, profile_repair, profile_update,
+  profile_update_icon,
 };
 use tauri::{AppHandle, Manager};
 use tauri_plugin_log::{RotationStrategy, Target, TargetKind, TimezoneStrategy};
@@ -75,6 +76,7 @@ pub fn run() {
       profile_update_icon,
       profile_list,
       profile_launch,
+      profile_repair,
     ])
     .setup(|app| {
       let _ = app.handle().app_store()?;

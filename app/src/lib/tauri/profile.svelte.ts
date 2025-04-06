@@ -118,22 +118,51 @@ export const profile_list = create_data_state(
   UpdateType.Profiles
 );
 
+export const profile_launch = async (profile: string, name: string) => {
+  launch_repair(
+    profile,
+    'profile_launch',
+    `Launching profile ${name}`,
+    `Failed to launch profile ${name}`
+  );
+};
+
+export const profile_repair = async (profile: string, name: string) => {
+  launch_repair(
+    profile,
+    'profile_repair',
+    `Repair of profile ${name} complete`,
+    `Failed to repair profile ${name}`
+  );
+};
+
 let check_toasts = new Map<number, string | number>();
-export const profile_launch = async (profile: string) => {
+let check_message = new Map<number, string>();
+const launch_repair = async (
+  profile: string,
+  cmd: string,
+  message: string,
+  err: string
+) => {
+  let id = Math.round(Math.random() * 1000000);
   try {
-    let id = Math.round(Math.random() * 1000000);
     check_toasts.set(
       id,
       toast.loading('Checking/Downloading version manifests', {
         duration: TOAST_DURATION
       })
     );
-    await invoke('profile_launch', {
+    check_message.set(id, message);
+    await invoke(cmd, {
       profile,
       id
     });
   } catch (e: any) {
-    return parseError(e);
+    toast.dismiss(id);
+    check_message.delete(id);
+    check_toasts.delete(id);
+
+    toast.error(err);
   }
 };
 
@@ -182,7 +211,10 @@ if (browser) {
     } else {
       toast.dismiss(id);
       check_toasts.delete(event.id);
-      toast.success('Launching Minecraft');
+
+      let message = check_message.get(event.id);
+      check_message.delete(event.id);
+      toast.success(message ?? '');
     }
   });
 }
