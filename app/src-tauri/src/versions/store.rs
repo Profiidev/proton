@@ -165,7 +165,12 @@ impl McVersionStore {
       .find(|v| v.id == id)
       .ok_or(DownloadError::NotFound)?;
     let path = path!(&data_dir, MC_DIR, VERSION_DIR, id, format!("{}.json", id));
-    file_hash(&manifest_version.sha1, &path)
+    let ok = file_hash(&manifest_version.sha1, &path)?;
+    if ok {
+      emit_check_status(&self.handle, CheckStatus::Done);
+    }
+
+    Ok(ok)
   }
 
   async fn get_version_manifest(&self, id: &str, data_dir: &PathBuf) -> Result<Version> {

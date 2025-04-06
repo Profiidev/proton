@@ -11,7 +11,8 @@
   } from '$lib/tauri/account.svelte';
   import {
     ACCOUNT_LOGIN_STATUS_EVENT,
-    LoginStatus
+    LoginStatus,
+    TOAST_DURATION
   } from '$lib/tauri/events.svelte';
   import { listen } from '@tauri-apps/api/event';
   import { LoaderCircle, Plus, Trash } from 'lucide-svelte';
@@ -26,8 +27,6 @@
   let active = $derived(account_active.value);
   let add_loading = $state(false);
   let login_toast: string | number | undefined;
-  //10 minutes
-  const LOGIN_TOAST_DURATION = 600000;
 
   const change = async (id: string) => {
     if (!(await account_set_active(id))) {
@@ -46,7 +45,7 @@
   const add = async () => {
     add_loading = true;
     login_toast = toast.loading('Waiting for Microsoft Login', {
-      duration: LOGIN_TOAST_DURATION,
+      duration: TOAST_DURATION,
       id: login_toast
     });
 
@@ -62,29 +61,29 @@
   };
 
   listen(ACCOUNT_LOGIN_STATUS_EVENT, (e) => {
-    if (!login_toast) return;
+    if (login_toast === undefined) return;
 
     switch (e.payload as LoginStatus) {
       case LoginStatus.Ms:
         toast.loading('Logging in to Xbox', {
           id: login_toast,
-          duration: LOGIN_TOAST_DURATION
+          duration: TOAST_DURATION
         });
         break;
       case LoginStatus.Xbox:
         toast.loading('Logging in to Xbox Security', {
           id: login_toast,
-          duration: LOGIN_TOAST_DURATION
+          duration: TOAST_DURATION
         });
       case LoginStatus.XboxSecurity:
         toast.loading('Logging in to Minecraft', {
           id: login_toast,
-          duration: LOGIN_TOAST_DURATION
+          duration: TOAST_DURATION
         });
       case LoginStatus.Mc:
         toast.loading('Retrieving Minecraft Profile', {
           id: login_toast,
-          duration: LOGIN_TOAST_DURATION
+          duration: TOAST_DURATION
         });
     }
   });
