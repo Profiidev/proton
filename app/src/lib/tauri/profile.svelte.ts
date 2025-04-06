@@ -4,6 +4,7 @@ import { RequestError } from 'positron-components/backend';
 import {
   TOAST_DURATION,
   VERSION_CHECK_STATUS_EVENT,
+  type VersionCheckData,
   type VersionCheckStatus
 } from './events.svelte';
 import { listen } from '@tauri-apps/api/event';
@@ -117,14 +118,19 @@ export const profile_list = create_data_state(
   UpdateType.Profiles
 );
 
-let check_toast: string | number | undefined;
+let check_toasts = new Map<number, string | number>();
 export const profile_launch = async (profile: string) => {
   try {
-    check_toast = toast.loading('Checking/Downloading version manifests', {
-      duration: TOAST_DURATION
-    });
+    let id = Math.round(Math.random() * 1000000);
+    check_toasts.set(
+      id,
+      toast.loading('Checking/Downloading version manifests', {
+        duration: TOAST_DURATION
+      })
+    );
     await invoke('profile_launch', {
-      profile
+      profile,
+      id
     });
   } catch (e: any) {
     return parseError(e);
@@ -160,19 +166,22 @@ const get_message = (event: VersionCheckStatus): string | undefined => {
 
 if (browser) {
   listen(VERSION_CHECK_STATUS_EVENT, (e) => {
-    if (check_toast === undefined) return;
+    let event = e.payload as VersionCheckData;
+    let id = check_toasts.get(event.id);
+    if (id === undefined) return;
 
-    let event = e.payload as VersionCheckStatus;
-    let message = get_message(event);
-
+    let message = get_message(event.data);
     if (message) {
-      check_toast = toast.loading(`Downloading/Checking ${message}`, {
-        id: check_toast,
-        duration: TOAST_DURATION
-      });
+      check_toasts.set(
+        event.id,
+        toast.loading(`Downloading/Checking ${message}`, {
+          id,
+          duration: TOAST_DURATION
+        })
+      );
     } else {
-      toast.dismiss(check_toast);
-      check_toast = undefined;
+      toast.dismiss(id);
+      check_toasts.delete(event.id);
       toast.success('Launching Minecraft');
     }
   });

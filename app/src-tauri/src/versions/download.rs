@@ -84,14 +84,15 @@ pub async fn download_java_files(
   files: &Files,
   component: Component,
   handle: &AppHandle,
+  id: usize,
 ) -> Result<()> {
   debug!("Collecting checks/downloads for java");
   let start = Instant::now();
   let mut futures = Vec::new();
-  let id = component.to_string();
+  let version = component.to_string();
 
   for (path, file) in &files.files {
-    let path = path!(data_dir, JAVA_DIR, &id, path);
+    let path = path!(data_dir, JAVA_DIR, &version, path);
     match file {
       java::File::Directory => fs::create_dir_all(path)?,
       java::File::Link { .. } => {}
@@ -129,7 +130,7 @@ pub async fn download_java_files(
 
   let res = pool
     .run(None, |done, total| {
-      emit_check_status(handle, CheckStatus::Java(done, total))
+      emit_check_status(handle, CheckStatus::Java(done, total), id)
     })
     .await;
   for result in res {
@@ -167,6 +168,7 @@ pub async fn download_version_java_libraries(
   data_dir: &PathBuf,
   version: &Version,
   handle: &AppHandle,
+  id: usize,
 ) -> Result<()> {
   debug!("Collecting checks/downloads for java libraries");
   let start = Instant::now();
@@ -235,7 +237,7 @@ pub async fn download_version_java_libraries(
 
   let res = pool_1
     .run(None, |done, total| {
-      emit_check_status(handle, CheckStatus::NativeLibrary(done, total))
+      emit_check_status(handle, CheckStatus::NativeLibrary(done, total), id)
     })
     .await;
   for result in res {
@@ -243,7 +245,7 @@ pub async fn download_version_java_libraries(
   }
   let res = pool_2
     .run(None, |done, total| {
-      emit_check_status(handle, CheckStatus::Library(done, total))
+      emit_check_status(handle, CheckStatus::Library(done, total), id)
     })
     .await;
   for result in res {
@@ -288,6 +290,7 @@ pub async fn download_version_assets(
   data_dir: &PathBuf,
   assets: &Assets,
   handle: &AppHandle,
+  id: usize,
 ) -> Result<()> {
   debug!("Collecting checks/downloads for assets");
   let start = Instant::now();
@@ -309,7 +312,7 @@ pub async fn download_version_assets(
 
   let res = pool
     .run(None, |done, total| {
-      emit_check_status(handle, CheckStatus::Assets(done, total))
+      emit_check_status(handle, CheckStatus::Assets(done, total), id)
     })
     .await;
   for result in res {

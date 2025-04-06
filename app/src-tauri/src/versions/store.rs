@@ -122,31 +122,33 @@ impl McVersionStore {
     Ok(())
   }
 
-  pub async fn check_or_download(&self, id: &str) -> Result<()> {
+  pub async fn check_or_download(&self, version: &str, id: usize) -> Result<()> {
     let start = Instant::now();
-    info!("Checking minecraft version {}", id);
+    info!("Checking minecraft version {}", version);
     let data_dir = self.handle.path().app_data_dir()?;
-    let version = self.get_version_manifest(id, &data_dir).await?;
-    emit_check_status(&self.handle, CheckStatus::Manifest(1));
+    let version = self.get_version_manifest(version, &data_dir).await?;
+    emit_check_status(&self.handle, CheckStatus::Manifest(1), id);
     let assets = download_assets_manifest(&data_dir, &self.client, &version).await?;
-    emit_check_status(&self.handle, CheckStatus::Manifest(2));
+    emit_check_status(&self.handle, CheckStatus::Manifest(2), id);
     let (java, java_component) = self.get_java_manifest(&data_dir, &version).await?;
-    emit_check_status(&self.handle, CheckStatus::Manifest(3));
+    emit_check_status(&self.handle, CheckStatus::Manifest(3), id);
 
     download_client(&data_dir, &self.client, &version).await?;
-    emit_check_status(&self.handle, CheckStatus::Client);
-    download_version_assets(self.client.clone(), &data_dir, &assets, &self.handle).await?;
+    emit_check_status(&self.handle, CheckStatus::Client, id);
+    download_version_assets(self.client.clone(), &data_dir, &assets, &self.handle, id).await?;
     download_java_files(
       self.client.clone(),
       &data_dir,
       &java,
       java_component,
       &self.handle,
+      id,
     )
     .await?;
-    download_version_java_libraries(self.client.clone(), &data_dir, &version, &self.handle).await?;
+    download_version_java_libraries(self.client.clone(), &data_dir, &version, &self.handle, id)
+      .await?;
 
-    emit_check_status(&self.handle, CheckStatus::Done);
+    emit_check_status(&self.handle, CheckStatus::Done, id);
     info!(
       "Finished checking minecraft version {} in {:?}",
       id,
@@ -156,18 +158,24 @@ impl McVersionStore {
     Ok(())
   }
 
-  pub fn check_meta(&self, id: &str) -> Result<bool> {
+  pub fn check_meta(&self, version: &str, id: usize) -> Result<bool> {
     let data_dir = self.handle.path().app_data_dir()?;
     let manifest_version = self
       .mc_manifest
       .versions
       .iter()
-      .find(|v| v.id == id)
+      .find(|v| v.id == version)
       .ok_or(DownloadError::NotFound)?;
-    let path = path!(&data_dir, MC_DIR, VERSION_DIR, id, format!("{}.json", id));
+    let path = path!(
+      &data_dir,
+      MC_DIR,
+      VERSION_DIR,
+      version,
+      format!("{}.json", version)
+    );
     let ok = file_hash(&manifest_version.sha1, &path)?;
     if ok {
-      emit_check_status(&self.handle, CheckStatus::Done);
+      emit_check_status(&self.handle, CheckStatus::Done, id);
     }
 
     Ok(ok)

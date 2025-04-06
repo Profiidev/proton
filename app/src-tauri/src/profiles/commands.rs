@@ -71,6 +71,7 @@ pub async fn profile_launch(
   versions: State<'_, Mutex<McVersionStore>>,
   auth: State<'_, Mutex<AccountStore>>,
   profile: &str,
+  id: usize,
 ) -> Result<()> {
   trace!("Command profile_launch called");
   let mut store = state.lock().await;
@@ -84,11 +85,11 @@ pub async fn profile_launch(
 
   let mut profile = store.get_profile(profile)?;
   if !profile.downloaded {
-    mc_store.check_or_download(&profile.version).await?;
+    mc_store.check_or_download(&profile.version, id).await?;
     profile.downloaded = true;
     store.update_profile(&profile)?;
-  } else if !mc_store.check_meta(&profile.version)? {
-    mc_store.check_or_download(&profile.version).await?;
+  } else if !mc_store.check_meta(&profile.version, id)? {
+    mc_store.check_or_download(&profile.version, id).await?;
   }
 
   mc_store.launch_version(info, &profile)?;

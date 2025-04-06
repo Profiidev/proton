@@ -29,6 +29,11 @@ export type VersionCheckStatus =
   | 'Client'
   | 'Done';
 
+export type VersionCheckData = {
+  data: VersionCheckStatus;
+  id: number;
+};
+
 export const VERSION_CHECK_STATUS_EVENT = 'version-check-status';
 
 //10 minutes
