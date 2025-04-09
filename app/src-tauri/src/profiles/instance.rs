@@ -3,10 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use anyhow::Result;
 use log::debug;
 use serde::Serialize;
-use tauri::{
-  async_runtime::{spawn, JoinHandle},
-  AppHandle,
-};
+use tauri::{async_runtime::spawn, AppHandle};
 use thiserror::Error;
 use tokio::{
   io::{AsyncBufReadExt, BufReader},
@@ -20,7 +17,6 @@ use crate::utils::updater::{update_data, UpdateType};
 
 pub struct Instance {
   id: String,
-  handle: JoinHandle<()>,
   lines: Arc<Mutex<Vec<String>>>,
 }
 
@@ -69,7 +65,7 @@ impl Instance {
     let lines_ = lines.clone();
     let instances_ = instances.clone();
     let handle = app_handle.clone();
-    let handle = spawn(async move {
+    spawn(async move {
       loop {
         let line = select! {
           Ok(Some(line)) = stdout.next_line() => line,
@@ -79,8 +75,7 @@ impl Instance {
             let mut instances = instances_.lock().await;
             let entry = instances.entry(profile_).or_default();
             if let Some(i) = entry.iter().position(|i| i.id == id_) {
-              let instance = entry.swap_remove(i);
-              let _ = instance.handle.await;
+              let _ = entry.swap_remove(i);
             }
             update_data(&handle, UpdateType::Instances);
             break;
@@ -89,10 +84,11 @@ impl Instance {
         };
         debug!("Profile: {}, id: {}, {}", profile_, id_, &line);
         lines_.lock().await.push(line);
+        update_data(&handle, UpdateType::InstanceLogs);
       }
     });
 
-    let instance = Instance { id, handle, lines };
+    let instance = Instance { id, lines };
     let mut instances = instances.lock().await;
     instances.entry(profile).or_default().push(instance);
     update_data(app_handle, UpdateType::Instances);

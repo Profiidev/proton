@@ -223,15 +223,17 @@ impl ProfileStore {
     let mut res = HashMap::new();
 
     for (profile, instances) in instances.iter() {
-      res.insert(
-        profile.clone(),
-        instances
-          .iter()
-          .map(|i| InstanceInfo {
-            id: i.id().to_string(),
-          })
-          .collect(),
-      );
+      let instances: Vec<InstanceInfo> = instances
+        .iter()
+        .map(|i| InstanceInfo {
+          id: i.id().to_string(),
+        })
+        .collect();
+      if instances.is_empty() {
+        continue;
+      }
+
+      res.insert(profile.clone(), instances);
     }
 
     res

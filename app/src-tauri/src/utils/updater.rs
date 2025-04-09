@@ -14,7 +14,8 @@ pub enum UpdateType {
   //profiles
   Profiles,
   //instances
-  Instances
+  Instances,
+  InstanceLogs,
 }
 
 pub fn update_data(handle: &AppHandle, r#type: UpdateType) {
