@@ -27,7 +27,13 @@ pub async fn profile_create(
   loader: LoaderType,
   loader_version: Option<String>,
 ) -> Result<()> {
-  trace!("Command profile_create called");
+  trace!(
+    "Command profile_create called with name {} version {} loader {:?} loader_version {:?}",
+    &name,
+    &version,
+    &loader,
+    &loader_version
+  );
   let mut store = state.lock().await;
   store.create_profile(name, icon.as_deref(), version, loader, loader_version)?;
   Ok(())
@@ -35,7 +41,7 @@ pub async fn profile_create(
 
 #[tauri::command]
 pub async fn profile_update(state: State<'_, Mutex<ProfileStore>>, profile: Profile) -> Result<()> {
-  trace!("Command profile_update called");
+  trace!("Command profile_update called with profile {:?}", &profile);
   let mut store = state.lock().await;
   store.update_profile(&profile)?;
   Ok(())
@@ -47,7 +53,10 @@ pub async fn profile_update_icon(
   profile: &str,
   icon: Vec<u8>,
 ) -> Result<()> {
-  trace!("Command profile_update_icon called");
+  trace!(
+    "Command profile_update_icon called with profile {}",
+    profile
+  );
   let mut store = state.lock().await;
   store.update_profile_icon(profile, &icon)?;
   Ok(())
@@ -55,7 +64,7 @@ pub async fn profile_update_icon(
 
 #[tauri::command]
 pub async fn profile_remove(state: State<'_, Mutex<ProfileStore>>, profile: &str) -> Result<()> {
-  trace!("Command profile_remove called");
+  trace!("Command profile_remove called with profile {}", profile);
   let mut store = state.lock().await;
   store.remove_profile(profile)?;
   Ok(())
@@ -76,7 +85,11 @@ pub async fn profile_launch(
   profile: &str,
   id: usize,
 ) -> Result<()> {
-  trace!("Command profile_launch called");
+  trace!(
+    "Command profile_launch called with profile {} id {}",
+    profile,
+    id
+  );
   let mut store = state.lock().await;
   let mc_store = versions.lock().await;
   let auth_store = auth.lock().await;
@@ -107,7 +120,11 @@ pub async fn profile_repair(
   profile: &str,
   id: usize,
 ) -> Result<()> {
-  trace!("Command profile_repair called");
+  trace!(
+    "Command profile_repair called with profile {} id {}",
+    profile,
+    id
+  );
   let store = state.lock().await;
   let mc_store = versions.lock().await;
 
@@ -132,7 +149,11 @@ pub async fn instance_logs(
   profile: &str,
   id: &str,
 ) -> Result<Vec<String>> {
-  trace!("Command instance_logs called");
+  trace!(
+    "Command instance_logs called with profile {} id {}",
+    profile,
+    id
+  );
   let store = state.lock().await;
   let lines = store.get_instance_logs(profile, id).await?;
   Ok(lines)

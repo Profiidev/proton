@@ -26,7 +26,7 @@ pub struct ProfileStore {
   handle: AppHandle,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Profile {
   pub id: String,
   pub name: String,
@@ -42,13 +42,13 @@ pub struct Profile {
   pub dev: Option<DevSettings>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct GameSettings {
   pub width: usize,
   pub height: usize,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct JvmSettings {
   pub args: Vec<String>,
   pub env_vars: HashMap<String, String>,
@@ -56,13 +56,13 @@ pub struct JvmSettings {
   pub mem_max: usize,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct DevSettings {
   pub show_console: bool,
   pub keep_console_open: bool,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum LoaderType {
   Vanilla,
 }
