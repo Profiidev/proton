@@ -1,11 +1,8 @@
-use std::{
-  ffi::OsString,
-  path::PathBuf,
-  process::{Child, Command, Stdio},
-};
+use std::{ffi::OsString, path::PathBuf, process::Stdio};
 
 use anyhow::Result;
 use log::debug;
+use tokio::process::{Child, Command};
 
 use crate::{path, utils::file::read_parse_file, CLIENT_ID};
 
@@ -120,8 +117,8 @@ pub fn launch_minecraft_version(args: &LaunchArgs) -> Result<Child> {
   std::os::windows::process::CommandExt::creation_flags(&mut command, DETACHED_PROCESS);
 
   command
-    .stdout(Stdio::inherit())
-    .stderr(Stdio::inherit())
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped())
     .current_dir(game_path)
     .args(jvm_args)
     .arg(main_class)

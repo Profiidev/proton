@@ -1,10 +1,13 @@
+use std::collections::HashMap;
+
 use log::trace;
 use tauri::{Result, State};
 use thiserror::Error;
 use tokio::sync::Mutex;
 
 use crate::{
-  account::store::AccountStore, utils::log::ResultLogExt, versions::store::McVersionStore,
+  account::store::AccountStore, profiles::instance::InstanceInfo, utils::log::ResultLogExt,
+  versions::store::McVersionStore,
 };
 
 use super::store::{LoaderType, Profile, ProfileStore};
@@ -92,7 +95,7 @@ pub async fn profile_launch(
     mc_store.check_or_download(&profile.version, id).await?;
   }
 
-  mc_store.launch_version(info, &profile)?;
+  store.launch_profile(info, &profile).await.log()?;
 
   Ok(())
 }
@@ -112,4 +115,25 @@ pub async fn profile_repair(
   mc_store.check_or_download(&profile.version, id).await?;
 
   Ok(())
+}
+
+#[tauri::command]
+pub async fn instance_list(
+  state: State<'_, Mutex<ProfileStore>>,
+) -> Result<HashMap<String, Vec<InstanceInfo>>> {
+  trace!("Command instance_list called");
+  let store = state.lock().await;
+  Ok(store.list_instances().await)
+}
+
+#[tauri::command]
+pub async fn instance_logs(
+  state: State<'_, Mutex<ProfileStore>>,
+  profile: &str,
+  id: &str,
+) -> Result<Vec<String>> {
+  trace!("Command instance_logs called");
+  let store = state.lock().await;
+  let lines = store.get_instance_logs(profile, id).await?;
+  Ok(lines)
 }

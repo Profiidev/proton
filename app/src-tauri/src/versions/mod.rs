@@ -3,7 +3,7 @@ use meta::{Action, Arch, Os, OsName, Rule};
 pub mod commands;
 mod download;
 mod event;
-mod launch;
+pub mod launch;
 mod meta;
 pub mod store;
 

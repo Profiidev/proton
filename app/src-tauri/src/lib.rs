@@ -13,8 +13,8 @@ use account::{
   store::AccountStore,
 };
 use profiles::commands::{
-  profile_create, profile_launch, profile_list, profile_remove, profile_repair, profile_update,
-  profile_update_icon,
+  instance_list, instance_logs, profile_create, profile_launch, profile_list, profile_remove,
+  profile_repair, profile_update, profile_update_icon,
 };
 use tauri::{AppHandle, Manager};
 use tauri_plugin_log::{RotationStrategy, Target, TargetKind, TimezoneStrategy};
@@ -37,7 +37,7 @@ pub fn run() {
         .clear_targets()
         .target(Target::new(TargetKind::Stdout))
         .target(Target::new(TargetKind::LogDir {
-          file_name: Some(Local::now().to_rfc3339()),
+          file_name: Some(Local::now().to_rfc3339().replace(":", "-")),
         }))
         .rotation_strategy(RotationStrategy::KeepAll)
         .timezone_strategy(TimezoneStrategy::UseLocal)
@@ -77,6 +77,9 @@ pub fn run() {
       profile_list,
       profile_launch,
       profile_repair,
+      //instances
+      instance_list,
+      instance_logs
     ])
     .setup(|app| {
       let _ = app.handle().app_store()?;

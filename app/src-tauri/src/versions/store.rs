@@ -8,9 +8,7 @@ use tauri::{AppHandle, Manager, Url};
 use tokio::join;
 
 use crate::{
-  account::store::LaunchInfo,
   path,
-  profiles::store::Profile,
   utils::{
     file::{
       download_and_parse_file, download_and_parse_file_no_hash,
@@ -27,10 +25,9 @@ use super::{
     download_version_java_libraries, DownloadError,
   },
   event::emit_check_status,
-  launch::{launch_minecraft_version, LaunchArgs},
   meta::{
     java::{Component, Files, JavaVersions},
-    minecraft::{Manifest, Version},
+    minecraft::{Manifest, Version, VersionType},
   },
   JAVA_DIR, MC_DIR, VERSION_DIR,
 };
@@ -243,26 +240,9 @@ impl McVersionStore {
       .mc_manifest
       .versions
       .iter()
+      .filter(|v| v.r#type == VersionType::Release)
       .map(|v| &v.id)
       .cloned()
       .collect()
-  }
-
-  pub fn launch_version(&self, info: LaunchInfo, profile: &Profile) -> Result<()> {
-    let data_dir = self.handle.path().app_data_dir()?;
-
-    launch_minecraft_version(&LaunchArgs {
-      access_token: info.access_token,
-      launcher_name: self.handle.package_info().name.clone(),
-      launcher_version: self.handle.package_info().version.to_string(),
-      player_name: info.name,
-      player_uuid: info.id,
-      user_type: "msa".into(),
-      data_dir,
-      version: profile.version.clone(),
-      working_sub_dir: profile.relative_to_data().display().to_string(),
-    })?;
-
-    Ok(())
   }
 }

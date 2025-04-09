@@ -13,6 +13,8 @@ pub enum UpdateType {
   Versions,
   //profiles
   Profiles,
+  //instances
+  Instances
 }
 
 pub fn update_data(handle: &AppHandle, r#type: UpdateType) {
