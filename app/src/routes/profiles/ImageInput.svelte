@@ -5,4 +5,3 @@
   let key = 'image';
   let src = $state('');
 </script>
-
