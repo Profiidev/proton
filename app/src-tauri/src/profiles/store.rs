@@ -1,32 +1,39 @@
-use std::{collections::HashMap, fs, path::PathBuf};
+use std::{collections::HashMap, fs, path::PathBuf, sync::Arc};
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 use thiserror::Error;
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use crate::{
+  account::store::LaunchInfo,
   path,
   store::TauriAppStoreExt,
   utils::{
     file::{read_parse_file, write_file},
     updater::{update_data, UpdateType},
   },
+  versions::launch::{launch_minecraft_version, LaunchArgs},
 };
+
+use super::instance::{Instance, InstanceError, InstanceInfo};
 
 pub struct ProfileStore {
   profiles: HashMap<String, PathBuf>,
+  instances: Arc<Mutex<HashMap<String, Vec<Instance>>>>,
   handle: AppHandle,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Profile {
   pub id: String,
   pub name: String,
   pub version: String,
   pub loader: LoaderType,
   pub loader_version: Option<String>,
+  pub downloaded: bool,
   pub use_local_game: bool,
   pub game: Option<GameSettings>,
   pub use_local_jvm: bool,
@@ -35,13 +42,13 @@ pub struct Profile {
   pub dev: Option<DevSettings>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct GameSettings {
   pub width: usize,
   pub height: usize,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct JvmSettings {
   pub args: Vec<String>,
   pub env_vars: HashMap<String, String>,
@@ -49,13 +56,13 @@ pub struct JvmSettings {
   pub mem_max: usize,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct DevSettings {
   pub show_console: bool,
   pub keep_console_open: bool,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum LoaderType {
   Vanilla,
 }
@@ -78,7 +85,11 @@ impl ProfileStore {
     let store = handle.app_store()?;
     let profiles = store.get_or_default(Self::PROFILE_KEY)?;
 
-    Ok(ProfileStore { profiles, handle })
+    Ok(ProfileStore {
+      profiles,
+      handle,
+      instances: Default::default(),
+    })
   }
 
   fn save(&self) -> Result<()> {
@@ -109,6 +120,7 @@ impl ProfileStore {
       version,
       loader,
       loader_version,
+      downloaded: false,
       use_local_dev: false,
       use_local_game: false,
       use_local_jvm: false,
@@ -184,6 +196,57 @@ impl ProfileStore {
       return Err(ProfileError::NotFound.into());
     };
     read_parse_file(&path!(path, ProfileStore::PROFILE_CONFIG))
+  }
+
+  pub async fn launch_profile(&mut self, info: LaunchInfo, profile: &Profile) -> Result<()> {
+    let data_dir = self.handle.path().app_data_dir()?;
+
+    let child = launch_minecraft_version(&LaunchArgs {
+      access_token: info.access_token,
+      launcher_name: self.handle.package_info().name.clone(),
+      launcher_version: self.handle.package_info().version.to_string(),
+      player_name: info.name,
+      player_uuid: info.id,
+      user_type: "msa".into(),
+      data_dir,
+      version: profile.version.clone(),
+      working_sub_dir: profile.relative_to_data().display().to_string(),
+    })?;
+
+    Instance::create(child, &self.handle, profile.id.clone(), &self.instances).await?;
+
+    Ok(())
+  }
+
+  pub async fn list_instances(&self) -> HashMap<String, Vec<InstanceInfo>> {
+    let instances = self.instances.lock().await;
+    let mut res = HashMap::new();
+
+    for (profile, instances) in instances.iter() {
+      let instances: Vec<InstanceInfo> = instances
+        .iter()
+        .map(|i| InstanceInfo {
+          id: i.id().to_string(),
+        })
+        .collect();
+      if instances.is_empty() {
+        continue;
+      }
+
+      res.insert(profile.clone(), instances);
+    }
+
+    res
+  }
+
+  pub async fn get_instance_logs(&self, profile: &str, id: &str) -> Result<Vec<String>> {
+    let instances = self.instances.lock().await;
+    let instances = instances.get(profile).ok_or(InstanceError::NotFound)?;
+    let instance = instances
+      .iter()
+      .find(|i| i.id() == id)
+      .ok_or(InstanceError::NotFound)?;
+    Ok(instance.lines().await)
   }
 }
 

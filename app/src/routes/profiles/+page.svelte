@@ -4,6 +4,7 @@
     profile_launch,
     profile_list,
     profile_remove,
+    profile_repair,
     ProfileError
   } from '$lib/tauri/profile.svelte';
   import {
@@ -16,7 +17,7 @@
   import type { SuperValidated } from 'sveltekit-superforms';
   import { version_list } from '$lib/tauri/versions.svelte';
   import { Button } from 'positron-components/components/ui';
-  import { CirclePlay, X } from 'lucide-svelte';
+  import { CirclePlay, Wrench, X } from 'lucide-svelte';
 
   interface Props {
     data: PageServerData;
@@ -74,8 +75,17 @@
       <Button size="icon" onclick={() => profile_remove(profile.id)}>
         <X />
       </Button>
-      <Button size="icon" onclick={() => profile_launch(profile.id)}>
+      <Button
+        size="icon"
+        onclick={() => profile_launch(profile.id, profile.name)}
+      >
         <CirclePlay />
+      </Button>
+      <Button
+        size="icon"
+        onclick={() => profile_repair(profile.id, profile.name)}
+      >
+        <Wrench />
       </Button>
     </div>
   {/each}
