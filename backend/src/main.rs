@@ -1,4 +1,3 @@
-
 use cors::cors;
 #[cfg(debug_assertions)]
 use dotenv::dotenv;
