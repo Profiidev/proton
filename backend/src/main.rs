@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 
 use cors::cors;
 #[cfg(debug_assertions)]
