@@ -18,3 +18,12 @@ export const instance_list = create_data_state(
   instance_list_,
   UpdateType.Instances
 );
+
+export const instance_logs = async (
+  profile: string,
+  id: string
+): Promise<string[] | undefined> => {
+  try {
+    return await invoke('instance_logs', { profile, id });
+  } catch (e) {}
+};

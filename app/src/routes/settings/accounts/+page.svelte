@@ -29,7 +29,7 @@
   let login_toast: string | number | undefined;
 
   const change = async (id: string) => {
-    if (!(await account_set_active(id))) {
+    if (await account_set_active(id)) {
       toast.error('Failed to switch Account');
     }
   };
@@ -49,7 +49,7 @@
       id: login_toast
     });
 
-    if (!(await account_login())) {
+    if (await account_login()) {
       toast.success('Successfully added Account');
     } else {
       toast.error('Failed to add Account');

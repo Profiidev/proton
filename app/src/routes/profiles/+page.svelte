@@ -16,8 +16,15 @@
   import { profileCreateSchema } from './schema.svelte';
   import type { SuperValidated } from 'sveltekit-superforms';
   import { version_list } from '$lib/tauri/versions.svelte';
-  import { Button } from 'positron-components/components/ui';
+  import {
+    Button,
+    ScrollArea,
+    Select
+  } from 'positron-components/components/ui';
   import { CirclePlay, Wrench, X } from 'lucide-svelte';
+  import FormImage from './FormImage.svelte';
+  import { instance_list, instance_logs } from '$lib/tauri/instance.svelte';
+  import { create_data_state, UpdateType } from '$lib/data_state.svelte';
 
   interface Props {
     data: PageServerData;
@@ -26,6 +33,7 @@
   let { data }: Props = $props();
 
   let profiles = $derived(profile_list.value);
+  let instances = $derived(instance_list.value);
   let versions = $derived(
     (version_list.value ?? []).map((v) => ({
       label: v,
@@ -45,6 +53,22 @@
       return { field: 'icon', error: 'Invalid image' };
     }
   };
+
+  let instance: string | undefined = $state();
+  let profile = $derived(
+    instances &&
+      Object.entries(instances).find(([_, instances]) =>
+        instances.some((i) => i.id === instance)
+      )?.[0]
+  );
+  let logs_updater = $derived(
+    profile && instance
+      ? create_data_state(async () => {
+          return (await instance_logs(profile, instance!))?.reverse();
+        }, UpdateType.InstanceLogs)
+      : undefined
+  );
+  let logs = $derived(logs_updater?.value);
 </script>
 
 <FormDialog
@@ -55,16 +79,24 @@
   }}
   form={profileCreate}
   onsubmit={createProfile}
+  open={false}
 >
   {#snippet children({ props })}
-    <FormInput label="Name" placeholder="Name" key="name" {...props} />
-    <FormSelect
-      label="Version"
-      key="version"
-      single={true}
-      data={versions ?? []}
-      {...props}
-    />
+    <div class="flex w-full">
+      <div>
+        <FormImage key="icon" class="size-20" type="file" {...props} />
+      </div>
+      <div class="ml-auto">
+        <FormInput label="Name" placeholder="Name" key="name" {...props} />
+        <FormSelect
+          label="Version"
+          key="version"
+          single={true}
+          data={versions ?? []}
+          {...props}
+        />
+      </div>
+    </div>
   {/snippet}
 </FormDialog>
 {#if profiles}
@@ -89,4 +121,31 @@
       </Button>
     </div>
   {/each}
+{/if}
+{#if instances}
+  {#each Object.entries(instances) as [profile, sub_instances]}
+    <p>Profile: {profile}</p>
+    {#each sub_instances as instance}
+      <p>Instance: {instance.id}</p>
+    {/each}
+  {/each}
+  <Select.Root type="single" bind:value={instance}>
+    <Select.Trigger>Test</Select.Trigger>
+    <Select.Content>
+      {#each Object.entries(instances) as [_, sub_instances]}
+        {#each sub_instances as instance}
+          <Select.Item value={instance.id}>
+            {instance.id}
+          </Select.Item>
+        {/each}
+      {/each}
+    </Select.Content>
+  </Select.Root>
+{/if}
+{#if logs}
+  <ScrollArea.ScrollArea class="h-100">
+    {#each logs as log}
+      <p>{log}</p>
+    {/each}
+  </ScrollArea.ScrollArea>
 {/if}
