@@ -132,7 +132,7 @@
               variant="destructive"
               size="icon"
               class="size-8"
-              onclick={(e) => {
+              onclick={(e: MouseEvent) => {
                 e.stopPropagation();
                 remove(id);
               }}
