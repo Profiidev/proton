@@ -13,7 +13,7 @@
     ACCOUNT_LOGIN_STATUS_EVENT,
     LoginStatus
   } from '$lib/tauri/events.svelte';
-  import { listen } from '@tauri-apps/api/event';
+  import { listen, type Event } from '@tauri-apps/api/event';
   import { LoaderCircle, Plus, Trash } from 'lucide-svelte';
   import {
     toast,
@@ -61,10 +61,10 @@
     add_loading = false;
   };
 
-  listen(ACCOUNT_LOGIN_STATUS_EVENT, (e) => {
+  listen(ACCOUNT_LOGIN_STATUS_EVENT, (e: Event<LoginStatus>) => {
     if (!login_toast) return;
 
-    switch (e.payload as LoginStatus) {
+    switch (e.payload) {
       case LoginStatus.Ms:
         toast.loading('Logging in to Xbox', {
           id: login_toast,
@@ -132,7 +132,7 @@
               variant="destructive"
               size="icon"
               class="size-8"
-              onclick={(e) => {
+              onclick={(e: MouseEvent) => {
                 e.stopPropagation();
                 remove(id);
               }}
