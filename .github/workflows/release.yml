@@ -94,4 +94,4 @@ jobs:
           event-type: bump-chart
           repository: profiidev/server-config
           token: ${{ secrets.SERVER_CONFIG_TOKEN }}
-          client-payload: '{"chart_name": "positron", "chart_version": "${{ github.ref_name }}" }'
+          client-payload: '{"chart_name": "proton", "chart_version": "${{ github.ref_name }}" }'
