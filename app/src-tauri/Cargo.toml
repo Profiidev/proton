@@ -27,7 +27,7 @@ anyhow = "1.0.98"
 thiserror = "2.0.12"
 chrono = { version = "0.4.41", features = ["serde"] }
 reqwest = { version = "0.12.15", features = ["json"] }
-tokio = "1.44.2"
+tokio = "1.45.0"
 base64 = "0.22.1"
 image = "0.25.6"
 uuid = { version = "1.16.0", features = ["v4"] }
