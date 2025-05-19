@@ -9,7 +9,7 @@
     account_list,
     State
   } from '$lib/tauri/account.svelte';
-  import { LoaderCircle } from 'lucide-svelte';
+  import { LoaderCircle } from '@lucide/svelte';
   import {
     ScrollArea,
     Separator,

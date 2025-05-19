@@ -21,7 +21,7 @@
     ScrollArea,
     Select
   } from 'positron-components/components/ui';
-  import { CirclePlay, Wrench, X } from 'lucide-svelte';
+  import { CirclePlay, Wrench, X } from '@lucide/svelte';
   import FormImage from './FormImage.svelte';
   import { instance_list, instance_logs } from '$lib/tauri/instance.svelte';
   import { create_data_state, UpdateType } from '$lib/data_state.svelte';

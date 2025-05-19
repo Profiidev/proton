@@ -34,7 +34,7 @@ uuid = { version = "1.16.0", features = ["v4"] }
 sha1 = "0.10.6"
 hex = "0.4.3"
 log = "0.4.27"
-zip = "2.6.1"
+zip = "3.0.0"
 tauri-plugin-log = "2"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
