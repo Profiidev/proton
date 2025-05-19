@@ -1,6 +1,6 @@
 <script lang="ts">
   import { account_remove_skin } from '$lib/tauri/account.svelte';
-  import { Check, LoaderCircle, Trash } from 'lucide-svelte';
+  import { Check, LoaderCircle, Trash } from '@lucide/svelte';
   import { Badge, Button, toast } from 'positron-components/components/ui';
   import { SkinViewer } from 'skinview3d';
   import { onMount } from 'svelte';

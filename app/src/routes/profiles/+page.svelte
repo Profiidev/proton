@@ -16,7 +16,7 @@
   import type { SuperValidated } from 'sveltekit-superforms';
   import { version_list } from '$lib/tauri/versions.svelte';
   import { Button } from 'positron-components/components/ui';
-  import { CirclePlay, X } from 'lucide-svelte';
+  import { CirclePlay, X } from '@lucide/svelte';
 
   interface Props {
     data: PageServerData;
