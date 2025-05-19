@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Button } from 'positron-components/components/ui';
   import AccountSelector from './account/AccountSelector.svelte';
-  import { Home, LibraryBig, Settings } from 'lucide-svelte';
+  import { Home, LibraryBig, Settings } from '@lucide/svelte';
   import { goto } from '$app/navigation';
 
   const btns = [

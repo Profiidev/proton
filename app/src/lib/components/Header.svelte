@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { Button } from 'positron-components';
-  import { Minus, Square, X } from 'lucide-svelte';
+  import { Button } from 'positron-components/components/ui';
+  import { Minus, Square, X } from '@lucide/svelte';
   import { getCurrentWindow } from '@tauri-apps/api/window';
 
   const close = () => {

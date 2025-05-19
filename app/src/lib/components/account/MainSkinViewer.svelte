@@ -6,7 +6,7 @@
     account_list,
     State
   } from '$lib/tauri/account.svelte';
-  import { LoaderCircle } from 'lucide-svelte';
+  import { LoaderCircle } from '@lucide/svelte';
   import { Label, Select } from 'positron-components/components/ui';
   import {
     IdleAnimation,
@@ -140,7 +140,7 @@
   <p class="w-full text-center">Display Options</p>
   <Label class="my-2">Animation</Label>
   <Select.Root bind:value={animation} type="single">
-    <Select.Trigger>{animation}</Select.Trigger>
+    <Select.Trigger class="w-full">{animation}</Select.Trigger>
     <Select.Content>
       {#each animations as animation}
         <Select.Item value={animation.key} label={animation.key}
@@ -152,7 +152,7 @@
   {#if account?.[1]?.capes.find((c) => c.state === State.Active)}
     <Label class="my-2">Back Equipment</Label>
     <Select.Root bind:value={cape_option} type="single">
-      <Select.Trigger>{cape_option}</Select.Trigger>
+      <Select.Trigger class="w-full">{cape_option}</Select.Trigger>
       <Select.Content>
         {#each cape_options as option}
           <Select.Item value={option} label={option}>{option}</Select.Item>

@@ -10,7 +10,7 @@
     State
   } from '$lib/tauri/account.svelte';
   import { file_to_bytes } from '$lib/util.svelte';
-  import { LoaderCircle, Plus } from 'lucide-svelte';
+  import { LoaderCircle, Plus } from '@lucide/svelte';
   import {
     Button,
     Input,

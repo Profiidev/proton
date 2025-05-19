@@ -14,7 +14,7 @@
     LoginStatus
   } from '$lib/tauri/events.svelte';
   import { listen, type Event } from '@tauri-apps/api/event';
-  import { LoaderCircle, Plus, Trash } from 'lucide-svelte';
+  import { LoaderCircle, Plus, Trash } from '@lucide/svelte';
   import {
     toast,
     Badge,

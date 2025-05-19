@@ -1,6 +1,6 @@
 <script lang="ts">
   import { account_get_skin } from '$lib/tauri/account.svelte';
-  import { CircleHelp } from 'lucide-svelte';
+  import { CircleHelp } from '@lucide/svelte';
   import { Skeleton, Tooltip } from 'positron-components/components/ui';
 
   interface Props {
