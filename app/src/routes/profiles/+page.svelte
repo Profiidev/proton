@@ -9,11 +9,11 @@
   import {
     FormDialog,
     FormInput,
-    FormSelect
+    FormSelect,
+    type FormType
   } from 'positron-components/components/form';
   import type { PageServerData } from './$types';
   import { profileCreateSchema } from './schema.svelte';
-  import type { SuperValidated } from 'sveltekit-superforms';
   import { version_list } from '$lib/tauri/versions.svelte';
   import { Button } from 'positron-components/components/ui';
   import { CirclePlay, X } from '@lucide/svelte';
@@ -37,7 +37,7 @@
     schema: profileCreateSchema
   };
 
-  const createProfile = async (form: SuperValidated<any>) => {
+  const createProfile = async (form: FormType<any>) => {
     form.data.version = form.data.version[0];
     let res = await profile_create(form.data);
     if (res === ProfileError.InvalidImage) {
