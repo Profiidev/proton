@@ -5403,9 +5403,9 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-log"
-version = "2.4.0"
+version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d2b582d860eb214f28323f4ce4f2797ae3b78f197e27b11677f976f9f52aedb"
+checksum = "1063890b541877c4367d0ee9b1758360d86398862fbaafdd99aac02a55e28bf8"
 dependencies = [
  "android_logger",
  "byte-unit",
@@ -5425,9 +5425,9 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-opener"
-version = "2.2.7"
+version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "66644b71a31ec1a8a52c4a16575edd28cf763c87cf4a7da24c884122b5c77097"
+checksum = "2c8983f50326d34437142a6d560b5c3426e91324297519b6eeb32ed0a1d1e0f2"
 dependencies = [
  "dunce",
  "glob",
@@ -5462,9 +5462,9 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-store"
-version = "2.2.0"
+version = "2.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c0c08fae6995909f5e9a0da6038273b750221319f2c0f3b526d6de1cde21505"
+checksum = "ada7e7aeea472dec9b8d09d25301e59fe3e8330dc11dbcf903d6388126cb3722"
 dependencies = [
  "dunce",
  "serde",
@@ -7240,9 +7240,9 @@ dependencies = [
 
 [[package]]
 name = "zip"
-version = "4.1.0"
+version = "4.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af7dcdb4229c0e79c2531a24de7726a0e980417a74fb4d030a35f535665439a0"
+checksum = "95ab361742de920c5535880f89bbd611ee62002bf11341d16a5f057bb8ba6899"
 dependencies = [
  "aes",
  "arbitrary",
