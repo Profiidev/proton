@@ -64,7 +64,7 @@ impl AccountStore {
   }
 
   async fn refresh_token(&mut self, id: &str) -> Result<()> {
-    debug!("Refreshing mc token for {}", id);
+    debug!("Refreshing mc token for {id}");
     if let Some(Some(account)) = self.accounts.get_mut(id) {
       if let Some(auth) = refresh_mc_token(&self.client, account.auth.clone()).await? {
         account.auth = auth;
@@ -77,7 +77,7 @@ impl AccountStore {
   }
 
   async fn refresh_profile(&mut self, id: &str) -> Result<()> {
-    debug!("Refreshing mc profile for {}", id);
+    debug!("Refreshing mc profile for {id}");
     if let Some(Some(account)) = self.accounts.get_mut(id) {
       let profile = get_profile_info(&self.client, &account.auth.mc_token).await?;
       account.profile = profile;
@@ -139,7 +139,7 @@ impl AccountStore {
   }
 
   pub fn set_active(&mut self, id: String) -> Result<()> {
-    debug!("Changing active account to {}", id);
+    debug!("Changing active account to {id}");
     self.active = id;
     self.save()?;
 
@@ -148,7 +148,7 @@ impl AccountStore {
   }
 
   pub fn remove_account(&mut self, id: &str) -> Result<()> {
-    debug!("Removing account {}", id);
+    debug!("Removing account {id}");
     self.accounts.remove(id);
     self.save()?;
 
@@ -187,7 +187,7 @@ impl AccountStore {
   }
 
   pub async fn select_cape_by_id(&mut self, account: &str, id: &str) -> Result<()> {
-    debug!("Selecting cape {} for account {}", id, account);
+    debug!("Selecting cape {id} for account {account}");
     self.refresh_auth(account).await?;
 
     if let Some(Some(account)) = self.accounts.get_mut(account) {

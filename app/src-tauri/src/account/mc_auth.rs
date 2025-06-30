@@ -80,7 +80,7 @@ pub async fn get_minecraft_token(
   let res = client
     .post(MC_TOKEN_URL)
     .json(&MCTokenReq {
-      identity_token: format!("XBL3.0 x={};{}", user_hash, xbox_security_token),
+      identity_token: format!("XBL3.0 x={user_hash};{xbox_security_token}"),
     })
     .send()
     .await?;
@@ -164,7 +164,7 @@ pub async fn get_xbox_token(client: &Client, ms_access_token: &str) -> Result<To
       properties: XboxAuthProps::Normal(XboxAuthPropsNormal {
         auth_method: XBOX_AUTH_METHOD.into(),
         site_name: XBOX_SITE_NAME.into(),
-        rps_ticket: format!("d={}", ms_access_token),
+        rps_ticket: format!("d={ms_access_token}"),
       }),
       relying_party: XBOX_RELYING_PARTY.into(),
       token_type: TOKEN_TYPE.into(),

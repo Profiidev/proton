@@ -123,7 +123,7 @@ impl McVersionStore {
 
   pub async fn check_or_download(&self, id: &str) -> Result<()> {
     let start = Instant::now();
-    info!("Checking minecraft version {}", id);
+    info!("Checking minecraft version {id}");
     let data_dir = self.handle.path().app_data_dir()?;
     let version = self.get_version_manifest(id, &data_dir).await?;
     let assets = download_assets_manifest(&data_dir, &self.client, &version).await?;
@@ -161,7 +161,7 @@ impl McVersionStore {
       .ok_or(DownloadError::NotFound)?;
 
     let path = path!(data_dir, MC_DIR, VERSION_DIR, id, format!("{}.json", id));
-    debug!("Checking minecraft manifest for version {}", id);
+    debug!("Checking minecraft manifest for version {id}");
     download_and_parse_file(
       &self.client,
       &path,
@@ -202,7 +202,7 @@ impl McVersionStore {
     let path = path!(data_dir, JAVA_DIR, &id, format!("{}.json", &id));
 
     let download = &version.manifest;
-    debug!("Checking java manifest for version {}", id);
+    debug!("Checking java manifest for version {id}");
     let files =
       download_and_parse_file(&self.client, &path, download.url.clone(), &download.sha1).await?;
 
