@@ -43,7 +43,7 @@ impl Display for Component {
       unreachable!()
     };
 
-    write!(f, "{}", value)
+    write!(f, "{value}")
   }
 }
 

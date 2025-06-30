@@ -125,7 +125,7 @@ pub async fn account_change_skin(
     let profile = store.select_skin(id, token).await.log()?;
     accounts_store.update_profile(profile)?;
   } else {
-    warn!("Account {} not found", account);
+    warn!("Account {account} not found");
     //just any error
     return Err(tauri::Error::WindowNotFound);
   }
