@@ -154,7 +154,7 @@ impl SkinStore {
     let mut data_path = path!(&self.handle.path().app_data_dir()?, Self::SKIN_FOLDER);
     std::fs::create_dir_all(&data_path)?;
 
-    data_path.push(format!("{}.png", id));
+    data_path.push(format!("{id}.png"));
     std::fs::write(data_path, cape)?;
 
     let cape_info = CapeInfo { url, id };
@@ -222,7 +222,7 @@ impl SkinStore {
   }
 
   pub async fn select_skin(&mut self, id: &str, mc_token: &str) -> Result<ProfileInfo> {
-    debug!("Selecting skin with id: {}", id);
+    debug!("Selecting skin with id: {id}");
     let Some(skin) = self.skins.iter_mut().find(|s| s.id == id) else {
       return Err(SkinChangeError::NotFound.into());
     };
@@ -243,7 +243,7 @@ impl SkinStore {
 
       res.json().await?
     } else {
-      debug!("Skin with id {} has no url. uploading", id);
+      debug!("Skin with id {id} has no url. uploading");
       let data_path = path!(
         self.handle.path().app_data_dir()?,
         Self::SKIN_FOLDER,

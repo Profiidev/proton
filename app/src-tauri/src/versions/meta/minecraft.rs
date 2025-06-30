@@ -51,7 +51,7 @@ impl Display for VersionType {
       unreachable!()
     };
 
-    write!(f, "{}", value)
+    write!(f, "{value}")
   }
 }
 
