@@ -7,7 +7,7 @@ pub trait ResultLogExt {
 impl<T, E: Display> ResultLogExt for Result<T, E> {
   fn log(self) -> Self {
     if let Err(err) = &self {
-      log::error!("Error: {}", err);
+      log::error!("Error: {err}");
     }
 
     self

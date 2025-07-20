@@ -300,7 +300,7 @@ pub async fn download_version_assets(
     let prefix_hash = &asset.hash[0..2];
     let hash = asset.hash.clone();
     let path = path!(data_dir, MC_DIR, ASSETS_DIR, "objects", prefix_hash, &hash);
-    let url = format!("{}/{}/{}", MC_RESOURCES_URL, prefix_hash, hash).parse()?;
+    let url = format!("{MC_RESOURCES_URL}/{prefix_hash}/{hash}").parse()?;
 
     let client = client.clone();
     debug!("Checking asset file {}", path.display());

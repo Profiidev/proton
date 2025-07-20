@@ -95,7 +95,7 @@ pub fn run() {
       let handle = app.handle().clone();
       app.manage(tauri::async_runtime::spawn(async move {
         if let Err(err) = async_setup_refresh(handle).await {
-          log::error!("Error: {}", err);
+          log::error!("Error: {err}");
           std::process::exit(1);
         }
       }));

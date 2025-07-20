@@ -123,7 +123,7 @@ pub fn launch_minecraft_version(args: &LaunchArgs) -> Result<Child> {
     .args(jvm_args)
     .arg(main_class)
     .args(game_args);
-  debug!("Spawning minecraft with command: {:?}", command);
+  debug!("Spawning minecraft with command: {command:?}");
 
   Ok(command.spawn()?)
 }
