@@ -53,9 +53,7 @@ pub async fn profile_update_icon(
   profile: &str,
   icon: Vec<u8>,
 ) -> Result<()> {
-  trace!(
-    "Command profile_update_icon called with profile {profile}"
-  );
+  trace!("Command profile_update_icon called with profile {profile}");
   let mut store = state.lock().await;
   store.update_profile_icon(profile, &icon)?;
   Ok(())
@@ -84,9 +82,7 @@ pub async fn profile_launch(
   profile: &str,
   id: usize,
 ) -> Result<()> {
-  trace!(
-    "Command profile_launch called with profile {profile} id {id}"
-  );
+  trace!("Command profile_launch called with profile {profile} id {id}");
   let mut store = state.lock().await;
   let mc_store = versions.lock().await;
   let auth_store = auth.lock().await;
@@ -117,9 +113,7 @@ pub async fn profile_repair(
   profile: &str,
   id: usize,
 ) -> Result<()> {
-  trace!(
-    "Command profile_repair called with profile {profile} id {id}"
-  );
+  trace!("Command profile_repair called with profile {profile} id {id}");
   let store = state.lock().await;
   let mc_store = versions.lock().await;
 
@@ -144,9 +138,7 @@ pub async fn instance_logs(
   profile: &str,
   id: &str,
 ) -> Result<Vec<String>> {
-  trace!(
-    "Command instance_logs called with profile {profile} id {id}"
-  );
+  trace!("Command instance_logs called with profile {profile} id {id}");
   let store = state.lock().await;
   let lines = store.get_instance_logs(profile, id).await?;
   Ok(lines)
