@@ -121,7 +121,7 @@ impl McVersionStore {
 
   pub async fn check_or_download(&self, version: &str, id: usize) -> Result<()> {
     let start = Instant::now();
-    info!("Checking minecraft version {}", version);
+    info!("Checking minecraft version {version}");
     let data_dir = self.handle.path().app_data_dir()?;
     let version = self.get_version_manifest(version, &data_dir).await?;
     emit_check_status(&self.handle, CheckStatus::Manifest(1), id);

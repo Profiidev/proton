@@ -20,6 +20,6 @@ pub enum UpdateType {
 }
 
 pub fn update_data(handle: &AppHandle, r#type: UpdateType) {
-  trace!("Send update event for type {:?}", r#type);
+  trace!("Send update event for type {type:?}");
   let _ = handle.emit(UPDATE_EVENT, r#type);
 }

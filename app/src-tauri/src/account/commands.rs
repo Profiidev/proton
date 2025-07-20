@@ -31,7 +31,7 @@ pub async fn account_refresh(state: State<'_, Mutex<AccountStore>>) -> Result<()
 
 #[tauri::command]
 pub async fn account_refresh_one(id: &str, state: State<'_, Mutex<AccountStore>>) -> Result<()> {
-  trace!("Command account_refresh_one called with id {}", id);
+  trace!("Command account_refresh_one called with id {id}");
   let mut store = state.lock().await;
   store.refresh(id).await.log()?;
 
@@ -49,7 +49,7 @@ pub async fn account_login(state: State<'_, Mutex<AccountStore>>) -> Result<()> 
 
 #[tauri::command]
 pub async fn account_remove(state: State<'_, Mutex<AccountStore>>, id: &str) -> Result<()> {
-  trace!("Command account_remove called for account {}", id);
+  trace!("Command account_remove called for account {id}");
   let mut store = state.lock().await;
   store.remove_account(id).log()?;
 
@@ -65,7 +65,7 @@ pub async fn account_get_active(state: State<'_, Mutex<AccountStore>>) -> Result
 
 #[tauri::command]
 pub async fn account_set_active(state: State<'_, Mutex<AccountStore>>, id: &str) -> Result<()> {
-  trace!("Command account_set_active called with id {}", id);
+  trace!("Command account_set_active called with id {id}");
   let mut store = state.lock().await;
   store.set_active(id.to_string()).log()?;
 
@@ -95,7 +95,7 @@ pub async fn account_add_skin(state: State<'_, Mutex<SkinStore>>, skin: Vec<u8>)
 
 #[tauri::command]
 pub async fn account_remove_skin(state: State<'_, Mutex<SkinStore>>, id: &str) -> Result<()> {
-  trace!("Command account_remove_skin called with id {}", id);
+  trace!("Command account_remove_skin called with id {id}");
   let mut store = state.lock().await;
   store.remove_skin(id).log()?;
   Ok(())
@@ -114,7 +114,7 @@ pub async fn account_change_skin(
   accounts: State<'_, Mutex<AccountStore>>,
   id: &str,
 ) -> Result<()> {
-  trace!("Command account_change_skin called with id {}", id);
+  trace!("Command account_change_skin called with id {id}");
   let mut store = state.lock().await;
   let mut accounts_store = accounts.lock().await;
 
@@ -135,7 +135,7 @@ pub async fn account_change_skin(
 
 #[tauri::command]
 pub async fn account_change_cape(accounts: State<'_, Mutex<AccountStore>>, id: &str) -> Result<()> {
-  trace!("Command account_change_cape called with id {}", id);
+  trace!("Command account_change_cape called with id {id}");
   let mut accounts_store = accounts.lock().await;
 
   let account = accounts_store.active().to_string();

@@ -71,7 +71,7 @@ impl Instance {
           Ok(Some(line)) = stdout.next_line() => line,
           Ok(Some(line)) = stderr.next_line() => line,
           _ = child.wait() => {
-            debug!("Child with profile {} and id {} exited", profile_, id_);
+            debug!("Child with profile {profile_} and id {id_} exited");
             let mut instances = instances_.lock().await;
             let entry = instances.entry(profile_).or_default();
             if let Some(i) = entry.iter().position(|i| i.id == id_) {
