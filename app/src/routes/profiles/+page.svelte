@@ -1,6 +1,7 @@
 <script lang="ts">
   import {
     profile_create,
+    profile_get_icon,
     profile_launch,
     profile_list,
     profile_remove,
@@ -17,11 +18,12 @@
   import { profileCreateSchema } from './schema.svelte';
   import { version_list } from '$lib/tauri/versions.svelte';
   import {
+    Avatar,
     Button,
     ScrollArea,
     Select
   } from 'positron-components/components/ui';
-  import { CirclePlay, Wrench, X } from '@lucide/svelte';
+  import { Box, CirclePlay, Plus, Wrench, X } from '@lucide/svelte';
   import FormImage from './FormImage.svelte';
   import { instance_list, instance_logs } from '$lib/tauri/instance.svelte';
   import { create_data_state, UpdateType } from '$lib/data_state.svelte';
@@ -49,7 +51,9 @@
 
   const createProfile = async (form: FormType<any>) => {
     form.data.version = form.data.version[0];
-    form.data.icon = await file_to_bytes(form.data.icon);
+    if (form.data.icon) {
+      form.data.icon = await file_to_bytes(form.data.icon);
+    }
 
     let res = await profile_create(form.data);
     if (res === ProfileError.InvalidImage) {
@@ -76,88 +80,130 @@
   let logs = $derived(logs_updater?.value);
 </script>
 
-<FormDialog
-  title="Create Profile"
-  confirm="Create"
-  trigger={{
-    text: 'Create'
-  }}
-  form={profileCreate}
-  onsubmit={createProfile}
-  open={false}
-  class="w-100"
->
-  {#snippet children({ props })}
-    <div class="flex w-full">
-      <div>
-        <FormImage
-          key="icon"
-          class="size-20"
-          type="file"
-          label="Icon"
-          {...props}
-        />
+<div class="size-full flex flex-col">
+  <FormDialog
+    title="Create Profile"
+    confirm="Create"
+    trigger={{
+      size: 'icon',
+      class: 'ml-auto'
+    }}
+    form={profileCreate}
+    onsubmit={createProfile}
+    open={false}
+    class="w-100"
+  >
+    {#snippet triggerInner()}
+      <Plus />
+    {/snippet}
+    {#snippet children({ props })}
+      <div class="flex w-full">
+        <div>
+          <FormImage
+            key="icon"
+            class="size-20"
+            type="file"
+            label="Icon"
+            {...props}
+          />
+        </div>
+        <div class="ml-auto">
+          <FormInput label="Name" placeholder="Name" key="name" {...props} />
+          <FormSelect
+            label="Version"
+            key="version"
+            single={true}
+            data={versions ?? []}
+            {...props}
+          />
+        </div>
       </div>
-      <div class="ml-auto">
-        <FormInput label="Name" placeholder="Name" key="name" {...props} />
-        <FormSelect
-          label="Version"
-          key="version"
-          single={true}
-          data={versions ?? []}
-          {...props}
-        />
-      </div>
-    </div>
-  {/snippet}
-</FormDialog>
-{#if profiles}
-  {#each profiles as profile}
-    <div>
-      {profile.name || 'unknown'}
-      {profile.version || 'unknown'}
-      <Button size="icon" onclick={() => profile_remove(profile.id)}>
-        <X />
-      </Button>
-      <Button
-        size="icon"
-        onclick={() => profile_launch(profile.id, profile.name)}
+    {/snippet}
+  </FormDialog>
+  {#if profiles}
+    <ScrollArea.ScrollArea class="flex-grow-1 mt-2 min-h-0">
+      <div
+        class="size-full grid grid-cols-[repeat(auto-fit,_minmax(14rem,_1fr))] auto-rows-min gap-2"
       >
-        <CirclePlay />
-      </Button>
-      <Button
-        size="icon"
-        onclick={() => profile_repair(profile.id, profile.name)}
-      >
-        <Wrench />
-      </Button>
-    </div>
-  {/each}
-{/if}
-{#if instances}
-  {#each Object.entries(instances) as [profile, sub_instances]}
-    <p>Profile: {profile}</p>
-    {#each sub_instances as instance}
-      <p>Instance: {instance.id}</p>
-    {/each}
-  {/each}
-  <Select.Root type="single" bind:value={instance}>
-    <Select.Trigger>Test</Select.Trigger>
-    <Select.Content>
-      {#each Object.entries(instances) as [_, sub_instances]}
-        {#each sub_instances as instance}
-          <Select.Item value={instance.id}>
-            {instance.id}
-          </Select.Item>
+        {#each profiles as profile}
+          <Button
+            variant="outline"
+            class="w-full h-16 p-2 flex flex-row justify-start relative group"
+          >
+            <Avatar.Root class="rounded-md size-12">
+              {#await profile_get_icon(profile.id)}
+                <Avatar.Fallback class="rounded-md">
+                  <span class="sr-only">Profile Icon</span>
+                </Avatar.Fallback>
+              {:then icon}
+                {#if icon}
+                  <Avatar.Image
+                    class="object-cover"
+                    src={`data:image/png;base64, ${icon}`}
+                  />
+                {:else}
+                  <div class="size-full flex items-center justify-center">
+                    <Box class="size-10" />
+                  </div>
+                {/if}
+              {/await}
+            </Avatar.Root>
+            <div class="flex min-w-0 flex-1 flex-col justify-start ml-2 gap-2">
+              <p class="truncate text-start text-sm">
+                {profile.name || 'unknown'}
+              </p>
+              <p class="text-muted-foreground truncate text-start text-sm">
+                {profile.version || 'unknown'}
+              </p>
+            </div>
+            <Button
+              class="absolute size-12 group-hover:flex hidden"
+              size="icon"
+              onclick={() => profile_launch(profile.id, profile.name)}
+            >
+              <CirclePlay class="size-8" />
+            </Button>
+            {#if false}
+              <Button size="icon" onclick={() => profile_remove(profile.id)}>
+                <X />
+              </Button>
+              <Button
+                size="icon"
+                onclick={() => profile_repair(profile.id, profile.name)}
+              >
+                <Wrench />
+              </Button>
+            {/if}
+          </Button>
         {/each}
+      </div>
+    </ScrollArea.ScrollArea>
+  {/if}
+  {#if instances}
+    {#each Object.entries(instances) as [profile, sub_instances]}
+      <p>Profile: {profile}</p>
+      {#each sub_instances as instance}
+        <p>Instance: {instance.id}</p>
       {/each}
-    </Select.Content>
-  </Select.Root>
-{/if}
-{#if logs}
-  <ScrollArea.ScrollArea class="h-100">
-    {#each logs as log}
-      <p>{log}</p>
     {/each}
-  </ScrollArea.ScrollArea>
-{/if}
+    <Select.Root type="single" bind:value={instance}>
+      <Select.Trigger>Test</Select.Trigger>
+      <Select.Content>
+        {#each Object.entries(instances) as [_, sub_instances]}
+          {#each sub_instances as instance}
+            <Select.Item value={instance.id}>
+              {instance.id}
+            </Select.Item>
+          {/each}
+        {/each}
+      </Select.Content>
+    </Select.Root>
+  {/if}
+  {#if logs}
+    <ScrollArea.ScrollArea class="h-100">
+      {#each logs as log}
+        <p>{log}</p>
+      {/each}
+    </ScrollArea.ScrollArea>
+  {/if}
+</div>

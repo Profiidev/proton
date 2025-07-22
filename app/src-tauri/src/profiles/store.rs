@@ -163,6 +163,18 @@ impl ProfileStore {
     Ok(())
   }
 
+  pub fn get_profile_icon(&self, profile: &str) -> Result<Option<Vec<u8>>> {
+    let Some(path) = self.profiles.get(profile) else {
+      return Err(ProfileError::NotFound.into());
+    };
+    let icon_path = path!(&path, Self::PROFILE_IMAGE);
+    if !icon_path.exists() {
+      return Ok(None);
+    }
+    let icon = fs::read(icon_path)?;
+    Ok(Some(icon))
+  }
+
   pub fn update_profile_icon(&mut self, profile: &str, icon: &[u8]) -> Result<()> {
     if image::load_from_memory(icon).is_err() {
       return Err(ProfileError::InvalidImage.into());

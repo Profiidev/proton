@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use base64::prelude::*;
 use log::trace;
 use tauri::{Result, State};
 use thiserror::Error;
@@ -45,6 +46,20 @@ pub async fn profile_update(state: State<'_, Mutex<ProfileStore>>, profile: Prof
   let mut store = state.lock().await;
   store.update_profile(&profile)?;
   Ok(())
+}
+
+#[tauri::command]
+pub async fn profile_get_icon(
+  state: State<'_, Mutex<ProfileStore>>,
+  profile: &str,
+) -> Result<Option<String>> {
+  trace!("Command profile_get_icon called with profile {profile}");
+  let store = state.lock().await;
+  Ok(
+    store
+      .get_profile_icon(profile)?
+      .map(|data| BASE64_STANDARD.encode(data)),
+  )
 }
 
 #[tauri::command]
