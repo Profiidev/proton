@@ -1,6 +1,5 @@
 import { create_data_state, UpdateType } from '$lib/data_state.svelte';
 import { invoke } from '@tauri-apps/api/core';
-import { RequestError } from 'positron-components/backend';
 import {
   TOAST_DURATION,
   VERSION_CHECK_STATUS_EVENT,

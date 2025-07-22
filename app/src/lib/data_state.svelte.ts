@@ -13,7 +13,9 @@ export enum UpdateType {
   Profiles = 'Profiles',
   //instances
   Instances = 'Instances',
-  InstanceLogs = 'InstanceLogs'
+  InstanceLogs = 'InstanceLogs',
+  //settings
+  Settings = 'Settings',
 }
 
 let updater_cbs = new Map<UpdateType, Map<string, () => void>>();

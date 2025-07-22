@@ -12,7 +12,8 @@
   import Sidebar from '$lib/components/Sidebar.svelte';
   import { onMount } from 'svelte';
   import { account_refresh } from '$lib/tauri/account.svelte';
-  import { rem_to_px } from '$lib/util.svelte';
+  import { debounce, rem_to_px } from '$lib/util.svelte';
+  import { settings_get, settings_set } from '$lib/tauri/settings.svelte';
   let { children } = $props();
 
   setMode('dark');
@@ -25,6 +26,8 @@
 
   let innerWidth = $state(0);
   let collapsed = $state(false);
+  let settings = $derived(settings_get.value);
+
   // width is in percentage of the viewport width, and it should be constant at 54rem
   let sidebarMaxWidth = $derived(
     (rem_to_px(54 / 4) / (innerWidth !== 0 ? innerWidth : 1)) * 100
@@ -32,6 +35,12 @@
   let sidebarMinWidth = $derived(
     (rem_to_px(16 / 4) / (innerWidth !== 0 ? innerWidth : 1)) * 100
   );
+
+  const debounceSave = debounce((size: number) => {
+    if (!settings) return;
+    settings.sidebar_width = size;
+    settings_set(settings);
+  }, 1000);
 </script>
 
 <ModeWatcher />
@@ -45,9 +54,10 @@
     <Resizable.Pane
       maxSize={sidebarMaxWidth}
       minSize={sidebarMinWidth}
-      defaultSize={sidebarMaxWidth}
+      defaultSize={settings?.sidebar_width || sidebarMaxWidth}
       onResize={(size) => {
         collapsed = Math.abs(size - sidebarMinWidth) < 0.001;
+        debounceSave(size);
       }}
     >
       <Sidebar {collapsed} />

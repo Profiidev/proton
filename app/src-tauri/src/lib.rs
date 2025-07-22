@@ -16,6 +16,7 @@ use profiles::commands::{
   instance_list, instance_logs, profile_create, profile_launch, profile_list, profile_remove,
   profile_repair, profile_update, profile_update_icon,
 };
+use settings::{settings_get, settings_set};
 use tauri::{AppHandle, Manager};
 use tauri_plugin_log::{RotationStrategy, Target, TargetKind, TimezoneStrategy};
 use tokio::sync::Mutex;
@@ -23,6 +24,7 @@ use versions::{commands::version_list, store::McVersionStore};
 
 mod account;
 mod profiles;
+mod settings;
 mod store;
 mod utils;
 mod versions;
@@ -79,7 +81,10 @@ pub fn run() {
       profile_repair,
       //instances
       instance_list,
-      instance_logs
+      instance_logs,
+      //settings
+      settings_get,
+      settings_set,
     ])
     .setup(|app| {
       let _ = app.handle().app_store()?;
