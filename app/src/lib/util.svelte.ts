@@ -12,24 +12,32 @@ export const file_to_bytes = (file: File) => {
 };
 
 export const rem_to_px = (rem: number) => {
-  const rootFontSize = parseFloat(getComputedStyle(document.documentElement).fontSize);
+  const rootFontSize = parseFloat(
+    getComputedStyle(document.documentElement).fontSize
+  );
   return rem * rootFontSize;
-}
+};
 
-export const debounce = <T extends (...args: any[]) => void>(func: T, delay: number) => {
+export const debounce = <T extends (...args: any[]) => void>(
+  func: T,
+  delay: number
+) => {
   let timeout: number | undefined = undefined;
 
-  const debounced = function (this: ThisParameterType<T>, ...args: Parameters<T>) {
+  const debounced = function (
+    this: ThisParameterType<T>,
+    ...args: Parameters<T>
+  ) {
     const context = this;
 
     const later = () => {
       timeout = undefined;
       func.apply(context, args);
-    }
+    };
 
     if (timeout) clearTimeout(timeout);
     timeout = setTimeout(later, delay);
-  }
+  };
 
   return debounced as T;
-}
+};

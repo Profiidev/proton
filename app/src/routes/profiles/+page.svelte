@@ -25,7 +25,7 @@
   import FormImage from './FormImage.svelte';
   import { instance_list, instance_logs } from '$lib/tauri/instance.svelte';
   import { create_data_state, UpdateType } from '$lib/data_state.svelte';
-    import { file_to_bytes } from '$lib/util.svelte';
+  import { file_to_bytes } from '$lib/util.svelte';
 
   interface Props {
     data: PageServerData;
@@ -90,7 +90,13 @@
   {#snippet children({ props })}
     <div class="flex w-full">
       <div>
-        <FormImage key="icon" class="size-20" type="file" label="Icon" {...props} />
+        <FormImage
+          key="icon"
+          class="size-20"
+          type="file"
+          label="Icon"
+          {...props}
+        />
       </div>
       <div class="ml-auto">
         <FormInput label="Name" placeholder="Name" key="name" {...props} />
