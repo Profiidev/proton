@@ -4,6 +4,7 @@ import { RequestError } from 'positron-components';
 
 export interface Settings {
   sidebar_width?: number;
+  url?: URL;
 }
 
 const settings_get_ = async (): Promise<Settings | undefined> => {

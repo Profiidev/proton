@@ -14,6 +14,8 @@
   import { account_refresh } from '$lib/tauri/account.svelte';
   import { debounce, rem_to_px } from '$lib/util.svelte';
   import { settings_get, settings_set } from '$lib/tauri/settings.svelte';
+  import { page } from '$app/state';
+  import { goto } from '$app/navigation';
   let { children } = $props();
 
   setMode('dark');
@@ -41,6 +43,26 @@
     settings.sidebar_width = size;
     settings_set(settings);
   }, 1000);
+
+  const urlDebounce = debounce(() => {
+    if (!settings) return;
+    settings.url = page.url;
+    settings_set(settings);
+  }, 1000);
+
+  $effect(() => {
+    page.url;
+    urlDebounce();
+  });
+
+  let init = false;
+  $effect(() => {
+    if (!init && settings) {
+      console.log(settings.url);
+      init = true;
+      goto(settings.url || '/');
+    }
+  });
 </script>
 
 <ModeWatcher />

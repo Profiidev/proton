@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Result};
+use tauri::{AppHandle, Result, Url};
 
 use crate::{
   store::TauriAppStoreExt,
@@ -11,6 +11,7 @@ const SETTINGS_KEY: &str = "settings";
 #[derive(Serialize, Deserialize, Default)]
 pub struct Settings {
   sidebar_width: Option<f32>,
+  url: Option<Url>,
 }
 
 #[tauri::command]
