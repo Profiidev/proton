@@ -11,6 +11,11 @@
   import { Popover, Button } from 'positron-components/components/ui';
   import AccountImage from './AccountImage.svelte';
 
+  interface Props {
+    collapsed: boolean;
+  }
+  let { collapsed }: Props = $props();
+
   let accounts: Accounts | undefined = $derived(account_list.value);
   let active: string | undefined = $derived(account_active.value);
   let open = $state(false);
@@ -18,19 +23,22 @@
 
 <Popover.Root bind:open>
   <Popover.Trigger
-    class="mt-auto ml-auto flex h-12 w-50 items-center rounded-lg"
+    class="mt-auto ml-auto flex h-12 w-full items-center rounded-lg"
   >
     {#if active && accounts && accounts[active]}
       {@render account({
         info: accounts[active],
-        onclick: () => {}
+        onclick: () => {},
+        collapsed
       })}
     {:else}
       <Button class="h-12 w-full justify-start p-2" variant="ghost">
         <div class="flex size-10 min-w-10 items-center justify-center">
           <CircleHelp />
         </div>
-        <p class="truncate text-start text-sm">No account active</p>
+        {#if !collapsed}
+          <p class="truncate text-start text-sm">No account active</p>
+        {/if}
       </Button>
     {/if}
   </Popover.Trigger>
@@ -67,17 +75,23 @@
 
 {#snippet account({
   info,
-  onclick
+  onclick,
+  collapsed = false
 }: {
   info: ProfileInfo;
   onclick: () => void;
+  collapsed?: boolean;
 })}
   {@const skin_url = info.skins.find((s) => s.state === State.Active)?.url}
   <Button class="h-12 w-full justify-start p-2" variant="ghost" {onclick}>
     <AccountImage {skin_url} />
-    <div class="flex min-w-0 flex-1 flex-col justify-start">
-      <p class="truncate text-start text-sm">{info.name}</p>
-      <p class="text-muted-foreground truncate text-start text-sm">{info.id}</p>
-    </div>
+    {#if !collapsed}
+      <div class="flex min-w-0 flex-1 flex-col justify-start">
+        <p class="truncate text-start text-sm">{info.name}</p>
+        <p class="text-muted-foreground truncate text-start text-sm">
+          {info.id}
+        </p>
+      </div>
+    {/if}
   </Button>
 {/snippet}

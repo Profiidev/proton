@@ -10,3 +10,8 @@ export const file_to_bytes = (file: File) => {
     reader.readAsArrayBuffer(file);
   });
 };
+
+export const rem_to_px = (rem: number) => {
+  const rootFontSize = parseFloat(getComputedStyle(document.documentElement).fontSize);
+  return rem * rootFontSize;
+}

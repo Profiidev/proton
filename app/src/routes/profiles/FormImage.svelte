@@ -8,7 +8,7 @@
     type SuperForm
   } from 'positron-components/components/form';
   import { get } from 'svelte/store';
-    import { cn } from 'positron-components';
+  import { cn } from 'positron-components/utils';
 
   interface Props {
     formData: SuperForm<S>;
@@ -53,7 +53,10 @@
       <Form.Label>{label}</Form.Label>
       <label for={key} class="hover:cursor-pointer">
         <Avatar.Root
-          class={cn("ring-accent ring-offset-background size-20 rounded-md ring-2 ring-offset-2", className)}
+          class={cn(
+            'ring-accent ring-offset-background size-20 rounded-md ring-2 ring-offset-2',
+            className
+          )}
         >
           <Avatar.Image class="object-cover" {src} />
           <Avatar.Fallback class="rounded-md">

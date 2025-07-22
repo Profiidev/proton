@@ -9,7 +9,7 @@ import {
 } from './events.svelte';
 import { listen } from '@tauri-apps/api/event';
 import { browser } from '$app/environment';
-import { toast } from 'positron-components';
+import { toast } from 'positron-components/components/ui';
 
 export interface Profile {
   id: string;

@@ -34,7 +34,7 @@
     <Square />
   </Button>
   <Button
-    class="hover:bg-destructive mr-1 size-8 rounded-full"
+    class="hover:bg-destructive! mr-1 size-8 rounded-full"
     size="icon"
     variant="ghost"
     onclick={close}
