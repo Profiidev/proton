@@ -1,5 +1,5 @@
 import { LoaderType } from '$lib/tauri/profile.svelte';
-import { z } from 'zod/v3';
+import { z } from 'zod';
 
 export const profileCreateSchema = z.object({
   name: z.string().min(1, 'Name is required'),

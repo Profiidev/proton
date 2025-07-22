@@ -29,6 +29,7 @@
   let innerWidth = $state(0);
   let collapsed = $state(false);
   let settings = $derived(settings_get.value);
+  let pane = $state<Resizable.Pane>();
 
   // width is in percentage of the viewport width, and it should be constant at 54rem
   let sidebarMaxWidth = $derived(
@@ -38,17 +39,34 @@
     (rem_to_px(16 / 4) / (innerWidth !== 0 ? innerWidth : 1)) * 100
   );
 
+  let previousWidth = 0;
+  $effect(() => {
+    innerWidth;
+
+    setTimeout(() => {
+      if (previousWidth !== 0) {
+        pane?.resize(
+          (previousWidth * (settings?.sidebar_width || 0)) / innerWidth
+        );
+      }
+
+      previousWidth = innerWidth;
+    });
+  });
+
   const debounceSave = debounce((size: number) => {
     if (!settings) return;
-    settings.sidebar_width = size;
-    settings_set(settings);
-  }, 1000);
+    settings_set({
+      ...settings,
+      sidebar_width: size
+    });
+  }, 500);
 
   const urlDebounce = debounce(() => {
     if (!settings) return;
     settings.url = page.url;
     settings_set(settings);
-  }, 1000);
+  }, 500);
 
   $effect(() => {
     page.url;
@@ -58,7 +76,6 @@
   let init = false;
   $effect(() => {
     if (!init && settings) {
-      console.log(settings.url);
       init = true;
       goto(settings.url || '/');
     }
@@ -81,6 +98,7 @@
         collapsed = Math.abs(size - sidebarMinWidth) < 0.001;
         debounceSave(size);
       }}
+      bind:this={pane}
     >
       <Sidebar {collapsed} />
     </Resizable.Pane>
