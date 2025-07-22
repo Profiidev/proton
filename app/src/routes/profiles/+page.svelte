@@ -25,6 +25,7 @@
   import FormImage from './FormImage.svelte';
   import { instance_list, instance_logs } from '$lib/tauri/instance.svelte';
   import { create_data_state, UpdateType } from '$lib/data_state.svelte';
+    import { file_to_bytes } from '$lib/util.svelte';
 
   interface Props {
     data: PageServerData;
@@ -48,9 +49,13 @@
 
   const createProfile = async (form: FormType<any>) => {
     form.data.version = form.data.version[0];
+    form.data.icon = await file_to_bytes(form.data.icon);
+
     let res = await profile_create(form.data);
     if (res === ProfileError.InvalidImage) {
       return { field: 'icon', error: 'Invalid image' };
+    } else if (res === ProfileError.Other) {
+      return { error: 'Failed to create profile' };
     }
   };
 
@@ -80,11 +85,12 @@
   form={profileCreate}
   onsubmit={createProfile}
   open={false}
+  class="w-100"
 >
   {#snippet children({ props })}
     <div class="flex w-full">
       <div>
-        <FormImage key="icon" class="size-20" type="file" {...props} />
+        <FormImage key="icon" class="size-20" type="file" label="Icon" {...props} />
       </div>
       <div class="ml-auto">
         <FormInput label="Name" placeholder="Name" key="name" {...props} />

@@ -1,6 +1,7 @@
-use std::{collections::HashMap, fs, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, fs, io::Cursor, path::PathBuf, sync::Arc};
 
 use anyhow::Result;
+use image::{imageops::FilterType, ImageFormat};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 use thiserror::Error;
@@ -108,11 +109,19 @@ impl ProfileStore {
     let id = Uuid::new_v4().to_string();
     let path = path!(self.handle.path().app_data_dir()?, Self::PROFILE_DIR, &id);
 
-    if let Some(icon) = icon {
-      if image::load_from_memory(icon).is_err() {
-        return Err(ProfileError::InvalidImage.into());
+    let icon = match icon {
+      Some(icon) => {
+        let Some(icon) = image::load_from_memory(icon).ok() else {
+          return Err(ProfileError::InvalidImage.into());
+        };
+
+        let scaled = icon.resize_to_fill(256, 256, FilterType::Lanczos3);
+        let mut cursor = Cursor::new(Vec::new());
+        scaled.write_to(&mut cursor, ImageFormat::Png)?;
+        Some(cursor.into_inner())
       }
-    }
+      None => None,
+    };
 
     let profile = Profile {
       id: id.clone(),

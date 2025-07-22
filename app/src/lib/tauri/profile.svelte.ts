@@ -67,6 +67,7 @@ export const profile_create = async (data: {
   loader_version?: string;
   icon?: Uint8Array;
 }) => {
+  console.log(data.icon)
   try {
     await invoke('profile_create', data);
   } catch (e: any) {

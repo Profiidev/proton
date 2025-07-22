@@ -49,7 +49,7 @@
       id: login_toast
     });
 
-    if (await account_login()) {
+    if (!(await account_login())) {
       toast.success('Successfully added Account');
     } else {
       toast.error('Failed to add Account');
