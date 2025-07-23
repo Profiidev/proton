@@ -25,7 +25,7 @@
     Select
   } from 'positron-components/components/ui';
   import { Box, CirclePlay, Plus, Wrench, X } from '@lucide/svelte';
-  import FormImage from './FormImage.svelte';
+  import FormImage from '../../lib/components/form/FormImage.svelte';
   import { instance_list, instance_logs } from '$lib/tauri/instance.svelte';
   import { create_data_state, UpdateType } from '$lib/data_state.svelte';
   import { file_to_bytes } from '$lib/util.svelte';
@@ -142,11 +142,15 @@
       data={filtered_loaders ?? []}
       label="Loader"
       bind:selected={loader_filter}
+      buttonPrefix="Search"
+      class="w-35"
     />
     <Multiselect
       data={filtered_versions ?? []}
       label="Version"
       bind:selected={version_filter}
+      buttonPrefix="Search"
+      class="w-35"
     />
     <FormDialog
       title="Create Profile"
