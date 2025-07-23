@@ -104,7 +104,7 @@
     </Resizable.Pane>
     <Resizable.Handle />
     <Resizable.Pane>
-      <main class="min-h-0 h-full p-2">
+      <main class="h-full min-h-0 p-2">
         {@render children()}
       </main>
     </Resizable.Pane>

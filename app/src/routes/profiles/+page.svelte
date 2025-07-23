@@ -130,8 +130,8 @@
   let logs = $derived(logs_updater?.value);
 </script>
 
-<div class="size-full flex flex-col">
-  <div class="w-full flex gap-2">
+<div class="flex size-full flex-col">
+  <div class="flex w-full gap-2">
     <Input
       placeholder="Search profiles..."
       bind:value={text_filter}
@@ -188,16 +188,16 @@
     </FormDialog>
   </div>
   {#if filtered_profiles && filtered_profiles.length > 0}
-    <ScrollArea.ScrollArea class="flex-grow-1 mt-2 min-h-0">
+    <ScrollArea.ScrollArea class="mt-2 min-h-0 flex-grow-1">
       <div
-        class="size-full grid grid-cols-[repeat(auto-fill,_minmax(14rem,_1fr))] auto-rows-min gap-2"
+        class="grid size-full auto-rows-min grid-cols-[repeat(auto-fill,_minmax(14rem,_1fr))] gap-2"
       >
         {#each filtered_profiles as profile}
           <Button
             variant="outline"
-            class="w-full max-w-86 h-16 p-2 flex flex-row justify-start relative group"
+            class="group relative flex h-16 w-full max-w-86 flex-row justify-start p-2"
           >
-            <Avatar.Root class="rounded-md size-12">
+            <Avatar.Root class="size-12 rounded-md">
               {#await profile_get_icon(profile.id)}
                 <Avatar.Fallback class="rounded-md">
                   <span class="sr-only">Profile Icon</span>
@@ -209,13 +209,13 @@
                     src={`data:image/png;base64, ${icon}`}
                   />
                 {:else}
-                  <div class="size-full flex items-center justify-center">
+                  <div class="flex size-full items-center justify-center">
                     <Box class="size-10" />
                   </div>
                 {/if}
               {/await}
             </Avatar.Root>
-            <div class="flex min-w-0 flex-1 flex-col justify-start ml-2 gap-2">
+            <div class="ml-2 flex min-w-0 flex-1 flex-col justify-start gap-2">
               <p class="truncate text-start text-sm">
                 {profile.name || 'unknown'}
               </p>
@@ -224,7 +224,7 @@
               </p>
             </div>
             <Button
-              class="absolute size-12 group-hover:flex hidden"
+              class="absolute hidden size-12 group-hover:flex"
               size="icon"
               onclick={() => profile_launch(profile.id, profile.name)}
             >
@@ -246,7 +246,7 @@
       </div>
     </ScrollArea.ScrollArea>
   {:else}
-    <p class="text-muted-foreground text-center mt-2">
+    <p class="text-muted-foreground mt-2 text-center">
       No profiles found. Adjust your filters or create a new profile.
     </p>
   {/if}

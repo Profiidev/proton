@@ -89,8 +89,7 @@ export const profile_get_icon = async (profile: string) => {
     return await invoke<string | undefined>('profile_get_icon', {
       profile
     });
-  } catch (e: any) {
-  }
+  } catch (e: any) {}
 };
 
 export const profile_update_icon = async (
