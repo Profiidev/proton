@@ -3,6 +3,7 @@
   import AccountSelector from './account/AccountSelector.svelte';
   import { Home, LibraryBig, Settings } from '@lucide/svelte';
   import { goto } from '$app/navigation';
+  import { page } from '$app/state';
 
   interface Props {
     collapsed: boolean;
@@ -13,7 +14,7 @@
   const btns = [
     {
       title: 'Home',
-      url: '/',
+      url: '/home',
       icon: Home
     },
     {
@@ -23,7 +24,7 @@
     },
     {
       title: 'Settings',
-      url: '/settings/accounts',
+      url: '/settings',
       icon: Settings
     }
   ];
@@ -33,7 +34,10 @@
   {#each btns as btn}
     <Button
       variant="ghost"
-      class="h-12 w-full justify-start p-2!"
+      class={'h-12 w-full justify-start p-2!' +
+        (page.url.pathname.startsWith(btn.url)
+          ? ' bg-accent text-accent-foreground'
+          : '')}
       onclick={() => goto(btn.url)}
     >
       <btn.icon class="size-full max-w-8" />
