@@ -87,7 +87,9 @@
   let filtered_profiles = $derived(
     instances
       ? [...new Set(instances.map((p) => p.profile_id))].map((p) => ({
-          label: p,
+          label:
+            instances.find((i) => i.profile_id === p)?.profile_name ||
+            'unknown',
           value: p
         }))
       : []

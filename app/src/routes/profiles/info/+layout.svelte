@@ -63,14 +63,13 @@
         {profile.loader}
         {profile.version}
       </p>
-      <div class="flex">
-        <p class="text-muted-foreground">
+      <div class="flex flex-wrap">
+        <p class="text-muted-foreground whitespace-nowrap mr-4">
           Created at: {DateTime.fromISO(profile.created_at)
             .setLocale('de')
             .toLocaleString(DateTime.DATETIME_SHORT)}
         </p>
-        <Separator orientation="vertical" class="mx-2" />
-        <p class="text-muted-foreground">
+        <p class="text-muted-foreground whitespace-nowrap">
           Last Played: {profile.last_played
             ? DateTime.fromISO(profile.last_played)
                 .setLocale('de')
