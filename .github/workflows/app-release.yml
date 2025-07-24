@@ -42,7 +42,7 @@ jobs:
           version: 1.0
 
       - name: delete lock file
-        run: rm -f app/package-lock.json
+        run: rm -f package-lock.json
 
       - name: install frontend dependencies
         uses: bahmutov/npm-install@v1
