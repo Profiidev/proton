@@ -75,7 +75,7 @@
         </Button>
       </div>
     </div>
-    <div class="mt-2 flex min-h-0 flex-grow-1 flex-col lg:flex-row gap-2">
+    <div class="mt-2 flex min-h-0 flex-grow-1 flex-col gap-2 lg:flex-row">
       <aside class="lg:w-52 lg:max-w-32 lg:min-w-32">
         <SimpleSidebar {items} class="" />
       </aside>

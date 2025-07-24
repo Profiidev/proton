@@ -63,7 +63,7 @@
         {profile.version}
       </p>
       <div class="flex flex-wrap">
-        <p class="text-muted-foreground whitespace-nowrap mr-4">
+        <p class="text-muted-foreground mr-4 whitespace-nowrap">
           Created at: {DateTime.fromISO(profile.created_at)
             .setLocale('de')
             .toLocaleString(DateTime.DATETIME_SHORT)}
