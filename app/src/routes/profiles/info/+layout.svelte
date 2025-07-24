@@ -11,11 +11,13 @@
     SimpleSidebar,
     Button,
     DropdownMenu,
-    Dialog
+    Dialog,
+    Separator
   } from 'positron-components/components';
   import { setProfile } from './store.svelte.js';
   import { FolderOpen, Menu, Play, Trash, Wrench } from '@lucide/svelte';
   import ProfileIcon from '$lib/components/profile/ProfileIcon.svelte';
+  import { DateTime } from 'positron-components';
 
   let { data, children } = $props();
 
@@ -55,12 +57,27 @@
       class="size-24 border-2"
       classFallback="size-20"
     />
-    <div class="my-4 ml-4 flex flex-col gap-3">
+    <div class="my-2 ml-4 flex flex-col gap-1">
       <p class="text-xl">{profile.name}</p>
       <p class="text-muted-foreground whitespace-nowrap">
         {profile.loader}
         {profile.version}
       </p>
+      <div class="flex">
+        <p class="text-muted-foreground">
+          Created at: {DateTime.fromISO(profile.created_at)
+            .setLocale('de')
+            .toLocaleString(DateTime.DATETIME_SHORT)}
+        </p>
+        <Separator orientation="vertical" class="mx-2" />
+        <p class="text-muted-foreground">
+          Last Played: {profile.last_played
+            ? DateTime.fromISO(profile.last_played)
+                .setLocale('de')
+                .toLocaleString(DateTime.DATETIME_SHORT)
+            : 'Never'}
+        </p>
+      </div>
     </div>
     <div class="mr-2 ml-auto flex items-center gap-2">
       <Button onclick={() => profile_launch(profile.id, profile.name)}>

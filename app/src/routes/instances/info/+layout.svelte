@@ -9,6 +9,7 @@
   import ProfileIcon from '$lib/components/profile/ProfileIcon.svelte';
   import { instance_list, instance_stop } from '$lib/tauri/instance.svelte.js';
   import { setInstance } from './store.svelte.js';
+    import { DateTime } from 'positron-components';
 
   let { data, children } = $props();
 
@@ -40,11 +41,16 @@
       class="size-24 border-2"
       classFallback="size-20"
     />
-    <div class="my-4 ml-4 flex flex-col gap-3">
+    <div class="my-2 ml-4 flex flex-col gap-1">
       <p class="text-xl">{instance.profile_name}</p>
       <p class="text-muted-foreground whitespace-nowrap">
         {instance.loader}
         {instance.version}
+      </p>
+      <p class="text-muted-foreground">
+        Launched at: {DateTime.fromISO(instance.launched_at)
+          .setLocale('de')
+          .toLocaleString(DateTime.DATETIME_SHORT)}
       </p>
     </div>
     <div class="mr-2 ml-auto flex items-center gap-2">

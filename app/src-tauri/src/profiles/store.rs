@@ -1,6 +1,7 @@
 use std::{collections::HashMap, fs, io::Cursor, path::PathBuf, sync::Arc};
 
 use anyhow::Result;
+use chrono::{DateTime, Utc};
 use image::{imageops::FilterType, ImageFormat};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
@@ -31,6 +32,8 @@ pub struct ProfileStore {
 pub struct Profile {
   pub id: String,
   pub name: String,
+  pub created_at: DateTime<Utc>,
+  pub last_played: Option<DateTime<Utc>>,
   pub version: String,
   pub loader: LoaderType,
   pub loader_version: Option<String>,
@@ -136,6 +139,8 @@ impl ProfileStore {
     let profile = Profile {
       id: id.clone(),
       name,
+      created_at: Utc::now(),
+      last_played: None,
       version,
       loader,
       loader_version,

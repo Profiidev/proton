@@ -4,6 +4,7 @@ import type { LoaderType } from './profile.svelte';
 
 export type InstanceInfo = {
   id: string;
+  launched_at: string;
   profile_name: string;
   profile_id: string;
   version: string;
