@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use base64::prelude::*;
 use log::trace;
 use tauri::{AppHandle, Result, State};
@@ -159,9 +157,7 @@ pub async fn profile_repair(
 }
 
 #[tauri::command]
-pub async fn instance_list(
-  state: State<'_, Mutex<ProfileStore>>,
-) -> Result<HashMap<String, Vec<InstanceInfo>>> {
+pub async fn instance_list(state: State<'_, Mutex<ProfileStore>>) -> Result<Vec<InstanceInfo>> {
   trace!("Command instance_list called");
   let store = state.lock().await;
   Ok(store.list_instances().await)
@@ -177,4 +173,16 @@ pub async fn instance_logs(
   let store = state.lock().await;
   let lines = store.get_instance_logs(profile, id).await?;
   Ok(lines)
+}
+
+#[tauri::command]
+pub async fn instance_stop(
+  state: State<'_, Mutex<ProfileStore>>,
+  profile: &str,
+  id: &str,
+) -> Result<()> {
+  trace!("Command instance_stop called with profile {profile} id {id}");
+  let store = state.lock().await;
+  store.stop_instance(profile, id).await?;
+  Ok(())
 }

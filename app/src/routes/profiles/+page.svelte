@@ -14,16 +14,9 @@
   import type { PageServerData } from './$types';
   import { profileCreateSchema } from './schema.svelte';
   import { version_list } from '$lib/tauri/versions.svelte';
-  import {
-    Button,
-    Input,
-    ScrollArea,
-    Select
-  } from 'positron-components/components/ui';
+  import { Button, Input, ScrollArea } from 'positron-components/components/ui';
   import { CirclePlay, Plus } from '@lucide/svelte';
   import FormImage from '../../lib/components/form/FormImage.svelte';
-  import { instance_list, instance_logs } from '$lib/tauri/instance.svelte';
-  import { create_data_state, UpdateType } from '$lib/data_state.svelte';
   import { file_to_bytes } from '$lib/util.svelte';
   import { Multiselect } from 'positron-components/components/table';
   import Fuse from 'fuse.js';
@@ -39,8 +32,8 @@
   let version_filter = $state<string[]>([]);
   let loader_filter = $state<string[]>([]);
   let text_filter = $state<string>('');
+
   let profiles = $derived(profile_list.value);
-  let instances = $derived(instance_list.value);
   let versions = $derived(
     (version_list.value ?? []).map((v) => ({
       label: v,
@@ -110,22 +103,6 @@
       return { error: 'Failed to create profile' };
     }
   };
-
-  let instance: string | undefined = $state();
-  let profile = $derived(
-    instances &&
-      Object.entries(instances).find(([_, instances]) =>
-        instances.some((i) => i.id === instance)
-      )?.[0]
-  );
-  let logs_updater = $derived(
-    profile && instance
-      ? create_data_state(async () => {
-          return (await instance_logs(profile, instance!))?.reverse();
-        }, UpdateType.InstanceLogs)
-      : undefined
-  );
-  let logs = $derived(logs_updater?.value);
 </script>
 
 <div class="flex size-full flex-col">
@@ -227,32 +204,5 @@
     <p class="text-muted-foreground mt-2 text-center">
       No profiles found. Adjust your filters or create a new profile.
     </p>
-  {/if}
-  {#if instances}
-    {#each Object.entries(instances) as [profile, sub_instances]}
-      <p>Profile: {profile}</p>
-      {#each sub_instances as instance}
-        <p>Instance: {instance.id}</p>
-      {/each}
-    {/each}
-    <Select.Root type="single" bind:value={instance}>
-      <Select.Trigger>Test</Select.Trigger>
-      <Select.Content>
-        {#each Object.entries(instances) as [_, sub_instances]}
-          {#each sub_instances as instance}
-            <Select.Item value={instance.id}>
-              {instance.id}
-            </Select.Item>
-          {/each}
-        {/each}
-      </Select.Content>
-    </Select.Root>
-  {/if}
-  {#if logs}
-    <ScrollArea.ScrollArea class="h-100">
-      {#each logs as log}
-        <p>{log}</p>
-      {/each}
-    </ScrollArea.ScrollArea>
   {/if}
 </div>

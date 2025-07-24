@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Button } from 'positron-components/components/ui';
   import AccountSelector from '../account/AccountSelector.svelte';
-  import { Home, LibraryBig, Settings } from '@lucide/svelte';
+  import { Gamepad2, Home, LibraryBig, Settings } from '@lucide/svelte';
   import { page } from '$app/state';
   import { cn } from 'positron-components/utils';
   import { crossfade } from 'svelte/transition';
@@ -23,6 +23,11 @@
       title: 'Profiles',
       url: '/profiles',
       icon: LibraryBig
+    },
+    {
+      title: 'Instances',
+      url: '/instances',
+      icon: Gamepad2
     },
     {
       title: 'Settings',

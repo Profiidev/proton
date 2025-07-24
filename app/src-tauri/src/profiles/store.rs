@@ -63,7 +63,7 @@ pub struct DevSettings {
   pub keep_console_open: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub enum LoaderType {
   Vanilla,
 }
@@ -81,6 +81,7 @@ impl ProfileStore {
   const PROFILE_DIR: &str = "profiles";
   const PROFILE_CONFIG: &str = "profile.json";
   const PROFILE_IMAGE: &str = "image.png";
+  const PROFILE_LOGS: &str = "instance_logs";
 
   pub fn new(handle: AppHandle) -> Result<ProfileStore> {
     let store = handle.app_store()?;
@@ -91,6 +92,15 @@ impl ProfileStore {
       handle,
       instances: Default::default(),
     })
+  }
+
+  pub fn log_dir(handle: &AppHandle, profile: &str) -> Result<PathBuf> {
+    Ok(path!(
+      handle.path().app_data_dir()?,
+      Self::PROFILE_DIR,
+      profile,
+      Self::PROFILE_LOGS
+    ))
   }
 
   fn save(&self) -> Result<()> {
@@ -241,27 +251,35 @@ impl ProfileStore {
       working_sub_dir: profile.relative_to_data().display().to_string(),
     })?;
 
-    Instance::create(child, &self.handle, profile.id.clone(), &self.instances).await?;
+    Instance::create(child, &self.handle, profile, &self.instances).await?;
 
     Ok(())
   }
 
-  pub async fn list_instances(&self) -> HashMap<String, Vec<InstanceInfo>> {
+  pub async fn list_instances(&self) -> Vec<InstanceInfo> {
     let instances = self.instances.lock().await;
-    let mut res = HashMap::new();
+    let mut res = Vec::new();
 
     for (profile, instances) in instances.iter() {
+      let profile_name = self.get_profile(profile).ok().map(|p| p.name);
+
       let instances: Vec<InstanceInfo> = instances
         .iter()
         .map(|i| InstanceInfo {
           id: i.id().to_string(),
+          profile_name: profile_name.clone().unwrap_or(i.profile_name().to_string()),
+          profile_id: i.profile_id().to_string(),
+          version: i.version().to_string(),
+          loader: i.loader(),
+          loader_version: i.loader_version().cloned(),
+          launched_at: i.launched_at(),
         })
         .collect();
       if instances.is_empty() {
         continue;
       }
 
-      res.insert(profile.clone(), instances);
+      res.extend(instances);
     }
 
     res
@@ -275,6 +293,17 @@ impl ProfileStore {
       .find(|i| i.id() == id)
       .ok_or(InstanceError::NotFound)?;
     Ok(instance.lines().await)
+  }
+
+  pub async fn stop_instance(&self, profile: &str, id: &str) -> Result<()> {
+    let mut instances = self.instances.lock().await;
+    let entry = instances.get_mut(profile).ok_or(InstanceError::NotFound)?;
+    let instance = entry
+      .iter()
+      .find(|i| i.id() == id)
+      .ok_or(InstanceError::NotFound)?;
+    instance.stop();
+    Ok(())
   }
 }
 
