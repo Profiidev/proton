@@ -51,6 +51,11 @@
       </Button>
     </Button>
   {/each}
+  {#if profile_instances.length === 0}
+    <p class="text-muted-foreground mt-2 ml-2">
+      No instances running instances found for this profile.
+    </p>
+  {/if}
 </div>
 <Dialog.Root bind:open={stopOpen}>
   <Dialog.Content>
