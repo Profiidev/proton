@@ -9,7 +9,7 @@
   import ProfileIcon from '$lib/components/profile/ProfileIcon.svelte';
   import { instance_list, instance_stop } from '$lib/tauri/instance.svelte.js';
   import { setInstance } from './store.svelte.js';
-  import { DateTime } from 'positron-components';
+  import { DateTime } from 'positron-components/util';
 
   let { data, children } = $props();
 

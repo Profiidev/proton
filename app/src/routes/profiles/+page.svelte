@@ -3,7 +3,8 @@
     profile_create,
     profile_launch,
     profile_list,
-    ProfileError
+    ProfileError,
+    type Profile
   } from '$lib/tauri/profile.svelte';
   import {
     FormDialog,
@@ -17,7 +18,7 @@
   import { Button, Input, ScrollArea } from 'positron-components/components/ui';
   import { CirclePlay, Plus } from '@lucide/svelte';
   import FormImage from '../../lib/components/form/FormImage.svelte';
-  import { file_to_bytes } from '$lib/util.svelte';
+  import { compareDateTimes, file_to_bytes } from '$lib/util.svelte';
   import { Multiselect } from 'positron-components/components/table';
   import Fuse from 'fuse.js';
   import { goto } from '$app/navigation';
@@ -61,17 +62,33 @@
       threshold: 0.4
     })
   );
+
+  const compareProfiles = (a: Profile, b: Profile) => {
+    if (!a.last_played && !b.last_played) {
+      return compareDateTimes(a.created_at, b.created_at);
+    }
+    if (a.last_played && b.last_played) {
+      return compareDateTimes(a.last_played, b.last_played);
+    }
+    if (a.last_played) {
+      return -1;
+    }
+    return 1;
+  };
+
   let filtered_profiles = $derived(
     (text_filter
       ? profile_fuse.search(text_filter).map((result) => result.item)
       : (profiles ?? [])
-    ).filter(
-      (p) =>
-        (version_filter.length > 0
-          ? version_filter.includes(p.version)
-          : true) &&
-        (loader_filter.length > 0 ? loader_filter.includes(p.loader) : true)
     )
+      .filter(
+        (p) =>
+          (version_filter.length > 0
+            ? version_filter.includes(p.version)
+            : true) &&
+          (loader_filter.length > 0 ? loader_filter.includes(p.loader) : true)
+      )
+      .sort(compareProfiles)
   );
   let filtered_versions = $derived(
     versions?.filter((v) => profiles?.some((p) => p.version === v.value))

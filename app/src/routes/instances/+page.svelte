@@ -16,6 +16,7 @@
   import Fuse from 'fuse.js';
   import { goto } from '$app/navigation';
   import ProfileIcon from '$lib/components/profile/ProfileIcon.svelte';
+  import { compareDateTimes } from '$lib/util.svelte';
 
   let profile_filter = $state<string[]>([]);
   let version_filter = $state<string[]>([]);
@@ -52,20 +53,25 @@
       threshold: 0.4
     })
   );
+
   let filtered_instances = $derived(
     (text_filter
       ? instance_fuse.search(text_filter).map((result) => result.item)
       : (instances ?? [])
-    ).filter(
-      (p) =>
-        (version_filter.length > 0
-          ? version_filter.includes(p.version)
-          : true) &&
-        (loader_filter.length > 0 ? loader_filter.includes(p.loader) : true) &&
-        (profile_filter.length > 0
-          ? profile_filter.includes(p.profile_id)
-          : true)
     )
+      .filter(
+        (p) =>
+          (version_filter.length > 0
+            ? version_filter.includes(p.version)
+            : true) &&
+          (loader_filter.length > 0
+            ? loader_filter.includes(p.loader)
+            : true) &&
+          (profile_filter.length > 0
+            ? profile_filter.includes(p.profile_id)
+            : true)
+      )
+      .sort((a, b) => compareDateTimes(a.launched_at, b.launched_at))
   );
   let filtered_versions = $derived(
     versions?.filter((v) => instances?.some((p) => p.version === v.value))
@@ -160,7 +166,7 @@
     <p class="text-muted-foreground mt-2 text-center">
       No instances found. Adjust your filters or launch a profile to create one.
     </p>
-    <div class="flex justify-center mt-2">
+    <div class="mt-2 flex justify-center">
       <Button
         variant="outline"
         onclick={() => goto('/profiles')}

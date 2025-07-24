@@ -17,7 +17,7 @@
   import { setProfile } from './store.svelte.js';
   import { FolderOpen, Menu, Play, Trash, Wrench } from '@lucide/svelte';
   import ProfileIcon from '$lib/components/profile/ProfileIcon.svelte';
-  import { DateTime } from 'positron-components';
+  import { DateTime } from 'positron-components/util';
 
   let { data, children } = $props();
 

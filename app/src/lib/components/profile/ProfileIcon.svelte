@@ -14,9 +14,11 @@
   let { id, class: className, classFallback }: Props = $props();
 
   let icon_updater = $derived(
-    create_data_state(async () => {
-      return await profile_get_icon(id);
-    }, UpdateType.Profiles)
+    id
+      ? create_data_state(async () => {
+          return await profile_get_icon(id);
+        }, UpdateType.Profiles)
+      : undefined
   );
   let icon = $derived(icon_updater?.value);
 </script>
