@@ -1,12 +1,10 @@
 <script lang="ts">
   import {
     profile_create,
-    profile_get_icon,
     profile_launch,
     profile_list,
-    profile_remove,
-    profile_repair,
-    ProfileError
+    ProfileError,
+    type Profile
   } from '$lib/tauri/profile.svelte';
   import {
     FormDialog,
@@ -17,18 +15,10 @@
   import type { PageServerData } from './$types';
   import { profileCreateSchema } from './schema.svelte';
   import { version_list } from '$lib/tauri/versions.svelte';
-  import {
-    Avatar,
-    Button,
-    Input,
-    ScrollArea,
-    Select
-  } from 'positron-components/components/ui';
-  import { Box, CirclePlay, Plus, Wrench, X } from '@lucide/svelte';
+  import { Button, Input, ScrollArea } from 'positron-components/components/ui';
+  import { CirclePlay, Plus } from '@lucide/svelte';
   import FormImage from '../../lib/components/form/FormImage.svelte';
-  import { instance_list, instance_logs } from '$lib/tauri/instance.svelte';
-  import { create_data_state, UpdateType } from '$lib/data_state.svelte';
-  import { file_to_bytes } from '$lib/util.svelte';
+  import { compareDateTimes, file_to_bytes } from '$lib/util.svelte';
   import { Multiselect } from 'positron-components/components/table';
   import Fuse from 'fuse.js';
   import { goto } from '$app/navigation';
@@ -43,8 +33,8 @@
   let version_filter = $state<string[]>([]);
   let loader_filter = $state<string[]>([]);
   let text_filter = $state<string>('');
+
   let profiles = $derived(profile_list.value);
-  let instances = $derived(instance_list.value);
   let versions = $derived(
     (version_list.value ?? []).map((v) => ({
       label: v,
@@ -72,17 +62,33 @@
       threshold: 0.4
     })
   );
+
+  const compareProfiles = (a: Profile, b: Profile) => {
+    if (!a.last_played && !b.last_played) {
+      return compareDateTimes(a.created_at, b.created_at);
+    }
+    if (a.last_played && b.last_played) {
+      return compareDateTimes(a.last_played, b.last_played);
+    }
+    if (a.last_played) {
+      return -1;
+    }
+    return 1;
+  };
+
   let filtered_profiles = $derived(
     (text_filter
       ? profile_fuse.search(text_filter).map((result) => result.item)
       : (profiles ?? [])
-    ).filter(
-      (p) =>
-        (version_filter.length > 0
-          ? version_filter.includes(p.version)
-          : true) &&
-        (loader_filter.length > 0 ? loader_filter.includes(p.loader) : true)
     )
+      .filter(
+        (p) =>
+          (version_filter.length > 0
+            ? version_filter.includes(p.version)
+            : true) &&
+          (loader_filter.length > 0 ? loader_filter.includes(p.loader) : true)
+      )
+      .sort(compareProfiles)
   );
   let filtered_versions = $derived(
     versions?.filter((v) => profiles?.some((p) => p.version === v.value))
@@ -114,22 +120,6 @@
       return { error: 'Failed to create profile' };
     }
   };
-
-  let instance: string | undefined = $state();
-  let profile = $derived(
-    instances &&
-      Object.entries(instances).find(([_, instances]) =>
-        instances.some((i) => i.id === instance)
-      )?.[0]
-  );
-  let logs_updater = $derived(
-    profile && instance
-      ? create_data_state(async () => {
-          return (await instance_logs(profile, instance!))?.reverse();
-        }, UpdateType.InstanceLogs)
-      : undefined
-  );
-  let logs = $derived(logs_updater?.value);
 </script>
 
 <div class="flex size-full flex-col">
@@ -201,7 +191,7 @@
         {#each filtered_profiles as profile}
           <Button
             variant="outline"
-            class="group relative flex h-16 w-full max-w-86 flex-row justify-start p-2"
+            class="group relative flex h-16 w-full max-w-86 cursor-pointer flex-row justify-start p-2"
             onclick={() => goto(`/profiles/info/quick_play?id=${profile.id}`)}
           >
             <ProfileIcon id={profile.id} />
@@ -213,27 +203,18 @@
                 {profile.loader + ' ' + profile.version || 'unknown'}
               </p>
             </div>
-            <Button
-              class="absolute hidden size-12 group-hover:flex"
-              size="icon"
-              onclick={(e) => {
-                e.stopPropagation();
-                profile_launch(profile.id, profile.name);
-              }}
-            >
-              <CirclePlay class="size-8" />
-            </Button>
-            {#if false}
-              <Button size="icon" onclick={() => profile_remove(profile.id)}>
-                <X />
-              </Button>
+            <div class="bg-background absolute hidden rounded group-hover:flex">
               <Button
+                class="size-12 cursor-pointer"
                 size="icon"
-                onclick={() => profile_repair(profile.id, profile.name)}
+                onclick={(e) => {
+                  e.stopPropagation();
+                  profile_launch(profile.id, profile.name);
+                }}
               >
-                <Wrench />
+                <CirclePlay class="size-8" />
               </Button>
-            {/if}
+            </div>
           </Button>
         {/each}
       </div>
@@ -242,32 +223,5 @@
     <p class="text-muted-foreground mt-2 text-center">
       No profiles found. Adjust your filters or create a new profile.
     </p>
-  {/if}
-  {#if instances}
-    {#each Object.entries(instances) as [profile, sub_instances]}
-      <p>Profile: {profile}</p>
-      {#each sub_instances as instance}
-        <p>Instance: {instance.id}</p>
-      {/each}
-    {/each}
-    <Select.Root type="single" bind:value={instance}>
-      <Select.Trigger>Test</Select.Trigger>
-      <Select.Content>
-        {#each Object.entries(instances) as [_, sub_instances]}
-          {#each sub_instances as instance}
-            <Select.Item value={instance.id}>
-              {instance.id}
-            </Select.Item>
-          {/each}
-        {/each}
-      </Select.Content>
-    </Select.Root>
-  {/if}
-  {#if logs}
-    <ScrollArea.ScrollArea class="h-100">
-      {#each logs as log}
-        <p>{log}</p>
-      {/each}
-    </ScrollArea.ScrollArea>
   {/if}
 </div>

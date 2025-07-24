@@ -12,7 +12,7 @@ use super::{
     java::{Download, Library},
     minecraft::{Argument, Version},
   },
-  ASSETS_DIR, JAVA_DIR, LIBRARY_DIR, MC_DIR, NATIVE_DIR, SEPARATOR, VERSION_DIR,
+  ASSETS_DIR, JAVA_DIR, LIBRARY_DIR, MC_DIR, SEPARATOR, VERSION_DIR,
 };
 
 #[cfg(all(not(debug_assertions), target_os = "windows"))]
@@ -66,9 +66,14 @@ impl LaunchArgs {
       .replace("${launcher_name}", &self.launcher_name)
       .replace(
         "${natives_directory}",
-        &path!(&self.data_dir, MC_DIR, NATIVE_DIR)
-          .display()
-          .to_string(),
+        &path!(
+          &self.data_dir,
+          JAVA_DIR,
+          &version.java_version.component.to_string(),
+          LIBRARY_DIR
+        )
+        .display()
+        .to_string(),
       )
       .replace("${classpath}", &classpath)
   }

@@ -76,7 +76,7 @@
   <div class="absolute top-0 flex w-full justify-between p-2">
     <Button
       size="icon"
-      class="size-6"
+      class="size-6 cursor-pointer"
       disabled={selected || change_loading}
       onclick={change}
     >
@@ -89,7 +89,7 @@
     {#if !delete_disabled}
       <Button
         size="icon"
-        class="size-6"
+        class="size-6 cursor-pointer"
         variant="destructive"
         onclick={remove}
         disabled={selected}

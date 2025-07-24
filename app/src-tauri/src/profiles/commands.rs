@@ -1,6 +1,5 @@
-use std::collections::HashMap;
-
 use base64::prelude::*;
+use chrono::Utc;
 use log::trace;
 use tauri::{AppHandle, Result, State};
 use tauri_plugin_opener::OpenerExt;
@@ -37,7 +36,9 @@ pub async fn profile_create(
     &loader_version
   );
   let mut store = state.lock().await;
-  store.create_profile(name, icon.as_deref(), version, loader, loader_version)?;
+  store
+    .create_profile(name, icon.as_deref(), version, loader, loader_version)
+    .log()?;
   Ok(())
 }
 
@@ -45,7 +46,7 @@ pub async fn profile_create(
 pub async fn profile_update(state: State<'_, Mutex<ProfileStore>>, profile: Profile) -> Result<()> {
   trace!("Command profile_update called with profile {:?}", &profile);
   let mut store = state.lock().await;
-  store.update_profile(&profile)?;
+  store.update_profile(&profile).log()?;
   Ok(())
 }
 
@@ -90,7 +91,7 @@ pub async fn profile_update_icon(
 ) -> Result<()> {
   trace!("Command profile_update_icon called with profile {profile}");
   let mut store = state.lock().await;
-  store.update_profile_icon(profile, &icon)?;
+  store.update_profile_icon(profile, &icon).log()?;
   Ok(())
 }
 
@@ -98,7 +99,7 @@ pub async fn profile_update_icon(
 pub async fn profile_remove(state: State<'_, Mutex<ProfileStore>>, profile: &str) -> Result<()> {
   trace!("Command profile_remove called with profile {profile}");
   let mut store = state.lock().await;
-  store.remove_profile(profile)?;
+  store.remove_profile(profile).log()?;
   Ok(())
 }
 
@@ -106,7 +107,7 @@ pub async fn profile_remove(state: State<'_, Mutex<ProfileStore>>, profile: &str
 pub async fn profile_list(state: State<'_, Mutex<ProfileStore>>) -> Result<Vec<Profile>> {
   trace!("Command profile_list called");
   let store = state.lock().await;
-  Ok(store.list_profiles()?)
+  Ok(store.list_profiles().log()?)
 }
 
 #[tauri::command]
@@ -127,16 +128,22 @@ pub async fn profile_launch(
     return Ok(err?);
   };
 
-  let mut profile = store.get_profile(profile)?;
+  let mut profile = store.get_profile(profile).log()?;
   if !profile.downloaded {
-    mc_store.check_or_download(&profile.version, id).await?;
+    mc_store
+      .check_or_download(&profile.version, id)
+      .await
+      .log()?;
     profile.downloaded = true;
-    store.update_profile(&profile)?;
-  } else if !mc_store.check_meta(&profile.version, id)? {
+    store.update_profile(&profile).log()?;
+  } else if !mc_store.check_meta(&profile.version, id).log()? {
     mc_store.check_or_download(&profile.version, id).await?;
   }
 
   store.launch_profile(info, &profile).await.log()?;
+
+  profile.last_played = Some(Utc::now());
+  store.update_profile(&profile).log()?;
 
   Ok(())
 }
@@ -152,16 +159,17 @@ pub async fn profile_repair(
   let store = state.lock().await;
   let mc_store = versions.lock().await;
 
-  let profile = store.get_profile(profile)?;
-  mc_store.check_or_download(&profile.version, id).await?;
+  let profile = store.get_profile(profile).log()?;
+  mc_store
+    .check_or_download(&profile.version, id)
+    .await
+    .log()?;
 
   Ok(())
 }
 
 #[tauri::command]
-pub async fn instance_list(
-  state: State<'_, Mutex<ProfileStore>>,
-) -> Result<HashMap<String, Vec<InstanceInfo>>> {
+pub async fn instance_list(state: State<'_, Mutex<ProfileStore>>) -> Result<Vec<InstanceInfo>> {
   trace!("Command instance_list called");
   let store = state.lock().await;
   Ok(store.list_instances().await)
@@ -175,6 +183,18 @@ pub async fn instance_logs(
 ) -> Result<Vec<String>> {
   trace!("Command instance_logs called with profile {profile} id {id}");
   let store = state.lock().await;
-  let lines = store.get_instance_logs(profile, id).await?;
+  let lines = store.get_instance_logs(profile, id).await.log()?;
   Ok(lines)
+}
+
+#[tauri::command]
+pub async fn instance_stop(
+  state: State<'_, Mutex<ProfileStore>>,
+  profile: &str,
+  id: &str,
+) -> Result<()> {
+  trace!("Command instance_stop called with profile {profile} id {id}");
+  let store = state.lock().await;
+  store.stop_instance(profile, id).await.log()?;
+  Ok(())
 }

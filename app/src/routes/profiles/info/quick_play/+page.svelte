@@ -1,1 +1,1 @@
-<p>Quick Play</p>
+<p>Quick Play (Coming Soon)</p>

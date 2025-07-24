@@ -1,4 +1,4 @@
 <script lang="ts">
 </script>
 
-<p>Home</p>
+<p>Home (Coming Soon)</p>

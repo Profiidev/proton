@@ -9,11 +9,12 @@ import {
 import { listen } from '@tauri-apps/api/event';
 import { browser } from '$app/environment';
 import { toast } from 'positron-components/components/ui';
-import { openPath } from '@tauri-apps/plugin-opener';
 
 export interface Profile {
   id: string;
   name: string;
+  created_at: string;
+  last_played?: string;
   version: string;
   loader: LoaderType;
   loader_version?: string;

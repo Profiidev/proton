@@ -72,7 +72,7 @@
         <p class="my-2 w-full text-center">Library</p>
         <Button
           size="icon"
-          class="absolute right-0 bottom-0 mr-1 mb-2 size-6"
+          class="absolute right-0 bottom-0 mr-1 mb-2 size-6 cursor-pointer"
           onclick={() => upload_input?.click()}
           disabled={add_loading}
         >

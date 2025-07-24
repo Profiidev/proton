@@ -142,8 +142,15 @@ impl McVersionStore {
       id,
     )
     .await?;
-    download_version_java_libraries(self.client.clone(), &data_dir, &version, &self.handle, id)
-      .await?;
+    download_version_java_libraries(
+      self.client.clone(),
+      &data_dir,
+      &version,
+      &self.handle,
+      java_component,
+      id,
+    )
+    .await?;
 
     emit_check_status(&self.handle, CheckStatus::Done, id);
     info!(

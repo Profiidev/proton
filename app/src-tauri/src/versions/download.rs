@@ -28,7 +28,7 @@ use super::{
     java::{self, Component, Files},
     minecraft::{Assets, Version},
   },
-  ASSETS_DIR, ASSETS_INDEX_DIR, JAVA_DIR, LIBRARY_DIR, MC_DIR, NATIVE_DIR, VERSION_DIR,
+  ASSETS_DIR, ASSETS_INDEX_DIR, JAVA_DIR, LIBRARY_DIR, MC_DIR, VERSION_DIR,
 };
 
 pub const MC_RESOURCES_URL: &str = "https://resources.download.minecraft.net";
@@ -168,12 +168,14 @@ pub async fn download_version_java_libraries(
   data_dir: &PathBuf,
   version: &Version,
   handle: &AppHandle,
+  component: Component,
   id: usize,
 ) -> Result<()> {
   debug!("Collecting checks/downloads for java libraries");
   let start = Instant::now();
   let mut futures_1 = Vec::new();
   let mut futures_2 = Vec::new();
+  let component = component.to_string();
 
   'l: for library in &version.libraries {
     let Some(downloads) = &library.downloads else {
@@ -199,15 +201,23 @@ pub async fn download_version_java_libraries(
         continue;
       };
 
-      let path = path!(data_dir, MC_DIR, LIBRARY_DIR, &library_download.path);
+      let path = path!(
+        data_dir,
+        JAVA_DIR,
+        component.clone(),
+        LIBRARY_DIR,
+        &library_download.path
+      );
       debug!("Checking native java library {}", path.display());
       let client = client.clone();
       let url = library_download.url.clone();
       let hash = library_download.sha1.clone();
       let data_dir = data_dir.clone();
+      let component = component.clone();
 
-      futures_1
-        .push(async move { download_native_library(&data_dir, &client, path, url, hash).await });
+      futures_1.push(async move {
+        download_native_library(&data_dir, component, &client, path, url, hash).await
+      });
     }
 
     if let Some(rules) = &library.rules {
@@ -261,6 +271,7 @@ pub async fn download_version_java_libraries(
 
 async fn download_native_library(
   data_dir: &PathBuf,
+  component: String,
   client: &Client,
   path: PathBuf,
   url: Url,
@@ -276,7 +287,7 @@ async fn download_native_library(
     if !(name.ends_with(".so") || name.ends_with(".dll") || name.ends_with(".dylib")) {
       continue;
     }
-    let path = path!(data_dir, MC_DIR, NATIVE_DIR, name);
+    let path = path!(data_dir, JAVA_DIR, component.clone(), LIBRARY_DIR, name);
     debug!("Extracting file {}", path.display());
     let mut file = create_or_open_file(&path)?;
     io::copy(&mut zip_file, &mut file)?;
