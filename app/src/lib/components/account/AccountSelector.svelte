@@ -32,7 +32,7 @@
         collapsed
       })}
     {:else}
-      <Button class="h-12 w-full justify-start p-2" variant="ghost">
+      <Button class="h-12 w-full justify-start p-2 cursor-pointer" variant="ghost">
         <div class="flex size-10 min-w-10 items-center justify-center">
           <CircleHelp />
         </div>
@@ -83,7 +83,7 @@
   collapsed?: boolean;
 })}
   {@const skin_url = info.skins.find((s) => s.state === State.Active)?.url}
-  <Button class="h-12 w-full justify-start p-2" variant="ghost" {onclick}>
+  <Button class="h-12 w-full justify-start p-2 cursor-pointer" variant="ghost" {onclick}>
     <AccountImage {skin_url} />
     {#if !collapsed}
       <div class="flex min-w-0 flex-1 flex-col justify-start">

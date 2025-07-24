@@ -5,11 +5,11 @@
     Button,
     Dialog
   } from 'positron-components/components';
-  import { StopCircle } from '@lucide/svelte';
+  import { ExternalLink, StopCircle } from '@lucide/svelte';
   import ProfileIcon from '$lib/components/profile/ProfileIcon.svelte';
   import { instance_list, instance_stop } from '$lib/tauri/instance.svelte.js';
   import { setInstance } from './store.svelte.js';
-    import { DateTime } from 'positron-components';
+  import { DateTime } from 'positron-components';
 
   let { data, children } = $props();
 
@@ -42,19 +42,34 @@
       classFallback="size-20"
     />
     <div class="my-2 ml-4 flex flex-col gap-1">
-      <p class="text-xl">{instance.profile_name}</p>
+      <p class="text-xl whitespace-nowrap">
+        Profile:
+        <Button
+          variant="outline"
+          onclick={() =>
+            goto(`/profiles/info/quick_play?id=${instance.profile_id}`)}
+          class="inline-flex cursor-pointer text-xl"
+        >
+          {instance.profile_name}
+          <ExternalLink />
+        </Button>
+      </p>
       <p class="text-muted-foreground whitespace-nowrap">
         {instance.loader}
         {instance.version}
       </p>
-      <p class="text-muted-foreground">
+      <p class="text-muted-foreground whitespace-nowrap">
         Launched at: {DateTime.fromISO(instance.launched_at)
           .setLocale('de')
           .toLocaleString(DateTime.DATETIME_SHORT)}
       </p>
     </div>
     <div class="mr-2 ml-auto flex items-center gap-2">
-      <Button variant="destructive" onclick={() => (stopOpen = true)}>
+      <Button
+        variant="destructive"
+        onclick={() => (stopOpen = true)}
+        class="cursor-pointer"
+      >
         <StopCircle />
         Stop
       </Button>
@@ -82,6 +97,7 @@
         <Button
           type="submit"
           variant="destructive"
+          class="cursor-pointer"
           onclick={() => instance_stop(instance.profile_id, instance.id)}
         >
           Stop

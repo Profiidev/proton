@@ -6,7 +6,7 @@
     Input,
     ScrollArea
   } from 'positron-components/components/ui';
-  import { CircleStop } from '@lucide/svelte';
+  import { CircleStop, ExternalLink } from '@lucide/svelte';
   import {
     instance_list,
     instance_stop,
@@ -126,7 +126,7 @@
         {#each filtered_instances as instance}
           <Button
             variant="outline"
-            class="group relative flex h-16 w-full max-w-86 flex-row justify-start p-2"
+            class="group relative flex h-16 w-full max-w-86 cursor-pointer flex-row justify-start p-2"
             onclick={() => goto(`/instances/info/logs?id=${instance.id}`)}
           >
             <ProfileIcon id={instance.profile_id} />
@@ -138,18 +138,20 @@
                 {instance.loader + ' ' + instance.version || 'unknown'}
               </p>
             </div>
-            <Button
-              class="absolute hidden size-12 group-hover:flex"
-              size="icon"
-              variant="destructive"
-              onclick={(e) => {
-                e.stopPropagation();
-                stop_instance = instance;
-                stopOpen = true;
-              }}
-            >
-              <CircleStop class="size-8" />
-            </Button>
+            <div class="bg-background absolute hidden rounded group-hover:flex">
+              <Button
+                class="size-12 cursor-pointer"
+                size="icon"
+                variant="destructive"
+                onclick={(e) => {
+                  e.stopPropagation();
+                  stop_instance = instance;
+                  stopOpen = true;
+                }}
+              >
+                <CircleStop class="size-8" />
+              </Button>
+            </div>
           </Button>
         {/each}
       </div>
@@ -158,6 +160,16 @@
     <p class="text-muted-foreground mt-2 text-center">
       No instances found. Adjust your filters or launch a profile to create one.
     </p>
+    <div class="flex justify-center mt-2">
+      <Button
+        variant="outline"
+        onclick={() => goto('/profiles')}
+        class="text-md inline-flex w-fit cursor-pointer p-0"
+      >
+        Profiles
+        <ExternalLink />
+      </Button>
+    </div>
   {/if}
 </div>
 <Dialog.Root bind:open={stopOpen}>

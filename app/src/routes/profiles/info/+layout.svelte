@@ -80,31 +80,44 @@
       </div>
     </div>
     <div class="mr-2 ml-auto flex items-center gap-2">
-      <Button onclick={() => profile_launch(profile.id, profile.name)}>
+      <Button
+        onclick={() => profile_launch(profile.id, profile.name)}
+        class="cursor-pointer"
+      >
         <Play />
         Play
       </Button>
       <DropdownMenu.Root>
         <DropdownMenu.Trigger>
           {#snippet child({ props })}
-            <Button variant="outline" size="icon" {...props}>
+            <Button
+              variant="outline"
+              size="icon"
+              {...props}
+              class="cursor-pointer"
+            >
               <Menu />
             </Button>
           {/snippet}
         </DropdownMenu.Trigger>
         <DropdownMenu.Content>
-          <DropdownMenu.Item onclick={() => profile_open_path(profile.id)}>
+          <DropdownMenu.Item
+            onclick={() => profile_open_path(profile.id)}
+            class="cursor-pointer"
+          >
             <FolderOpen />
             Open Directory</DropdownMenu.Item
           >
           <DropdownMenu.Item
             onclick={() => profile_repair(profile.id, profile.name)}
+            class="cursor-pointer"
           >
             <Wrench />
             Repair Profile
           </DropdownMenu.Item>
           <DropdownMenu.Item
             variant="destructive"
+            class="cursor-pointer"
             onclick={() => (deleteOpen = true)}
           >
             <Trash />
@@ -137,6 +150,7 @@
         <Button
           type="submit"
           variant="destructive"
+          class="cursor-pointer"
           onclick={() => profile_remove(profile.id)}
         >
           Delete

@@ -94,7 +94,7 @@
     <p class="text-xl">Accounts</p>
     <Button
       size="icon"
-      class="mr-3.5 ml-auto size-8"
+      class="mr-3.5 ml-auto size-8 cursor-pointer"
       onclick={add}
       disabled={add_loading}
     >
@@ -109,7 +109,7 @@
     {#if accounts && Object.entries(accounts).length > 0}
       {#each Object.entries(accounts).sort( (a, b) => a[0].localeCompare(b[0]) ) as [id, info], i}
         <Button
-          class="h-14 w-full gap-2 p-3"
+          class="h-14 w-full cursor-pointer gap-2 p-3"
           variant="ghost"
           onclick={() => change(id)}
         >
@@ -130,7 +130,7 @@
             <Button
               variant="destructive"
               size="icon"
-              class="size-8"
+              class="size-8 cursor-pointer"
               onclick={(e: MouseEvent) => {
                 e.stopPropagation();
                 remove(id);

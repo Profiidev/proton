@@ -174,7 +174,7 @@
         {#each filtered_profiles as profile}
           <Button
             variant="outline"
-            class="group relative flex h-16 w-full max-w-86 flex-row justify-start p-2"
+            class="group relative flex h-16 w-full max-w-86 cursor-pointer flex-row justify-start p-2"
             onclick={() => goto(`/profiles/info/quick_play?id=${profile.id}`)}
           >
             <ProfileIcon id={profile.id} />
@@ -186,16 +186,18 @@
                 {profile.loader + ' ' + profile.version || 'unknown'}
               </p>
             </div>
-            <Button
-              class="absolute hidden size-12 group-hover:flex"
-              size="icon"
-              onclick={(e) => {
-                e.stopPropagation();
-                profile_launch(profile.id, profile.name);
-              }}
-            >
-              <CirclePlay class="size-8" />
-            </Button>
+            <div class="bg-background absolute hidden rounded group-hover:flex">
+              <Button
+                class="size-12 cursor-pointer"
+                size="icon"
+                onclick={(e) => {
+                  e.stopPropagation();
+                  profile_launch(profile.id, profile.name);
+                }}
+              >
+                <CirclePlay class="size-8" />
+              </Button>
+            </div>
           </Button>
         {/each}
       </div>

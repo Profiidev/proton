@@ -82,7 +82,7 @@
     </Breadcrumb.List>
   </Breadcrumb.Root>
   <Button
-    class="ml-auto size-8 rounded-full"
+    class="ml-auto size-8 cursor-pointer rounded-full"
     size="icon"
     variant="ghost"
     onclick={minimize}
@@ -90,7 +90,7 @@
     <Minus class="size-5!" />
   </Button>
   <Button
-    class="size-8 rounded-full"
+    class="size-8 cursor-pointer rounded-full"
     size="icon"
     variant="ghost"
     onclick={maximize}
@@ -98,7 +98,7 @@
     <Square />
   </Button>
   <Button
-    class="hover:bg-destructive! mr-1 size-8 rounded-full"
+    class="hover:bg-destructive! mr-1 size-8 cursor-pointer rounded-full"
     size="icon"
     variant="ghost"
     onclick={close}
