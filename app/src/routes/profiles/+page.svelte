@@ -161,12 +161,7 @@
       {#snippet children({ props })}
         <div class="flex w-full">
           <div>
-            <FormImage
-              key="icon"
-              class="size-20 mt-6"
-              type="file"
-              {...props}
-            />
+            <FormImage key="icon" class="mt-6 size-20" type="file" {...props} />
           </div>
           <div class="ml-auto">
             <FormInput label="Name" placeholder="Name" key="name" {...props} />

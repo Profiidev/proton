@@ -135,7 +135,9 @@
         {/each}
       </ScrollArea.ScrollArea>
     {:else}
-      <p class="text-muted-foreground">No logs found for the current filter settings</p>
+      <p class="text-muted-foreground">
+        No logs found for the current filter settings
+      </p>
     {/if}
   </div>
 </div>
