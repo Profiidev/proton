@@ -175,6 +175,13 @@ impl ProfileStore {
     Ok(Some(icon))
   }
 
+  pub fn get_profile_path(&self, profile: &str) -> Result<PathBuf> {
+    let Some(path) = self.profiles.get(profile) else {
+      return Err(ProfileError::NotFound.into());
+    };
+    Ok(path.clone())
+  }
+
   pub fn update_profile_icon(&mut self, profile: &str, icon: &[u8]) -> Result<()> {
     if image::load_from_memory(icon).is_err() {
       return Err(ProfileError::InvalidImage.into());

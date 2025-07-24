@@ -13,8 +13,8 @@ use account::{
   store::AccountStore,
 };
 use profiles::commands::{
-  instance_list, instance_logs, profile_create, profile_get_icon, profile_launch,
-  profile_list, profile_remove, profile_repair, profile_update, profile_update_icon,
+  instance_list, instance_logs, profile_create, profile_get_icon, profile_launch, profile_list,
+  profile_open_path, profile_remove, profile_repair, profile_update, profile_update_icon,
 };
 use settings::{settings_get, settings_set};
 use tauri::{AppHandle, Manager};
@@ -76,6 +76,7 @@ pub fn run() {
       profile_remove,
       profile_update,
       profile_get_icon,
+      profile_open_path,
       profile_update_icon,
       profile_list,
       profile_launch,

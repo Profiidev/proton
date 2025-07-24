@@ -2,7 +2,8 @@ use std::collections::HashMap;
 
 use base64::prelude::*;
 use log::trace;
-use tauri::{Result, State};
+use tauri::{AppHandle, Result, State};
+use tauri_plugin_opener::OpenerExt;
 use thiserror::Error;
 use tokio::sync::Mutex;
 
@@ -60,6 +61,25 @@ pub async fn profile_get_icon(
       .get_profile_icon(profile)?
       .map(|data| BASE64_STANDARD.encode(data)),
   )
+}
+
+#[tauri::command]
+pub async fn profile_open_path(
+  handle: AppHandle,
+  state: State<'_, Mutex<ProfileStore>>,
+  profile: &str,
+) -> Result<()> {
+  trace!("Command profile_get_path called with profile {profile}");
+  let store = state.lock().await;
+  let path = store
+    .get_profile_path(profile)?
+    .to_string_lossy()
+    .to_string();
+  handle
+    .opener()
+    .open_path(path, None::<&str>)
+    .map_err(anyhow::Error::from)?;
+  Ok(())
 }
 
 #[tauri::command]

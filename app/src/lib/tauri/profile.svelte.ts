@@ -9,6 +9,7 @@ import {
 import { listen } from '@tauri-apps/api/event';
 import { browser } from '$app/environment';
 import { toast } from 'positron-components/components/ui';
+import { openPath } from '@tauri-apps/plugin-opener';
 
 export interface Profile {
   id: string;
@@ -90,6 +91,16 @@ export const profile_get_icon = async (profile: string) => {
       profile
     });
   } catch (e: any) {}
+};
+
+export const profile_open_path = async (profile: string) => {
+  try {
+    await invoke<string>('profile_open_path', {
+      profile
+    });
+  } catch (e: any) {
+    return parseError(e);
+  }
 };
 
 export const profile_update_icon = async (

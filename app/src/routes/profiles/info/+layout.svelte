@@ -1,6 +1,10 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { profile_launch, profile_list } from '$lib/tauri/profile.svelte.js';
+  import {
+    profile_launch,
+    profile_list,
+    profile_open_path
+  } from '$lib/tauri/profile.svelte.js';
   import {
     SimpleSidebar,
     Button,
@@ -65,7 +69,7 @@
           {/snippet}
         </DropdownMenu.Trigger>
         <DropdownMenu.Content>
-          <DropdownMenu.Item>
+          <DropdownMenu.Item onclick={() => profile_open_path(profile.id)}>
             <FolderOpen />
             Open Directory</DropdownMenu.Item
           >
