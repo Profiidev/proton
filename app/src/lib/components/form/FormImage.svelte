@@ -58,7 +58,9 @@
 <Form.Field {form} name={key} class="gap-1/2 grid">
   <Form.Control>
     {#snippet children({ props })}
-      <Form.Label>{label}</Form.Label>
+      {#if label}
+        <Form.Label>{label}</Form.Label>
+      {/if}
       <label for={key} class="hover:cursor-pointer">
         <Avatar.Root
           class={cn(

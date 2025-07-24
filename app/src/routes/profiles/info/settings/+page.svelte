@@ -108,7 +108,6 @@
           key="icon"
           class="size-20"
           type="file"
-          label="Icon"
           previewSrc={formFilePreview}
           {...props}
         />

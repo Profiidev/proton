@@ -163,9 +163,8 @@
           <div>
             <FormImage
               key="icon"
-              class="size-20"
+              class="size-20 mt-6"
               type="file"
-              label="Icon"
               {...props}
             />
           </div>
