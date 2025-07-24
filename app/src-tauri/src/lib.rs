@@ -14,8 +14,8 @@ use account::{
 };
 use profiles::commands::{
   instance_list, instance_logs, instance_stop, profile_create, profile_get_icon, profile_launch,
-  profile_list, profile_open_path, profile_remove, profile_repair, profile_update,
-  profile_update_icon,
+  profile_list, profile_logs, profile_open_path, profile_remove, profile_repair, profile_runs_list,
+  profile_update, profile_update_icon,
 };
 use settings::{settings_get, settings_set};
 use tauri::{AppHandle, Manager};
@@ -35,6 +35,7 @@ const CLIENT_ID: &str = "dd35660a-6381-41f8-bb34-2a36669581d0";
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
+    .plugin(tauri_plugin_window_state::Builder::new().build())
     .plugin(
       tauri_plugin_log::Builder::new()
         .clear_targets()
@@ -82,6 +83,8 @@ pub fn run() {
       profile_list,
       profile_launch,
       profile_repair,
+      profile_runs_list,
+      profile_logs,
       //instances
       instance_list,
       instance_logs,

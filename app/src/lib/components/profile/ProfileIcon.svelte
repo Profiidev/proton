@@ -13,16 +13,20 @@
 
   let { id, class: className, classFallback }: Props = $props();
 
+  let icon = $state<string>();
   let icon_updater = $derived(
     id
       ? create_data_state(async () => {
-          return await profile_get_icon(id);
+          icon = await profile_get_icon(id);
+          return icon;
         }, UpdateType.Profiles)
       : undefined
   );
-  let icon = $derived(icon_updater?.value);
+  let x = $derived(icon_updater?.value);
 </script>
 
+<!-- we need to use x so the updater is active or the icon will not be updated -->
+<p class="absolute top-1000 left-1000 hidden">{x?.charAt(0)}</p>
 <Avatar.Root class={cn('size-12 rounded-md', className)}>
   {#if icon}
     <Avatar.Image class="object-cover" src={`data:image/png;base64, ${icon}`} />

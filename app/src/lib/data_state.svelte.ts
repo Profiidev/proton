@@ -11,6 +11,7 @@ export enum UpdateType {
   Versions = 'Versions',
   //profiles
   Profiles = 'Profiles',
+  ProfileLogs = 'ProfileLogs',
   //instances
   Instances = 'Instances',
   InstanceLogs = 'InstanceLogs',

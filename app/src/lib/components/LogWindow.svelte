@@ -3,13 +3,15 @@
   import { Multiselect } from 'positron-components/components/table';
   import Fuse from 'fuse.js';
   import { cn } from 'positron-components/utils';
+  import type { Snippet } from 'svelte';
 
   interface Props {
     logs: string[] | undefined;
     class?: string;
+    children?: Snippet;
   }
 
-  let { logs, class: className }: Props = $props();
+  let { logs, class: className, children }: Props = $props();
 
   interface LogEntry {
     time: string;
@@ -76,7 +78,6 @@
   );
 
   $effect(() => {
-    console.log('Filtered logs updated');
     filteredLogs;
     if (auto_scroll && scrollArea) {
       scrollArea.scrollTop = scrollArea.scrollHeight;
@@ -103,6 +104,7 @@
 
 <div class={cn('flex h-full w-full flex-col gap-2', className)}>
   <div class="flex gap-2">
+    {@render children?.()}
     <Input
       placeholder="Search logs..."
       bind:value={text_filter}
@@ -133,7 +135,9 @@
         {/each}
       </ScrollArea.ScrollArea>
     {:else}
-      <p class="text-muted-foreground">No logs found for the current filters</p>
+      <p class="text-muted-foreground">
+        No logs found for the current filter settings
+      </p>
     {/if}
   </div>
 </div>

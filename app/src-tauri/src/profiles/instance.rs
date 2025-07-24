@@ -196,6 +196,8 @@ async fn clean_instance(
       let lines = lines.lock().await;
       let content = lines.join("\n");
       let _ = fs::write(log_file, content).await;
+
+      update_data(handle, UpdateType::ProfileLogs);
     }
   }
 }

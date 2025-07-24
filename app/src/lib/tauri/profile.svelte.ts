@@ -26,6 +26,12 @@ export interface Profile {
   dev?: DevSettings;
 }
 
+export interface ProfileUpdate {
+  id: string;
+  name: string;
+  version: string;
+}
+
 export interface GameSettings {
   width: number;
   height: number;
@@ -68,7 +74,6 @@ export const profile_create = async (data: {
   loader_version?: string;
   icon?: Uint8Array;
 }) => {
-  console.log(data.icon);
   try {
     await invoke('profile_create', data);
   } catch (e: any) {
@@ -76,7 +81,7 @@ export const profile_create = async (data: {
   }
 };
 
-export const profile_update = async (profile: Profile) => {
+export const profile_update = async (profile: ProfileUpdate) => {
   try {
     await invoke('profile_update', {
       profile
@@ -137,6 +142,26 @@ export const profile_list = create_data_state(
   profile_list_,
   UpdateType.Profiles
 );
+
+export const profile_runs_list = async (profile: string) => {
+  try {
+    return await invoke<string[]>('profile_runs_list', {
+      profile
+    });
+  } catch (e: any) {}
+};
+
+export const profile_logs = async (
+  profile: string,
+  timestamp: string
+): Promise<string[] | undefined> => {
+  try {
+    return await invoke('profile_logs', {
+      profile,
+      timestamp
+    });
+  } catch (e: any) {}
+};
 
 export const profile_launch = async (profile: string, name: string) => {
   launch_repair(

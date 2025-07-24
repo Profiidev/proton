@@ -47,6 +47,13 @@ pub struct Profile {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct ProfileUpdate {
+  pub id: String,
+  pub name: String,
+  pub version: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct GameSettings {
   pub width: usize,
   pub height: usize,
@@ -309,6 +316,45 @@ impl ProfileStore {
       .ok_or(InstanceError::NotFound)?;
     instance.stop();
     Ok(())
+  }
+
+  pub async fn list_profile_runs(&self, profile: &str) -> Result<Vec<DateTime<Utc>>> {
+    let log_dir = Self::log_dir(&self.handle, profile)?;
+    if !log_dir.exists() {
+      return Ok(Vec::new());
+    }
+
+    let mut res = Vec::new();
+    for entry in fs::read_dir(log_dir)? {
+      let entry = entry?;
+      if entry.file_type()?.is_file() {
+        if let Some(name) = entry.file_name().to_str() {
+          // replace the last 3 dashes with colons but leave the rest of the name intact
+          let name = name.trim_end_matches(".log").replace("-", ":");
+          if let Ok(date) = DateTime::parse_from_str(&name, "%Y:%m:%dT%H:%M:%S.%f%:z") {
+            res.push(date.to_utc());
+          }
+        }
+      }
+    }
+
+    Ok(res)
+  }
+
+  pub async fn profile_logs(&self, profile: &str, timestamp: DateTime<Utc>) -> Result<Vec<String>> {
+    let log_dir = Self::log_dir(&self.handle, profile)?;
+    if !log_dir.exists() {
+      return Ok(Vec::new());
+    }
+
+    let log_file = log_dir.join(format!("{}.log", timestamp.to_rfc3339().replace(":", "-")));
+    println!("Log file path: {:?}", log_file.to_str());
+    if !log_file.exists() {
+      return Ok(Vec::new());
+    }
+
+    let content = fs::read_to_string(log_file)?;
+    Ok(content.lines().map(String::from).collect())
   }
 }
 

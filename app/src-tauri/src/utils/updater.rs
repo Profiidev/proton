@@ -14,6 +14,7 @@ pub enum UpdateType {
   Versions,
   //profiles
   Profiles,
+  ProfileLogs,
   //instances
   Instances,
   InstanceLogs,

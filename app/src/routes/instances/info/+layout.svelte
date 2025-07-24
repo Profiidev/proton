@@ -14,13 +14,15 @@
   let { data, children } = $props();
 
   let instances = $derived(instance_list.value);
-  let instance = $derived(instances?.find((i) => i.id === data.id));
+  let instance = $derived(
+    instances ? instances.find((i) => i.id === data.id) : null
+  );
   let stopOpen = $state(false);
 
   $effect(() => {
-    if (!instance) {
+    if (instance === null) {
       goto('/instances');
-    } else {
+    } else if (instance) {
       setInstance(instance);
     }
   });

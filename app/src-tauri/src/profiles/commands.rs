@@ -1,5 +1,5 @@
 use base64::prelude::*;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use log::trace;
 use tauri::{AppHandle, Result, State};
 use tauri_plugin_opener::OpenerExt;
@@ -7,7 +7,9 @@ use thiserror::Error;
 use tokio::sync::Mutex;
 
 use crate::{
-  account::store::AccountStore, profiles::instance::InstanceInfo, utils::log::ResultLogExt,
+  account::store::AccountStore,
+  profiles::{instance::InstanceInfo, store::ProfileUpdate},
+  utils::log::ResultLogExt,
   versions::store::McVersionStore,
 };
 
@@ -43,10 +45,20 @@ pub async fn profile_create(
 }
 
 #[tauri::command]
-pub async fn profile_update(state: State<'_, Mutex<ProfileStore>>, profile: Profile) -> Result<()> {
+pub async fn profile_update(
+  state: State<'_, Mutex<ProfileStore>>,
+  profile: ProfileUpdate,
+) -> Result<()> {
   trace!("Command profile_update called with profile {:?}", &profile);
   let mut store = state.lock().await;
-  store.update_profile(&profile).log()?;
+
+  let mut current_profile = store.get_profile(&profile.id).log()?;
+
+  current_profile.name = profile.name;
+  current_profile.version = profile.version;
+
+  store.update_profile(&current_profile).log()?;
+
   Ok(())
 }
 
@@ -197,4 +209,25 @@ pub async fn instance_stop(
   let store = state.lock().await;
   store.stop_instance(profile, id).await.log()?;
   Ok(())
+}
+
+#[tauri::command]
+pub async fn profile_runs_list(
+  state: State<'_, Mutex<ProfileStore>>,
+  profile: &str,
+) -> Result<Vec<DateTime<Utc>>> {
+  trace!("Command profile_logs called with profile {profile}");
+  let store = state.lock().await;
+  Ok(store.list_profile_runs(profile).await.log()?)
+}
+
+#[tauri::command]
+pub async fn profile_logs(
+  state: State<'_, Mutex<ProfileStore>>,
+  profile: &str,
+  timestamp: DateTime<Utc>,
+) -> Result<Vec<String>> {
+  trace!("Command profile_logs_run called with profile {profile} timestamp {timestamp}");
+  let store = state.lock().await;
+  Ok(store.profile_logs(profile, timestamp).await.log()?)
 }
