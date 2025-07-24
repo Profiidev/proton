@@ -26,6 +26,12 @@ export interface Profile {
   dev?: DevSettings;
 }
 
+export interface ProfileUpdate {
+  id: string;
+  name: string;
+  version: string;
+}
+
 export interface GameSettings {
   width: number;
   height: number;
@@ -75,7 +81,7 @@ export const profile_create = async (data: {
   }
 };
 
-export const profile_update = async (profile: Profile) => {
+export const profile_update = async (profile: ProfileUpdate) => {
   try {
     await invoke('profile_update', {
       profile

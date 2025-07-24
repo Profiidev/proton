@@ -13,7 +13,6 @@
   let logs_list_updater = $derived(
     profile
       ? create_data_state(async () => {
-          console.log('Fetching profile runs');
           return await profile_runs_list(profile.id);
         }, UpdateType.ProfileLogs)
       : undefined

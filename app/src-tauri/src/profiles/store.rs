@@ -47,6 +47,13 @@ pub struct Profile {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct ProfileUpdate {
+  pub id: String,
+  pub name: String,
+  pub version: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct GameSettings {
   pub width: usize,
   pub height: usize,

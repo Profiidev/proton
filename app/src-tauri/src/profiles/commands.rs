@@ -7,7 +7,9 @@ use thiserror::Error;
 use tokio::sync::Mutex;
 
 use crate::{
-  account::store::AccountStore, profiles::instance::InstanceInfo, utils::log::ResultLogExt,
+  account::store::AccountStore,
+  profiles::{instance::InstanceInfo, store::ProfileUpdate},
+  utils::log::ResultLogExt,
   versions::store::McVersionStore,
 };
 
@@ -43,10 +45,20 @@ pub async fn profile_create(
 }
 
 #[tauri::command]
-pub async fn profile_update(state: State<'_, Mutex<ProfileStore>>, profile: Profile) -> Result<()> {
+pub async fn profile_update(
+  state: State<'_, Mutex<ProfileStore>>,
+  profile: ProfileUpdate,
+) -> Result<()> {
   trace!("Command profile_update called with profile {:?}", &profile);
   let mut store = state.lock().await;
-  store.update_profile(&profile).log()?;
+
+  let mut current_profile = store.get_profile(&profile.id).log()?;
+
+  current_profile.name = profile.name;
+  current_profile.version = profile.version;
+
+  store.update_profile(&current_profile).log()?;
+
   Ok(())
 }
 

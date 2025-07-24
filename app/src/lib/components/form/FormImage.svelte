@@ -16,6 +16,7 @@
     disabled?: boolean;
     class?: string;
     label?: string;
+    previewSrc?: string;
   }
 
   let {
@@ -24,15 +25,22 @@
     disabled,
     class: className,
     label,
+    previewSrc,
     ...restProps
   }: HTMLInputAttributes & Props = $props();
 
   const { form: formData } = $derived(form);
 
   let files = $state<FileList | undefined>();
-  let src = $derived(
-    files && files.length > 0 ? URL.createObjectURL(files[0]) : ''
-  );
+  let src = $state('');
+
+  $effect(() => {
+    if (files && files.length > 0) {
+      src = URL.createObjectURL(files[0]);
+    } else if (previewSrc) {
+      src = previewSrc;
+    }
+  });
 
   $effect(() => {
     let store = get(formData);
