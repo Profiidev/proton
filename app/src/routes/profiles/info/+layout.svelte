@@ -3,21 +3,25 @@
   import {
     profile_launch,
     profile_list,
-    profile_open_path
+    profile_open_path,
+    profile_remove,
+    profile_repair
   } from '$lib/tauri/profile.svelte.js';
   import {
     SimpleSidebar,
     Button,
-    DropdownMenu
+    DropdownMenu,
+    Dialog
   } from 'positron-components/components';
   import { setProfile } from './store.svelte.js';
-  import { FolderOpen, Menu, Play } from '@lucide/svelte';
+  import { FolderOpen, Menu, Play, Trash, Wrench } from '@lucide/svelte';
   import ProfileIcon from '$lib/components/profile/ProfileIcon.svelte';
 
   let { data, children } = $props();
 
   let profiles = $derived(profile_list.value);
   let profile = $derived(profiles?.find((p) => p.id === data.id));
+  let deleteOpen = $state(false);
 
   $effect(() => {
     if (!profile) {
@@ -76,6 +80,19 @@
             <FolderOpen />
             Open Directory</DropdownMenu.Item
           >
+          <DropdownMenu.Item
+            onclick={() => profile_repair(profile.id, profile.name)}
+          >
+            <Wrench />
+            Repair Profile
+          </DropdownMenu.Item>
+          <DropdownMenu.Item
+            variant="destructive"
+            onclick={() => (deleteOpen = true)}
+          >
+            <Trash />
+            Delete Profile
+          </DropdownMenu.Item>
         </DropdownMenu.Content>
       </DropdownMenu.Root>
     </div>
@@ -90,6 +107,26 @@
       {@render children()}
     </div>
   </div>
+  <Dialog.Root bind:open={deleteOpen}>
+    <Dialog.Content>
+      <Dialog.Header>
+        <Dialog.Title>Delete Profile</Dialog.Title>
+        <Dialog.Description>
+          Are you sure you want to delete the profile "{profile?.name}"? This
+          action cannot be undone.
+        </Dialog.Description>
+      </Dialog.Header>
+      <Dialog.Footer>
+        <Button
+          type="submit"
+          variant="destructive"
+          onclick={() => profile_remove(profile.id)}
+        >
+          Delete
+        </Button>
+      </Dialog.Footer>
+    </Dialog.Content>
+  </Dialog.Root>
 {:else}
   <p class="mt-2 ml-2">Loading...</p>
 {/if}

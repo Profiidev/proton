@@ -1,11 +1,8 @@
 <script lang="ts">
   import {
     profile_create,
-    profile_get_icon,
     profile_launch,
     profile_list,
-    profile_remove,
-    profile_repair,
     ProfileError
   } from '$lib/tauri/profile.svelte';
   import {
@@ -18,13 +15,12 @@
   import { profileCreateSchema } from './schema.svelte';
   import { version_list } from '$lib/tauri/versions.svelte';
   import {
-    Avatar,
     Button,
     Input,
     ScrollArea,
     Select
   } from 'positron-components/components/ui';
-  import { Box, CirclePlay, Plus, Wrench, X } from '@lucide/svelte';
+  import { CirclePlay, Plus } from '@lucide/svelte';
   import FormImage from '../../lib/components/form/FormImage.svelte';
   import { instance_list, instance_logs } from '$lib/tauri/instance.svelte';
   import { create_data_state, UpdateType } from '$lib/data_state.svelte';
@@ -223,17 +219,6 @@
             >
               <CirclePlay class="size-8" />
             </Button>
-            {#if false}
-              <Button size="icon" onclick={() => profile_remove(profile.id)}>
-                <X />
-              </Button>
-              <Button
-                size="icon"
-                onclick={() => profile_repair(profile.id, profile.name)}
-              >
-                <Wrench />
-              </Button>
-            {/if}
           </Button>
         {/each}
       </div>
