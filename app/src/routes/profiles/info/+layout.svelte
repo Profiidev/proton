@@ -1,0 +1,95 @@
+<script lang="ts">
+  import { goto } from '$app/navigation';
+  import {
+    profile_launch,
+    profile_list,
+    profile_open_path
+  } from '$lib/tauri/profile.svelte.js';
+  import {
+    SimpleSidebar,
+    Button,
+    DropdownMenu
+  } from 'positron-components/components';
+  import { setProfile } from './store.svelte.js';
+  import { FolderOpen, Menu, Play } from '@lucide/svelte';
+  import ProfileIcon from '$lib/components/profile/ProfileIcon.svelte';
+
+  let { data, children } = $props();
+
+  let profiles = $derived(profile_list.value);
+  let profile = $derived(profiles?.find((p) => p.id === data.id));
+
+  $effect(() => {
+    if (!profile) {
+      goto('/profiles');
+    } else {
+      setProfile(profile);
+    }
+  });
+
+  let items = $derived([
+    {
+      href: `/profiles/info/quick_play?id=${profile?.id}`,
+      title: 'Quick Play'
+    },
+    {
+      href: `/profiles/info/instances?id=${profile?.id}`,
+      title: 'Instances'
+    },
+    {
+      href: `/profiles/info/settings?id=${profile?.id}`,
+      title: 'Settings'
+    }
+  ]);
+</script>
+
+{#if profile}
+  <div class="flex items-center gap-2"></div>
+  <div class="mt-2 ml-2 flex">
+    <ProfileIcon
+      id={profile.id}
+      class="size-24 border-2"
+      classFallback="size-20"
+    />
+    <div class="my-4 ml-4 flex flex-col gap-3">
+      <p class="text-xl">{profile.name}</p>
+      <p class="text-muted-foreground whitespace-nowrap">
+        {profile.loader}
+        {profile.version}
+      </p>
+    </div>
+    <div class="mr-2 ml-auto flex items-center gap-2">
+      <Button onclick={() => profile_launch(profile.id, profile.name)}>
+        <Play />
+        Play
+      </Button>
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger>
+          {#snippet child({ props })}
+            <Button variant="outline" size="icon" {...props}>
+              <Menu />
+            </Button>
+          {/snippet}
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Content>
+          <DropdownMenu.Item onclick={() => profile_open_path(profile.id)}>
+            <FolderOpen />
+            Open Directory</DropdownMenu.Item
+          >
+        </DropdownMenu.Content>
+      </DropdownMenu.Root>
+    </div>
+  </div>
+  <div class="mt-2 flex h-full flex-col lg:flex-row">
+    <aside class="lg:w-52 lg:max-w-32">
+      <SimpleSidebar {items} class="" />
+    </aside>
+    <div
+      class="flex min-h-0 flex-1 space-y-8 p-2 lg:h-full lg:space-y-0 lg:space-x-12"
+    >
+      {@render children()}
+    </div>
+  </div>
+{:else}
+  <p class="mt-2 ml-2">Loading...</p>
+{/if}

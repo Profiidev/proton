@@ -4,21 +4,19 @@ use anyhow::Result;
 use log::{debug, info};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, Manager, Url};
+use tauri::{AppHandle, Manager, Url};
 use tokio::join;
 
 use crate::{
-  account::store::LaunchInfo,
   path,
-  profiles::store::Profile,
   utils::{
     file::{
       download_and_parse_file, download_and_parse_file_no_hash,
-      download_and_parse_file_no_hash_force,
+      download_and_parse_file_no_hash_force, file_hash,
     },
     updater::{update_data, UpdateType},
   },
-  versions::event::{CheckStatus, VERSION_CHECK_STATUS_EVENT},
+  versions::event::CheckStatus,
 };
 
 use super::{
@@ -26,10 +24,10 @@ use super::{
     download_assets_manifest, download_client, download_java_files, download_version_assets,
     download_version_java_libraries, DownloadError,
   },
-  launch::{launch_minecraft_version, LaunchArgs},
+  event::emit_check_status,
   meta::{
     java::{Component, Files, JavaVersions},
-    minecraft::{Manifest, Version},
+    minecraft::{Manifest, Version, VersionType},
   },
   JAVA_DIR, MC_DIR, VERSION_DIR,
 };
@@ -121,28 +119,33 @@ impl McVersionStore {
     Ok(())
   }
 
-  pub async fn check_or_download(&self, id: &str) -> Result<()> {
+  pub async fn check_or_download(&self, version: &str, id: usize) -> Result<()> {
     let start = Instant::now();
-    info!("Checking minecraft version {id}");
+    info!("Checking minecraft version {version}");
     let data_dir = self.handle.path().app_data_dir()?;
-    let version = self.get_version_manifest(id, &data_dir).await?;
+    let version = self.get_version_manifest(version, &data_dir).await?;
+    emit_check_status(&self.handle, CheckStatus::Manifest(1), id);
     let assets = download_assets_manifest(&data_dir, &self.client, &version).await?;
+    emit_check_status(&self.handle, CheckStatus::Manifest(2), id);
     let (java, java_component) = self.get_java_manifest(&data_dir, &version).await?;
-    self
-      .handle
-      .emit(VERSION_CHECK_STATUS_EVENT, CheckStatus::Manifest)?;
+    emit_check_status(&self.handle, CheckStatus::Manifest(3), id);
 
     download_client(&data_dir, &self.client, &version).await?;
-    download_version_assets(self.client.clone(), &data_dir, &assets).await?;
-    self
-      .handle
-      .emit(VERSION_CHECK_STATUS_EVENT, CheckStatus::Assets)?;
+    emit_check_status(&self.handle, CheckStatus::Client, id);
+    download_version_assets(self.client.clone(), &data_dir, &assets, &self.handle, id).await?;
+    download_java_files(
+      self.client.clone(),
+      &data_dir,
+      &java,
+      java_component,
+      &self.handle,
+      id,
+    )
+    .await?;
+    download_version_java_libraries(self.client.clone(), &data_dir, &version, &self.handle, id)
+      .await?;
 
-    download_java_files(self.client.clone(), &data_dir, &java, java_component).await?;
-    download_version_java_libraries(self.client.clone(), &data_dir, &version).await?;
-    self
-      .handle
-      .emit(VERSION_CHECK_STATUS_EVENT, CheckStatus::Java)?;
+    emit_check_status(&self.handle, CheckStatus::Done, id);
     info!(
       "Finished checking minecraft version {} in {:?}",
       id,
@@ -150,6 +153,29 @@ impl McVersionStore {
     );
 
     Ok(())
+  }
+
+  pub fn check_meta(&self, version: &str, id: usize) -> Result<bool> {
+    let data_dir = self.handle.path().app_data_dir()?;
+    let manifest_version = self
+      .mc_manifest
+      .versions
+      .iter()
+      .find(|v| v.id == version)
+      .ok_or(DownloadError::NotFound)?;
+    let path = path!(
+      &data_dir,
+      MC_DIR,
+      VERSION_DIR,
+      version,
+      format!("{}.json", version)
+    );
+    let ok = file_hash(&manifest_version.sha1, &path)?;
+    if ok {
+      emit_check_status(&self.handle, CheckStatus::Done, id);
+    }
+
+    Ok(ok)
   }
 
   async fn get_version_manifest(&self, id: &str, data_dir: &PathBuf) -> Result<Version> {
@@ -214,28 +240,9 @@ impl McVersionStore {
       .mc_manifest
       .versions
       .iter()
+      .filter(|v| v.r#type == VersionType::Release)
       .map(|v| &v.id)
       .cloned()
       .collect()
-  }
-
-  pub async fn launch_version(&self, info: LaunchInfo, profile: &Profile) -> Result<()> {
-    let data_dir = self.handle.path().app_data_dir()?;
-
-    self.check_or_download(&profile.version).await?;
-
-    launch_minecraft_version(&LaunchArgs {
-      access_token: info.access_token,
-      launcher_name: self.handle.package_info().name.clone(),
-      launcher_version: self.handle.package_info().version.to_string(),
-      player_name: info.name,
-      player_uuid: info.id,
-      user_type: "msa".into(),
-      data_dir,
-      version: profile.version.clone(),
-      working_sub_dir: profile.relative_to_data().display().to_string(),
-    })?;
-
-    Ok(())
   }
 }

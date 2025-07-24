@@ -13,8 +13,10 @@ use account::{
   store::AccountStore,
 };
 use profiles::commands::{
-  profile_create, profile_launch, profile_list, profile_remove, profile_update, profile_update_icon,
+  instance_list, instance_logs, profile_create, profile_get_icon, profile_launch, profile_list,
+  profile_open_path, profile_remove, profile_repair, profile_update, profile_update_icon,
 };
+use settings::{settings_get, settings_set};
 use tauri::{AppHandle, Manager};
 use tauri_plugin_log::{RotationStrategy, Target, TargetKind, TimezoneStrategy};
 use tokio::sync::Mutex;
@@ -22,6 +24,7 @@ use versions::{commands::version_list, store::McVersionStore};
 
 mod account;
 mod profiles;
+mod settings;
 mod store;
 mod utils;
 mod versions;
@@ -36,7 +39,7 @@ pub fn run() {
         .clear_targets()
         .target(Target::new(TargetKind::Stdout))
         .target(Target::new(TargetKind::LogDir {
-          file_name: Some(Local::now().to_rfc3339()),
+          file_name: Some(Local::now().to_rfc3339().replace(":", "-")),
         }))
         .rotation_strategy(RotationStrategy::KeepAll)
         .timezone_strategy(TimezoneStrategy::UseLocal)
@@ -72,9 +75,18 @@ pub fn run() {
       profile_create,
       profile_remove,
       profile_update,
+      profile_get_icon,
+      profile_open_path,
       profile_update_icon,
       profile_list,
       profile_launch,
+      profile_repair,
+      //instances
+      instance_list,
+      instance_logs,
+      //settings
+      settings_get,
+      settings_set,
     ])
     .setup(|app| {
       let _ = app.handle().app_store()?;

@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use anyhow::Result;
 use log::debug;
 use reqwest::Client;
@@ -36,6 +38,15 @@ pub enum State {
 pub enum SkinVariant {
   Classic,
   Slim,
+}
+
+impl Display for SkinVariant {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    match self {
+      SkinVariant::Classic => write!(f, "classic"),
+      SkinVariant::Slim => write!(f, "slim"),
+    }
+  }
 }
 
 #[derive(Deserialize, Serialize, Clone)]
