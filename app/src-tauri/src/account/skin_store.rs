@@ -4,7 +4,7 @@ use anyhow::Result;
 use base64::prelude::*;
 use image::ImageFormat;
 use log::debug;
-use reqwest::Client;
+use reqwest::{multipart::Form, Client};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, Url};
 use thiserror::Error;
@@ -249,17 +249,17 @@ impl SkinStore {
         Self::SKIN_FOLDER,
         format!("{}.png", &skin.id)
       );
-      let data = std::fs::read(data_path)?;
+
+      let form = Form::new()
+        .text("variant", SkinVariant::Classic.to_string())
+        .file("file", data_path)
+        .await?;
 
       let res = self
         .client
         .post(SKIN_CHANGE_URL)
         .bearer_auth(mc_token)
-        .form(&SkinChangeReq {
-          variant: SkinVariant::Classic,
-          url: None,
-          file: Some(data),
-        })
+        .multipart(form)
         .send()
         .await?;
       debug!("Got response with code: {}", res.status());

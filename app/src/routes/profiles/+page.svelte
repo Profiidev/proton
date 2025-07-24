@@ -31,6 +31,8 @@
   import { file_to_bytes } from '$lib/util.svelte';
   import { Multiselect } from 'positron-components/components/table';
   import Fuse from 'fuse.js';
+  import { goto } from '$app/navigation';
+  import ProfileIcon from '$lib/components/profile/ProfileIcon.svelte';
 
   interface Props {
     data: PageServerData;
@@ -200,25 +202,9 @@
           <Button
             variant="outline"
             class="group relative flex h-16 w-full max-w-86 flex-row justify-start p-2"
+            onclick={() => goto(`/profiles/info/quick_play?id=${profile.id}`)}
           >
-            <Avatar.Root class="size-12 rounded-md">
-              {#await profile_get_icon(profile.id)}
-                <Avatar.Fallback class="rounded-md">
-                  <span class="sr-only">Profile Icon</span>
-                </Avatar.Fallback>
-              {:then icon}
-                {#if icon}
-                  <Avatar.Image
-                    class="object-cover"
-                    src={`data:image/png;base64, ${icon}`}
-                  />
-                {:else}
-                  <div class="flex size-full items-center justify-center">
-                    <Box class="size-10" />
-                  </div>
-                {/if}
-              {/await}
-            </Avatar.Root>
+            <ProfileIcon id={profile.id} />
             <div class="ml-2 flex min-w-0 flex-1 flex-col justify-start gap-2">
               <p class="truncate text-start text-sm">
                 {profile.name || 'unknown'}
@@ -230,7 +216,10 @@
             <Button
               class="absolute hidden size-12 group-hover:flex"
               size="icon"
-              onclick={() => profile_launch(profile.id, profile.name)}
+              onclick={(e) => {
+                e.stopPropagation();
+                profile_launch(profile.id, profile.name);
+              }}
             >
               <CirclePlay class="size-8" />
             </Button>
