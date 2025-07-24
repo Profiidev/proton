@@ -53,7 +53,10 @@
     />
     <div class="my-4 ml-4 flex flex-col gap-3">
       <p class="text-xl">{profile.name}</p>
-      <p class="text-muted-foreground">{profile.loader} {profile.version}</p>
+      <p class="text-muted-foreground whitespace-nowrap">
+        {profile.loader}
+        {profile.version}
+      </p>
     </div>
     <div class="mr-2 ml-auto flex items-center gap-2">
       <Button onclick={() => profile_launch(profile.id, profile.name)}>

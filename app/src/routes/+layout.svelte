@@ -8,8 +8,8 @@
     Toaster
   } from 'positron-components/components/ui';
   import '../app.css';
-  import Header from '$lib/components/Header.svelte';
-  import Sidebar from '$lib/components/Sidebar.svelte';
+  import Header from '$lib/components/nav/Header.svelte';
+  import Sidebar from '$lib/components/nav/Sidebar.svelte';
   import { onMount } from 'svelte';
   import { account_refresh } from '$lib/tauri/account.svelte';
   import { debounce, rem_to_px } from '$lib/util.svelte';

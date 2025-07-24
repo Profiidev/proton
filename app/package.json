@@ -21,7 +21,7 @@
     "@tauri-apps/plugin-store": "^2.3.0",
     "fuse.js": "^7.1.0",
     "mode-watcher": "^1.1.0",
-    "positron-components": "^1.5.2",
+    "positron-components": "^1.5.3",
     "skinview3d": "^3.4.1",
     "svelte-sonner": "^1.0.5",
     "sveltekit-superforms": "^2.27.1",
