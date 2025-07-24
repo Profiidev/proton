@@ -41,6 +41,9 @@ jobs:
           packages: libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
           version: 1.0
 
+      - name: delete lock file
+        run: rm -f app/package-lock.json
+
       - name: install frontend dependencies
         uses: bahmutov/npm-install@v1
         with:
