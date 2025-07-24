@@ -34,55 +34,56 @@
 </script>
 
 {#if instance}
-  <div class="flex items-center gap-2"></div>
-  <div class="mt-2 ml-2 flex">
-    <ProfileIcon
-      id={instance.id}
-      class="size-24 border-2"
-      classFallback="size-20"
-    />
-    <div class="my-2 ml-4 flex flex-col gap-1">
-      <p class="text-xl whitespace-nowrap">
-        Profile:
+  <div class="flex h-full flex-col">
+    <div class="mt-2 ml-2 flex">
+      <ProfileIcon
+        id={instance.id}
+        class="size-24 border-2"
+        classFallback="size-20"
+      />
+      <div class="my-2 ml-4 flex flex-col gap-1">
+        <p class="text-xl whitespace-nowrap">
+          Profile:
+          <Button
+            variant="outline"
+            onclick={() =>
+              goto(`/profiles/info/quick_play?id=${instance.profile_id}`)}
+            class="inline-flex cursor-pointer text-xl"
+          >
+            {instance.profile_name}
+            <ExternalLink />
+          </Button>
+        </p>
+        <p class="text-muted-foreground whitespace-nowrap">
+          {instance.loader}
+          {instance.version}
+        </p>
+        <p class="text-muted-foreground whitespace-nowrap">
+          Launched at: {DateTime.fromISO(instance.launched_at)
+            .setLocale('de')
+            .toLocaleString(DateTime.DATETIME_SHORT)}
+        </p>
+      </div>
+      <div class="mr-2 ml-auto flex items-center gap-2">
         <Button
-          variant="outline"
-          onclick={() =>
-            goto(`/profiles/info/quick_play?id=${instance.profile_id}`)}
-          class="inline-flex cursor-pointer text-xl"
+          variant="destructive"
+          onclick={() => (stopOpen = true)}
+          class="cursor-pointer"
         >
-          {instance.profile_name}
-          <ExternalLink />
+          <StopCircle />
+          Stop
         </Button>
-      </p>
-      <p class="text-muted-foreground whitespace-nowrap">
-        {instance.loader}
-        {instance.version}
-      </p>
-      <p class="text-muted-foreground whitespace-nowrap">
-        Launched at: {DateTime.fromISO(instance.launched_at)
-          .setLocale('de')
-          .toLocaleString(DateTime.DATETIME_SHORT)}
-      </p>
+      </div>
     </div>
-    <div class="mr-2 ml-auto flex items-center gap-2">
-      <Button
-        variant="destructive"
-        onclick={() => (stopOpen = true)}
-        class="cursor-pointer"
+    <div class="mt-2 flex min-h-0 flex-grow-1 flex-col lg:flex-row gap-2">
+      <aside class="lg:w-52 lg:max-w-32 lg:min-w-32">
+        <SimpleSidebar {items} class="" />
+      </aside>
+      <div
+        class="flex min-h-0 flex-grow-1 space-y-8 lg:h-full lg:space-y-0 lg:space-x-12"
       >
-        <StopCircle />
-        Stop
-      </Button>
-    </div>
-  </div>
-  <div class="mt-2 flex h-full flex-col lg:flex-row">
-    <aside class="lg:w-52 lg:max-w-32">
-      <SimpleSidebar {items} class="" />
-    </aside>
-    <div
-      class="flex min-h-0 flex-1 space-y-8 p-2 lg:h-full lg:space-y-0 lg:space-x-12"
-    >
-      {@render children()}
+        {@render children()}
+      </div>
     </div>
   </div>
   <Dialog.Root bind:open={stopOpen}>

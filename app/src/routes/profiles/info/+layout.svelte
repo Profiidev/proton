@@ -50,7 +50,6 @@
 </script>
 
 {#if profile}
-  <div class="flex items-center gap-2"></div>
   <div class="mt-2 ml-2 flex">
     <ProfileIcon
       id={profile.id}
