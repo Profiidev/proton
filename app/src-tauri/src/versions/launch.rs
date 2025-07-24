@@ -119,7 +119,7 @@ pub fn launch_minecraft_version(args: &LaunchArgs) -> Result<Child> {
   let mut command = Command::new(jre_bin);
 
   #[cfg(all(not(debug_assertions), target_os = "windows"))]
-  std::os::windows::process::CommandExt::creation_flags(&mut command, DETACHED_PROCESS);
+  Command::creation_flags(&mut command, DETACHED_PROCESS);
 
   command
     .stdout(Stdio::piped())
