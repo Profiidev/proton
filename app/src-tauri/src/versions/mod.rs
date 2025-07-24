@@ -11,8 +11,7 @@ const JAVA_DIR: &str = "java";
 
 const MC_DIR: &str = "minecraft";
 const VERSION_DIR: &str = "versions";
-const LIBRARY_DIR: &str = "libraries";
-const NATIVE_DIR: &str = "bin";
+const LIBRARY_DIR: &str = "lib";
 const ASSETS_DIR: &str = "assets";
 const ASSETS_INDEX_DIR: &str = "indexes";
 
