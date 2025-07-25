@@ -26,7 +26,7 @@
       toast.error('Failed to refresh Accounts');
     }
     let update = await checkForUpdates();
-    if (update || true) {
+    if (update) {
       toast.message(`Update available: ${update}`, {
         action: {
           label: 'Update',
