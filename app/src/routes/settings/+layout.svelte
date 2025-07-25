@@ -15,6 +15,10 @@
     {
       href: '/settings/capes',
       title: 'Capes'
+    },
+    {
+      href: '/settings/about',
+      title: 'About'
     }
   ];
 </script>

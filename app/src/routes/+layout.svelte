@@ -16,6 +16,7 @@
   import { settings_get, settings_set } from '$lib/tauri/settings.svelte';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
+  import { checkForUpdates } from '$lib/tauri/updater.svelte';
   let { children } = $props();
 
   setMode('dark');
@@ -23,6 +24,17 @@
   onMount(async () => {
     if (await account_refresh()) {
       toast.error('Failed to refresh Accounts');
+    }
+    let update = await checkForUpdates();
+    if (update) {
+      toast.message(`Update available: ${update}`, {
+        action: {
+          label: 'Update',
+          onClick: () => {
+            goto('/settings/about');
+          }
+        }
+      });
     }
   });
 
