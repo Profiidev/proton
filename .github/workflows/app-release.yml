@@ -54,14 +54,25 @@ jobs:
           cache-on-failure: true
           shared-key: 'app_release_cache-${{ matrix.platform }}'
 
-      - name: Set version
-        if: github.event_name != 'pull_request'
+      - name: Set version non Windows
+        if: github.event_name == 'pull_request' && matrix.platform != 'windows-latest'
         run: |
-          JSON_FILE="package.json" # Adjust this to your actual JSON file name
+          JSON_FILE="app/src-tauri/tauri.conf.json"
           NEW_VERSION="${{ github.event.release.tag_name }}"
           echo "Updating version in $JSON_FILE to $NEW_VERSION"
           jq ".version = \"$NEW_VERSION\"" "$JSON_FILE" > temp.$JSON_FILE && mv temp.$JSON_FILE "$JSON_FILE"
           cat "$JSON_FILE"
+
+      - name: Set version for Windows
+        if: github.event_name == 'pull_request' && matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          $JSON_FILE = "app/src-tauri/tauri.conf.json"
+          $NEW_VERSION = "${{ github.event.release.tag_name }}"
+          Write-Host "Updating version in $JSON_FILE to $NEW_VERSION"
+          jq ".version = `"$NEW_VERSION`"" $JSON_FILE | Out-File -FilePath "temp.$JSON_FILE" -Encoding utf8NoBOM
+          Move-Item -Path "temp.$JSON_FILE" -Destination $JSON_FILE -Force
+          Get-Content $JSON_FILE
 
       - name: Build app
         if: github.event_name == 'pull_request'
