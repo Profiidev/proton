@@ -2,6 +2,9 @@ name: 'App Build and Release'
 
 on:
   pull_request:
+  release:
+    types:
+      - published
 
 jobs:
   release-app:
@@ -51,6 +54,15 @@ jobs:
           cache-on-failure: true
           shared-key: 'app_release_cache-${{ matrix.platform }}'
 
+      - name: Set version
+        if: github.event_name != 'pull_request'
+        run: |
+          JSON_FILE="package.json" # Adjust this to your actual JSON file name
+          NEW_VERSION="${{ github.event.release.tag_name }}"
+          echo "Updating version in $JSON_FILE to $NEW_VERSION"
+          jq ".version = \"$NEW_VERSION\"" "$JSON_FILE" > temp.$JSON_FILE && mv temp.$JSON_FILE "$JSON_FILE"
+          cat "$JSON_FILE"
+
       - name: Build app
         if: github.event_name == 'pull_request'
         uses: tauri-apps/tauri-action@v0
@@ -67,11 +79,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: 'app'
-          tagName: app-v__VERSION__ # the action automatically replaces \_\_VERSION\_\_ with the app version.
-          releaseName: 'App v__VERSION__'
-          releaseBody: 'See the assets to download this version and install.'
-          releaseDraft: true
-          prerelease: false
+          releaseId: ${{ github.event.release.id }}
           includeUpdaterJson: true
           updaterJsonPreferNsis: true
           args: ${{ matrix.args }}
