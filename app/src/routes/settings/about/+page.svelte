@@ -12,7 +12,6 @@
   getVersion().then((v) => {
     version = v;
   });
-  checkForUpdates();
 
   let version_update = $derived(getUpdateVersion());
   let loading = $state(false);
@@ -22,7 +21,7 @@
     let update = await checkForUpdates();
     loading = false;
 
-    if (!update) {
+    if (update === undefined) {
       toast.message('No updates available');
     }
   };
