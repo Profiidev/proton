@@ -56,9 +56,11 @@ jobs:
 
       - name: Set version non Windows
         if: github.event_name == 'pull_request' && matrix.platform != 'windows-latest'
+        shell: bash
         run: |
           JSON_FILE="app/src-tauri/tauri.conf.json"
-          NEW_VERSION="${{ github.event.release.tag_name }}v0.1.1"
+          RAW_TAG="${{ github.event.release.tag_name }}v0.1.1"
+          NEW_VERSION="${RAW_TAG#v}"
           echo "Updating version in $JSON_FILE to $NEW_VERSION"
           jq ".version = \"$NEW_VERSION\"" "$JSON_FILE" > $JSON_FILE.temp && mv $JSON_FILE.temp "$JSON_FILE"
           cat "$JSON_FILE"
@@ -68,7 +70,8 @@ jobs:
         shell: pwsh
         run: |
           $JSON_FILE = "app/src-tauri/tauri.conf.json"
-          $NEW_VERSION = "${{ github.event.release.tag_name }}v0.1.1"
+          $RAG_TAG = "${{ github.event.release.tag_name }}v0.1.1"
+          $NEW_VERSION = $RAG_TAG.TrimStart('v')
           Write-Host "Updating version in $JSON_FILE to $NEW_VERSION"
           jq ".version = `"$NEW_VERSION`"" $JSON_FILE | Out-File -FilePath "$JSON_FILE.temp" -Encoding utf8NoBOM
           Move-Item -Path "$JSON_FILE.temp" -Destination $JSON_FILE -Force
