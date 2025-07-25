@@ -35,6 +35,7 @@ const CLIENT_ID: &str = "dd35660a-6381-41f8-bb34-2a36669581d0";
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
+    .plugin(tauri_plugin_updater::Builder::new().build())
     .plugin(tauri_plugin_window_state::Builder::new().build())
     .plugin(
       tauri_plugin_log::Builder::new()
