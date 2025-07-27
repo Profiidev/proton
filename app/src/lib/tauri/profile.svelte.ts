@@ -163,7 +163,16 @@ export const profile_logs = async (
   } catch (e: any) {}
 };
 
-export const profile_launch = async (profile: string, name: string) => {
+export const profile_launch = async (
+  profile: string,
+  name: string,
+  active?: string
+) => {
+  if (active === undefined || active === '') {
+    toast.warning('No active account set');
+    return;
+  }
+
   launch_repair(
     profile,
     'profile_launch',
@@ -203,7 +212,7 @@ const launch_repair = async (
       id
     });
   } catch (e: any) {
-    toast.dismiss(id);
+    toast.dismiss(check_toasts.get(id));
     check_message.delete(id);
     check_toasts.delete(id);
 
