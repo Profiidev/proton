@@ -23,6 +23,7 @@
   import Fuse from 'fuse.js';
   import { goto } from '$app/navigation';
   import ProfileIcon from '$lib/components/profile/ProfileIcon.svelte';
+  import { account_active } from '$lib/tauri/account.svelte';
 
   interface Props {
     data: PageServerData;
@@ -34,6 +35,7 @@
   let loader_filter = $state<string[]>([]);
   let text_filter = $state<string>('');
 
+  let active_account = $derived(account_active.value);
   let profiles = $derived(profile_list.value);
   let versions = $derived(
     (version_list.value ?? []).map((v) => ({
@@ -203,7 +205,7 @@
                 size="icon"
                 onclick={(e) => {
                   e.stopPropagation();
-                  profile_launch(profile.id, profile.name);
+                  profile_launch(profile.id, profile.name, active_account);
                 }}
               >
                 <CirclePlay class="size-8" />

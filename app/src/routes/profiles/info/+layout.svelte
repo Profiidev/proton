@@ -18,9 +18,11 @@
   import { FolderOpen, Menu, Play, Trash, Wrench } from '@lucide/svelte';
   import ProfileIcon from '$lib/components/profile/ProfileIcon.svelte';
   import { DateTime } from 'positron-components/util';
+  import { account_active } from '$lib/tauri/account.svelte.js';
 
   let { data, children } = $props();
 
+  let active_account = $derived(account_active.value);
   let profiles = $derived(profile_list.value);
   let profile = $derived(
     profiles ? profiles.find((p) => p.id === data.id) : null
@@ -86,7 +88,8 @@
       </div>
       <div class="mr-2 ml-auto flex items-center gap-2">
         <Button
-          onclick={() => profile_launch(profile.id, profile.name)}
+          onclick={() =>
+            profile_launch(profile.id, profile.name, active_account)}
           class="cursor-pointer"
         >
           <Play />

@@ -7,9 +7,10 @@
     type Accounts,
     type ProfileInfo
   } from '$lib/tauri/account.svelte';
-  import { CircleHelp } from '@lucide/svelte';
+  import { CircleHelp, ExternalLink } from '@lucide/svelte';
   import { Popover, Button } from 'positron-components/components/ui';
   import AccountImage from './AccountImage.svelte';
+  import { goto } from '$app/navigation';
 
   interface Props {
     collapsed: boolean;
@@ -71,7 +72,16 @@
         {/if}
       {/each}
     {:else}
-      <p class="p-2">No Accounts</p>
+      <div class="flex w-full flex-col items-center p-1">
+        <p class="p-2">No Accounts</p>
+        <Button
+          variant="outline"
+          onclick={() => goto('/settings/accounts')}
+          class="text-md inline-flex w-fit cursor-pointer p-0"
+          >Add One
+          <ExternalLink />
+        </Button>
+      </div>
     {/if}
   </Popover.Content>
 </Popover.Root>
