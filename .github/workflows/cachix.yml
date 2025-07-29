@@ -36,4 +36,6 @@ jobs:
           authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
 
       - name: Run build
-        run: nix build
+        run: nix build -Lv
+      - name: Run Check
+        run: nix flake check
