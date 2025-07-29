@@ -1,7 +1,6 @@
 name: Cache App
 
 on:
-  pull_request:
   release:
     types:
       - published
@@ -16,7 +15,7 @@ jobs:
           nix_path: nixpkgs=channel:nixos-unstable
 
       - uses: cachix/cachix-action@v15
-        if: github.event_name == 'pull_request'
+        if: github.event_name != 'pull_request'
         with:
           name: profidev
           signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
