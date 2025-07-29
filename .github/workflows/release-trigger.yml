@@ -1,0 +1,39 @@
+name: Release Version
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version'
+        required: true
+        default: 'v0.0.0'
+
+jobs:
+  update-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        with:
+          token: ${{ secrets.PERSONAL_TOKEN }}
+        uses: actions/checkout@v4
+
+      - name: Update version
+        id: update_version
+        run: |
+          JSON_FILE="app/src-tauri/tauri.conf.json"
+          NEW_VERSION=${{ github.event.inputs.version }}
+          echo "Bumping version to $version"
+          jq ".version = \"$NEW_VERSION\"" "$JSON_FILE" > $JSON_FILE.temp && mv $JSON_FILE.temp "$JSON_FILE"
+          cat "$JSON_FILE"
+
+      - name: Create PR
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.PERSONAL_TOKEN }}
+          commit-message: 'Updated version to ${{ github.event.inputs.version }}'
+          branch: chore/release-version-${{ github.event.inputs.version }}
+          title: 'Release version ${{ github.event.inputs.version }}'
+          body: 'This PR releases the version ${{ github.event.inputs.version }}.'
+          base: main
+          sign-commits: true
+          labels: release-version

@@ -54,27 +54,22 @@ jobs:
           cache-on-failure: true
           shared-key: 'app_release_cache-${{ matrix.platform }}'
 
-      - name: Set version non Windows
+      - name: Merge tauri config non Windows
         if: github.event_name != 'pull_request' && matrix.platform != 'windows-latest'
         shell: bash
         run: |
           JSON_FILE="app/src-tauri/tauri.conf.json"
-          RAW_TAG="${{ github.event.release.tag_name }}"
-          NEW_VERSION="${RAW_TAG#v}"
-          echo "Updating version in $JSON_FILE to $NEW_VERSION"
-          jq ".version = \"$NEW_VERSION\"" "$JSON_FILE" > $JSON_FILE.temp && mv $JSON_FILE.temp "$JSON_FILE"
+          jq -s 'reduce .[] as $item ({}; . * $item)' "$JSON_FILE" "$JSON_FILE.release" > "$JSON_FILE.result"
+          mv "$JSON_FILE.result" "$JSON_FILE"
           cat "$JSON_FILE"
 
-      - name: Set version for Windows
+      - name: Merge tauri config Windows
         if: github.event_name != 'pull_request' && matrix.platform == 'windows-latest'
         shell: pwsh
         run: |
           $JSON_FILE = "app/src-tauri/tauri.conf.json"
-          $RAG_TAG = "${{ github.event.release.tag_name }}"
-          $NEW_VERSION = $RAG_TAG.TrimStart('v')
-          Write-Host "Updating version in $JSON_FILE to $NEW_VERSION"
-          jq ".version = `"$NEW_VERSION`"" $JSON_FILE | Out-File -FilePath "$JSON_FILE.temp" -Encoding utf8NoBOM
-          Move-Item -Path "$JSON_FILE.temp" -Destination $JSON_FILE -Force
+          jq -s 'reduce .[] as $item ({}; . * $item)' "$JSON_FILE" "$JSON_FILE.release" | Out-File -FilePath "$JSON_FILE.result" -Encoding utf8NoBOM
+          Move-Item -Path "$JSON_FILE.result" -Destination $JSON_FILE -Force
           Get-Content $JSON_FILE
 
       - name: Build app

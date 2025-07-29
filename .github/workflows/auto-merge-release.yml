@@ -1,19 +1,15 @@
-name: Dependabot Auto Merge
+name: Auto Merge PR with Release Version
 
 on:
-  pull_request_target:
-
-permissions:
-  contents: read
-  pull-requests: write
+  pull_request:
+    types:
+      - labeled
 
 jobs:
-  dependabot:
+  merge:
+    if: ${{ github.event.label.name == 'release-version' && github.event.pull_request.user.login == 'Profiidev' }}
     runs-on: ubuntu-latest
-    if: ${{ github.actor == 'dependabot[bot]' }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
       - name: Enable auto-merge for PR
         run: gh pr merge ${{ github.event.pull_request.number }} --auto --squash
         env:
