@@ -84,6 +84,7 @@
                 ## native versions
                 glfw3-minecraft
                 openal
+                wayland
                 libxkbcommon
               ]
             )
