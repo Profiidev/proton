@@ -10,6 +10,8 @@ jobs:
     if: ${{ github.event.label.name == 'release-version' && github.event.pull_request.user.login == 'Profiidev' }}
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
       - name: Enable auto-merge for PR
         run: gh pr merge ${{ github.event.pull_request.number }} --auto --squash
         env:
