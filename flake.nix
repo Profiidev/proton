@@ -106,12 +106,12 @@
             "proton-backend"
           ];
 
-          postBuild = ''
+          postInstall = ''
             gappsWrapperArgs+=(
               --prefix PATH : ${pkgs.lib.makeSearchPath "bin/java" jdks}
               ${pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
                 --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.xorg.xrandr ]}
-                --set LD_LIBRARY_PATH $runtimeDependencies
+                --set LD_LIBRARY_PATH ${runtimeDependencies}
               ''}
             )
 
