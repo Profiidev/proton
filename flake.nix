@@ -79,6 +79,11 @@
 
                 # oshi
                 udev
+
+                vulkan-loader # VulkanMod's lwjgl
+                ## native versions
+                glfw3-minecraft
+                openal
               ]
             )
           );
