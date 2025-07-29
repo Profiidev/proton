@@ -1,5 +1,5 @@
 {
-  description = "A Nix flake for building a Tauri app with npm.";
+  description = "Proton";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -21,13 +21,18 @@
           inherit system;
           overlays = [ rust-overlay.overlays.default ];
         };
+        jdks = with pkgs; [
+          jdk8
+          jdk17
+          jdk21
+        ];
       in
       {
         packages.default = pkgs.rustPlatform.buildRustPackage rec {
           pname = "proton";
           version = "0.1.0";
 
-          src = ./.; # Assuming your Tauri app source is in the current directory
+          src = ./.;
 
           npmDeps = pkgs.fetchNpmDeps {
             #npmRoot = src;
@@ -43,7 +48,40 @@
             npmHooks.npmConfigHook
             npmHooks.npmInstallHook
             cargo-tauri.hook
+            wrapGAppsHook4
           ];
+
+          runtimeDependencies = pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isLinux (
+            pkgs.lib.makeLibraryPath (
+              with pkgs;
+              [
+                addDriverRunpath.driverLink
+
+                # glfw
+                libGL
+                xorg.libX11
+                xorg.libXcursor
+                xorg.libXext
+                xorg.libXrandr
+                xorg.libXxf86vm
+
+                # lwjgl
+                (lib.getLib stdenv.cc.cc)
+
+                # narrator support
+                flite
+
+                # openal
+                alsa-lib
+                libjack2
+                libpulseaudio
+                pipewire
+
+                # oshi
+                udev
+              ]
+            )
+          );
 
           buildInputs = with pkgs; [
             webkitgtk_4_1
@@ -61,13 +99,17 @@
             "proton-backend"
           ];
 
-          meta = with pkgs.lib; {
-            description = "A Tauri application built with npm";
-            homepage = "https://tauri.app/";
-            license = licenses.mit; # Adjust based on your app's license
-            maintainers = with maintainers; [ ];
-            platforms = platforms.linux ++ platforms.darwin ++ platforms.windows;
-          };
+          postBuild = ''
+            gappsWrapperArgs+=(
+              --prefix PATH : ${pkgs.lib.makeSearchPath "bin/java" jdks}
+              ${pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
+                --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.xorg.xrandr ]}
+                --set LD_LIBRARY_PATH $runtimeDependencies
+              ''}
+            )
+
+            wrapGAppsHook
+          '';
         };
       }
     );
