@@ -84,6 +84,7 @@
                 ## native versions
                 glfw3-minecraft
                 openal
+                wayland
               ]
             )
           );
@@ -114,6 +115,11 @@
             )
 
             wrapGAppsHook
+          '';
+
+          fixupPhase = ''
+            substituteInPlace "$out/share/applications/proton.desktop" \
+              --replace-fail "Exec=proton" "Exec=env WEBKIT_DISABLE_DMABUF_RENDERER=1 proton"
           '';
         };
       }
