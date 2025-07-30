@@ -90,7 +90,7 @@ pub async fn account_get_cape(state: State<'_, Mutex<SkinStore>>, url: Url) -> R
 pub async fn account_add_skin(state: State<'_, Mutex<SkinStore>>, skin: Vec<u8>) -> Result<Skin> {
   trace!("Command account_add_skin called");
   let mut store = state.lock().await;
-  Ok(store.add_skin(None, &skin).log()?)
+  Ok(store.add_skin(None, &skin).await.log()?)
 }
 
 #[tauri::command]

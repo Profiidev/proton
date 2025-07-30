@@ -162,7 +162,7 @@ impl McVersionStore {
     Ok(())
   }
 
-  pub fn check_meta(&self, version: &str, id: usize) -> Result<bool> {
+  pub async fn check_meta(&self, version: &str, id: usize) -> Result<bool> {
     let data_dir = self.handle.path().app_data_dir()?;
     let manifest_version = self
       .mc_manifest
@@ -177,7 +177,7 @@ impl McVersionStore {
       version,
       format!("{}.json", version)
     );
-    let ok = file_hash(&manifest_version.sha1, &path)?;
+    let ok = file_hash(&manifest_version.sha1, &path).await?;
     if ok {
       emit_check_status(&self.handle, CheckStatus::Done, id);
     }

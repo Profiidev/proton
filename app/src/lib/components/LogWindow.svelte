@@ -104,7 +104,6 @@
 
 <div class={cn('flex h-full w-full flex-col gap-2', className)}>
   <div class="flex gap-2">
-    {@render children?.()}
     <Input
       placeholder="Search logs..."
       bind:value={text_filter}
@@ -121,6 +120,7 @@
       buttonPrefix="Filter"
       class="w-35"
     />
+    {@render children?.()}
   </div>
   <div class="min-h-0 w-full flex-grow-1 rounded-lg border-2 p-2">
     {#if parsedLogs && filteredLogs.length > 0}

@@ -1,16 +1,11 @@
-use std::{
-  fs::{self, File},
-  io,
-  path::PathBuf,
-  sync::Arc,
-  time::Instant,
-};
+use std::{io, path::PathBuf, sync::Arc, time::Instant};
 
 use anyhow::Result;
 use log::debug;
 use reqwest::Client;
 use tauri::{AppHandle, Url};
 use thiserror::Error;
+use tokio::fs::{self, File};
 use zip::ZipArchive;
 
 use crate::{
@@ -94,7 +89,7 @@ pub async fn download_java_files(
   for (path, file) in &files.files {
     let path = path!(data_dir, JAVA_DIR, &version, path);
     match file {
-      java::File::Directory => fs::create_dir_all(path)?,
+      java::File::Directory => fs::create_dir_all(path).await?,
       java::File::Link { .. } => {}
       java::File::File {
         downloads,
@@ -156,8 +151,11 @@ async fn download_java_file(
   #[cfg(target_family = "unix")]
   if executable {
     use std::os::unix::fs::PermissionsExt;
-    let file = File::open(&path)?;
-    file.set_permissions(fs::Permissions::from_mode(0o755))?;
+
+    let file = File::open(&path).await?;
+    file
+      .set_permissions(std::fs::Permissions::from_mode(0o755))
+      .await?;
   }
 
   Ok(())
@@ -279,7 +277,7 @@ async fn download_native_library(
 ) -> Result<()> {
   download_file(client, &path, url, &hash).await?;
 
-  let file = File::open(&path)?;
+  let file = File::open(&path).await?.into_std().await;
   let mut zip = ZipArchive::new(&file)?;
   for i in 0..zip.len() {
     let mut zip_file = zip.by_index(i)?;
@@ -289,7 +287,7 @@ async fn download_native_library(
     }
     let path = path!(data_dir, JAVA_DIR, component.clone(), LIBRARY_DIR, name);
     debug!("Extracting file {}", path.display());
-    let mut file = create_or_open_file(&path)?;
+    let mut file = create_or_open_file(&path).await?.into_std().await;
     io::copy(&mut zip_file, &mut file)?;
   }
 

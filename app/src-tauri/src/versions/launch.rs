@@ -4,7 +4,16 @@ use anyhow::Result;
 use log::debug;
 use tokio::process::{Child, Command};
 
-use crate::{path, utils::file::read_parse_file, CLIENT_ID};
+use crate::{
+  path,
+  utils::file::read_parse_file,
+  versions::{
+    check_feature,
+    meta::{minecraft::ArgumentValue, Features},
+    QUICK_PLAY,
+  },
+  CLIENT_ID,
+};
 
 use super::{
   check_rule,
@@ -28,6 +37,13 @@ pub struct LaunchArgs {
   pub data_dir: PathBuf,
   pub version: String,
   pub working_sub_dir: String,
+  pub quick_play: Option<QuickPlay>,
+}
+
+pub enum QuickPlay {
+  Singleplayer { world_name: String },
+  Multiplayer { uri: String },
+  Realms { realm_id: String },
 }
 
 impl LaunchArgs {
@@ -39,6 +55,24 @@ impl LaunchArgs {
     } else {
       String::new()
     };
+
+    let mut quick_singleplayer = String::new();
+    let mut quick_multiplayer = String::new();
+    let mut quick_realms = String::new();
+
+    if let Some(quick_play) = &self.quick_play {
+      match quick_play {
+        QuickPlay::Singleplayer { world_name } => {
+          quick_singleplayer = world_name.clone();
+        }
+        QuickPlay::Multiplayer { uri } => {
+          quick_multiplayer = uri.clone();
+        }
+        QuickPlay::Realms { realm_id } => {
+          quick_realms = realm_id.clone();
+        }
+      }
+    }
 
     arg
       .replace("${clientid}", CLIENT_ID)
@@ -76,6 +110,10 @@ impl LaunchArgs {
         .to_string(),
       )
       .replace("${classpath}", &classpath)
+      .replace("${quickPlayPath}", QUICK_PLAY)
+      .replace("${quickPlaySingleplayer}", &quick_singleplayer)
+      .replace("${quickPlayMultiplayer}", &quick_multiplayer)
+      .replace("${quickPlayRealms}", &quick_realms)
   }
 }
 
@@ -146,18 +184,51 @@ fn jvm_args(args: &LaunchArgs, version: &Version) -> Vec<String> {
 }
 
 fn game_args(args: &LaunchArgs, version: &Version) -> Vec<String> {
-  let mut jvm_args = Vec::new();
+  let mut game_args = Vec::new();
 
-  for arg in &version.arguments.game {
-    if let Argument::String(arg) = arg {
-      jvm_args.push(args.replace_vars(version, arg));
+  let mut features = Features {
+    has_quick_plays_support: Some(true),
+    ..Default::default()
+  };
+
+  if let Some(quick_play) = &args.quick_play {
+    match quick_play {
+      QuickPlay::Singleplayer { .. } => {
+        features.is_quick_play_singleplayer = Some(true);
+      }
+      QuickPlay::Multiplayer { .. } => {
+        features.is_quick_play_multiplayer = Some(true);
+      }
+      QuickPlay::Realms { .. } => {
+        features.is_quick_play_realms = Some(true);
+      }
     }
   }
 
-  jvm_args.push("--userProperties".into());
-  jvm_args.push("{}".into());
+  for arg in &version.arguments.game {
+    match arg {
+      Argument::String(s) => game_args.push(args.replace_vars(version, s)),
+      Argument::Object(arg) => {
+        if arg.rules.iter().all(|rule| check_feature(rule, &features)) {
+          match &arg.value {
+            ArgumentValue::List(list) => {
+              for s in list {
+                game_args.push(args.replace_vars(version, s));
+              }
+            }
+            ArgumentValue::String(ref s) => {
+              game_args.push(args.replace_vars(version, s));
+            }
+          }
+        }
+      }
+    }
+  }
 
-  jvm_args
+  game_args.push("--userProperties".into());
+  game_args.push("{}".into());
+
+  game_args
 }
 
 fn classpath(version: &Version, mc_dir: &PathBuf) -> OsString {

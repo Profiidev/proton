@@ -8,12 +8,14 @@ use reqwest::{multipart::Form, Client};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, Url};
 use thiserror::Error;
+use tokio::fs;
 
 use crate::{
   path,
   store::TauriAppStoreExt,
   utils::{
     file::bytes_hash,
+    log::ResultLogExt,
     updater::{update_data, UpdateType},
   },
 };
@@ -112,7 +114,7 @@ impl SkinStore {
     })
   }
 
-  pub fn add_skin(&mut self, url: Option<Url>, skin: &[u8]) -> Result<Skin> {
+  pub async fn add_skin(&mut self, url: Option<Url>, skin: &[u8]) -> Result<Skin> {
     let image = image::load_from_memory(skin)?;
     let head = image.crop_imm(8, 8, 8, 8);
 
@@ -124,13 +126,13 @@ impl SkinStore {
     debug!("Saving skin with id: {}", &id);
 
     let data_dir = path!(self.handle.path().app_data_dir()?, Self::SKIN_FOLDER);
-    std::fs::create_dir_all(&data_dir)?;
+    fs::create_dir_all(&data_dir).await?;
 
     let data_path = path!(&data_dir, format!("{}.png", id));
-    std::fs::write(data_path, skin)?;
+    fs::write(data_path, skin).await?;
 
     let head_path = path!(&data_dir, format!("{}_head.png", id));
-    std::fs::write(head_path, &head)?;
+    fs::write(head_path, &head).await?;
 
     let skin_info = SkinInfo { url, id };
 
@@ -180,7 +182,7 @@ impl SkinStore {
     } else {
       debug!("Skin with url {} not found. downloading", &url);
       let skin = self.client.get(url.clone()).send().await?.bytes().await?;
-      self.add_skin(Some(url), &skin)
+      self.add_skin(Some(url), &skin).await
     }
   }
 
@@ -208,11 +210,11 @@ impl SkinStore {
 
     let data_path = path!(&data_dir, format!("{}.png", id));
     //ignore result to prevent inconsistent saved data
-    let _ = std::fs::remove_file(data_path);
+    let _ = std::fs::remove_file(data_path).log();
 
     let head_path = path!(&data_dir, format!("{}_head.png", id));
     //ignore result to prevent inconsistent saved data
-    let _ = std::fs::remove_file(head_path);
+    let _ = std::fs::remove_file(head_path).log();
 
     self.skins.retain(|s| s.id != id);
     self.save()?;

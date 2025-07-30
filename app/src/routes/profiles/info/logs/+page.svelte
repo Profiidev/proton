@@ -2,13 +2,24 @@
   import { create_data_state, UpdateType } from '$lib/data_state.svelte';
   import { getProfile } from '../store.svelte';
   import LogWindow from '$lib/components/LogWindow.svelte';
-  import { profile_runs_list, profile_logs } from '$lib/tauri/profile.svelte';
+  import {
+    profile_runs_list,
+    profile_logs,
+    profile_clear_logs
+  } from '$lib/tauri/profile.svelte';
   import { DateTime } from 'positron-components/util';
   import { Multiselect } from 'positron-components/components/table';
   import { compareDateTimes } from '$lib/util.svelte';
+  import {
+    Button,
+    Dialog,
+    DropdownMenu
+  } from 'positron-components/components/ui';
+  import { Menu, Trash } from '@lucide/svelte';
 
   let profile = $derived(getProfile());
   let selected_run = $state<string[]>([]);
+  let clearOpen = $state(false);
 
   let logs_list_updater = $derived(
     profile
@@ -66,4 +77,46 @@
     class="w-40"
     single
   />
+  <DropdownMenu.Root>
+    <DropdownMenu.Trigger>
+      {#snippet child({ props })}
+        <Button variant="outline" size="icon" {...props} class="cursor-pointer">
+          <Menu />
+        </Button>
+      {/snippet}
+    </DropdownMenu.Trigger>
+    <DropdownMenu.Content>
+      <DropdownMenu.Item
+        variant="destructive"
+        class="cursor-pointer"
+        onclick={() => (clearOpen = true)}
+      >
+        <Trash />
+        Clear Logs
+      </DropdownMenu.Item>
+    </DropdownMenu.Content>
+  </DropdownMenu.Root>
 </LogWindow>
+<Dialog.Root bind:open={clearOpen}>
+  <Dialog.Content>
+    <Dialog.Header>
+      <Dialog.Title>Clear Logs</Dialog.Title>
+      <Dialog.Description>
+        Are you sure you want to clear the logs of this profile?
+      </Dialog.Description>
+    </Dialog.Header>
+    <Dialog.Footer>
+      <Button
+        type="submit"
+        variant="destructive"
+        class="cursor-pointer"
+        onclick={() => {
+          profile_clear_logs(profile!.id);
+          clearOpen = false;
+        }}
+      >
+        Clear
+      </Button>
+    </Dialog.Footer>
+  </Dialog.Content>
+</Dialog.Root>

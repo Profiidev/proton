@@ -8,12 +8,15 @@ use tokio::sync::Mutex;
 
 use crate::{
   account::store::AccountStore,
-  profiles::{instance::InstanceInfo, store::ProfileUpdate},
+  profiles::{
+    config::{LoaderType, Profile, ProfileUpdate, QuickPlayInfo},
+    instance::InstanceInfo,
+  },
   utils::log::ResultLogExt,
   versions::store::McVersionStore,
 };
 
-use super::store::{LoaderType, Profile, ProfileStore};
+use super::store::ProfileStore;
 
 #[derive(Error, Debug)]
 enum LaunchError {
@@ -40,6 +43,7 @@ pub async fn profile_create(
   let mut store = state.lock().await;
   store
     .create_profile(name, icon.as_deref(), version, loader, loader_version)
+    .await
     .log()?;
   Ok(())
 }
@@ -57,7 +61,7 @@ pub async fn profile_update(
   current_profile.name = profile.name;
   current_profile.version = profile.version;
 
-  store.update_profile(&current_profile).log()?;
+  store.update_profile(&current_profile).await.log()?;
 
   Ok(())
 }
@@ -71,7 +75,8 @@ pub async fn profile_get_icon(
   let store = state.lock().await;
   Ok(
     store
-      .get_profile_icon(profile)?
+      .get_profile_icon(profile)
+      .await?
       .map(|data| BASE64_STANDARD.encode(data)),
   )
 }
@@ -103,7 +108,7 @@ pub async fn profile_update_icon(
 ) -> Result<()> {
   trace!("Command profile_update_icon called with profile {profile}");
   let mut store = state.lock().await;
-  store.update_profile_icon(profile, &icon).log()?;
+  store.update_profile_icon(profile, &icon).await.log()?;
   Ok(())
 }
 
@@ -111,7 +116,7 @@ pub async fn profile_update_icon(
 pub async fn profile_remove(state: State<'_, Mutex<ProfileStore>>, profile: &str) -> Result<()> {
   trace!("Command profile_remove called with profile {profile}");
   let mut store = state.lock().await;
-  store.remove_profile(profile).log()?;
+  store.remove_profile(profile).await.log()?;
   Ok(())
 }
 
@@ -129,6 +134,7 @@ pub async fn profile_launch(
   auth: State<'_, Mutex<AccountStore>>,
   profile: &str,
   id: usize,
+  quick_play: Option<QuickPlayInfo>,
 ) -> Result<()> {
   trace!("Command profile_launch called with profile {profile} id {id}");
   let mut store = state.lock().await;
@@ -147,15 +153,18 @@ pub async fn profile_launch(
       .await
       .log()?;
     profile.downloaded = true;
-    store.update_profile(&profile).log()?;
-  } else if !mc_store.check_meta(&profile.version, id).log()? {
+    store.update_profile(&profile).await.log()?;
+  } else if !mc_store.check_meta(&profile.version, id).await.log()? {
     mc_store.check_or_download(&profile.version, id).await?;
   }
 
-  store.launch_profile(info, &profile).await.log()?;
+  store
+    .launch_profile(info, &profile, quick_play)
+    .await
+    .log()?;
 
   profile.last_played = Some(Utc::now());
-  store.update_profile(&profile).log()?;
+  store.update_profile(&profile).await.log()?;
 
   Ok(())
 }
@@ -222,6 +231,17 @@ pub async fn profile_runs_list(
 }
 
 #[tauri::command]
+pub async fn profile_clear_logs(
+  state: State<'_, Mutex<ProfileStore>>,
+  profile: &str,
+) -> Result<()> {
+  trace!("Command profile_clear_logs called with profile {profile}");
+  let store = state.lock().await;
+  store.clear_profile_logs(profile).await.log()?;
+  Ok(())
+}
+
+#[tauri::command]
 pub async fn profile_logs(
   state: State<'_, Mutex<ProfileStore>>,
   profile: &str,
@@ -230,4 +250,26 @@ pub async fn profile_logs(
   trace!("Command profile_logs_run called with profile {profile} timestamp {timestamp}");
   let store = state.lock().await;
   Ok(store.profile_logs(profile, timestamp).await.log()?)
+}
+
+#[tauri::command]
+pub async fn profile_quick_play_list(
+  state: State<'_, Mutex<ProfileStore>>,
+  profile: &str,
+) -> Result<Vec<QuickPlayInfo>> {
+  trace!("Command profile_quick_play_list called with profile {profile}");
+  let mut store = state.lock().await;
+  Ok(store.list_quick_play(profile).await.log()?)
+}
+
+#[tauri::command]
+pub async fn profile_quick_play_remove(
+  state: State<'_, Mutex<ProfileStore>>,
+  profile: &str,
+  id: &str,
+) -> Result<()> {
+  trace!("Command profile_quick_play_remove called with profile {profile} id {id}");
+  let mut store = state.lock().await;
+  store.remove_quick_play(profile, id).await.log()?;
+  Ok(())
 }

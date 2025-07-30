@@ -59,6 +59,19 @@ export enum ProfileError {
   Other = 'Other'
 }
 
+export enum QuickPlayType {
+  Singleplayer = 'singleplayer',
+  Multiplayer = 'multiplayer',
+  Realms = 'realms'
+}
+
+export interface QuickPlayInfo {
+  type: QuickPlayType;
+  name: string;
+  id: string;
+  lastPlayedTime: string;
+}
+
 const parseError = (e: string) => {
   if (Object.values(ProfileError).includes(e as ProfileError)) {
     return e as ProfileError;
@@ -151,6 +164,16 @@ export const profile_runs_list = async (profile: string) => {
   } catch (e: any) {}
 };
 
+export const profile_clear_logs = async (profile: string) => {
+  try {
+    await invoke('profile_clear_logs', {
+      profile
+    });
+  } catch (e: any) {
+    return parseError(e);
+  }
+};
+
 export const profile_logs = async (
   profile: string,
   timestamp: string
@@ -163,10 +186,35 @@ export const profile_logs = async (
   } catch (e: any) {}
 };
 
+export const profile_quick_play_list = async (
+  profile: string
+): Promise<QuickPlayInfo[] | undefined> => {
+  try {
+    return await invoke('profile_quick_play_list', {
+      profile
+    });
+  } catch (e: any) {}
+};
+
+export const profile_quick_play_remove = async (
+  profile: string,
+  id: string
+): Promise<void | ProfileError> => {
+  try {
+    await invoke('profile_quick_play_remove', {
+      profile,
+      id
+    });
+  } catch (e: any) {
+    return parseError(e);
+  }
+};
+
 export const profile_launch = async (
   profile: string,
   name: string,
-  active?: string
+  active?: string,
+  quickPlay?: QuickPlayInfo
 ) => {
   if (active === undefined || active === '') {
     toast.warning('No active account set');
@@ -177,7 +225,8 @@ export const profile_launch = async (
     profile,
     'profile_launch',
     `Launching profile ${name}`,
-    `Failed to launch profile ${name}`
+    `Failed to launch profile ${name}`,
+    quickPlay
   );
 };
 
@@ -196,7 +245,8 @@ const launch_repair = async (
   profile: string,
   cmd: string,
   message: string,
-  err: string
+  err: string,
+  quickPlay?: QuickPlayInfo
 ) => {
   let id = Math.round(Math.random() * 1000000);
   try {
@@ -209,7 +259,8 @@ const launch_repair = async (
     check_message.set(id, message);
     await invoke(cmd, {
       profile,
-      id
+      id,
+      quickPlay
     });
   } catch (e: any) {
     toast.dismiss(check_toasts.get(id));
