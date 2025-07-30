@@ -61,7 +61,7 @@ pub fn watch_profile(
         if event.paths.iter().any(|p| p.ends_with(QUICK_PLAY)) {
           let store = app.state::<Mutex<ProfileStore>>();
           let mut store = store.lock().await;
-          let _ = store.update_quick_play(&profile).log();
+          let _ = store.update_quick_play(&profile).await.log();
         }
       }
     }

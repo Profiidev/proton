@@ -1,6 +1,5 @@
 use std::{
-  fs::{self, File},
-  io::{self, Write},
+  io::Write,
   path::{Path, PathBuf},
 };
 
@@ -11,6 +10,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use sha1::{Digest, Sha1};
 use tauri::Url;
 use thiserror::Error;
+use tokio::fs::{self, File};
 
 #[derive(Error, Debug)]
 pub enum FileError {
@@ -27,25 +27,25 @@ pub async fn download_file_no_hash_force(
   let bytes = client.get(url).send().await?.bytes().await?;
 
   if let Some(parent) = path.parent() {
-    fs::create_dir_all(parent)?;
+    fs::create_dir_all(parent).await?;
   }
-  fs::write(path, &bytes)?;
+  fs::write(path, &bytes).await?;
 
   Ok(bytes.to_vec())
 }
 
 pub async fn download_file_no_hash(client: &Client, path: &PathBuf, url: Url) -> Result<Vec<u8>> {
-  if File::open(path).is_ok() {
-    return Ok(fs::read(path)?);
+  if File::open(path).await.is_ok() {
+    return Ok(fs::read(path).await?);
   }
 
   debug!("Downloading file: {}", url.as_str());
   let bytes = client.get(url).send().await?.bytes().await?;
 
   if let Some(parent) = path.parent() {
-    fs::create_dir_all(parent)?;
+    fs::create_dir_all(parent).await?;
   }
-  fs::write(path, &bytes)?;
+  fs::write(path, &bytes).await?;
 
   Ok(bytes.to_vec())
 }
@@ -56,8 +56,8 @@ pub async fn download_file(
   url: Url,
   hash: &str,
 ) -> Result<Vec<u8>> {
-  if File::open(path).is_ok() && file_hash(hash, path)? {
-    return Ok(fs::read(path)?);
+  if File::open(path).await.is_ok() && file_hash(hash, path).await? {
+    return Ok(fs::read(path).await?);
   }
 
   debug!("Downloading file: {}", url.as_str());
@@ -67,9 +67,9 @@ pub async fn download_file(
   }
 
   if let Some(parent) = path.parent() {
-    fs::create_dir_all(parent)?;
+    fs::create_dir_all(parent).await?;
   }
-  fs::write(path, &bytes)?;
+  fs::write(path, &bytes).await?;
 
   Ok(bytes.to_vec())
 }
@@ -102,10 +102,10 @@ pub async fn download_and_parse_file<R: DeserializeOwned>(
   Ok(serde_json::from_slice(&data)?)
 }
 
-pub fn file_hash(hash: &str, path: &PathBuf) -> Result<bool> {
-  let mut file = File::open(path)?;
+pub async fn file_hash(hash: &str, path: &PathBuf) -> Result<bool> {
+  let mut file = File::open(path).await?.into_std().await;
   let mut hasher = Sha1::new();
-  io::copy(&mut file, &mut hasher)?;
+  std::io::copy(&mut file, &mut hasher)?;
   let found_hash = hex::encode(hasher.finalize());
   Ok(hash == found_hash)
 }
@@ -129,16 +129,16 @@ pub fn read_parse_file<R: DeserializeOwned>(path: &PathBuf) -> Result<R> {
   Ok(serde_json::from_str(&data)?)
 }
 
-pub fn write_file<T: Serialize>(path: &PathBuf, data: &T) -> Result<()> {
+pub async fn write_file<T: Serialize>(path: &PathBuf, data: &T) -> Result<()> {
   let data = serde_json::to_string(data)?;
-  fs::write(path, data)?;
+  fs::write(path, data).await?;
   Ok(())
 }
 
-pub fn create_or_open_file(path: &PathBuf) -> Result<File> {
+pub async fn create_or_open_file(path: &PathBuf) -> Result<File> {
   let path = Path::new(path);
   if let Some(parent) = path.parent() {
-    fs::create_dir_all(parent)?;
+    fs::create_dir_all(parent).await?;
   }
-  Ok(File::create(path)?)
+  Ok(File::create(path).await?)
 }

@@ -1,9 +1,9 @@
-use std::{collections::HashMap, fs, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use tauri::{AppHandle, Manager};
-use tokio::sync::Mutex;
+use tokio::{fs, sync::Mutex};
 
 use crate::{
   account::store::LaunchInfo,
@@ -86,7 +86,7 @@ impl ProfileStore {
       .ok_or(ProfileError::NotFound.into())
   }
 
-  pub fn create_profile(
+  pub async fn create_profile(
     &mut self,
     name: String,
     icon: Option<&[u8]>,
@@ -102,7 +102,8 @@ impl ProfileStore {
       version,
       loader,
       loader_version,
-    )?;
+    )
+    .await?;
     self.profiles.insert(id, info);
     self.save()?;
 
@@ -110,9 +111,9 @@ impl ProfileStore {
     Ok(())
   }
 
-  pub fn update_profile(&mut self, profile: &Profile) -> Result<()> {
+  pub async fn update_profile(&mut self, profile: &Profile) -> Result<()> {
     let info = self.profile_info(&profile.id)?;
-    write_file(&path!(&self.data_dir, &info.path, PROFILE_CONFIG), profile)?;
+    write_file(&path!(&self.data_dir, &info.path, PROFILE_CONFIG), profile).await?;
 
     self.save()?;
     update_data(&self.handle, UpdateType::Profiles);
@@ -120,13 +121,13 @@ impl ProfileStore {
     Ok(())
   }
 
-  pub fn get_profile_icon(&self, profile: &str) -> Result<Option<Vec<u8>>> {
+  pub async fn get_profile_icon(&self, profile: &str) -> Result<Option<Vec<u8>>> {
     let info = self.profile_info(profile)?;
     let icon_path = path!(&self.data_dir, &info.path, PROFILE_IMAGE);
     if !icon_path.exists() {
       return Ok(None);
     }
-    let icon = fs::read(icon_path)?;
+    let icon = fs::read(icon_path).await?;
     Ok(Some(icon))
   }
 
@@ -135,25 +136,25 @@ impl ProfileStore {
     Ok(path!(&self.data_dir, &info.path))
   }
 
-  pub fn update_profile_icon(&mut self, profile: &str, icon: &[u8]) -> Result<()> {
+  pub async fn update_profile_icon(&mut self, profile: &str, icon: &[u8]) -> Result<()> {
     if image::load_from_memory(icon).is_err() {
       return Err(ProfileError::InvalidImage.into());
     }
 
     let info = self.profile_info(profile)?;
-    fs::write(&path!(&self.data_dir, &info.path, PROFILE_IMAGE), icon)?;
+    fs::write(&path!(&self.data_dir, &info.path, PROFILE_IMAGE), icon).await?;
 
     update_data(&self.handle, UpdateType::Profiles);
 
     Ok(())
   }
 
-  pub fn remove_profile(&mut self, id: &str) -> Result<()> {
+  pub async fn remove_profile(&mut self, id: &str) -> Result<()> {
     let info = self.profile_info(id)?;
 
     info.watcher.notify_waiters();
 
-    std::fs::remove_dir_all(path!(&self.data_dir, &info.path))?;
+    fs::remove_dir_all(path!(&self.data_dir, &info.path)).await?;
     self.save()?;
 
     update_data(&self.handle, UpdateType::Profiles);
@@ -205,7 +206,7 @@ impl ProfileStore {
     Ok(())
   }
 
-  pub fn update_quick_play(&mut self, profile: &str) -> Result<()> {
+  pub async fn update_quick_play(&mut self, profile: &str) -> Result<()> {
     let mut profile = self.get_profile(profile)?;
     let quick_play_path = path!(&self.data_dir, &profile.relative_to_data(), QUICK_PLAY);
 
@@ -224,27 +225,27 @@ impl ProfileStore {
       }
     }
 
-    self.update_profile(&profile)?;
+    self.update_profile(&profile).await?;
     update_data(&self.handle, UpdateType::ProfileQuickPlay);
 
     Ok(())
   }
 
-  pub fn list_quick_play(&mut self, profile: &str) -> Result<Vec<QuickPlayInfo>> {
+  pub async fn list_quick_play(&mut self, profile: &str) -> Result<Vec<QuickPlayInfo>> {
     let mut profile = self.get_profile(profile)?;
     let saves_path = path!(&self.data_dir, &profile.relative_to_data(), SAVES_DIR);
     if !saves_path.exists() {
       return Ok(profile.quick_play.clone());
     }
 
-    let saves = list_dirs_in_dir(saves_path)?;
+    let saves = list_dirs_in_dir(saves_path).await?;
     let prev_len = profile.quick_play.len();
     profile
       .quick_play
       .retain(|q| saves.contains(&q.id()) || !q.is_singleplayer());
 
     if profile.quick_play.len() < prev_len {
-      self.update_profile(&profile)?;
+      self.update_profile(&profile).await?;
       update_data(&self.handle, UpdateType::ProfileQuickPlay);
     }
 
@@ -308,9 +309,9 @@ impl ProfileStore {
     }
 
     let mut res = Vec::new();
-    for entry in fs::read_dir(log_dir)? {
-      let entry = entry?;
-      if entry.file_type()?.is_file() {
+    let mut stream = fs::read_dir(log_dir).await?;
+    while let Some(entry) = stream.next_entry().await? {
+      if entry.file_type().await?.is_file() {
         if let Some(name) = entry.file_name().to_str() {
           // replace the last 3 dashes with colons but leave the rest of the name intact
           let name = name.trim_end_matches(".log").replace("-", ":");
@@ -336,13 +337,7 @@ impl ProfileStore {
       return Ok(Vec::new());
     }
 
-    let content = fs::read_to_string(log_file)?;
+    let content = fs::read_to_string(log_file).await?;
     Ok(content.lines().map(String::from).collect())
-  }
-}
-
-impl Profile {
-  pub fn relative_to_data(&self) -> PathBuf {
-    path!(PROFILE_DIR, &self.id)
   }
 }

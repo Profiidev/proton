@@ -43,6 +43,7 @@ pub async fn profile_create(
   let mut store = state.lock().await;
   store
     .create_profile(name, icon.as_deref(), version, loader, loader_version)
+    .await
     .log()?;
   Ok(())
 }
@@ -60,7 +61,7 @@ pub async fn profile_update(
   current_profile.name = profile.name;
   current_profile.version = profile.version;
 
-  store.update_profile(&current_profile).log()?;
+  store.update_profile(&current_profile).await.log()?;
 
   Ok(())
 }
@@ -74,7 +75,8 @@ pub async fn profile_get_icon(
   let store = state.lock().await;
   Ok(
     store
-      .get_profile_icon(profile)?
+      .get_profile_icon(profile)
+      .await?
       .map(|data| BASE64_STANDARD.encode(data)),
   )
 }
@@ -106,7 +108,7 @@ pub async fn profile_update_icon(
 ) -> Result<()> {
   trace!("Command profile_update_icon called with profile {profile}");
   let mut store = state.lock().await;
-  store.update_profile_icon(profile, &icon).log()?;
+  store.update_profile_icon(profile, &icon).await.log()?;
   Ok(())
 }
 
@@ -114,7 +116,7 @@ pub async fn profile_update_icon(
 pub async fn profile_remove(state: State<'_, Mutex<ProfileStore>>, profile: &str) -> Result<()> {
   trace!("Command profile_remove called with profile {profile}");
   let mut store = state.lock().await;
-  store.remove_profile(profile).log()?;
+  store.remove_profile(profile).await.log()?;
   Ok(())
 }
 
@@ -151,8 +153,8 @@ pub async fn profile_launch(
       .await
       .log()?;
     profile.downloaded = true;
-    store.update_profile(&profile).log()?;
-  } else if !mc_store.check_meta(&profile.version, id).log()? {
+    store.update_profile(&profile).await.log()?;
+  } else if !mc_store.check_meta(&profile.version, id).await.log()? {
     mc_store.check_or_download(&profile.version, id).await?;
   }
 
@@ -162,7 +164,7 @@ pub async fn profile_launch(
     .log()?;
 
   profile.last_played = Some(Utc::now());
-  store.update_profile(&profile).log()?;
+  store.update_profile(&profile).await.log()?;
 
   Ok(())
 }
@@ -246,5 +248,5 @@ pub async fn profile_quick_play_list(
 ) -> Result<Vec<QuickPlayInfo>> {
   trace!("Command profile_quick_play_list called with profile {profile}");
   let mut store = state.lock().await;
-  Ok(store.list_quick_play(profile).log()?)
+  Ok(store.list_quick_play(profile).await.log()?)
 }

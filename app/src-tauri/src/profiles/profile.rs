@@ -1,9 +1,10 @@
-use std::{fs, io::Cursor, path::PathBuf};
+use std::{io::Cursor, path::PathBuf};
 
 use anyhow::Result;
 use chrono::Utc;
 use image::{imageops::FilterType, ImageFormat};
 use tauri::AppHandle;
+use tokio::fs;
 use uuid::Uuid;
 
 use crate::{
@@ -16,7 +17,7 @@ use crate::{
   utils::file::write_file,
 };
 
-pub fn create_profile(
+pub async fn create_profile(
   data_dir: &PathBuf,
   app: &AppHandle,
   name: String,
@@ -61,13 +62,13 @@ pub fn create_profile(
     dev: None,
   };
 
-  fs::create_dir_all(&path)?;
+  fs::create_dir_all(&path).await?;
 
   let stop = watch_profile(path.clone(), id.clone(), app.clone())?;
 
-  write_file(&path!(&path, PROFILE_CONFIG), &profile)?;
+  write_file(&path!(&path, PROFILE_CONFIG), &profile).await?;
   if let Some(icon) = icon {
-    fs::write(&path!(&path, PROFILE_IMAGE), icon)?;
+    fs::write(&path!(&path, PROFILE_IMAGE), icon).await?;
   }
 
   Ok((
