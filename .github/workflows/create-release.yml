@@ -28,6 +28,11 @@ jobs:
           git tag "$VERSION"
           git push origin "$VERSION"
 
+      - name: Update latest tag
+        run: |
+          git tag -f latest
+          git push origin -f latest
+
 
   create-release:
     if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
