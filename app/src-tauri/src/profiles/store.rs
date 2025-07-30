@@ -261,6 +261,7 @@ impl ProfileStore {
       data_dir,
       version: profile.version.clone(),
       working_sub_dir: profile.relative_to_data().display().to_string(),
+      quick_play: None,
     })?;
 
     Instance::create(child, &self.handle, profile, &self.instances).await?;
