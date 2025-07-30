@@ -32,7 +32,7 @@ pub struct Profile {
   pub dev: Option<DevSettings>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum QuickPlayInfo {
   Singleplayer {

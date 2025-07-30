@@ -1,6 +1,8 @@
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
+use crate::utils::log::ResultLogExt;
+
 const VERSION_CHECK_STATUS_EVENT: &str = "version-check-status";
 
 #[derive(Serialize, Clone)]
@@ -21,5 +23,7 @@ struct InternalStatus {
 }
 
 pub fn emit_check_status(handle: &AppHandle, data: CheckStatus, id: usize) {
-  let _ = handle.emit(VERSION_CHECK_STATUS_EVENT, InternalStatus { id, data });
+  let _ = handle
+    .emit(VERSION_CHECK_STATUS_EVENT, InternalStatus { id, data })
+    .log();
 }

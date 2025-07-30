@@ -19,7 +19,7 @@ fn async_watcher(config: Config) -> notify::Result<(RecommendedWatcher, Receiver
     move |res| {
       block_on(async {
         if let Ok(event) = res {
-          let _ = tx.send(event).await;
+          let _ = tx.send(event).await.log();
         }
       })
     },

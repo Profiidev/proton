@@ -9,7 +9,7 @@ use tokio::sync::Mutex;
 use crate::{
   account::store::AccountStore,
   profiles::{
-    config::{LoaderType, Profile, ProfileUpdate},
+    config::{LoaderType, Profile, ProfileUpdate, QuickPlayInfo},
     instance::InstanceInfo,
   },
   utils::log::ResultLogExt,
@@ -233,4 +233,14 @@ pub async fn profile_logs(
   trace!("Command profile_logs_run called with profile {profile} timestamp {timestamp}");
   let store = state.lock().await;
   Ok(store.profile_logs(profile, timestamp).await.log()?)
+}
+
+#[tauri::command]
+pub async fn profile_quick_play_list(
+  state: State<'_, Mutex<ProfileStore>>,
+  profile: &str,
+) -> Result<Vec<QuickPlayInfo>> {
+  trace!("Command profile_quick_play_list called with profile {profile}");
+  let store = state.lock().await;
+  Ok(store.list_quick_play(profile).log()?)
 }

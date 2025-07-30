@@ -14,6 +14,7 @@ use crate::{
   store::TauriAppStoreExt,
   utils::{
     file::bytes_hash,
+    log::ResultLogExt,
     updater::{update_data, UpdateType},
   },
 };
@@ -208,11 +209,11 @@ impl SkinStore {
 
     let data_path = path!(&data_dir, format!("{}.png", id));
     //ignore result to prevent inconsistent saved data
-    let _ = std::fs::remove_file(data_path);
+    let _ = std::fs::remove_file(data_path).log();
 
     let head_path = path!(&data_dir, format!("{}_head.png", id));
     //ignore result to prevent inconsistent saved data
-    let _ = std::fs::remove_file(head_path);
+    let _ = std::fs::remove_file(head_path).log();
 
     self.skins.retain(|s| s.id != id);
     self.save()?;

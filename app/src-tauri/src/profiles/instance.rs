@@ -20,7 +20,10 @@ use crate::{
     config::{LoaderType, Profile},
     store::ProfileStore,
   },
-  utils::updater::{update_data, UpdateType},
+  utils::{
+    log::ResultLogExt,
+    updater::{update_data, UpdateType},
+  },
 };
 
 pub struct Instance {
@@ -97,7 +100,7 @@ impl Instance {
           Ok(Some(line)) = stderr.next_line() => line,
           _ = notify.notified() => {
             debug!("Stopping instance with profile {profile_} and id {id_}");
-            let _ = child.kill().await;
+            let _ = child.kill().await.log();
             clean_instance(&handle, &instances_, &profile_, &id_, &lines_, launched_at).await;
             break;
           }
@@ -198,7 +201,7 @@ async fn clean_instance(
 
       let lines = lines.lock().await;
       let content = lines.join("\n");
-      let _ = fs::write(log_file, content).await;
+      let _ = fs::write(log_file, content).await.log();
 
       update_data(handle, UpdateType::ProfileLogs);
     }

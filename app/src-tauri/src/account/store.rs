@@ -9,7 +9,7 @@ use thiserror::Error;
 
 use crate::{
   store::TauriAppStoreExt,
-  utils::updater::{update_data, UpdateType},
+  utils::{log::ResultLogExt, updater::{update_data, UpdateType}},
 };
 
 use super::{
@@ -94,8 +94,8 @@ impl AccountStore {
 
   pub async fn refresh(&mut self, id: &str) -> Result<()> {
     //ignore result to prevent inconsistent saved data
-    let _ = self.refresh_token(id).await;
-    let _ = self.refresh_profile(id).await;
+    let _ = self.refresh_token(id).await.log();
+    let _ = self.refresh_profile(id).await.log();
     self.save()?;
 
     update_data(&self.handle, UpdateType::Accounts);
@@ -107,8 +107,8 @@ impl AccountStore {
 
     for id in &keys {
       //ignore result to prevent inconsistent saved data
-      let _ = self.refresh_token(id).await;
-      let _ = self.refresh_profile(id).await;
+      let _ = self.refresh_token(id).await.log();
+      let _ = self.refresh_profile(id).await.log();
     }
 
     self.save()?;

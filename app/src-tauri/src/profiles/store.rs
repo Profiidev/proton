@@ -224,6 +224,11 @@ impl ProfileStore {
     Ok(())
   }
 
+  pub fn list_quick_play(&self, profile: &str) -> Result<Vec<QuickPlayInfo>> {
+    let profile = self.get_profile(profile)?;
+    Ok(profile.quick_play.clone())
+  }
+
   pub async fn list_instances(&self) -> Vec<InstanceInfo> {
     let instances = self.instances.lock().await;
     let mut res = Vec::new();

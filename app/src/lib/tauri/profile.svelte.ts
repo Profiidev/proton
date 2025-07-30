@@ -59,6 +59,19 @@ export enum ProfileError {
   Other = 'Other'
 }
 
+export enum QuickPlayType {
+  Singleplayer = 'singleplayer',
+  Multiplayer = 'multiplayer',
+  Realms = 'realms'
+}
+
+export interface QuickPlayInfo {
+  type: QuickPlayType;
+  name: string;
+  id: string;
+  lastPlayedTime: string;
+}
+
 const parseError = (e: string) => {
   if (Object.values(ProfileError).includes(e as ProfileError)) {
     return e as ProfileError;
@@ -159,6 +172,16 @@ export const profile_logs = async (
     return await invoke('profile_logs', {
       profile,
       timestamp
+    });
+  } catch (e: any) {}
+};
+
+export const profile_quick_play_list = async (
+  profile: string
+): Promise<QuickPlayInfo[] | undefined> => {
+  try {
+    return await invoke('profile_quick_play_list', {
+      profile
     });
   } catch (e: any) {}
 };
