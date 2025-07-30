@@ -8,12 +8,15 @@ use tokio::sync::Mutex;
 
 use crate::{
   account::store::AccountStore,
-  profiles::{instance::InstanceInfo, store::ProfileUpdate},
+  profiles::{
+    config::{LoaderType, Profile, ProfileUpdate},
+    instance::InstanceInfo,
+  },
   utils::log::ResultLogExt,
   versions::store::McVersionStore,
 };
 
-use super::store::{LoaderType, Profile, ProfileStore};
+use super::store::ProfileStore;
 
 #[derive(Error, Debug)]
 enum LaunchError {

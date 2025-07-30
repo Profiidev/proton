@@ -16,7 +16,10 @@ use tokio::{
 use uuid::Uuid;
 
 use crate::{
-  profiles::store::{LoaderType, Profile, ProfileStore},
+  profiles::{
+    config::{LoaderType, Profile},
+    store::ProfileStore,
+  },
   utils::updater::{update_data, UpdateType},
 };
 
