@@ -45,6 +45,7 @@ pub fn run() {
         .target(Target::new(TargetKind::LogDir {
           file_name: Some(Local::now().to_rfc3339().replace(":", "-")),
         }))
+        .filter(|metadata| !metadata.target().starts_with("notify::"))
         .rotation_strategy(RotationStrategy::KeepAll)
         .timezone_strategy(TimezoneStrategy::UseLocal)
         .build(),

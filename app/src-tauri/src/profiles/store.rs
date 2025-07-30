@@ -18,7 +18,10 @@ use crate::{
     file::{read_parse_file, write_file},
     updater::{update_data, UpdateType},
   },
-  versions::launch::{launch_minecraft_version, LaunchArgs},
+  versions::{
+    launch::{launch_minecraft_version, LaunchArgs, QuickPlay},
+    QUICK_PLAY,
+  },
 };
 
 use super::instance::{Instance, InstanceError, InstanceInfo};
@@ -41,6 +44,8 @@ pub struct Profile {
   pub name: String,
   pub created_at: DateTime<Utc>,
   pub last_played: Option<DateTime<Utc>>,
+  #[serde(default)]
+  pub quick_play: Vec<QuickPlayInfo>,
   pub version: String,
   pub loader: LoaderType,
   pub loader_version: Option<String>,
@@ -51,6 +56,49 @@ pub struct Profile {
   pub jvm: Option<JvmSettings>,
   pub use_local_dev: bool,
   pub dev: Option<DevSettings>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum QuickPlayInfo {
+  Singleplayer {
+    id: String,
+    name: String,
+    #[serde(rename = "lastPlayedTime")]
+    last_played_time: DateTime<Utc>,
+  },
+  Multiplayer {
+    id: String,
+    name: String,
+    #[serde(rename = "lastPlayedTime")]
+    last_played_time: DateTime<Utc>,
+  },
+  Realms {
+    id: String,
+    name: String,
+    #[serde(rename = "lastPlayedTime")]
+    last_played_time: DateTime<Utc>,
+  },
+}
+
+impl QuickPlayInfo {
+  pub fn id(&self) -> String {
+    match self {
+      QuickPlayInfo::Singleplayer { id, .. } => id.clone(),
+      QuickPlayInfo::Multiplayer { id, .. } => id.clone(),
+      QuickPlayInfo::Realms { id, .. } => id.clone(),
+    }
+  }
+}
+
+impl From<QuickPlayInfo> for QuickPlay {
+  fn from(info: QuickPlayInfo) -> Self {
+    match info {
+      QuickPlayInfo::Singleplayer { id, .. } => QuickPlay::Singleplayer { world_name: id },
+      QuickPlayInfo::Multiplayer { id, .. } => QuickPlay::Multiplayer { uri: id },
+      QuickPlayInfo::Realms { id, .. } => QuickPlay::Realms { realm_id: id },
+    }
+  }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -108,7 +156,7 @@ impl ProfileStore {
     let mut profiles = HashMap::new();
     for (id, path) in profile_paths {
       let path = path!(&data_dir, &path);
-      let Some(watcher) = watch_profile(path.clone(), handle.clone()).ok() else {
+      let Some(watcher) = watch_profile(path.clone(), id.clone(), handle.clone()).ok() else {
         continue;
       };
       profiles.insert(id, ProfileInfo { path, watcher });
@@ -172,6 +220,7 @@ impl ProfileStore {
       name,
       created_at: Utc::now(),
       last_played: None,
+      quick_play: Vec::new(),
       version,
       loader,
       loader_version,
@@ -186,7 +235,7 @@ impl ProfileStore {
 
     fs::create_dir_all(&path)?;
 
-    let stop = watch_profile(path.clone(), self.handle.clone())?;
+    let stop = watch_profile(path.clone(), id.clone(), self.handle.clone())?;
 
     write_file(&path!(&path, Self::PROFILE_CONFIG), &profile)?;
     if let Some(icon) = icon {
@@ -315,6 +364,31 @@ impl ProfileStore {
     })?;
 
     Instance::create(child, &self.handle, profile, &self.instances).await?;
+
+    Ok(())
+  }
+
+  pub fn update_quick_play(&mut self, profile: &str) -> Result<()> {
+    let mut profile = self.get_profile(profile)?;
+    let quick_play_path = path!(&self.data_dir, &profile.relative_to_data(), QUICK_PLAY);
+
+    let quick_plays: Vec<QuickPlayInfo> = read_parse_file(&quick_play_path)?;
+
+    for quick_play in quick_plays {
+      let index = profile
+        .quick_play
+        .iter()
+        .position(|q| q.id() == quick_play.id());
+
+      if let Some(index) = index {
+        profile.quick_play[index] = quick_play;
+      } else {
+        profile.quick_play.push(quick_play);
+      }
+    }
+
+    self.update_profile(&profile)?;
+    update_data(&self.handle, UpdateType::ProfileQuickPlay);
 
     Ok(())
   }
