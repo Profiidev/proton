@@ -44,3 +44,4 @@ jobs:
           svelte: true
           svelte_args: '--ignore target'
           tsc: true
+          tsc_dir: app
