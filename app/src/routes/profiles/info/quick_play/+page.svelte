@@ -1,6 +1,7 @@
 <script lang="ts">
   import { create_data_state, UpdateType } from '$lib/data_state.svelte';
   import {
+    profile_launch,
     profile_quick_play_list,
     QuickPlayType,
     type QuickPlayInfo
@@ -10,88 +11,88 @@
   import { DateTime } from 'positron-components/util';
   import { Play } from '@lucide/svelte';
   import { compareDateTimes } from '$lib/util.svelte';
+  import { account_active } from '$lib/tauri/account.svelte';
 
   let profile = $derived(getProfile());
+
+  let active_account = $derived(account_active.value);
+  let singleplayer = $state<QuickPlayInfo[] | undefined>();
+  let multiplayer = $state<QuickPlayInfo[] | undefined>();
+  let realms = $state<QuickPlayInfo[] | undefined>();
 
   let quick_play_updater = $derived(
     profile &&
       create_data_state(async () => {
-        return await profile_quick_play_list(profile.id);
+        let quick_play_list = await profile_quick_play_list(profile.id);
+
+        singleplayer = quick_play_list
+          ?.filter((q) => q.type === QuickPlayType.Singleplayer)
+          .sort((a, b) => compareDateTimes(a.lastPlayedTime, b.lastPlayedTime));
+
+        multiplayer = quick_play_list
+          ?.filter((q) => q.type === QuickPlayType.Multiplayer)
+          .sort((a, b) => compareDateTimes(a.lastPlayedTime, b.lastPlayedTime));
+
+        realms = quick_play_list
+          ?.filter((q) => q.type === QuickPlayType.Realms)
+          .sort((a, b) => compareDateTimes(a.lastPlayedTime, b.lastPlayedTime));
+
+        return quick_play_list;
       }, UpdateType.ProfileQuickPlay)
   );
-  let quick_play_list = $derived(quick_play_updater?.value);
-
-  let singleplayer = $derived(
-    quick_play_list
-      ?.filter((q) => q.type === QuickPlayType.Singleplayer)
-      .sort((a, b) => compareDateTimes(a.lastPlayedTime, b.lastPlayedTime))
-  );
-  let multiplayer = $derived(
-    quick_play_list
-      ?.filter((q) => q.type === QuickPlayType.Multiplayer)
-      .sort((a, b) => compareDateTimes(a.lastPlayedTime, b.lastPlayedTime))
-  );
-  let realms = $derived(
-    quick_play_list
-      ?.filter((q) => q.type === QuickPlayType.Realms)
-      .sort((a, b) => compareDateTimes(a.lastPlayedTime, b.lastPlayedTime))
-  );
+  let x = $derived(quick_play_updater?.value);
 </script>
 
+<!-- we need to use x so the updater is active or the icon will not be updated -->
+<p class="absolute top-1000 left-1000 hidden">{x}</p>
 <div class="flex w-full flex-col gap-2">
-  {#if !singleplayer?.length && !multiplayer?.length && !realms?.length}
-    <p class="text-muted-foreground mt-2 ml-2">
-      No quick play options available for this profile. Join a server or world
-      to add it to quick play.
-    </p>
-    <p class="text-muted-foreground ml-2 text-sm">
-      Minecraft versions before 1.20 (23w14a) do not support quick play.
-    </p>
-  {:else}
-    <Tabs.Root
-      value={singleplayer?.length
-        ? 'singleplayer'
-        : multiplayer?.length
-          ? 'multiplayer'
-          : 'realms'}
-    >
-      <Tabs.List>
-        {#if (singleplayer?.length || 0) > 0}
-          <Tabs.Trigger value="singleplayer">Singleplayer</Tabs.Trigger>
-        {/if}
-        {#if (multiplayer?.length || 0) > 0}
-          <Tabs.Trigger value="multiplayer">Multiplayer</Tabs.Trigger>
-        {/if}
-        {#if (realms?.length || 0) > 0}
-          <Tabs.Trigger value="realms">Realms</Tabs.Trigger>
-        {/if}
-      </Tabs.List>
+  <Tabs.Root
+    value={singleplayer?.length
+      ? 'singleplayer'
+      : multiplayer?.length
+        ? 'multiplayer'
+        : 'realms'}
+  >
+    <Tabs.List>
+      <Tabs.Trigger value="singleplayer">Singleplayer</Tabs.Trigger>
+      <Tabs.Trigger value="multiplayer">Multiplayer</Tabs.Trigger>
+      <Tabs.Trigger value="realms">Realms</Tabs.Trigger>
+    </Tabs.List>
 
-      {@render tab({
-        list: singleplayer,
-        value: 'singleplayer'
-      })}
-      {@render tab({
-        list: multiplayer,
-        value: 'multiplayer'
-      })}
-      {@render tab({
-        list: realms,
-        value: 'realms'
-      })}
-    </Tabs.Root>
-  {/if}
+    {@render tab({
+      list: singleplayer,
+      value: 'singleplayer',
+      name: 'singleplayer',
+      join: 'singleplayer world'
+    })}
+    {@render tab({
+      list: multiplayer,
+      value: 'multiplayer',
+      name: 'multiplayer',
+      join: 'server'
+    })}
+    {@render tab({
+      list: realms,
+      value: 'realms',
+      name: 'realms',
+      join: 'realm'
+    })}
+  </Tabs.Root>
 </div>
 
 {#snippet tab({
   list,
-  value
+  value,
+  name,
+  join
 }: {
   list: QuickPlayInfo[] | undefined;
   value: string;
+  name: string;
+  join: string;
 })}
   <Tabs.Content {value} class="flex flex-col gap-2">
-    {#if list}
+    {#if list && list.length > 0}
       {#each list as item}
         <Button variant="outline" class="h-fit w-full p-2">
           <div class="ml-2 flex flex-col items-start">
@@ -108,6 +109,7 @@
             class="ml-auto cursor-pointer"
             onclick={(e) => {
               e.stopImmediatePropagation();
+              profile_launch(profile!.id, profile!.name, active_account, item);
             }}
           >
             <Play />
@@ -115,6 +117,14 @@
           </Button>
         </Button>
       {/each}
+    {:else}
+      <p class="text-muted-foreground mt-2 ml-2">
+        No quick play options available for {name}. Join a {join}
+        to add it to quick play.
+      </p>
+      <p class="text-muted-foreground ml-2 text-sm">
+        Minecraft versions before 1.20 (23w14a) do not support quick play.
+      </p>
     {/if}
   </Tabs.Content>
 {/snippet}

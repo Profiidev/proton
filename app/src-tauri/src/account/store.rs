@@ -9,7 +9,10 @@ use thiserror::Error;
 
 use crate::{
   store::TauriAppStoreExt,
-  utils::{log::ResultLogExt, updater::{update_data, UpdateType}},
+  utils::{
+    log::ResultLogExt,
+    updater::{update_data, UpdateType},
+  },
 };
 
 use super::{

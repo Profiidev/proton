@@ -189,7 +189,8 @@ export const profile_quick_play_list = async (
 export const profile_launch = async (
   profile: string,
   name: string,
-  active?: string
+  active?: string,
+  quickPlay?: QuickPlayInfo
 ) => {
   if (active === undefined || active === '') {
     toast.warning('No active account set');
@@ -200,7 +201,8 @@ export const profile_launch = async (
     profile,
     'profile_launch',
     `Launching profile ${name}`,
-    `Failed to launch profile ${name}`
+    `Failed to launch profile ${name}`,
+    quickPlay
   );
 };
 
@@ -219,7 +221,8 @@ const launch_repair = async (
   profile: string,
   cmd: string,
   message: string,
-  err: string
+  err: string,
+  quickPlay?: QuickPlayInfo
 ) => {
   let id = Math.round(Math.random() * 1000000);
   try {
@@ -232,7 +235,8 @@ const launch_repair = async (
     check_message.set(id, message);
     await invoke(cmd, {
       profile,
-      id
+      id,
+      quickPlay
     });
   } catch (e: any) {
     toast.dismiss(check_toasts.get(id));

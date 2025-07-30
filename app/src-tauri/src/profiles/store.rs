@@ -178,7 +178,12 @@ impl ProfileStore {
     read_parse_file(&path!(&self.data_dir, &info.path, PROFILE_CONFIG))
   }
 
-  pub async fn launch_profile(&mut self, info: LaunchInfo, profile: &Profile) -> Result<()> {
+  pub async fn launch_profile(
+    &mut self,
+    info: LaunchInfo,
+    profile: &Profile,
+    quick_play: Option<QuickPlayInfo>,
+  ) -> Result<()> {
     let data_dir = self.data_dir.clone();
 
     let child = launch_minecraft_version(&LaunchArgs {
@@ -191,7 +196,7 @@ impl ProfileStore {
       data_dir,
       version: profile.version.clone(),
       working_sub_dir: profile.relative_to_data().display().to_string(),
-      quick_play: None,
+      quick_play: quick_play.map(|q| q.into()),
     })?;
 
     Instance::create(child, &self.handle, profile, &self.instances).await?;

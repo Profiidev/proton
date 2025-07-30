@@ -132,6 +132,7 @@ pub async fn profile_launch(
   auth: State<'_, Mutex<AccountStore>>,
   profile: &str,
   id: usize,
+  quick_play: Option<QuickPlayInfo>,
 ) -> Result<()> {
   trace!("Command profile_launch called with profile {profile} id {id}");
   let mut store = state.lock().await;
@@ -155,7 +156,10 @@ pub async fn profile_launch(
     mc_store.check_or_download(&profile.version, id).await?;
   }
 
-  store.launch_profile(info, &profile).await.log()?;
+  store
+    .launch_profile(info, &profile, quick_play)
+    .await
+    .log()?;
 
   profile.last_played = Some(Utc::now());
   store.update_profile(&profile).log()?;
