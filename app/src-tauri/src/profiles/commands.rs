@@ -245,6 +245,6 @@ pub async fn profile_quick_play_list(
   profile: &str,
 ) -> Result<Vec<QuickPlayInfo>> {
   trace!("Command profile_quick_play_list called with profile {profile}");
-  let store = state.lock().await;
+  let mut store = state.lock().await;
   Ok(store.list_quick_play(profile).log()?)
 }

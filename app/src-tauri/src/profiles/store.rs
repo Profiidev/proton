@@ -12,10 +12,11 @@ use crate::{
     config::{LoaderType, Profile, ProfileError, ProfileInfo, QuickPlayInfo},
     profile::create_profile,
     watcher::watch_profile,
-    PROFILE_CONFIG, PROFILE_DIR, PROFILE_IMAGE, PROFILE_LOGS,
+    PROFILE_CONFIG, PROFILE_DIR, PROFILE_IMAGE, PROFILE_LOGS, SAVES_DIR,
   },
   store::TauriAppStoreExt,
   utils::{
+    dir::list_dirs_in_dir,
     file::{read_parse_file, write_file},
     updater::{update_data, UpdateType},
   },
@@ -229,8 +230,24 @@ impl ProfileStore {
     Ok(())
   }
 
-  pub fn list_quick_play(&self, profile: &str) -> Result<Vec<QuickPlayInfo>> {
-    let profile = self.get_profile(profile)?;
+  pub fn list_quick_play(&mut self, profile: &str) -> Result<Vec<QuickPlayInfo>> {
+    let mut profile = self.get_profile(profile)?;
+    let saves_path = path!(&self.data_dir, &profile.relative_to_data(), SAVES_DIR);
+    if !saves_path.exists() {
+      return Ok(profile.quick_play.clone());
+    }
+
+    let saves = list_dirs_in_dir(saves_path)?;
+    let prev_len = profile.quick_play.len();
+    profile
+      .quick_play
+      .retain(|q| saves.contains(&q.id()) || !q.is_singleplayer());
+
+    if profile.quick_play.len() < prev_len {
+      self.update_profile(&profile)?;
+      update_data(&self.handle, UpdateType::ProfileQuickPlay);
+    }
+
     Ok(profile.quick_play.clone())
   }
 

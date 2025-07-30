@@ -63,6 +63,10 @@ impl QuickPlayInfo {
       QuickPlayInfo::Realms { id, .. } => id.clone(),
     }
   }
+
+  pub fn is_singleplayer(&self) -> bool {
+    matches!(self, QuickPlayInfo::Singleplayer { .. })
+  }
 }
 
 impl From<QuickPlayInfo> for QuickPlay {
