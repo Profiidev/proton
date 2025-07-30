@@ -3,13 +3,19 @@
   import {
     profile_launch,
     profile_quick_play_list,
+    profile_quick_play_remove,
     QuickPlayType,
     type QuickPlayInfo
   } from '$lib/tauri/profile.svelte';
-  import { Button, Separator, Tabs } from 'positron-components/components/ui';
+  import {
+    Button,
+    Dialog,
+    Separator,
+    Tabs
+  } from 'positron-components/components/ui';
   import { getProfile } from '../store.svelte';
   import { DateTime } from 'positron-components/util';
-  import { Play } from '@lucide/svelte';
+  import { Play, Trash } from '@lucide/svelte';
   import { compareDateTimes } from '$lib/util.svelte';
   import { account_active } from '$lib/tauri/account.svelte';
 
@@ -19,6 +25,8 @@
   let singleplayer = $state<QuickPlayInfo[] | undefined>();
   let multiplayer = $state<QuickPlayInfo[] | undefined>();
   let realms = $state<QuickPlayInfo[] | undefined>();
+  let removeOpen = $state(false);
+  let remove_info = $state<QuickPlayInfo>();
 
   let quick_play_updater = $derived(
     profile &&
@@ -115,6 +123,18 @@
             <Play />
             Play
           </Button>
+          <Button
+            variant="destructive"
+            class="cursor-pointer"
+            size="icon"
+            onclick={(e) => {
+              e.stopImmediatePropagation();
+              remove_info = item;
+              removeOpen = true;
+            }}
+          >
+            <Trash />
+          </Button>
         </Button>
       {/each}
     {:else}
@@ -128,3 +148,25 @@
     {/if}
   </Tabs.Content>
 {/snippet}
+<Dialog.Root bind:open={removeOpen}>
+  <Dialog.Content>
+    <Dialog.Header>
+      <Dialog.Title>Remove Entry</Dialog.Title>
+      <Dialog.Description>
+        Are you sure you want to remove the quick play entry {remove_info?.name}?
+      </Dialog.Description>
+    </Dialog.Header>
+    <Dialog.Footer>
+      <Button
+        type="submit"
+        variant="destructive"
+        onclick={() => {
+          remove_info && profile_quick_play_remove(profile!.id, remove_info.id);
+          removeOpen = false;
+        }}
+      >
+        Remove
+      </Button>
+    </Dialog.Footer>
+  </Dialog.Content>
+</Dialog.Root>

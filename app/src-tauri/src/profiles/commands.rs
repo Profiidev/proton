@@ -250,3 +250,15 @@ pub async fn profile_quick_play_list(
   let mut store = state.lock().await;
   Ok(store.list_quick_play(profile).await.log()?)
 }
+
+#[tauri::command]
+pub async fn profile_quick_play_remove(
+  state: State<'_, Mutex<ProfileStore>>,
+  profile: &str,
+  id: &str,
+) -> Result<()> {
+  trace!("Command profile_quick_play_remove called with profile {profile} id {id}");
+  let mut store = state.lock().await;
+  store.remove_quick_play(profile, id).await.log()?;
+  Ok(())
+}

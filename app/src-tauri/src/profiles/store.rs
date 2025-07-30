@@ -252,6 +252,19 @@ impl ProfileStore {
     Ok(profile.quick_play.clone())
   }
 
+  pub async fn remove_quick_play(&mut self, profile: &str, id: &str) -> Result<()> {
+    let mut profile = self.get_profile(profile)?;
+    let index = profile.quick_play.iter().position(|q| q.id() == id);
+
+    if let Some(index) = index {
+      let _ = profile.quick_play.remove(index);
+      self.update_profile(&profile).await?;
+      update_data(&self.handle, UpdateType::ProfileQuickPlay);
+    }
+
+    Ok(())
+  }
+
   pub async fn list_instances(&self) -> Vec<InstanceInfo> {
     let instances = self.instances.lock().await;
     let mut res = Vec::new();

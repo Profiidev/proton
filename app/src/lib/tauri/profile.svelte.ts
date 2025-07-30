@@ -186,6 +186,20 @@ export const profile_quick_play_list = async (
   } catch (e: any) {}
 };
 
+export const profile_quick_play_remove = async (
+  profile: string,
+  id: string
+): Promise<void | ProfileError> => {
+  try {
+    await invoke('profile_quick_play_remove', {
+      profile,
+      id
+    });
+  } catch (e: any) {
+    return parseError(e);
+  }
+};
+
 export const profile_launch = async (
   profile: string,
   name: string,
