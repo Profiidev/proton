@@ -16,7 +16,7 @@ const VERSION_DIR: &str = "versions";
 const LIBRARY_DIR: &str = "lib";
 const ASSETS_DIR: &str = "assets";
 const ASSETS_INDEX_DIR: &str = "indexes";
-const QUICK_PLAY: &str = "quick_play.json";
+pub const QUICK_PLAY: &str = "quick_play.json";
 
 #[cfg(target_os = "linux")]
 const OS_NAME: Option<OsName> = Some(OsName::Linux);

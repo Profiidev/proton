@@ -6,12 +6,13 @@ use image::{imageops::FilterType, ImageFormat};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 use thiserror::Error;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, Notify};
 use uuid::Uuid;
 
 use crate::{
   account::store::LaunchInfo,
   path,
+  profiles::watcher::watch_profile,
   store::TauriAppStoreExt,
   utils::{
     file::{read_parse_file, write_file},
@@ -23,9 +24,15 @@ use crate::{
 use super::instance::{Instance, InstanceError, InstanceInfo};
 
 pub struct ProfileStore {
-  profiles: HashMap<String, PathBuf>,
+  profiles: HashMap<String, ProfileInfo>,
   instances: Arc<Mutex<HashMap<String, Vec<Instance>>>>,
   handle: AppHandle,
+  data_dir: PathBuf,
+}
+
+struct ProfileInfo {
+  path: PathBuf,
+  watcher: Arc<Notify>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -95,12 +102,23 @@ impl ProfileStore {
 
   pub fn new(handle: AppHandle) -> Result<ProfileStore> {
     let store = handle.app_store()?;
-    let profiles = store.get_or_default(Self::PROFILE_KEY)?;
+    let profile_paths: HashMap<String, PathBuf> = store.get_or_default(Self::PROFILE_KEY)?;
+    let data_dir = handle.path().app_data_dir()?;
+
+    let mut profiles = HashMap::new();
+    for (id, path) in profile_paths {
+      let path = path!(&data_dir, &path);
+      let Some(watcher) = watch_profile(path.clone(), handle.clone()).ok() else {
+        continue;
+      };
+      profiles.insert(id, ProfileInfo { path, watcher });
+    }
 
     Ok(ProfileStore {
       profiles,
       handle,
       instances: Default::default(),
+      data_dir,
     })
   }
 
@@ -114,8 +132,13 @@ impl ProfileStore {
   }
 
   fn save(&self) -> Result<()> {
+    let mut profiles = HashMap::new();
+    for (id, info) in &self.profiles {
+      profiles.insert(id.clone(), info.path.clone());
+    }
+
     let store = self.handle.app_store()?;
-    store.set(Self::PROFILE_KEY, &self.profiles)
+    store.set(Self::PROFILE_KEY, &profiles)
   }
 
   pub fn create_profile(
@@ -127,7 +150,8 @@ impl ProfileStore {
     loader_version: Option<String>,
   ) -> Result<()> {
     let id = Uuid::new_v4().to_string();
-    let path = path!(self.handle.path().app_data_dir()?, Self::PROFILE_DIR, &id);
+    let relative_path = path!(Self::PROFILE_DIR, &id);
+    let path = path!(&self.data_dir, &relative_path);
 
     let icon = match icon {
       Some(icon) => {
@@ -161,12 +185,21 @@ impl ProfileStore {
     };
 
     fs::create_dir_all(&path)?;
+
+    let stop = watch_profile(path.clone(), self.handle.clone())?;
+
     write_file(&path!(&path, Self::PROFILE_CONFIG), &profile)?;
     if let Some(icon) = icon {
       fs::write(&path!(&path, Self::PROFILE_IMAGE), icon)?;
     }
 
-    self.profiles.insert(id, path);
+    self.profiles.insert(
+      id,
+      ProfileInfo {
+        path: relative_path,
+        watcher: stop,
+      },
+    );
     self.save()?;
 
     update_data(&self.handle, UpdateType::Profiles);
@@ -174,10 +207,13 @@ impl ProfileStore {
   }
 
   pub fn update_profile(&mut self, profile: &Profile) -> Result<()> {
-    let Some(path) = self.profiles.get(&profile.id) else {
+    let Some(info) = self.profiles.get(&profile.id) else {
       return Err(ProfileError::NotFound.into());
     };
-    write_file(&path!(path, Self::PROFILE_CONFIG), profile)?;
+    write_file(
+      &path!(&self.data_dir, &info.path, Self::PROFILE_CONFIG),
+      profile,
+    )?;
     self.save()?;
 
     update_data(&self.handle, UpdateType::Profiles);
@@ -186,10 +222,10 @@ impl ProfileStore {
   }
 
   pub fn get_profile_icon(&self, profile: &str) -> Result<Option<Vec<u8>>> {
-    let Some(path) = self.profiles.get(profile) else {
+    let Some(info) = self.profiles.get(profile) else {
       return Err(ProfileError::NotFound.into());
     };
-    let icon_path = path!(&path, Self::PROFILE_IMAGE);
+    let icon_path = path!(&self.data_dir, &info.path, Self::PROFILE_IMAGE);
     if !icon_path.exists() {
       return Ok(None);
     }
@@ -198,10 +234,10 @@ impl ProfileStore {
   }
 
   pub fn get_profile_path(&self, profile: &str) -> Result<PathBuf> {
-    let Some(path) = self.profiles.get(profile) else {
+    let Some(info) = self.profiles.get(profile) else {
       return Err(ProfileError::NotFound.into());
     };
-    Ok(path.clone())
+    Ok(path!(&self.data_dir, &info.path))
   }
 
   pub fn update_profile_icon(&mut self, profile: &str, icon: &[u8]) -> Result<()> {
@@ -209,10 +245,13 @@ impl ProfileStore {
       return Err(ProfileError::InvalidImage.into());
     }
 
-    let Some(path) = self.profiles.get(profile) else {
+    let Some(info) = self.profiles.get(profile) else {
       return Err(ProfileError::NotFound.into());
     };
-    fs::write(&path!(&path, Self::PROFILE_IMAGE), icon)?;
+    fs::write(
+      &path!(&self.data_dir, &info.path, Self::PROFILE_IMAGE),
+      icon,
+    )?;
     self.save()?;
 
     update_data(&self.handle, UpdateType::Profiles);
@@ -221,10 +260,13 @@ impl ProfileStore {
   }
 
   pub fn remove_profile(&mut self, id: &str) -> Result<()> {
-    let Some(path) = self.profiles.remove(id) else {
+    let Some(info) = self.profiles.remove(id) else {
       return Err(ProfileError::NotFound.into());
     };
-    std::fs::remove_dir_all(path)?;
+
+    info.watcher.notify_waiters();
+
+    std::fs::remove_dir_all(path!(&self.data_dir, &info.path))?;
     self.save()?;
 
     update_data(&self.handle, UpdateType::Profiles);
@@ -234,22 +276,30 @@ impl ProfileStore {
 
   pub fn list_profiles(&self) -> Result<Vec<Profile>> {
     let mut profiles = Vec::new();
-    for path in self.profiles.values() {
-      profiles.push(read_parse_file(&path!(path, Self::PROFILE_CONFIG))?);
+    for info in self.profiles.values() {
+      profiles.push(read_parse_file(&path!(
+        &self.data_dir,
+        &info.path,
+        Self::PROFILE_CONFIG
+      ))?);
     }
 
     Ok(profiles)
   }
 
   pub fn get_profile(&self, profile: &str) -> Result<Profile> {
-    let Some(path) = self.profiles.get(profile) else {
+    let Some(info) = self.profiles.get(profile) else {
       return Err(ProfileError::NotFound.into());
     };
-    read_parse_file(&path!(path, ProfileStore::PROFILE_CONFIG))
+    read_parse_file(&path!(
+      &self.data_dir,
+      &info.path,
+      ProfileStore::PROFILE_CONFIG
+    ))
   }
 
   pub async fn launch_profile(&mut self, info: LaunchInfo, profile: &Profile) -> Result<()> {
-    let data_dir = self.handle.path().app_data_dir()?;
+    let data_dir = self.data_dir.clone();
 
     let child = launch_minecraft_version(&LaunchArgs {
       access_token: info.access_token,
