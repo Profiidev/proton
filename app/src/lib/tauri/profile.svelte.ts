@@ -164,6 +164,16 @@ export const profile_runs_list = async (profile: string) => {
   } catch (e: any) {}
 };
 
+export const profile_clear_logs = async (profile: string) => {
+  try {
+    await invoke('profile_clear_logs', {
+      profile
+    });
+  } catch (e: any) {
+    return parseError(e);
+  }
+};
+
 export const profile_logs = async (
   profile: string,
   timestamp: string

@@ -338,6 +338,18 @@ impl ProfileStore {
     Ok(res)
   }
 
+  pub async fn clear_profile_logs(&self, profile: &str) -> Result<()> {
+    let log_dir = Self::log_dir(&self.handle, profile)?;
+    if !log_dir.exists() {
+      return Ok(());
+    }
+
+    fs::remove_dir_all(log_dir.clone()).await?;
+    fs::create_dir_all(log_dir).await?;
+
+    Ok(())
+  }
+
   pub async fn profile_logs(&self, profile: &str, timestamp: DateTime<Utc>) -> Result<Vec<String>> {
     let log_dir = Self::log_dir(&self.handle, profile)?;
     if !log_dir.exists() {

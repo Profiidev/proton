@@ -231,6 +231,17 @@ pub async fn profile_runs_list(
 }
 
 #[tauri::command]
+pub async fn profile_clear_logs(
+  state: State<'_, Mutex<ProfileStore>>,
+  profile: &str,
+) -> Result<()> {
+  trace!("Command profile_clear_logs called with profile {profile}");
+  let store = state.lock().await;
+  store.clear_profile_logs(profile).await.log()?;
+  Ok(())
+}
+
+#[tauri::command]
 pub async fn profile_logs(
   state: State<'_, Mutex<ProfileStore>>,
   profile: &str,
