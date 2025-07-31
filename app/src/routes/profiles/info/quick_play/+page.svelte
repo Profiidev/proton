@@ -1,13 +1,11 @@
 <script lang="ts">
   import { create_data_state, UpdateType } from '$lib/data_state.svelte';
   import {
-    profile_favorites_set,
-    profile_launch,
     profile_quick_play_list,
     profile_quick_play_remove,
     QuickPlayType,
     type QuickPlayInfo
-  } from '$lib/tauri/profile.svelte';
+  } from '$lib/tauri/quick_play.svelte';
   import {
     Button,
     Dialog,
@@ -19,6 +17,8 @@
   import { Play, Star, Trash } from '@lucide/svelte';
   import { compareDateTimes } from '$lib/util.svelte';
   import { account_active } from '$lib/tauri/account.svelte';
+  import { profile_launch } from '$lib/tauri/profile.svelte';
+  import { profile_favorites_set } from '$lib/tauri/home.svelte';
 
   let profile = $derived(getProfile());
 
@@ -130,7 +130,7 @@
             size="icon"
             variant="outline"
             onclick={() => {
-              profile_favorites_set(profile!.id, !profile!.favorite, item);
+              profile_favorites_set(profile!.id, !item.favorite, item);
             }}
             class="cursor-pointer"
           >

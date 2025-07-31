@@ -1,7 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import {
-    profile_favorites_set,
     profile_launch,
     profile_list,
     profile_open_path,
@@ -19,6 +18,7 @@
   import ProfileIcon from '$lib/components/profile/ProfileIcon.svelte';
   import { DateTime } from 'positron-components/util';
   import { account_active } from '$lib/tauri/account.svelte.js';
+  import { profile_favorites_set } from '$lib/tauri/home.svelte.js';
 
   let { data, children } = $props();
 

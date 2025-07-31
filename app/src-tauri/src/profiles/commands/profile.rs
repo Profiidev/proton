@@ -1,5 +1,5 @@
 use base64::prelude::*;
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use log::trace;
 use tauri::{AppHandle, Result, State};
 use tauri_plugin_opener::OpenerExt;
@@ -9,14 +9,12 @@ use tokio::sync::Mutex;
 use crate::{
   account::store::AccountStore,
   profiles::{
-    config::{LoaderType, PlayHistoryFavoriteInfo, Profile, ProfileUpdate, QuickPlayInfo},
-    instance::InstanceInfo,
+    config::{LoaderType, Profile, ProfileUpdate, QuickPlayInfo},
+    store::ProfileStore,
   },
   utils::{log::ResultLogExt, updater::UpdateType},
   versions::store::McVersionStore,
 };
-
-use super::store::ProfileStore;
 
 #[derive(Error, Debug)]
 enum LaunchError {
@@ -214,149 +212,4 @@ pub async fn profile_repair(
     .log()?;
 
   Ok(())
-}
-
-#[tauri::command]
-pub async fn instance_list(state: State<'_, Mutex<ProfileStore>>) -> Result<Vec<InstanceInfo>> {
-  trace!("Command instance_list called");
-  let store = state.lock().await;
-  Ok(store.list_instances().await)
-}
-
-#[tauri::command]
-pub async fn instance_logs(
-  state: State<'_, Mutex<ProfileStore>>,
-  profile: &str,
-  id: &str,
-) -> Result<Vec<String>> {
-  trace!("Command instance_logs called with profile {profile} id {id}");
-  let store = state.lock().await;
-  let lines = store.get_instance_logs(profile, id).await.log()?;
-  Ok(lines)
-}
-
-#[tauri::command]
-pub async fn instance_stop(
-  state: State<'_, Mutex<ProfileStore>>,
-  profile: &str,
-  id: &str,
-) -> Result<()> {
-  trace!("Command instance_stop called with profile {profile} id {id}");
-  let store = state.lock().await;
-  store.stop_instance(profile, id).await.log()?;
-  Ok(())
-}
-
-#[tauri::command]
-pub async fn profile_runs_list(
-  state: State<'_, Mutex<ProfileStore>>,
-  profile: &str,
-) -> Result<Vec<DateTime<Utc>>> {
-  trace!("Command profile_logs called with profile {profile}");
-  let store = state.lock().await;
-
-  let info = store.profile_info(profile).log()?;
-  Ok(info.list_runs(store.data_dir()).await.log()?)
-}
-
-#[tauri::command]
-pub async fn profile_clear_logs(
-  state: State<'_, Mutex<ProfileStore>>,
-  profile: &str,
-) -> Result<()> {
-  trace!("Command profile_clear_logs called with profile {profile}");
-  let store = state.lock().await;
-
-  let info = store.profile_info(profile).log()?;
-  info.clear_logs(store.data_dir()).await.log()?;
-  store.update_data(UpdateType::ProfileLogs);
-
-  Ok(())
-}
-
-#[tauri::command]
-pub async fn profile_logs(
-  state: State<'_, Mutex<ProfileStore>>,
-  profile: &str,
-  timestamp: DateTime<Utc>,
-) -> Result<Vec<String>> {
-  trace!("Command profile_logs_run called with profile {profile} timestamp {timestamp}");
-  let store = state.lock().await;
-
-  let info = store.profile_info(profile).log()?;
-  Ok(info.logs(store.data_dir(), timestamp).await.log()?)
-}
-
-#[tauri::command]
-pub async fn profile_quick_play_list(
-  state: State<'_, Mutex<ProfileStore>>,
-  profile: &str,
-) -> Result<Vec<QuickPlayInfo>> {
-  trace!("Command profile_quick_play_list called with profile {profile}");
-  let store = state.lock().await;
-
-  let mut profile = store.profile(profile).await.log()?;
-  let (quick_play, updated) = profile.list_quick_play(store.data_dir()).await.log()?;
-
-  if updated {
-    profile.update(store.data_dir()).await.log()?;
-    store.update_data(UpdateType::ProfileQuickPlay);
-  }
-
-  Ok(quick_play)
-}
-
-#[tauri::command]
-pub async fn profile_quick_play_remove(
-  state: State<'_, Mutex<ProfileStore>>,
-  profile: &str,
-  quick_play: QuickPlayInfo,
-) -> Result<()> {
-  trace!(
-    "Command profile_quick_play_remove called with profile {profile} quick_play {quick_play:?}"
-  );
-  let store = state.lock().await;
-
-  let mut profile = store.profile(profile).await.log()?;
-  profile.remove_quick_play(quick_play).await.log()?;
-  profile.update(store.data_dir()).await.log()?;
-  store.update_data(UpdateType::ProfileQuickPlay);
-
-  Ok(())
-}
-
-#[tauri::command]
-pub async fn profile_favorites_list(
-  state: State<'_, Mutex<ProfileStore>>,
-) -> Result<Vec<PlayHistoryFavoriteInfo>> {
-  trace!("Command profile_favorites_list called");
-  let mut store = state.lock().await;
-  Ok(store.list_favorites().await.log()?)
-}
-
-#[tauri::command]
-pub async fn profile_favorites_set(
-  state: State<'_, Mutex<ProfileStore>>,
-  profile: &str,
-  quick_play: Option<QuickPlayInfo>,
-  favorite: bool,
-) -> Result<()> {
-  trace!("Command profile_favorites_set called with profile {profile} quick_play {quick_play:?} favorite {favorite}");
-  let store = state.lock().await;
-
-  let mut profile = store.profile(profile).await.log()?;
-  profile.set_favorite(quick_play, favorite).await.log()?;
-  profile.update(store.data_dir()).await.log()?;
-  store.update_data(UpdateType::Profiles);
-
-  Ok(())
-}
-
-#[tauri::command]
-pub async fn profile_history_list(
-  state: State<'_, Mutex<ProfileStore>>,
-) -> Result<Vec<PlayHistoryFavoriteInfo>> {
-  trace!("Command profile_history_list called");
-  let mut store = state.lock().await;
-  Ok(store.list_history().await.log()?)
 }

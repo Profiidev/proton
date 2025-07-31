@@ -4,9 +4,9 @@
   import { account_active } from '$lib/tauri/account.svelte';
   import {
     profile_favorites_list,
-    profile_history_list,
-    profile_launch
-  } from '$lib/tauri/profile.svelte';
+    profile_history_list
+  } from '$lib/tauri/home.svelte';
+  import { profile_launch } from '$lib/tauri/profile.svelte';
   import { compareProfiles } from '$lib/util.svelte';
   import { CirclePlay, ExternalLink } from '@lucide/svelte';
   import { Button, Separator } from 'positron-components/components/ui';

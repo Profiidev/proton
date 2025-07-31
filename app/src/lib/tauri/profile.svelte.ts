@@ -9,6 +9,7 @@ import {
 import { listen } from '@tauri-apps/api/event';
 import { browser } from '$app/environment';
 import { toast } from 'positron-components/components/ui';
+import type { QuickPlayInfo } from './quick_play.svelte';
 
 export interface Profile {
   id: string;
@@ -61,27 +62,7 @@ export enum ProfileError {
   Other = 'Other'
 }
 
-export enum QuickPlayType {
-  Singleplayer = 'singleplayer',
-  Multiplayer = 'multiplayer',
-  Realms = 'realms'
-}
-
-export interface QuickPlayInfo {
-  type: QuickPlayType;
-  name: string;
-  id: string;
-  lastPlayedTime: string;
-  favorite: boolean;
-  history: boolean;
-}
-
-export interface PlayHistoryFavorite {
-  profile: Profile;
-  quick_play?: QuickPlayInfo;
-}
-
-const parseError = (e: string) => {
+export const parseError = (e: string) => {
   if (Object.values(ProfileError).includes(e as ProfileError)) {
     return e as ProfileError;
   } else {
@@ -164,100 +145,6 @@ export const profile_list = create_data_state(
   profile_list_,
   UpdateType.Profiles
 );
-
-export const profile_runs_list = async (profile: string) => {
-  try {
-    return await invoke<string[]>('profile_runs_list', {
-      profile
-    });
-  } catch (e: any) {}
-};
-
-export const profile_clear_logs = async (profile: string) => {
-  try {
-    await invoke('profile_clear_logs', {
-      profile
-    });
-  } catch (e: any) {
-    return parseError(e);
-  }
-};
-
-export const profile_logs = async (
-  profile: string,
-  timestamp: string
-): Promise<string[] | undefined> => {
-  try {
-    return await invoke('profile_logs', {
-      profile,
-      timestamp
-    });
-  } catch (e: any) {}
-};
-
-export const profile_quick_play_list = async (
-  profile: string
-): Promise<QuickPlayInfo[] | undefined> => {
-  try {
-    return await invoke('profile_quick_play_list', {
-      profile
-    });
-  } catch (e: any) {}
-};
-
-export const profile_quick_play_remove = async (
-  profile: string,
-  quickPlay: QuickPlayInfo
-): Promise<void | ProfileError> => {
-  try {
-    await invoke('profile_quick_play_remove', {
-      profile,
-      quickPlay
-    });
-  } catch (e: any) {
-    return parseError(e);
-  }
-};
-
-const profile_history_list_ = async (): Promise<
-  PlayHistoryFavorite[] | undefined
-> => {
-  try {
-    return await invoke('profile_history_list');
-  } catch (e: any) {}
-};
-export const profile_history_list = create_data_state(
-  profile_history_list_,
-  UpdateType.Profiles
-);
-
-const profile_favorites_list_ = async (): Promise<
-  PlayHistoryFavorite[] | undefined
-> => {
-  try {
-    return await invoke('profile_favorites_list');
-  } catch (e: any) {}
-};
-export const profile_favorites_list = create_data_state(
-  profile_favorites_list_,
-  UpdateType.Profiles
-);
-
-export const profile_favorites_set = async (
-  profile: string,
-  favorite: boolean,
-  quickPlay?: QuickPlayInfo
-): Promise<void | ProfileError> => {
-  try {
-    await invoke('profile_favorites_set', {
-      profile,
-      favorite,
-      quickPlay
-    });
-  } catch (e: any) {
-    return parseError(e);
-  }
-};
 
 export const profile_launch = async (
   profile: string,

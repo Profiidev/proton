@@ -6,7 +6,7 @@
     profile_runs_list,
     profile_logs,
     profile_clear_logs
-  } from '$lib/tauri/profile.svelte';
+  } from '$lib/tauri/logs.svelte';
   import { DateTime } from 'positron-components/util';
   import { Multiselect } from 'positron-components/components/table';
   import { compareDateTimes } from '$lib/util.svelte';
