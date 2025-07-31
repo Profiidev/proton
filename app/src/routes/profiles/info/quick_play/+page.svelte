@@ -1,8 +1,7 @@
 <script lang="ts">
   import { create_data_state, UpdateType } from '$lib/data_state.svelte';
   import {
-    profile_favorites_add,
-    profile_favorites_remove,
+    profile_favorites_set,
     profile_launch,
     profile_quick_play_list,
     profile_quick_play_remove,
@@ -131,11 +130,7 @@
             size="icon"
             variant="outline"
             onclick={() => {
-              if (item.favorite) {
-                profile_favorites_remove(profile!.id, item);
-              } else {
-                profile_favorites_add(profile!.id, item);
-              }
+              profile_favorites_set(profile!.id, !profile!.favorite, item);
             }}
             class="cursor-pointer"
           >

@@ -12,7 +12,7 @@ use crate::{
     config::{LoaderType, PlayHistoryFavoriteInfo, Profile, ProfileUpdate, QuickPlayInfo},
     instance::InstanceInfo,
   },
-  utils::log::ResultLogExt,
+  utils::{log::ResultLogExt, updater::UpdateType},
   versions::store::McVersionStore,
 };
 
@@ -41,10 +41,13 @@ pub async fn profile_create(
     &loader_version
   );
   let mut store = state.lock().await;
+
   store
     .create_profile(name, icon.as_deref(), version, loader, loader_version)
     .await
     .log()?;
+  store.update_data(UpdateType::Profiles);
+
   Ok(())
 }
 
@@ -61,10 +64,8 @@ pub async fn profile_update(
   current_profile.name = profile.name;
   current_profile.version = profile.version;
 
-  current_profile
-    .update(store.data_dir(), store.app())
-    .await
-    .log()?;
+  current_profile.update(store.data_dir()).await.log()?;
+  store.update_data(UpdateType::Profiles);
 
   Ok(())
 }
@@ -76,15 +77,10 @@ pub async fn profile_get_icon(
 ) -> Result<Option<String>> {
   trace!("Command profile_get_icon called with profile {profile}");
   let store = state.lock().await;
-  Ok(
-    store
-      .profile_info(profile)
-      .log()?
-      .get_icon(store.data_dir())
-      .await
-      .log()?
-      .map(|data| BASE64_STANDARD.encode(data)),
-  )
+
+  let info = store.profile_info(profile).log()?;
+  let icon = info.get_icon(store.data_dir()).await.log()?;
+  Ok(icon.map(|data| BASE64_STANDARD.encode(data)))
 }
 
 #[tauri::command]
@@ -95,6 +91,7 @@ pub async fn profile_open_path(
 ) -> Result<()> {
   trace!("Command profile_get_path called with profile {profile}");
   let store = state.lock().await;
+
   let path = store
     .get_profile_path(profile)?
     .to_string_lossy()
@@ -103,6 +100,7 @@ pub async fn profile_open_path(
     .opener()
     .open_path(path, None::<&str>)
     .map_err(anyhow::Error::from)?;
+
   Ok(())
 }
 
@@ -114,12 +112,11 @@ pub async fn profile_update_icon(
 ) -> Result<()> {
   trace!("Command profile_update_icon called with profile {profile}");
   let store = state.lock().await;
-  store
-    .profile_info(profile)
-    .log()?
-    .update_icon(&icon, store.data_dir(), store.app())
-    .await
-    .log()?;
+
+  let info = store.profile_info(profile).log()?;
+  info.update_icon(&icon, store.data_dir()).await.log()?;
+  store.update_data(UpdateType::Profiles);
+
   Ok(())
 }
 
@@ -127,7 +124,10 @@ pub async fn profile_update_icon(
 pub async fn profile_remove(state: State<'_, Mutex<ProfileStore>>, profile: &str) -> Result<()> {
   trace!("Command profile_remove called with profile {profile}");
   let mut store = state.lock().await;
+
   store.remove_profile(profile).await.log()?;
+  store.update_data(UpdateType::Profiles);
+
   Ok(())
 }
 
@@ -149,13 +149,15 @@ pub async fn profile_launch(
 ) -> Result<()> {
   trace!("Command profile_launch called with profile {profile} id {id}");
   let mut store = state.lock().await;
-  let mc_store = versions.lock().await;
+  // clone so the lock is dropped before the download
+  let mc_store = versions.lock().await.clone();
   let auth_store = auth.lock().await;
 
   let Some(info) = auth_store.launch_info(auth_store.active()) else {
     let err: anyhow::Result<()> = Err(LaunchError::NoAccountFound.into()).log();
     return Ok(err?);
   };
+  drop(auth_store);
 
   let mut profile = store.profile(profile).await.log()?;
   if !profile.downloaded {
@@ -181,7 +183,8 @@ pub async fn profile_launch(
   } else {
     profile.history = true;
   }
-  profile.update(store.data_dir(), store.app()).await.log()?;
+  profile.update(store.data_dir()).await.log()?;
+  store.update_data(UpdateType::Profiles);
 
   store
     .launch_profile(info, &profile, quick_play)
@@ -200,9 +203,11 @@ pub async fn profile_repair(
 ) -> Result<()> {
   trace!("Command profile_repair called with profile {profile} id {id}");
   let store = state.lock().await;
-  let mc_store = versions.lock().await;
+  // clone so the lock is dropped before the download
+  let mc_store = versions.lock().await.clone();
 
   let profile = store.profile(profile).await.log()?;
+  drop(store);
   mc_store
     .check_or_download(&profile.version, id)
     .await
@@ -249,14 +254,9 @@ pub async fn profile_runs_list(
 ) -> Result<Vec<DateTime<Utc>>> {
   trace!("Command profile_logs called with profile {profile}");
   let store = state.lock().await;
-  Ok(
-    store
-      .profile_info(profile)
-      .log()?
-      .list_runs(store.data_dir())
-      .await
-      .log()?,
-  )
+
+  let info = store.profile_info(profile).log()?;
+  Ok(info.list_runs(store.data_dir()).await.log()?)
 }
 
 #[tauri::command]
@@ -266,12 +266,11 @@ pub async fn profile_clear_logs(
 ) -> Result<()> {
   trace!("Command profile_clear_logs called with profile {profile}");
   let store = state.lock().await;
-  store
-    .profile_info(profile)
-    .log()?
-    .clear_logs(store.data_dir())
-    .await
-    .log()?;
+
+  let info = store.profile_info(profile).log()?;
+  info.clear_logs(store.data_dir()).await.log()?;
+  store.update_data(UpdateType::ProfileLogs);
+
   Ok(())
 }
 
@@ -283,14 +282,9 @@ pub async fn profile_logs(
 ) -> Result<Vec<String>> {
   trace!("Command profile_logs_run called with profile {profile} timestamp {timestamp}");
   let store = state.lock().await;
-  Ok(
-    store
-      .profile_info(profile)
-      .log()?
-      .logs(store.data_dir(), timestamp)
-      .await
-      .log()?,
-  )
+
+  let info = store.profile_info(profile).log()?;
+  Ok(info.logs(store.data_dir(), timestamp).await.log()?)
 }
 
 #[tauri::command]
@@ -300,15 +294,16 @@ pub async fn profile_quick_play_list(
 ) -> Result<Vec<QuickPlayInfo>> {
   trace!("Command profile_quick_play_list called with profile {profile}");
   let store = state.lock().await;
-  Ok(
-    store
-      .profile(profile)
-      .await
-      .log()?
-      .list_quick_play(store.data_dir(), store.app())
-      .await
-      .log()?,
-  )
+
+  let mut profile = store.profile(profile).await.log()?;
+  let (quick_play, updated) = profile.list_quick_play(store.data_dir()).await.log()?;
+
+  if updated {
+    profile.update(store.data_dir()).await.log()?;
+    store.update_data(UpdateType::ProfileQuickPlay);
+  }
+
+  Ok(quick_play)
 }
 
 #[tauri::command]
@@ -321,13 +316,12 @@ pub async fn profile_quick_play_remove(
     "Command profile_quick_play_remove called with profile {profile} quick_play {quick_play:?}"
   );
   let store = state.lock().await;
-  store
-    .profile(profile)
-    .await
-    .log()?
-    .remove_quick_play(quick_play, store.data_dir(), store.app())
-    .await
-    .log()?;
+
+  let mut profile = store.profile(profile).await.log()?;
+  profile.remove_quick_play(quick_play).await.log()?;
+  profile.update(store.data_dir()).await.log()?;
+  store.update_data(UpdateType::ProfileQuickPlay);
+
   Ok(())
 }
 
@@ -341,40 +335,20 @@ pub async fn profile_favorites_list(
 }
 
 #[tauri::command]
-pub async fn profile_favorites_add(
+pub async fn profile_favorites_set(
   state: State<'_, Mutex<ProfileStore>>,
   profile: &str,
   quick_play: Option<QuickPlayInfo>,
+  favorite: bool,
 ) -> Result<()> {
-  trace!("Command profile_favorites_add called with profile {profile} quick_play {quick_play:?}");
+  trace!("Command profile_favorites_set called with profile {profile} quick_play {quick_play:?} favorite {favorite}");
   let store = state.lock().await;
-  store
-    .profile(profile)
-    .await
-    .log()?
-    .set_favorite(quick_play, true, store.data_dir(), store.app())
-    .await
-    .log()?;
-  Ok(())
-}
 
-#[tauri::command]
-pub async fn profile_favorites_remove(
-  state: State<'_, Mutex<ProfileStore>>,
-  profile: &str,
-  quick_play: Option<QuickPlayInfo>,
-) -> Result<()> {
-  trace!(
-    "Command profile_favorites_remove called with profile {profile} quick_play {quick_play:?}"
-  );
-  let store = state.lock().await;
-  store
-    .profile(profile)
-    .await
-    .log()?
-    .set_favorite(quick_play, false, store.data_dir(), store.app())
-    .await
-    .log()?;
+  let mut profile = store.profile(profile).await.log()?;
+  profile.set_favorite(quick_play, favorite).await.log()?;
+  profile.update(store.data_dir()).await.log()?;
+  store.update_data(UpdateType::Profiles);
+
   Ok(())
 }
 

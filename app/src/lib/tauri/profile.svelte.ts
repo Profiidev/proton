@@ -243,27 +243,15 @@ export const profile_favorites_list = create_data_state(
   UpdateType.Profiles
 );
 
-export const profile_favorites_add = async (
+export const profile_favorites_set = async (
   profile: string,
+  favorite: boolean,
   quickPlay?: QuickPlayInfo
 ): Promise<void | ProfileError> => {
   try {
-    await invoke('profile_favorites_add', {
+    await invoke('profile_favorites_set', {
       profile,
-      quickPlay
-    });
-  } catch (e: any) {
-    return parseError(e);
-  }
-};
-
-export const profile_favorites_remove = async (
-  profile: string,
-  quickPlay?: QuickPlayInfo
-): Promise<void | ProfileError> => {
-  try {
-    await invoke('profile_favorites_remove', {
-      profile,
+      favorite,
       quickPlay
     });
   } catch (e: any) {

@@ -58,35 +58,6 @@ impl ProfileStore {
     })
   }
 
-  pub fn data_dir(&self) -> &PathBuf {
-    &self.data_dir
-  }
-
-  pub fn app(&self) -> &AppHandle {
-    &self.handle
-  }
-
-  fn save(&self) -> Result<()> {
-    let mut profiles = HashMap::new();
-    for (id, info) in &self.profiles {
-      profiles.insert(id.clone(), info.path.clone());
-    }
-
-    let store = self.handle.app_store()?;
-    store.set(Self::PROFILE_KEY, &profiles)
-  }
-
-  pub fn profile_info(&self, profile: &str) -> Result<&ProfileInfo> {
-    self
-      .profiles
-      .get(profile)
-      .ok_or(ProfileError::NotFound.into())
-  }
-
-  pub async fn profile(&self, profile: &str) -> Result<Profile> {
-    self.profile_info(profile)?.profile(&self.data_dir).await
-  }
-
   pub async fn create_profile(
     &mut self,
     name: String,
@@ -108,7 +79,6 @@ impl ProfileStore {
     self.profiles.insert(id, info);
     self.save()?;
 
-    update_data(&self.handle, UpdateType::Profiles);
     Ok(())
   }
 
@@ -123,7 +93,7 @@ impl ProfileStore {
     self.profiles.remove(id);
     self.save()?;
 
-    info.remove_profile(&self.data_dir, &self.handle).await?;
+    info.remove_profile(&self.data_dir).await?;
     Ok(())
   }
 
@@ -210,7 +180,8 @@ impl ProfileStore {
       }
 
       if updated {
-        profile_info.update(&self.data_dir, &self.handle).await?;
+        profile_info.update(&self.data_dir).await?;
+        self.update_data(UpdateType::ProfileQuickPlay);
       }
     }
 
@@ -275,5 +246,34 @@ impl ProfileStore {
       .ok_or(InstanceError::NotFound)?;
     instance.stop();
     Ok(())
+  }
+
+  pub fn data_dir(&self) -> &PathBuf {
+    &self.data_dir
+  }
+
+  fn save(&self) -> Result<()> {
+    let mut profiles = HashMap::new();
+    for (id, info) in &self.profiles {
+      profiles.insert(id.clone(), info.path.clone());
+    }
+
+    let store = self.handle.app_store()?;
+    store.set(Self::PROFILE_KEY, &profiles)
+  }
+
+  pub fn profile_info(&self, profile: &str) -> Result<&ProfileInfo> {
+    self
+      .profiles
+      .get(profile)
+      .ok_or(ProfileError::NotFound.into())
+  }
+
+  pub async fn profile(&self, profile: &str) -> Result<Profile> {
+    self.profile_info(profile)?.profile(&self.data_dir).await
+  }
+
+  pub fn update_data(&self, r#type: UpdateType) {
+    update_data(&self.handle, r#type);
   }
 }

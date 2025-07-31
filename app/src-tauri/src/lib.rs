@@ -14,10 +14,10 @@ use account::{
 };
 use profiles::commands::{
   instance_list, instance_logs, instance_stop, profile_clear_logs, profile_create,
-  profile_favorites_add, profile_favorites_list, profile_favorites_remove, profile_get_icon,
-  profile_history_list, profile_launch, profile_list, profile_logs, profile_open_path,
-  profile_quick_play_list, profile_quick_play_remove, profile_remove, profile_repair,
-  profile_runs_list, profile_update, profile_update_icon,
+  profile_favorites_list, profile_favorites_set, profile_get_icon, profile_history_list,
+  profile_launch, profile_list, profile_logs, profile_open_path, profile_quick_play_list,
+  profile_quick_play_remove, profile_remove, profile_repair, profile_runs_list, profile_update,
+  profile_update_icon,
 };
 use settings::{settings_get, settings_set};
 use tauri::{AppHandle, Manager};
@@ -94,9 +94,8 @@ pub fn run() {
       profile_quick_play_list,
       profile_quick_play_remove,
       //home
-      profile_favorites_add,
+      profile_favorites_set,
       profile_favorites_list,
-      profile_favorites_remove,
       profile_history_list,
       //instances
       instance_list,

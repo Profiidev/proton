@@ -17,7 +17,6 @@ use crate::{
   utils::{
     dir::list_dirs_in_dir,
     file::{read_parse_file, write_file},
-    updater::{update_data, UpdateType},
   },
   versions::QUICK_PLAY,
 };
@@ -92,14 +91,13 @@ impl Profile {
     ))
   }
 
-  pub async fn update(&self, data_dir: &PathBuf, app: &AppHandle) -> Result<()> {
+  pub async fn update(&self, data_dir: &PathBuf) -> Result<()> {
     write_file(
       &path!(data_dir, self.relative_to_data(), PROFILE_CONFIG),
       self,
     )
     .await?;
 
-    update_data(app, UpdateType::Profiles);
     Ok(())
   }
 
@@ -107,8 +105,6 @@ impl Profile {
     &mut self,
     quick_play: Option<QuickPlayInfo>,
     favorite: bool,
-    data_dir: &PathBuf,
-    app: &AppHandle,
   ) -> Result<()> {
     if let Some(quick_play) = quick_play {
       if let Some(item) = self.quick_play.iter_mut().find(|q| *q == &quick_play) {
@@ -118,7 +114,6 @@ impl Profile {
       self.favorite = favorite;
     }
 
-    self.update(data_dir, app).await?;
     Ok(())
   }
 
@@ -131,7 +126,7 @@ impl Profile {
     Ok(list_dirs_in_dir(saves_path).await?)
   }
 
-  pub async fn update_quick_play(&mut self, data_dir: &PathBuf, app: &AppHandle) -> Result<()> {
+  pub async fn update_quick_play(&mut self, data_dir: &PathBuf) -> Result<()> {
     let quick_play_path = path!(data_dir, self.relative_to_data(), QUICK_PLAY);
 
     let quick_plays: Vec<QuickPlayInfo> = read_parse_file(&quick_play_path).await?;
@@ -147,17 +142,13 @@ impl Profile {
       }
     }
 
-    self.update(data_dir, app).await?;
-    update_data(app, UpdateType::ProfileQuickPlay);
-
     Ok(())
   }
 
   pub async fn list_quick_play(
     &mut self,
     data_dir: &PathBuf,
-    app: &AppHandle,
-  ) -> Result<Vec<QuickPlayInfo>> {
+  ) -> Result<(Vec<QuickPlayInfo>, bool)> {
     let saves = self.list_saves(data_dir).await?;
 
     let prev_len = self.quick_play.len();
@@ -165,26 +156,14 @@ impl Profile {
       .quick_play
       .retain(|q| saves.contains(&q.id) || q.r#type != QuickPlayType::Singleplayer);
 
-    if self.quick_play.len() < prev_len {
-      self.update(data_dir, app).await?;
-      update_data(app, UpdateType::ProfileQuickPlay);
-    }
-
-    Ok(self.quick_play.clone())
+    Ok((self.quick_play.clone(), self.quick_play.len() < prev_len))
   }
 
-  pub async fn remove_quick_play(
-    &mut self,
-    quick_play: QuickPlayInfo,
-    data_dir: &PathBuf,
-    app: &AppHandle,
-  ) -> Result<()> {
+  pub async fn remove_quick_play(&mut self, quick_play: QuickPlayInfo) -> Result<()> {
     let index = self.quick_play.iter().position(|q| q == &quick_play);
 
     if let Some(index) = index {
       let _ = self.quick_play.remove(index);
-      self.update(data_dir, app).await?;
-      update_data(app, UpdateType::ProfileQuickPlay);
     }
 
     Ok(())
@@ -210,22 +189,19 @@ impl ProfileInfo {
     Ok(Some(icon))
   }
 
-  pub async fn update_icon(&self, icon: &[u8], data_dir: &PathBuf, app: &AppHandle) -> Result<()> {
+  pub async fn update_icon(&self, icon: &[u8], data_dir: &PathBuf) -> Result<()> {
     if image::load_from_memory(icon).is_err() {
       return Err(ProfileError::InvalidImage.into());
     }
 
     fs::write(&path!(data_dir, &self.path, PROFILE_IMAGE), icon).await?;
 
-    update_data(app, UpdateType::Profiles);
-
     Ok(())
   }
 
-  pub async fn remove_profile(&self, data_dir: &PathBuf, app: &AppHandle) -> Result<()> {
+  pub async fn remove_profile(&self, data_dir: &PathBuf) -> Result<()> {
     self.watcher.notify_waiters();
     fs::remove_dir_all(path!(data_dir, &self.path)).await?;
-    update_data(app, UpdateType::Profiles);
 
     Ok(())
   }

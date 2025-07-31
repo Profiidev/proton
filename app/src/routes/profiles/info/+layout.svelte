@@ -1,8 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import {
-    profile_favorites_add,
-    profile_favorites_remove,
+    profile_favorites_set,
     profile_launch,
     profile_list,
     profile_open_path,
@@ -100,11 +99,7 @@
           size="icon"
           variant="outline"
           onclick={() => {
-            if (profile.favorite) {
-              profile_favorites_remove(profile.id);
-            } else {
-              profile_favorites_add(profile.id);
-            }
+            profile_favorites_set(profile.id, !profile.favorite);
           }}
           class="cursor-pointer"
         >
