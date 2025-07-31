@@ -10,8 +10,8 @@ use crate::{
   path,
   profiles::{
     config::{
-      LoaderType, PlayHistoryFavorite, PlayHistoryFavoriteInfo, Profile, ProfileError, ProfileInfo,
-      QuickPlayInfo,
+      LoaderType, PlayHistoryFavoriteInfo, Profile, ProfileError, ProfileInfo, QuickPlayInfo,
+      QuickPlayType,
     },
     profile::create_profile,
     watcher::watch_profile,
@@ -33,8 +33,6 @@ use super::instance::{Instance, InstanceError, InstanceInfo};
 
 pub struct ProfileStore {
   profiles: HashMap<String, ProfileInfo>,
-  favorites: Vec<PlayHistoryFavorite>,
-  history: Vec<PlayHistoryFavorite>,
   instances: Arc<Mutex<HashMap<String, Vec<Instance>>>>,
   handle: AppHandle,
   data_dir: PathBuf,
@@ -42,16 +40,11 @@ pub struct ProfileStore {
 
 impl ProfileStore {
   const PROFILE_KEY: &str = "profiles";
-  const HISTORY_KEY: &str = "profile_play_history";
-  const FAVORITES_KEY: &str = "profile_favorites";
 
   pub fn new(handle: AppHandle) -> Result<ProfileStore> {
     let store = handle.app_store()?;
     let data_dir = handle.path().app_data_dir()?;
-
     let profile_paths: HashMap<String, PathBuf> = store.get_or_default(Self::PROFILE_KEY)?;
-    let favorites: Vec<PlayHistoryFavorite> = store.get_or_default(Self::FAVORITES_KEY)?;
-    let history: Vec<PlayHistoryFavorite> = store.get_or_default(Self::HISTORY_KEY)?;
 
     let mut profiles = HashMap::new();
     for (id, path) in profile_paths {
@@ -64,8 +57,6 @@ impl ProfileStore {
 
     Ok(ProfileStore {
       profiles,
-      favorites,
-      history,
       handle,
       instances: Default::default(),
       data_dir,
@@ -81,7 +72,7 @@ impl ProfileStore {
     ))
   }
 
-  fn save_profiles(&self) -> Result<()> {
+  fn save(&self) -> Result<()> {
     let mut profiles = HashMap::new();
     for (id, info) in &self.profiles {
       profiles.insert(id.clone(), info.path.clone());
@@ -89,16 +80,6 @@ impl ProfileStore {
 
     let store = self.handle.app_store()?;
     store.set(Self::PROFILE_KEY, &profiles)
-  }
-
-  fn save_history(&self) -> Result<()> {
-    let store = self.handle.app_store()?;
-    store.set(Self::HISTORY_KEY, &self.history)
-  }
-
-  fn save_favorites(&self) -> Result<()> {
-    let store = self.handle.app_store()?;
-    store.set(Self::FAVORITES_KEY, &self.favorites)
   }
 
   fn profile_info(&self, profile: &str) -> Result<&ProfileInfo> {
@@ -136,20 +117,17 @@ impl ProfileStore {
     )
     .await?;
     self.profiles.insert(id, info);
-    self.save_profiles()?;
+    self.save()?;
 
     update_data(&self.handle, UpdateType::Profiles);
     Ok(())
   }
 
-  pub async fn update_profile(&mut self, profile: &Profile, notify: bool) -> Result<()> {
+  pub async fn update_profile(&mut self, profile: &Profile) -> Result<()> {
     let info = self.profile_info(&profile.id)?;
     write_file(&path!(&self.data_dir, &info.path, PROFILE_CONFIG), profile).await?;
 
-    if notify {
-      update_data(&self.handle, UpdateType::Profiles);
-    }
-
+    update_data(&self.handle, UpdateType::Profiles);
     Ok(())
   }
 
@@ -187,7 +165,7 @@ impl ProfileStore {
     info.watcher.notify_waiters();
 
     fs::remove_dir_all(path!(&self.data_dir, &info.path)).await?;
-    self.save_profiles()?;
+    self.save()?;
 
     update_data(&self.handle, UpdateType::Profiles);
 
@@ -235,19 +213,6 @@ impl ProfileStore {
 
     Instance::create(child, &self.handle, profile, &self.instances).await?;
 
-    let index = self
-      .history
-      .iter_mut()
-      .position(|h| h.profile == profile.id && h.quick_play == quick_play);
-    if index.is_none() {
-      self.history.push(PlayHistoryFavorite {
-        profile: profile.id.clone(),
-        quick_play,
-      });
-    }
-    self.save_history()?;
-    update_data(&self.handle, UpdateType::ProfileHistory);
-
     Ok(())
   }
 
@@ -256,15 +221,29 @@ impl ProfileStore {
     profile: &str,
     quick_play: Option<QuickPlayInfo>,
   ) -> Result<()> {
-    let index = self
-      .history
-      .iter()
-      .position(|h| h.profile == profile && h.quick_play == quick_play);
+    let mut profile = self.get_profile(profile)?;
+    if let Some(quick_play) = quick_play {
+      if let Some(item) = profile.quick_play.iter_mut().find(|q| *q == &quick_play) {
+        item.history = false;
+      }
+    } else {
+      profile.history = false;
+    }
 
-    if let Some(index) = index {
-      self.history.remove(index);
-      self.save_history()?;
-      update_data(&self.handle, UpdateType::ProfileHistory);
+    self.update_profile(&profile).await?;
+    Ok(())
+  }
+
+  pub async fn clear_history(&mut self) -> Result<()> {
+    let keys = self.profiles.keys().cloned().collect::<Vec<_>>();
+    for profile in keys {
+      let mut profile = self.get_profile(&profile)?;
+      profile.history = false;
+      profile
+        .quick_play
+        .iter_mut()
+        .for_each(|q| q.history = false);
+      self.update_profile(&profile).await?;
     }
 
     Ok(())
@@ -275,17 +254,16 @@ impl ProfileStore {
     profile: &str,
     quick_play: Option<QuickPlayInfo>,
   ) -> Result<()> {
-    let index = self
-      .favorites
-      .iter()
-      .position(|f| f.profile == profile && f.quick_play == quick_play);
-
-    if let Some(index) = index {
-      self.favorites.remove(index);
-      self.save_favorites()?;
-      update_data(&self.handle, UpdateType::ProfileFavorites);
+    let mut profile = self.get_profile(profile)?;
+    if let Some(quick_play) = quick_play {
+      if let Some(item) = profile.quick_play.iter_mut().find(|q| *q == &quick_play) {
+        item.favorite = false;
+      }
+    } else {
+      profile.favorite = false;
     }
 
+    self.update_profile(&profile).await?;
     Ok(())
   }
 
@@ -294,42 +272,52 @@ impl ProfileStore {
     profile: &str,
     quick_play: Option<QuickPlayInfo>,
   ) -> Result<()> {
-    if self
-      .favorites
-      .iter()
-      .any(|f| f.profile == profile && f.quick_play == quick_play)
-    {
-      return Ok(());
+    let mut profile = self.get_profile(profile)?;
+    if let Some(quick_play) = quick_play {
+      if let Some(item) = profile.quick_play.iter_mut().find(|q| *q == &quick_play) {
+        item.favorite = true;
+      }
+    } else {
+      profile.favorite = true;
     }
 
-    self.favorites.push(PlayHistoryFavorite {
-      profile: profile.to_string(),
-      quick_play,
-    });
-    self.save_favorites()?;
-    update_data(&self.handle, UpdateType::ProfileFavorites);
-
+    self.update_profile(&profile).await?;
     Ok(())
   }
 
   pub async fn list_history_entries(&mut self) -> Result<Vec<PlayHistoryFavoriteInfo>> {
     let mut history = Vec::new();
-    for entry in self.history.clone() {
-      // Clean up history entries that reference non-existing saves
-      if let Some(QuickPlayInfo::Singleplayer { id, .. }) = &entry.quick_play {
-        let saves = self.saves_list(&entry.profile).await?;
-        if !saves.contains(id) {
-          self
-            .remove_history_entry(&entry.profile, entry.quick_play)
-            .await?;
+    let keys = self.profiles.keys().cloned().collect::<Vec<_>>();
+    for profile in keys {
+      let mut profile_info = self.get_profile(&profile)?;
+      if profile_info.history {
+        history.push(PlayHistoryFavoriteInfo {
+          profile: profile_info.clone(),
+          quick_play: None,
+        });
+      }
+
+      let saves = self.saves_list(&profile).await?;
+      let mut updated = false;
+
+      for (i, quick_play) in profile_info.quick_play.clone().into_iter().enumerate() {
+        if quick_play.r#type == QuickPlayType::Singleplayer && !saves.contains(&quick_play.id) {
+          profile_info.quick_play.remove(i);
+          updated = true;
           continue;
         }
+
+        if quick_play.history {
+          history.push(PlayHistoryFavoriteInfo {
+            profile: profile_info.clone(),
+            quick_play: Some(quick_play.clone()),
+          });
+        }
       }
-      let profile = self.get_profile(&entry.profile)?;
-      history.push(PlayHistoryFavoriteInfo {
-        profile,
-        quick_play: entry.quick_play,
-      });
+
+      if updated {
+        self.update_profile(&profile_info).await?;
+      }
     }
 
     Ok(history)
@@ -337,23 +325,37 @@ impl ProfileStore {
 
   pub async fn list_favorites(&mut self) -> Result<Vec<PlayHistoryFavoriteInfo>> {
     let mut favorites = Vec::new();
-    for entry in self.favorites.clone() {
-      // Clean up favorites that reference non-existing saves
-      if let Some(QuickPlayInfo::Singleplayer { id, .. }) = &entry.quick_play {
-        let saves = self.saves_list(&entry.profile).await?;
-        if !saves.contains(id) {
-          self
-            .remove_favorite(&entry.profile, entry.quick_play)
-            .await?;
+    let keys = self.profiles.keys().cloned().collect::<Vec<_>>();
+    for profile in keys {
+      let mut profile_info = self.get_profile(&profile)?;
+      if profile_info.favorite {
+        favorites.push(PlayHistoryFavoriteInfo {
+          profile: profile_info.clone(),
+          quick_play: None,
+        });
+      }
+
+      let saves = self.saves_list(&profile).await?;
+      let mut updated = false;
+
+      for (i, quick_play) in profile_info.quick_play.clone().into_iter().enumerate() {
+        if quick_play.r#type == QuickPlayType::Singleplayer && !saves.contains(&quick_play.id) {
+          profile_info.quick_play.remove(i);
+          updated = true;
           continue;
+        }
+
+        if quick_play.favorite {
+          favorites.push(PlayHistoryFavoriteInfo {
+            profile: profile_info.clone(),
+            quick_play: Some(quick_play.clone()),
+          });
         }
       }
 
-      let profile = self.get_profile(&entry.profile)?;
-      favorites.push(PlayHistoryFavoriteInfo {
-        profile,
-        quick_play: entry.quick_play,
-      });
+      if updated {
+        self.update_profile(&profile_info).await?;
+      }
     }
 
     Ok(favorites)
@@ -366,10 +368,7 @@ impl ProfileStore {
     let quick_plays: Vec<QuickPlayInfo> = read_parse_file(&quick_play_path)?;
 
     for quick_play in quick_plays {
-      let index = profile
-        .quick_play
-        .iter()
-        .position(|q| q.id() == quick_play.id());
+      let index = profile.quick_play.iter().position(|q| q == &quick_play);
 
       if let Some(index) = index {
         profile.quick_play[index] = quick_play;
@@ -378,7 +377,7 @@ impl ProfileStore {
       }
     }
 
-    self.update_profile(&profile, false).await?;
+    self.update_profile(&profile).await?;
     update_data(&self.handle, UpdateType::ProfileQuickPlay);
 
     Ok(())
@@ -391,23 +390,27 @@ impl ProfileStore {
     let prev_len = profile.quick_play.len();
     profile
       .quick_play
-      .retain(|q| saves.contains(&q.id()) || !q.is_singleplayer());
+      .retain(|q| saves.contains(&q.id) || q.r#type != QuickPlayType::Singleplayer);
 
     if profile.quick_play.len() < prev_len {
-      self.update_profile(&profile, false).await?;
+      self.update_profile(&profile).await?;
       update_data(&self.handle, UpdateType::ProfileQuickPlay);
     }
 
     Ok(profile.quick_play.clone())
   }
 
-  pub async fn remove_quick_play(&mut self, profile: &str, id: &str) -> Result<()> {
+  pub async fn remove_quick_play(
+    &mut self,
+    profile: &str,
+    quick_play: QuickPlayInfo,
+  ) -> Result<()> {
     let mut profile = self.get_profile(profile)?;
-    let index = profile.quick_play.iter().position(|q| q.id() == id);
+    let index = profile.quick_play.iter().position(|q| q == &quick_play);
 
     if let Some(index) = index {
       let _ = profile.quick_play.remove(index);
-      self.update_profile(&profile, false).await?;
+      self.update_profile(&profile).await?;
       update_data(&self.handle, UpdateType::ProfileQuickPlay);
     }
 

@@ -19,6 +19,10 @@ pub struct Profile {
   pub created_at: DateTime<Utc>,
   pub last_played: Option<DateTime<Utc>>,
   #[serde(default)]
+  pub favorite: bool,
+  #[serde(default)]
+  pub history: bool,
+  #[serde(default)]
   pub quick_play: Vec<QuickPlayInfo>,
   pub version: String,
   pub loader: LoaderType,
@@ -39,60 +43,45 @@ impl Profile {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct PlayHistoryFavorite {
-  pub profile: String,
-  pub quick_play: Option<QuickPlayInfo>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PlayHistoryFavoriteInfo {
   pub profile: Profile,
   pub quick_play: Option<QuickPlayInfo>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-#[serde(tag = "type", rename_all = "camelCase")]
-pub enum QuickPlayInfo {
-  Singleplayer {
-    id: String,
-    name: String,
-    #[serde(rename = "lastPlayedTime")]
-    last_played_time: DateTime<Utc>,
-  },
-  Multiplayer {
-    id: String,
-    name: String,
-    #[serde(rename = "lastPlayedTime")]
-    last_played_time: DateTime<Utc>,
-  },
-  Realms {
-    id: String,
-    name: String,
-    #[serde(rename = "lastPlayedTime")]
-    last_played_time: DateTime<Utc>,
-  },
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct QuickPlayInfo {
+  pub id: String,
+  pub name: String,
+  #[serde(rename = "lastPlayedTime")]
+  pub last_played_time: DateTime<Utc>,
+  #[serde(default)]
+  pub favorite: bool,
+  #[serde(default)]
+  pub history: bool,
+  pub r#type: QuickPlayType,
 }
 
-impl QuickPlayInfo {
-  pub fn id(&self) -> String {
-    match self {
-      QuickPlayInfo::Singleplayer { id, .. } => id.clone(),
-      QuickPlayInfo::Multiplayer { id, .. } => id.clone(),
-      QuickPlayInfo::Realms { id, .. } => id.clone(),
-    }
+impl PartialEq for QuickPlayInfo {
+  fn eq(&self, other: &Self) -> bool {
+    self.id == other.id && self.r#type == other.r#type
   }
+}
 
-  pub fn is_singleplayer(&self) -> bool {
-    matches!(self, QuickPlayInfo::Singleplayer { .. })
-  }
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum QuickPlayType {
+  Singleplayer,
+  Multiplayer,
+  Realms,
 }
 
 impl From<QuickPlayInfo> for QuickPlay {
   fn from(info: QuickPlayInfo) -> Self {
-    match info {
-      QuickPlayInfo::Singleplayer { id, .. } => QuickPlay::Singleplayer { world_name: id },
-      QuickPlayInfo::Multiplayer { id, .. } => QuickPlay::Multiplayer { uri: id },
-      QuickPlayInfo::Realms { id, .. } => QuickPlay::Realms { realm_id: id },
+    let id = info.id;
+    match info.r#type {
+      QuickPlayType::Singleplayer => QuickPlay::Singleplayer { world_name: id },
+      QuickPlayType::Multiplayer => QuickPlay::Multiplayer { uri: id },
+      QuickPlayType::Realms => QuickPlay::Realms { realm_id: id },
     }
   }
 }

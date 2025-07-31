@@ -15,6 +15,8 @@ export interface Profile {
   name: string;
   created_at: string;
   last_played?: string;
+  favorite: boolean;
+  history: boolean;
   version: string;
   loader: LoaderType;
   loader_version?: string;
@@ -70,6 +72,8 @@ export interface QuickPlayInfo {
   name: string;
   id: string;
   lastPlayedTime: string;
+  favorite: boolean;
+  history: boolean;
 }
 
 export interface PlayHistoryFavorite {
@@ -203,12 +207,12 @@ export const profile_quick_play_list = async (
 
 export const profile_quick_play_remove = async (
   profile: string,
-  id: string
+  quickPlay: QuickPlayInfo
 ): Promise<void | ProfileError> => {
   try {
     await invoke('profile_quick_play_remove', {
       profile,
-      id
+      quickPlay
     });
   } catch (e: any) {
     return parseError(e);
@@ -236,6 +240,14 @@ export const profile_history_remove = async (
       profile,
       quickPlay
     });
+  } catch (e: any) {
+    return parseError(e);
+  }
+};
+
+export const profile_history_clear = async (): Promise<void | ProfileError> => {
+  try {
+    await invoke('profile_history_clear');
   } catch (e: any) {
     return parseError(e);
   }

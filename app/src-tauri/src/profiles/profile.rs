@@ -49,6 +49,8 @@ pub async fn create_profile(
     name,
     created_at: Utc::now(),
     last_played: None,
+    favorite: false,
+    history: false,
     quick_play: Vec::new(),
     version,
     loader,

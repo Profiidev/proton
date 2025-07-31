@@ -18,8 +18,6 @@ pub enum UpdateType {
   Profiles,
   ProfileLogs,
   ProfileQuickPlay,
-  ProfileFavorites,
-  ProfileHistory,
   //instances
   Instances,
   InstanceLogs,

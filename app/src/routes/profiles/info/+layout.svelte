@@ -1,6 +1,8 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import {
+    profile_favorites_add,
+    profile_favorites_remove,
     profile_launch,
     profile_list,
     profile_open_path,
@@ -11,11 +13,10 @@
     SimpleSidebar,
     Button,
     DropdownMenu,
-    Dialog,
-    Separator
+    Dialog
   } from 'positron-components/components';
   import { setProfile } from './store.svelte.js';
-  import { FolderOpen, Menu, Play, Trash, Wrench } from '@lucide/svelte';
+  import { FolderOpen, Menu, Play, Star, Trash, Wrench } from '@lucide/svelte';
   import ProfileIcon from '$lib/components/profile/ProfileIcon.svelte';
   import { DateTime } from 'positron-components/util';
   import { account_active } from '$lib/tauri/account.svelte.js';
@@ -94,6 +95,24 @@
         >
           <Play />
           Play
+        </Button>
+        <Button
+          size="icon"
+          variant="outline"
+          onclick={() => {
+            if (profile.favorite) {
+              profile_favorites_remove(profile.id);
+            } else {
+              profile_favorites_add(profile.id);
+            }
+          }}
+          class="cursor-pointer"
+        >
+          <Star
+            class={profile.favorite
+              ? 'fill-yellow-500 text-yellow-500'
+              : 'text-muted-foreground'}
+          />
         </Button>
         <DropdownMenu.Root>
           <DropdownMenu.Trigger>
