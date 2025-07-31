@@ -18,7 +18,11 @@
   import { Button, Input, ScrollArea } from 'positron-components/components/ui';
   import { CirclePlay, Plus } from '@lucide/svelte';
   import FormImage from '../../lib/components/form/FormImage.svelte';
-  import { compareDateTimes, file_to_bytes } from '$lib/util.svelte';
+  import {
+    compareDateTimes,
+    compareProfiles,
+    file_to_bytes
+  } from '$lib/util.svelte';
   import { Multiselect } from 'positron-components/components/table';
   import Fuse from 'fuse.js';
   import { goto } from '$app/navigation';
@@ -65,19 +69,6 @@
     })
   );
 
-  const compareProfiles = (a: Profile, b: Profile) => {
-    if (!a.last_played && !b.last_played) {
-      return compareDateTimes(a.created_at, b.created_at);
-    }
-    if (a.last_played && b.last_played) {
-      return compareDateTimes(a.last_played, b.last_played);
-    }
-    if (a.last_played) {
-      return -1;
-    }
-    return 1;
-  };
-
   let filtered_profiles = $derived(
     (text_filter
       ? profile_fuse.search(text_filter).map((result) => result.item)
@@ -90,7 +81,7 @@
             : true) &&
           (loader_filter.length > 0 ? loader_filter.includes(p.loader) : true)
       )
-      .sort(compareProfiles)
+      .toSorted(compareProfiles)
   );
   let filtered_versions = $derived(
     versions?.filter((v) => profiles?.some((p) => p.version === v.value))

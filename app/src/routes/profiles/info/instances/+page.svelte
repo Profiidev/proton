@@ -16,7 +16,7 @@
   let profile_instances = $derived(
     instances
       ?.filter((i) => i.profile_id === profile?.id)
-      .sort((a, b) => compareDateTimes(a.launched_at, b.launched_at)) ?? []
+      .toSorted((a, b) => compareDateTimes(a.launched_at, b.launched_at)) ?? []
   );
 
   let stopOpen = $state(false);

@@ -1,6 +1,8 @@
 <script lang="ts">
   import { create_data_state, UpdateType } from '$lib/data_state.svelte';
   import {
+    profile_favorites_add,
+    profile_favorites_remove,
     profile_launch,
     profile_quick_play_list,
     profile_quick_play_remove,
@@ -15,7 +17,7 @@
   } from 'positron-components/components/ui';
   import { getProfile } from '../store.svelte';
   import { DateTime } from 'positron-components/util';
-  import { Play, Trash } from '@lucide/svelte';
+  import { Play, Star, Trash } from '@lucide/svelte';
   import { compareDateTimes } from '$lib/util.svelte';
   import { account_active } from '$lib/tauri/account.svelte';
 
@@ -59,7 +61,9 @@
       ? 'singleplayer'
       : multiplayer?.length
         ? 'multiplayer'
-        : 'realms'}
+        : realms?.length
+          ? 'realms'
+          : 'singleplayer'}
   >
     <Tabs.List>
       <Tabs.Trigger value="singleplayer">Singleplayer</Tabs.Trigger>
@@ -124,6 +128,24 @@
             Play
           </Button>
           <Button
+            size="icon"
+            variant="outline"
+            onclick={() => {
+              if (item.favorite) {
+                profile_favorites_remove(profile!.id, item);
+              } else {
+                profile_favorites_add(profile!.id, item);
+              }
+            }}
+            class="cursor-pointer"
+          >
+            <Star
+              class={item.favorite
+                ? 'fill-yellow-500 text-yellow-500'
+                : 'text-muted-foreground'}
+            />
+          </Button>
+          <Button
             variant="destructive"
             class="cursor-pointer"
             size="icon"
@@ -161,7 +183,7 @@
         type="submit"
         variant="destructive"
         onclick={() => {
-          remove_info && profile_quick_play_remove(profile!.id, remove_info.id);
+          remove_info && profile_quick_play_remove(profile!.id, remove_info);
           removeOpen = false;
         }}
       >

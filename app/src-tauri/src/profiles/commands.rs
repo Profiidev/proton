@@ -9,7 +9,7 @@ use tokio::sync::Mutex;
 use crate::{
   account::store::AccountStore,
   profiles::{
-    config::{LoaderType, Profile, ProfileUpdate, QuickPlayInfo},
+    config::{LoaderType, PlayHistoryFavoriteInfo, Profile, ProfileUpdate, QuickPlayInfo},
     instance::InstanceInfo,
   },
   utils::log::ResultLogExt,
@@ -153,18 +153,29 @@ pub async fn profile_launch(
       .await
       .log()?;
     profile.downloaded = true;
-    store.update_profile(&profile).await.log()?;
   } else if !mc_store.check_meta(&profile.version, id).await.log()? {
     mc_store.check_or_download(&profile.version, id).await?;
   }
+
+  profile.last_played = Some(Utc::now());
+  if let Some(quick_play) = &quick_play {
+    if let Some(item) = profile
+      .quick_play
+      .iter_mut()
+      .find(|q| q.id == quick_play.id && q.r#type == quick_play.r#type)
+    {
+      item.last_played_time = Utc::now();
+      item.history = true;
+    }
+  } else {
+    profile.history = true;
+  }
+  store.update_profile(&profile).await.log()?;
 
   store
     .launch_profile(info, &profile, quick_play)
     .await
     .log()?;
-
-  profile.last_played = Some(Utc::now());
-  store.update_profile(&profile).await.log()?;
 
   Ok(())
 }
@@ -266,10 +277,79 @@ pub async fn profile_quick_play_list(
 pub async fn profile_quick_play_remove(
   state: State<'_, Mutex<ProfileStore>>,
   profile: &str,
-  id: &str,
+  quick_play: QuickPlayInfo,
 ) -> Result<()> {
-  trace!("Command profile_quick_play_remove called with profile {profile} id {id}");
+  trace!(
+    "Command profile_quick_play_remove called with profile {profile} quick_play {quick_play:?}"
+  );
   let mut store = state.lock().await;
-  store.remove_quick_play(profile, id).await.log()?;
+  store.remove_quick_play(profile, quick_play).await.log()?;
+  Ok(())
+}
+
+#[tauri::command]
+pub async fn profile_favorites_list(
+  state: State<'_, Mutex<ProfileStore>>,
+) -> Result<Vec<PlayHistoryFavoriteInfo>> {
+  trace!("Command profile_favorites_list called");
+  let mut store = state.lock().await;
+  Ok(store.list_favorites().await.log()?)
+}
+
+#[tauri::command]
+pub async fn profile_favorites_add(
+  state: State<'_, Mutex<ProfileStore>>,
+  profile: &str,
+  quick_play: Option<QuickPlayInfo>,
+) -> Result<()> {
+  trace!("Command profile_favorites_add called with profile {profile} quick_play {quick_play:?}");
+  let mut store = state.lock().await;
+  store.add_favorite(profile, quick_play).await.log()?;
+  Ok(())
+}
+
+#[tauri::command]
+pub async fn profile_favorites_remove(
+  state: State<'_, Mutex<ProfileStore>>,
+  profile: &str,
+  quick_play: Option<QuickPlayInfo>,
+) -> Result<()> {
+  trace!(
+    "Command profile_favorites_remove called with profile {profile} quick_play {quick_play:?}"
+  );
+  let mut store = state.lock().await;
+  store.remove_favorite(profile, quick_play).await.log()?;
+  Ok(())
+}
+
+#[tauri::command]
+pub async fn profile_history_clear(state: State<'_, Mutex<ProfileStore>>) -> Result<()> {
+  trace!("Command profile_history_clear called");
+  let mut store = state.lock().await;
+  store.clear_history().await.log()?;
+  Ok(())
+}
+
+#[tauri::command]
+pub async fn profile_history_list(
+  state: State<'_, Mutex<ProfileStore>>,
+) -> Result<Vec<PlayHistoryFavoriteInfo>> {
+  trace!("Command profile_history_list called");
+  let mut store = state.lock().await;
+  Ok(store.list_history_entries().await.log()?)
+}
+
+#[tauri::command]
+pub async fn profile_history_remove(
+  state: State<'_, Mutex<ProfileStore>>,
+  profile: &str,
+  quick_play: Option<QuickPlayInfo>,
+) -> Result<()> {
+  trace!("Command profile_history_remove called with profile {profile} quick_play {quick_play:?}");
+  let mut store = state.lock().await;
+  store
+    .remove_history_entry(profile, quick_play)
+    .await
+    .log()?;
   Ok(())
 }

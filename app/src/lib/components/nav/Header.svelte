@@ -67,7 +67,8 @@
 </script>
 
 <header data-tauri-drag-region class="flex h-10 items-center">
-  <p class="mx-4">Proton</p>
+  <img src="/icon.svg" alt="Proton Icon" class="mx-2 h-full p-1 select-none" />
+  <p class="mr-4">Proton</p>
   <Separator orientation="vertical" />
   <Breadcrumb.Root class="mx-4 min-w-0 overflow-hidden">
     <Breadcrumb.List class="flex-nowrap">

@@ -1,4 +1,5 @@
 import { DateTime } from 'positron-components/util';
+import type { Profile } from './tauri/profile.svelte';
 
 export const file_to_bytes = (file: File) => {
   return new Promise<Uint8Array>((resolve) => {
@@ -48,4 +49,17 @@ export const compareDateTimes = (a: string, b: string) => {
   return DateTime.fromISO(a).diff(DateTime.fromISO(b)).milliseconds > 0
     ? -1
     : 1;
+};
+
+export const compareProfiles = (a: Profile, b: Profile) => {
+  if (!a.last_played && !b.last_played) {
+    return compareDateTimes(a.created_at, b.created_at);
+  }
+  if (a.last_played && b.last_played) {
+    return compareDateTimes(a.last_played, b.last_played);
+  }
+  if (a.last_played) {
+    return -1;
+  }
+  return 1;
 };

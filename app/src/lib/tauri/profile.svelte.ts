@@ -15,6 +15,8 @@ export interface Profile {
   name: string;
   created_at: string;
   last_played?: string;
+  favorite: boolean;
+  history: boolean;
   version: string;
   loader: LoaderType;
   loader_version?: string;
@@ -70,6 +72,13 @@ export interface QuickPlayInfo {
   name: string;
   id: string;
   lastPlayedTime: string;
+  favorite: boolean;
+  history: boolean;
+}
+
+export interface PlayHistoryFavorite {
+  profile: Profile;
+  quick_play?: QuickPlayInfo;
 }
 
 const parseError = (e: string) => {
@@ -198,12 +207,86 @@ export const profile_quick_play_list = async (
 
 export const profile_quick_play_remove = async (
   profile: string,
-  id: string
+  quickPlay: QuickPlayInfo
 ): Promise<void | ProfileError> => {
   try {
     await invoke('profile_quick_play_remove', {
       profile,
-      id
+      quickPlay
+    });
+  } catch (e: any) {
+    return parseError(e);
+  }
+};
+
+const profile_history_list_ = async (): Promise<
+  PlayHistoryFavorite[] | undefined
+> => {
+  try {
+    return await invoke('profile_history_list');
+  } catch (e: any) {}
+};
+export const profile_history_list = create_data_state(
+  profile_history_list_,
+  UpdateType.Profiles
+);
+
+export const profile_history_remove = async (
+  profile: string,
+  quickPlay?: QuickPlayInfo
+): Promise<void | ProfileError> => {
+  try {
+    await invoke('profile_history_remove', {
+      profile,
+      quickPlay
+    });
+  } catch (e: any) {
+    return parseError(e);
+  }
+};
+
+export const profile_history_clear = async (): Promise<void | ProfileError> => {
+  try {
+    await invoke('profile_history_clear');
+  } catch (e: any) {
+    return parseError(e);
+  }
+};
+
+const profile_favorites_list_ = async (): Promise<
+  PlayHistoryFavorite[] | undefined
+> => {
+  try {
+    return await invoke('profile_favorites_list');
+  } catch (e: any) {}
+};
+export const profile_favorites_list = create_data_state(
+  profile_favorites_list_,
+  UpdateType.Profiles
+);
+
+export const profile_favorites_add = async (
+  profile: string,
+  quickPlay?: QuickPlayInfo
+): Promise<void | ProfileError> => {
+  try {
+    await invoke('profile_favorites_add', {
+      profile,
+      quickPlay
+    });
+  } catch (e: any) {
+    return parseError(e);
+  }
+};
+
+export const profile_favorites_remove = async (
+  profile: string,
+  quickPlay?: QuickPlayInfo
+): Promise<void | ProfileError> => {
+  try {
+    await invoke('profile_favorites_remove', {
+      profile,
+      quickPlay
     });
   } catch (e: any) {
     return parseError(e);
