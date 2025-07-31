@@ -41,7 +41,7 @@
               favorite.quick_play
             );
           }}
-          profile={favorite.profile}
+          item={favorite.profile}
           text={favorite.quick_play &&
             favorite.quick_play.name + ' (' + favorite.profile.name + ')'}
         />
@@ -74,7 +74,7 @@
               item.quick_play
             );
           }}
-          profile={item.profile}
+          item={item.profile}
           text={item.quick_play &&
             item.quick_play.name + ' (' + item.profile.name + ')'}
         />
