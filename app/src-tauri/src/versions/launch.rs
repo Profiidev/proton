@@ -117,7 +117,7 @@ impl LaunchArgs {
   }
 }
 
-pub fn launch_minecraft_version(args: &LaunchArgs) -> Result<Child> {
+pub async fn launch_minecraft_version(args: &LaunchArgs) -> Result<Child> {
   debug!(
     "Collecting args to start minecraft version: {}",
     &args.version
@@ -129,7 +129,7 @@ pub fn launch_minecraft_version(args: &LaunchArgs) -> Result<Child> {
     &args.version,
     format!("{}.json", args.version)
   );
-  let version: Version = read_parse_file(&path)?;
+  let version: Version = read_parse_file(&path).await?;
 
   let jvm_args = jvm_args(args, &version);
   let game_args = game_args(args, &version);

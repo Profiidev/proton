@@ -231,28 +231,6 @@ export const profile_history_list = create_data_state(
   UpdateType.Profiles
 );
 
-export const profile_history_remove = async (
-  profile: string,
-  quickPlay?: QuickPlayInfo
-): Promise<void | ProfileError> => {
-  try {
-    await invoke('profile_history_remove', {
-      profile,
-      quickPlay
-    });
-  } catch (e: any) {
-    return parseError(e);
-  }
-};
-
-export const profile_history_clear = async (): Promise<void | ProfileError> => {
-  try {
-    await invoke('profile_history_clear');
-  } catch (e: any) {
-    return parseError(e);
-  }
-};
-
 const profile_favorites_list_ = async (): Promise<
   PlayHistoryFavorite[] | undefined
 > => {

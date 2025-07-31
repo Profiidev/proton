@@ -4,7 +4,6 @@
   import { account_active } from '$lib/tauri/account.svelte';
   import {
     profile_favorites_list,
-    profile_history_clear,
     profile_history_list,
     profile_launch
   } from '$lib/tauri/profile.svelte';

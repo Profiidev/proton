@@ -5,8 +5,9 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::sync::Notify;
 
-use crate::{path, profiles::PROFILE_DIR, versions::launch::QuickPlay};
+use crate::versions::launch::QuickPlay;
 
+#[derive(Clone)]
 pub struct ProfileInfo {
   pub path: PathBuf,
   pub watcher: Arc<Notify>,
@@ -34,12 +35,6 @@ pub struct Profile {
   pub jvm: Option<JvmSettings>,
   pub use_local_dev: bool,
   pub dev: Option<DevSettings>,
-}
-
-impl Profile {
-  pub fn relative_to_data(&self) -> PathBuf {
-    path!(PROFILE_DIR, &self.id)
-  }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

@@ -16,10 +16,7 @@ use tokio::{
 use uuid::Uuid;
 
 use crate::{
-  profiles::{
-    config::{LoaderType, Profile},
-    store::ProfileStore,
-  },
+  profiles::config::{LoaderType, Profile, ProfileInfo},
   utils::{
     log::ResultLogExt,
     updater::{update_data, UpdateType},
@@ -192,7 +189,7 @@ async fn clean_instance(
   }
   update_data(handle, UpdateType::Instances);
 
-  if let Ok(logs_dir) = ProfileStore::log_dir(handle, profile) {
+  if let Ok(logs_dir) = ProfileInfo::log_dir(handle, profile) {
     if fs::create_dir_all(&logs_dir).await.is_ok() {
       let log_file = logs_dir.join(format!(
         "{}.log",

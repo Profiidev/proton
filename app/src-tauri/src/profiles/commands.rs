@@ -54,14 +54,17 @@ pub async fn profile_update(
   profile: ProfileUpdate,
 ) -> Result<()> {
   trace!("Command profile_update called with profile {:?}", &profile);
-  let mut store = state.lock().await;
+  let store = state.lock().await;
 
-  let mut current_profile = store.get_profile(&profile.id).log()?;
+  let mut current_profile = store.profile(&profile.id).await.log()?;
 
   current_profile.name = profile.name;
   current_profile.version = profile.version;
 
-  store.update_profile(&current_profile).await.log()?;
+  current_profile
+    .update(store.data_dir(), store.app())
+    .await
+    .log()?;
 
   Ok(())
 }
@@ -75,8 +78,11 @@ pub async fn profile_get_icon(
   let store = state.lock().await;
   Ok(
     store
-      .get_profile_icon(profile)
-      .await?
+      .profile_info(profile)
+      .log()?
+      .get_icon(store.data_dir())
+      .await
+      .log()?
       .map(|data| BASE64_STANDARD.encode(data)),
   )
 }
@@ -107,8 +113,13 @@ pub async fn profile_update_icon(
   icon: Vec<u8>,
 ) -> Result<()> {
   trace!("Command profile_update_icon called with profile {profile}");
-  let mut store = state.lock().await;
-  store.update_profile_icon(profile, &icon).await.log()?;
+  let store = state.lock().await;
+  store
+    .profile_info(profile)
+    .log()?
+    .update_icon(&icon, store.data_dir(), store.app())
+    .await
+    .log()?;
   Ok(())
 }
 
@@ -124,7 +135,7 @@ pub async fn profile_remove(state: State<'_, Mutex<ProfileStore>>, profile: &str
 pub async fn profile_list(state: State<'_, Mutex<ProfileStore>>) -> Result<Vec<Profile>> {
   trace!("Command profile_list called");
   let store = state.lock().await;
-  Ok(store.list_profiles().log()?)
+  Ok(store.list_profiles().await.log()?)
 }
 
 #[tauri::command]
@@ -146,7 +157,7 @@ pub async fn profile_launch(
     return Ok(err?);
   };
 
-  let mut profile = store.get_profile(profile).log()?;
+  let mut profile = store.profile(profile).await.log()?;
   if !profile.downloaded {
     mc_store
       .check_or_download(&profile.version, id)
@@ -170,7 +181,7 @@ pub async fn profile_launch(
   } else {
     profile.history = true;
   }
-  store.update_profile(&profile).await.log()?;
+  profile.update(store.data_dir(), store.app()).await.log()?;
 
   store
     .launch_profile(info, &profile, quick_play)
@@ -191,7 +202,7 @@ pub async fn profile_repair(
   let store = state.lock().await;
   let mc_store = versions.lock().await;
 
-  let profile = store.get_profile(profile).log()?;
+  let profile = store.profile(profile).await.log()?;
   mc_store
     .check_or_download(&profile.version, id)
     .await
@@ -238,7 +249,14 @@ pub async fn profile_runs_list(
 ) -> Result<Vec<DateTime<Utc>>> {
   trace!("Command profile_logs called with profile {profile}");
   let store = state.lock().await;
-  Ok(store.list_profile_runs(profile).await.log()?)
+  Ok(
+    store
+      .profile_info(profile)
+      .log()?
+      .list_runs(store.data_dir())
+      .await
+      .log()?,
+  )
 }
 
 #[tauri::command]
@@ -248,7 +266,12 @@ pub async fn profile_clear_logs(
 ) -> Result<()> {
   trace!("Command profile_clear_logs called with profile {profile}");
   let store = state.lock().await;
-  store.clear_profile_logs(profile).await.log()?;
+  store
+    .profile_info(profile)
+    .log()?
+    .clear_logs(store.data_dir())
+    .await
+    .log()?;
   Ok(())
 }
 
@@ -260,7 +283,14 @@ pub async fn profile_logs(
 ) -> Result<Vec<String>> {
   trace!("Command profile_logs_run called with profile {profile} timestamp {timestamp}");
   let store = state.lock().await;
-  Ok(store.profile_logs(profile, timestamp).await.log()?)
+  Ok(
+    store
+      .profile_info(profile)
+      .log()?
+      .logs(store.data_dir(), timestamp)
+      .await
+      .log()?,
+  )
 }
 
 #[tauri::command]
@@ -269,8 +299,16 @@ pub async fn profile_quick_play_list(
   profile: &str,
 ) -> Result<Vec<QuickPlayInfo>> {
   trace!("Command profile_quick_play_list called with profile {profile}");
-  let mut store = state.lock().await;
-  Ok(store.list_quick_play(profile).await.log()?)
+  let store = state.lock().await;
+  Ok(
+    store
+      .profile(profile)
+      .await
+      .log()?
+      .list_quick_play(store.data_dir(), store.app())
+      .await
+      .log()?,
+  )
 }
 
 #[tauri::command]
@@ -282,8 +320,14 @@ pub async fn profile_quick_play_remove(
   trace!(
     "Command profile_quick_play_remove called with profile {profile} quick_play {quick_play:?}"
   );
-  let mut store = state.lock().await;
-  store.remove_quick_play(profile, quick_play).await.log()?;
+  let store = state.lock().await;
+  store
+    .profile(profile)
+    .await
+    .log()?
+    .remove_quick_play(quick_play, store.data_dir(), store.app())
+    .await
+    .log()?;
   Ok(())
 }
 
@@ -303,8 +347,14 @@ pub async fn profile_favorites_add(
   quick_play: Option<QuickPlayInfo>,
 ) -> Result<()> {
   trace!("Command profile_favorites_add called with profile {profile} quick_play {quick_play:?}");
-  let mut store = state.lock().await;
-  store.add_favorite(profile, quick_play).await.log()?;
+  let store = state.lock().await;
+  store
+    .profile(profile)
+    .await
+    .log()?
+    .set_favorite(quick_play, true, store.data_dir(), store.app())
+    .await
+    .log()?;
   Ok(())
 }
 
@@ -317,16 +367,14 @@ pub async fn profile_favorites_remove(
   trace!(
     "Command profile_favorites_remove called with profile {profile} quick_play {quick_play:?}"
   );
-  let mut store = state.lock().await;
-  store.remove_favorite(profile, quick_play).await.log()?;
-  Ok(())
-}
-
-#[tauri::command]
-pub async fn profile_history_clear(state: State<'_, Mutex<ProfileStore>>) -> Result<()> {
-  trace!("Command profile_history_clear called");
-  let mut store = state.lock().await;
-  store.clear_history().await.log()?;
+  let store = state.lock().await;
+  store
+    .profile(profile)
+    .await
+    .log()?
+    .set_favorite(quick_play, false, store.data_dir(), store.app())
+    .await
+    .log()?;
   Ok(())
 }
 
@@ -336,20 +384,5 @@ pub async fn profile_history_list(
 ) -> Result<Vec<PlayHistoryFavoriteInfo>> {
   trace!("Command profile_history_list called");
   let mut store = state.lock().await;
-  Ok(store.list_history_entries().await.log()?)
-}
-
-#[tauri::command]
-pub async fn profile_history_remove(
-  state: State<'_, Mutex<ProfileStore>>,
-  profile: &str,
-  quick_play: Option<QuickPlayInfo>,
-) -> Result<()> {
-  trace!("Command profile_history_remove called with profile {profile} quick_play {quick_play:?}");
-  let mut store = state.lock().await;
-  store
-    .remove_history_entry(profile, quick_play)
-    .await
-    .log()?;
-  Ok(())
+  Ok(store.list_history().await.log()?)
 }
