@@ -3,8 +3,7 @@
     profile_create,
     profile_launch,
     profile_list,
-    ProfileError,
-    type Profile
+    ProfileError
   } from '$lib/tauri/profile.svelte';
   import {
     FormDialog,
@@ -15,19 +14,15 @@
   import type { PageServerData } from './$types';
   import { profileCreateSchema } from './schema.svelte';
   import { version_list } from '$lib/tauri/versions.svelte';
-  import { Button, Input, ScrollArea } from 'positron-components/components/ui';
-  import { CirclePlay, Plus } from '@lucide/svelte';
+  import { Input, ScrollArea } from 'positron-components/components/ui';
+  import { Plus } from '@lucide/svelte';
   import FormImage from '../../lib/components/form/FormImage.svelte';
-  import {
-    compareDateTimes,
-    compareProfiles,
-    file_to_bytes
-  } from '$lib/util.svelte';
+  import { compareProfiles, file_to_bytes } from '$lib/util.svelte';
   import { Multiselect } from 'positron-components/components/table';
   import Fuse from 'fuse.js';
   import { goto } from '$app/navigation';
-  import ProfileIcon from '$lib/components/profile/ProfileIcon.svelte';
   import { account_active } from '$lib/tauri/account.svelte';
+  import ProfileListButton from '$lib/components/profile/ProfileListButton.svelte';
 
   interface Props {
     data: PageServerData;
@@ -176,33 +171,13 @@
         class="grid size-full auto-rows-min grid-cols-[repeat(auto-fill,_minmax(14rem,_1fr))] gap-2"
       >
         {#each filtered_profiles as profile}
-          <Button
-            variant="outline"
-            class="group relative flex h-16 w-full max-w-86 cursor-pointer flex-row justify-start p-2"
+          <ProfileListButton
             onclick={() => goto(`/profiles/info/quick_play?id=${profile.id}`)}
-          >
-            <ProfileIcon id={profile.id} />
-            <div class="ml-2 flex min-w-0 flex-1 flex-col justify-start gap-2">
-              <p class="truncate text-start text-sm">
-                {profile.name || 'unknown'}
-              </p>
-              <p class="text-muted-foreground truncate text-start text-sm">
-                {profile.loader + ' ' + profile.version || 'unknown'}
-              </p>
-            </div>
-            <div class="bg-background absolute hidden rounded group-hover:flex">
-              <Button
-                class="size-12 cursor-pointer"
-                size="icon"
-                onclick={(e) => {
-                  e.stopPropagation();
-                  profile_launch(profile.id, profile.name, active_account);
-                }}
-              >
-                <CirclePlay class="size-8" />
-              </Button>
-            </div>
-          </Button>
+            onclickInner={() => {
+              profile_launch(profile.id, profile.name, active_account);
+            }}
+            item={profile}
+          />
         {/each}
       </div>
     </ScrollArea.ScrollArea>

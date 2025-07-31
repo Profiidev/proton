@@ -1,15 +1,12 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import {
-    SimpleSidebar,
-    Button,
-    Dialog
-  } from 'positron-components/components';
+  import { SimpleSidebar, Button } from 'positron-components/components';
   import { ExternalLink, StopCircle } from '@lucide/svelte';
   import ProfileIcon from '$lib/components/profile/ProfileIcon.svelte';
   import { instance_list, instance_stop } from '$lib/tauri/instance.svelte.js';
   import { setInstance } from './store.svelte.js';
   import { DateTime } from 'positron-components/util';
+  import DestroyDialog from '$lib/components/form/DestroyDialog.svelte';
 
   let { data, children } = $props();
 
@@ -20,7 +17,7 @@
   let stopOpen = $state(false);
 
   $effect(() => {
-    if (instance === null) {
+    if (instance === undefined) {
       goto('/instances');
     } else if (instance) {
       setInstance(instance);
@@ -88,26 +85,16 @@
       </div>
     </div>
   </div>
-  <Dialog.Root bind:open={stopOpen}>
-    <Dialog.Content>
-      <Dialog.Header>
-        <Dialog.Title>Stop Instance</Dialog.Title>
-        <Dialog.Description>
-          Are you sure you want to stop the instance of profile "{instance?.profile_name}"?
-        </Dialog.Description>
-      </Dialog.Header>
-      <Dialog.Footer>
-        <Button
-          type="submit"
-          variant="destructive"
-          class="cursor-pointer"
-          onclick={() => instance_stop(instance.profile_id, instance.id)}
-        >
-          Stop
-        </Button>
-      </Dialog.Footer>
-    </Dialog.Content>
-  </Dialog.Root>
+  <DestroyDialog
+    open={stopOpen}
+    title="Stop Instance"
+    description={`Are you sure you want to stop the instance of profile "${instance?.profile_name}"?`}
+    btnText="Stop"
+    onclick={() => {
+      instance_stop(instance.profile_id, instance.id);
+      stopOpen = false;
+    }}
+  />
 {:else}
   <p class="mt-2 ml-2">Loading...</p>
 {/if}

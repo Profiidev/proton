@@ -1,8 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import {
-    profile_favorites_add,
-    profile_favorites_remove,
     profile_launch,
     profile_list,
     profile_open_path,
@@ -12,14 +10,15 @@
   import {
     SimpleSidebar,
     Button,
-    DropdownMenu,
-    Dialog
+    DropdownMenu
   } from 'positron-components/components';
   import { setProfile } from './store.svelte.js';
   import { FolderOpen, Menu, Play, Star, Trash, Wrench } from '@lucide/svelte';
   import ProfileIcon from '$lib/components/profile/ProfileIcon.svelte';
   import { DateTime } from 'positron-components/util';
   import { account_active } from '$lib/tauri/account.svelte.js';
+  import { profile_favorites_set } from '$lib/tauri/home.svelte.js';
+  import DestroyDialog from '$lib/components/form/DestroyDialog.svelte';
 
   let { data, children } = $props();
 
@@ -100,11 +99,7 @@
           size="icon"
           variant="outline"
           onclick={() => {
-            if (profile.favorite) {
-              profile_favorites_remove(profile.id);
-            } else {
-              profile_favorites_add(profile.id);
-            }
+            profile_favorites_set(profile.id, !profile.favorite);
           }}
           class="cursor-pointer"
         >
@@ -165,27 +160,13 @@
       </div>
     </div>
   </div>
-  <Dialog.Root bind:open={deleteOpen}>
-    <Dialog.Content>
-      <Dialog.Header>
-        <Dialog.Title>Delete Profile</Dialog.Title>
-        <Dialog.Description>
-          Are you sure you want to delete the profile "{profile?.name}"? This
-          action cannot be undone.
-        </Dialog.Description>
-      </Dialog.Header>
-      <Dialog.Footer>
-        <Button
-          type="submit"
-          variant="destructive"
-          class="cursor-pointer"
-          onclick={() => profile_remove(profile.id)}
-        >
-          Delete
-        </Button>
-      </Dialog.Footer>
-    </Dialog.Content>
-  </Dialog.Root>
+  <DestroyDialog
+    bind:open={deleteOpen}
+    title="Delete Profile"
+    description={`Are you sure you want to delete the profile "${profile?.name}"? This action cannot be undone.`}
+    btnText="Delete"
+    onclick={() => profile_remove(profile.id)}
+  />
 {:else}
   <p class="mt-2 ml-2">Loading...</p>
 {/if}

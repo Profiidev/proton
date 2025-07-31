@@ -124,8 +124,8 @@ pub fn bytes_hash(bytes: &[u8]) -> Result<String> {
   Ok(found_hash)
 }
 
-pub fn read_parse_file<R: DeserializeOwned>(path: &PathBuf) -> Result<R> {
-  let data = std::fs::read_to_string(path)?;
+pub async fn read_parse_file<R: DeserializeOwned>(path: &PathBuf) -> Result<R> {
+  let data = fs::read_to_string(path).await?;
   Ok(serde_json::from_str(&data)?)
 }
 

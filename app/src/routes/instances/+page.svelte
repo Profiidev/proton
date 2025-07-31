@@ -1,12 +1,7 @@
 <script lang="ts">
   import { version_list } from '$lib/tauri/versions.svelte';
-  import {
-    Button,
-    Dialog,
-    Input,
-    ScrollArea
-  } from 'positron-components/components/ui';
-  import { CircleStop, ExternalLink } from '@lucide/svelte';
+  import { Input, ScrollArea } from 'positron-components/components/ui';
+  import { CircleStop } from '@lucide/svelte';
   import {
     instance_list,
     instance_stop,
@@ -15,8 +10,10 @@
   import { Multiselect } from 'positron-components/components/table';
   import Fuse from 'fuse.js';
   import { goto } from '$app/navigation';
-  import ProfileIcon from '$lib/components/profile/ProfileIcon.svelte';
   import { compareDateTimes } from '$lib/util.svelte';
+  import ProfileListButton from '$lib/components/profile/ProfileListButton.svelte';
+  import ProfileExternalLink from '$lib/components/profile/ProfileExternalLink.svelte';
+  import DestroyDialog from '$lib/components/form/DestroyDialog.svelte';
 
   let profile_filter = $state<string[]>([]);
   let version_filter = $state<string[]>([]);
@@ -132,35 +129,19 @@
         class="grid size-full auto-rows-min grid-cols-[repeat(auto-fill,_minmax(14rem,_1fr))] gap-2"
       >
         {#each filtered_instances as instance}
-          <Button
-            variant="outline"
-            class="group relative flex h-16 w-full max-w-86 cursor-pointer flex-row justify-start p-2"
+          <ProfileListButton
             onclick={() => goto(`/instances/info/logs?id=${instance.id}`)}
-          >
-            <ProfileIcon id={instance.profile_id} />
-            <div class="ml-2 flex min-w-0 flex-1 flex-col justify-start gap-2">
-              <p class="truncate text-start text-sm">
-                {instance.profile_name || 'unknown'}
-              </p>
-              <p class="text-muted-foreground truncate text-start text-sm">
-                {instance.loader + ' ' + instance.version || 'unknown'}
-              </p>
-            </div>
-            <div class="bg-background absolute hidden rounded group-hover:flex">
-              <Button
-                class="size-12 cursor-pointer"
-                size="icon"
-                variant="destructive"
-                onclick={(e) => {
-                  e.stopPropagation();
-                  stop_instance = instance;
-                  stopOpen = true;
-                }}
-              >
-                <CircleStop class="size-8" />
-              </Button>
-            </div>
-          </Button>
+            onclickInner={() => {
+              stop_instance = instance;
+              stopOpen = true;
+            }}
+            item={{
+              ...instance,
+              name: instance.profile_name
+            }}
+            innerIcon={CircleStop}
+            innerVariant="destructive"
+          />
         {/each}
       </div>
     </ScrollArea.ScrollArea>
@@ -168,38 +149,16 @@
     <p class="text-muted-foreground mt-2 text-center">
       No instances found. Adjust your filters or launch a profile to create one.
     </p>
-    <div class="mt-2 flex justify-center">
-      <Button
-        variant="outline"
-        onclick={() => goto('/profiles')}
-        class="text-md inline-flex w-fit cursor-pointer p-0"
-      >
-        Profiles
-        <ExternalLink />
-      </Button>
-    </div>
+    <ProfileExternalLink />
   {/if}
 </div>
-<Dialog.Root bind:open={stopOpen}>
-  <Dialog.Content>
-    <Dialog.Header>
-      <Dialog.Title>Stop Instance</Dialog.Title>
-      <Dialog.Description>
-        Are you sure you want to stop the instance of profile "{stop_instance?.profile_name}"?
-      </Dialog.Description>
-    </Dialog.Header>
-    <Dialog.Footer>
-      <Button
-        type="submit"
-        variant="destructive"
-        onclick={() => {
-          stop_instance &&
-            instance_stop(stop_instance.profile_id, stop_instance.id);
-          stopOpen = false;
-        }}
-      >
-        Stop
-      </Button>
-    </Dialog.Footer>
-  </Dialog.Content>
-</Dialog.Root>
+<DestroyDialog
+  open={stopOpen}
+  title="Stop Instance"
+  description={`Are you sure you want to stop the instance of profile "${stop_instance?.profile_name}"?`}
+  btnText="Stop"
+  onclick={() => {
+    stop_instance && instance_stop(stop_instance.profile_id, stop_instance.id);
+    stopOpen = false;
+  }}
+/>

@@ -1,9 +1,9 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use anyhow::Result;
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use tauri::{AppHandle, Manager};
-use tokio::{fs, sync::Mutex};
+use tokio::sync::Mutex;
 
 use crate::{
   account::store::LaunchInfo,
@@ -13,20 +13,15 @@ use crate::{
       LoaderType, PlayHistoryFavoriteInfo, Profile, ProfileError, ProfileInfo, QuickPlayInfo,
       QuickPlayType,
     },
-    profile::create_profile,
     watcher::watch_profile,
-    PROFILE_CONFIG, PROFILE_DIR, PROFILE_IMAGE, PROFILE_LOGS, SAVES_DIR,
+    PROFILE_CONFIG,
   },
   store::TauriAppStoreExt,
   utils::{
-    dir::list_dirs_in_dir,
-    file::{read_parse_file, write_file},
+    file::read_parse_file,
     updater::{update_data, UpdateType},
   },
-  versions::{
-    launch::{launch_minecraft_version, LaunchArgs},
-    QUICK_PLAY,
-  },
+  versions::launch::{launch_minecraft_version, LaunchArgs},
 };
 
 use super::instance::{Instance, InstanceError, InstanceInfo};
@@ -63,41 +58,6 @@ impl ProfileStore {
     })
   }
 
-  pub fn log_dir(handle: &AppHandle, profile: &str) -> Result<PathBuf> {
-    Ok(path!(
-      handle.path().app_data_dir()?,
-      PROFILE_DIR,
-      profile,
-      PROFILE_LOGS
-    ))
-  }
-
-  fn save(&self) -> Result<()> {
-    let mut profiles = HashMap::new();
-    for (id, info) in &self.profiles {
-      profiles.insert(id.clone(), info.path.clone());
-    }
-
-    let store = self.handle.app_store()?;
-    store.set(Self::PROFILE_KEY, &profiles)
-  }
-
-  fn profile_info(&self, profile: &str) -> Result<&ProfileInfo> {
-    self
-      .profiles
-      .get(profile)
-      .ok_or(ProfileError::NotFound.into())
-  }
-
-  async fn saves_list(&self, profile: &str) -> Result<Vec<String>> {
-    let saves_path = path!(&self.data_dir, PROFILE_DIR, profile, SAVES_DIR);
-    if !saves_path.exists() {
-      return Ok(Vec::new());
-    }
-
-    Ok(list_dirs_in_dir(saves_path).await?)
-  }
-
   pub async fn create_profile(
     &mut self,
     name: String,
@@ -106,7 +66,7 @@ impl ProfileStore {
     loader: LoaderType,
     loader_version: Option<String>,
   ) -> Result<()> {
-    let (id, info) = create_profile(
+    let (id, info) = Profile::create(
       &self.data_dir,
       &self.handle,
       name,
@@ -119,26 +79,7 @@ impl ProfileStore {
     self.profiles.insert(id, info);
     self.save()?;
 
-    update_data(&self.handle, UpdateType::Profiles);
     Ok(())
-  }
-
-  pub async fn update_profile(&mut self, profile: &Profile) -> Result<()> {
-    let info = self.profile_info(&profile.id)?;
-    write_file(&path!(&self.data_dir, &info.path, PROFILE_CONFIG), profile).await?;
-
-    update_data(&self.handle, UpdateType::Profiles);
-    Ok(())
-  }
-
-  pub async fn get_profile_icon(&self, profile: &str) -> Result<Option<Vec<u8>>> {
-    let info = self.profile_info(profile)?;
-    let icon_path = path!(&self.data_dir, &info.path, PROFILE_IMAGE);
-    if !icon_path.exists() {
-      return Ok(None);
-    }
-    let icon = fs::read(icon_path).await?;
-    Ok(Some(icon))
   }
 
   pub fn get_profile_path(&self, profile: &str) -> Result<PathBuf> {
@@ -146,48 +87,23 @@ impl ProfileStore {
     Ok(path!(&self.data_dir, &info.path))
   }
 
-  pub async fn update_profile_icon(&mut self, profile: &str, icon: &[u8]) -> Result<()> {
-    if image::load_from_memory(icon).is_err() {
-      return Err(ProfileError::InvalidImage.into());
-    }
-
-    let info = self.profile_info(profile)?;
-    fs::write(&path!(&self.data_dir, &info.path, PROFILE_IMAGE), icon).await?;
-
-    update_data(&self.handle, UpdateType::Profiles);
-
-    Ok(())
-  }
-
   pub async fn remove_profile(&mut self, id: &str) -> Result<()> {
-    let info = self.profile_info(id)?;
+    let info = self.profile_info(id)?.clone();
 
-    info.watcher.notify_waiters();
-
-    fs::remove_dir_all(path!(&self.data_dir, &info.path)).await?;
+    self.profiles.remove(id);
     self.save()?;
 
-    update_data(&self.handle, UpdateType::Profiles);
-
+    info.remove_profile(&self.data_dir).await?;
     Ok(())
   }
 
-  pub fn list_profiles(&self) -> Result<Vec<Profile>> {
+  pub async fn list_profiles(&self) -> Result<Vec<Profile>> {
     let mut profiles = Vec::new();
     for info in self.profiles.values() {
-      profiles.push(read_parse_file(&path!(
-        &self.data_dir,
-        &info.path,
-        PROFILE_CONFIG
-      ))?);
+      profiles.push(read_parse_file(&path!(&self.data_dir, &info.path, PROFILE_CONFIG)).await?);
     }
 
     Ok(profiles)
-  }
-
-  pub fn get_profile(&self, profile: &str) -> Result<Profile> {
-    let info = self.profile_info(profile)?;
-    read_parse_file(&path!(&self.data_dir, &info.path, PROFILE_CONFIG))
   }
 
   pub async fn launch_profile(
@@ -209,95 +125,43 @@ impl ProfileStore {
       version: profile.version.clone(),
       working_sub_dir: profile.relative_to_data().display().to_string(),
       quick_play: quick_play.clone().map(|q| q.into()),
-    })?;
+    })
+    .await?;
 
     Instance::create(child, &self.handle, profile, &self.instances).await?;
 
     Ok(())
   }
 
-  pub async fn remove_history_entry(
-    &mut self,
-    profile: &str,
-    quick_play: Option<QuickPlayInfo>,
-  ) -> Result<()> {
-    let mut profile = self.get_profile(profile)?;
-    if let Some(quick_play) = quick_play {
-      if let Some(item) = profile.quick_play.iter_mut().find(|q| *q == &quick_play) {
-        item.history = false;
-      }
-    } else {
-      profile.history = false;
-    }
-
-    self.update_profile(&profile).await?;
-    Ok(())
+  pub async fn list_history(&mut self) -> Result<Vec<PlayHistoryFavoriteInfo>> {
+    self
+      .list_home_entries(|profile| profile.history, |quick_play| quick_play.history)
+      .await
   }
 
-  pub async fn clear_history(&mut self) -> Result<()> {
+  pub async fn list_favorites(&mut self) -> Result<Vec<PlayHistoryFavoriteInfo>> {
+    self
+      .list_home_entries(|profile| profile.favorite, |quick_play| quick_play.favorite)
+      .await
+  }
+
+  async fn list_home_entries(
+    &mut self,
+    profile_access: impl Fn(&Profile) -> bool,
+    quick_play_access: impl Fn(&QuickPlayInfo) -> bool,
+  ) -> Result<Vec<PlayHistoryFavoriteInfo>> {
+    let mut entries = Vec::new();
     let keys = self.profiles.keys().cloned().collect::<Vec<_>>();
     for profile in keys {
-      let mut profile = self.get_profile(&profile)?;
-      profile.history = false;
-      profile
-        .quick_play
-        .iter_mut()
-        .for_each(|q| q.history = false);
-      self.update_profile(&profile).await?;
-    }
-
-    Ok(())
-  }
-
-  pub async fn remove_favorite(
-    &mut self,
-    profile: &str,
-    quick_play: Option<QuickPlayInfo>,
-  ) -> Result<()> {
-    let mut profile = self.get_profile(profile)?;
-    if let Some(quick_play) = quick_play {
-      if let Some(item) = profile.quick_play.iter_mut().find(|q| *q == &quick_play) {
-        item.favorite = false;
-      }
-    } else {
-      profile.favorite = false;
-    }
-
-    self.update_profile(&profile).await?;
-    Ok(())
-  }
-
-  pub async fn add_favorite(
-    &mut self,
-    profile: &str,
-    quick_play: Option<QuickPlayInfo>,
-  ) -> Result<()> {
-    let mut profile = self.get_profile(profile)?;
-    if let Some(quick_play) = quick_play {
-      if let Some(item) = profile.quick_play.iter_mut().find(|q| *q == &quick_play) {
-        item.favorite = true;
-      }
-    } else {
-      profile.favorite = true;
-    }
-
-    self.update_profile(&profile).await?;
-    Ok(())
-  }
-
-  pub async fn list_history_entries(&mut self) -> Result<Vec<PlayHistoryFavoriteInfo>> {
-    let mut history = Vec::new();
-    let keys = self.profiles.keys().cloned().collect::<Vec<_>>();
-    for profile in keys {
-      let mut profile_info = self.get_profile(&profile)?;
-      if profile_info.history {
-        history.push(PlayHistoryFavoriteInfo {
+      let mut profile_info = self.profile(&profile).await?;
+      if profile_access(&profile_info) {
+        entries.push(PlayHistoryFavoriteInfo {
           profile: profile_info.clone(),
           quick_play: None,
         });
       }
 
-      let saves = self.saves_list(&profile).await?;
+      let saves = profile_info.list_saves(&self.data_dir).await?;
       let mut updated = false;
 
       for (i, quick_play) in profile_info.quick_play.clone().into_iter().enumerate() {
@@ -307,8 +171,8 @@ impl ProfileStore {
           continue;
         }
 
-        if quick_play.history {
-          history.push(PlayHistoryFavoriteInfo {
+        if quick_play_access(&quick_play) {
+          entries.push(PlayHistoryFavoriteInfo {
             profile: profile_info.clone(),
             quick_play: Some(quick_play.clone()),
           });
@@ -316,116 +180,22 @@ impl ProfileStore {
       }
 
       if updated {
-        self.update_profile(&profile_info).await?;
+        profile_info.update(&self.data_dir).await?;
+        self.update_data(UpdateType::ProfileQuickPlay);
       }
     }
 
-    history.sort_unstable_by_key(|i| {
+    entries.sort_unstable_by_key(|i| {
       if let Some(quick_play) = &i.quick_play {
         quick_play.last_played_time
       } else {
         i.profile.last_played.unwrap_or(Utc::now())
       }
     });
-    history.reverse();
-    history.truncate(12);
+    entries.reverse();
+    entries.truncate(12);
 
-    Ok(history)
-  }
-
-  pub async fn list_favorites(&mut self) -> Result<Vec<PlayHistoryFavoriteInfo>> {
-    let mut favorites = Vec::new();
-    let keys = self.profiles.keys().cloned().collect::<Vec<_>>();
-    for profile in keys {
-      let mut profile_info = self.get_profile(&profile)?;
-      if profile_info.favorite {
-        favorites.push(PlayHistoryFavoriteInfo {
-          profile: profile_info.clone(),
-          quick_play: None,
-        });
-      }
-
-      let saves = self.saves_list(&profile).await?;
-      let mut updated = false;
-
-      for (i, quick_play) in profile_info.quick_play.clone().into_iter().enumerate() {
-        if quick_play.r#type == QuickPlayType::Singleplayer && !saves.contains(&quick_play.id) {
-          profile_info.quick_play.remove(i);
-          updated = true;
-          continue;
-        }
-
-        if quick_play.favorite {
-          favorites.push(PlayHistoryFavoriteInfo {
-            profile: profile_info.clone(),
-            quick_play: Some(quick_play.clone()),
-          });
-        }
-      }
-
-      if updated {
-        self.update_profile(&profile_info).await?;
-      }
-    }
-
-    Ok(favorites)
-  }
-
-  pub async fn update_quick_play(&mut self, profile: &str) -> Result<()> {
-    let mut profile = self.get_profile(profile)?;
-    let quick_play_path = path!(&self.data_dir, &profile.relative_to_data(), QUICK_PLAY);
-
-    let quick_plays: Vec<QuickPlayInfo> = read_parse_file(&quick_play_path)?;
-
-    for quick_play in quick_plays {
-      let index = profile.quick_play.iter().position(|q| q == &quick_play);
-
-      if let Some(index) = index {
-        profile.quick_play[index].last_played_time = quick_play.last_played_time;
-        profile.quick_play[index].name = quick_play.name;
-      } else {
-        profile.quick_play.push(quick_play);
-      }
-    }
-
-    self.update_profile(&profile).await?;
-    update_data(&self.handle, UpdateType::ProfileQuickPlay);
-
-    Ok(())
-  }
-
-  pub async fn list_quick_play(&mut self, profile: &str) -> Result<Vec<QuickPlayInfo>> {
-    let saves = self.saves_list(profile).await?;
-    let mut profile = self.get_profile(profile)?;
-
-    let prev_len = profile.quick_play.len();
-    profile
-      .quick_play
-      .retain(|q| saves.contains(&q.id) || q.r#type != QuickPlayType::Singleplayer);
-
-    if profile.quick_play.len() < prev_len {
-      self.update_profile(&profile).await?;
-      update_data(&self.handle, UpdateType::ProfileQuickPlay);
-    }
-
-    Ok(profile.quick_play.clone())
-  }
-
-  pub async fn remove_quick_play(
-    &mut self,
-    profile: &str,
-    quick_play: QuickPlayInfo,
-  ) -> Result<()> {
-    let mut profile = self.get_profile(profile)?;
-    let index = profile.quick_play.iter().position(|q| q == &quick_play);
-
-    if let Some(index) = index {
-      let _ = profile.quick_play.remove(index);
-      self.update_profile(&profile).await?;
-      update_data(&self.handle, UpdateType::ProfileQuickPlay);
-    }
-
-    Ok(())
+    Ok(entries)
   }
 
   pub async fn list_instances(&self) -> Vec<InstanceInfo> {
@@ -433,7 +203,7 @@ impl ProfileStore {
     let mut res = Vec::new();
 
     for (profile, instances) in instances.iter() {
-      let profile_name = self.get_profile(profile).ok().map(|p| p.name);
+      let profile_name = self.profile(profile).await.ok().map(|p| p.name);
 
       let instances: Vec<InstanceInfo> = instances
         .iter()
@@ -478,54 +248,32 @@ impl ProfileStore {
     Ok(())
   }
 
-  pub async fn list_profile_runs(&self, profile: &str) -> Result<Vec<DateTime<Utc>>> {
-    let log_dir = Self::log_dir(&self.handle, profile)?;
-    if !log_dir.exists() {
-      return Ok(Vec::new());
-    }
-
-    let mut res = Vec::new();
-    let mut stream = fs::read_dir(log_dir).await?;
-    while let Some(entry) = stream.next_entry().await? {
-      if entry.file_type().await?.is_file() {
-        if let Some(name) = entry.file_name().to_str() {
-          // replace the last 3 dashes with colons but leave the rest of the name intact
-          let name = name.trim_end_matches(".log").replace("-", ":");
-          if let Ok(date) = DateTime::parse_from_str(&name, "%Y:%m:%dT%H:%M:%S.%f%:z") {
-            res.push(date.to_utc());
-          }
-        }
-      }
-    }
-
-    Ok(res)
+  pub fn data_dir(&self) -> &PathBuf {
+    &self.data_dir
   }
 
-  pub async fn clear_profile_logs(&self, profile: &str) -> Result<()> {
-    let log_dir = Self::log_dir(&self.handle, profile)?;
-    if !log_dir.exists() {
-      return Ok(());
+  fn save(&self) -> Result<()> {
+    let mut profiles = HashMap::new();
+    for (id, info) in &self.profiles {
+      profiles.insert(id.clone(), info.path.clone());
     }
 
-    fs::remove_dir_all(log_dir.clone()).await?;
-    fs::create_dir_all(log_dir).await?;
-
-    Ok(())
+    let store = self.handle.app_store()?;
+    store.set(Self::PROFILE_KEY, &profiles)
   }
 
-  pub async fn profile_logs(&self, profile: &str, timestamp: DateTime<Utc>) -> Result<Vec<String>> {
-    let log_dir = Self::log_dir(&self.handle, profile)?;
-    if !log_dir.exists() {
-      return Ok(Vec::new());
-    }
+  pub fn profile_info(&self, profile: &str) -> Result<&ProfileInfo> {
+    self
+      .profiles
+      .get(profile)
+      .ok_or(ProfileError::NotFound.into())
+  }
 
-    let log_file = log_dir.join(format!("{}.log", timestamp.to_rfc3339().replace(":", "-")));
-    println!("Log file path: {:?}", log_file.to_str());
-    if !log_file.exists() {
-      return Ok(Vec::new());
-    }
+  pub async fn profile(&self, profile: &str) -> Result<Profile> {
+    self.profile_info(profile)?.profile(&self.data_dir).await
+  }
 
-    let content = fs::read_to_string(log_file).await?;
-    Ok(content.lines().map(String::from).collect())
+  pub fn update_data(&self, r#type: UpdateType) {
+    update_data(&self.handle, r#type);
   }
 }

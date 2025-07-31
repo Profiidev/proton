@@ -10,6 +10,7 @@
   import { compareDateTimes } from '$lib/util.svelte';
   import { goto } from '$app/navigation';
   import { DateTime } from 'positron-components/util';
+  import DestroyDialog from '$lib/components/form/DestroyDialog.svelte';
 
   let profile = $derived(getProfile());
   let instances = $derived(instance_list.value);
@@ -57,26 +58,13 @@
     </p>
   {/if}
 </div>
-<Dialog.Root bind:open={stopOpen}>
-  <Dialog.Content>
-    <Dialog.Header>
-      <Dialog.Title>Stop Instance</Dialog.Title>
-      <Dialog.Description>
-        Are you sure you want to stop this instance?
-      </Dialog.Description>
-    </Dialog.Header>
-    <Dialog.Footer>
-      <Button
-        type="submit"
-        variant="destructive"
-        onclick={() => {
-          stop_instance &&
-            instance_stop(stop_instance.profile_id, stop_instance.id);
-          stopOpen = false;
-        }}
-      >
-        Stop
-      </Button>
-    </Dialog.Footer>
-  </Dialog.Content>
-</Dialog.Root>
+<DestroyDialog
+  bind:open={stopOpen}
+  title="Stop Instance"
+  description="Are you sure you want to stop this instance?"
+  btnText="Stop"
+  onclick={() => {
+    stop_instance && instance_stop(stop_instance.profile_id, stop_instance.id);
+    stopOpen = false;
+  }}
+/>

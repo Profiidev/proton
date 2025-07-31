@@ -1,5 +1,6 @@
 use std::{path::PathBuf, sync::Arc};
 
+use anyhow::Result;
 use notify::{Config, Event, EventKind, RecommendedWatcher, Watcher};
 use tauri::{
   async_runtime::{block_on, channel, spawn, Receiver},
@@ -10,7 +11,11 @@ use tokio::{
   sync::{Mutex, Notify},
 };
 
-use crate::{profiles::store::ProfileStore, utils::log::ResultLogExt, versions::QUICK_PLAY};
+use crate::{
+  profiles::store::ProfileStore,
+  utils::{log::ResultLogExt, updater::UpdateType},
+  versions::QUICK_PLAY,
+};
 
 fn async_watcher(config: Config) -> notify::Result<(RecommendedWatcher, Receiver<Event>)> {
   let (tx, rx) = channel(10);
@@ -29,11 +34,7 @@ fn async_watcher(config: Config) -> notify::Result<(RecommendedWatcher, Receiver
   Ok((watcher, rx))
 }
 
-pub fn watch_profile(
-  path: PathBuf,
-  profile: String,
-  app: AppHandle,
-) -> notify::Result<Arc<Notify>> {
+pub fn watch_profile(path: PathBuf, profile: String, app: AppHandle) -> Result<Arc<Notify>> {
   let config = Config::default();
   let (mut watcher, mut rx) = async_watcher(config)?;
 
@@ -41,6 +42,7 @@ pub fn watch_profile(
 
   let stop = Arc::new(Notify::new());
   let stop_clone = stop.clone();
+  let data_dir = app.path().app_data_dir()?;
 
   spawn(async move {
     loop {
@@ -60,8 +62,12 @@ pub fn watch_profile(
       if let EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_) = event.kind {
         if event.paths.iter().any(|p| p.ends_with(QUICK_PLAY)) {
           let store = app.state::<Mutex<ProfileStore>>();
-          let mut store = store.lock().await;
-          let _ = store.update_quick_play(&profile).await.log();
+          let store = store.lock().await;
+          if let Ok(mut info) = store.profile(&profile).await.log() {
+            let _ = info.update_quick_play(&data_dir).await.log();
+            let _ = info.update(&data_dir).await.log();
+            store.update_data(UpdateType::ProfileQuickPlay);
+          }
         }
       }
     }

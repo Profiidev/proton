@@ -39,6 +39,7 @@ const JAVA_VERSION_MANIFEST_URL: &str =
 
 const MANIFEST_NAME: &str = "manifest.json";
 
+#[derive(Clone)]
 pub struct McVersionStore {
   mc_manifest: Manifest,
   java_manifest: JavaVersions,
