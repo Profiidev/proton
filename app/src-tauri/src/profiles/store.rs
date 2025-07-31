@@ -371,7 +371,8 @@ impl ProfileStore {
       let index = profile.quick_play.iter().position(|q| q == &quick_play);
 
       if let Some(index) = index {
-        profile.quick_play[index] = quick_play;
+        profile.quick_play[index].last_played_time = quick_play.last_played_time;
+        profile.quick_play[index].name = quick_play.name;
       } else {
         profile.quick_play.push(quick_play);
       }

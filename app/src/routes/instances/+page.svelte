@@ -71,7 +71,7 @@
             ? profile_filter.includes(p.profile_id)
             : true)
       )
-      .sort((a, b) => compareDateTimes(a.launched_at, b.launched_at))
+      .toSorted((a, b) => compareDateTimes(a.launched_at, b.launched_at))
   );
   let filtered_versions = $derived(
     versions?.filter((v) => instances?.some((p) => p.version === v.value))

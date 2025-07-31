@@ -78,7 +78,7 @@ export interface QuickPlayInfo {
 
 export interface PlayHistoryFavorite {
   profile: Profile;
-  quickPlay?: QuickPlayInfo;
+  quick_play?: QuickPlayInfo;
 }
 
 const parseError = (e: string) => {
@@ -228,7 +228,7 @@ const profile_history_list_ = async (): Promise<
 };
 export const profile_history_list = create_data_state(
   profile_history_list_,
-  UpdateType.ProfileHistory
+  UpdateType.Profiles
 );
 
 export const profile_history_remove = async (
@@ -262,7 +262,7 @@ const profile_favorites_list_ = async (): Promise<
 };
 export const profile_favorites_list = create_data_state(
   profile_favorites_list_,
-  UpdateType.ProfileFavorites
+  UpdateType.Profiles
 );
 
 export const profile_favorites_add = async (

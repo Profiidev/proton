@@ -164,7 +164,7 @@ pub async fn profile_launch(
       .iter_mut()
       .find(|q| q.id == quick_play.id && q.r#type == quick_play.r#type)
     {
-      // last_played time is updated via the dir watcher
+      item.last_played_time = Utc::now();
       item.history = true;
     }
   } else {
