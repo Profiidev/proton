@@ -135,7 +135,10 @@
               stop_instance = instance;
               stopOpen = true;
             }}
-            item={instance}
+            item={{
+              ...instance,
+              name: instance.profile_name
+            }}
             innerIcon={CircleStop}
             innerVariant="destructive"
           />

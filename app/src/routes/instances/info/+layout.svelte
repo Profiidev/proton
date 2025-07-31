@@ -17,7 +17,7 @@
   let stopOpen = $state(false);
 
   $effect(() => {
-    if (instance === null) {
+    if (instance === undefined) {
       goto('/instances');
     } else if (instance) {
       setInstance(instance);
