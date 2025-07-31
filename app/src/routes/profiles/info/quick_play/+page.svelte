@@ -59,7 +59,9 @@
       ? 'singleplayer'
       : multiplayer?.length
         ? 'multiplayer'
-        : 'realms'}
+        : realms?.length
+          ? 'realms'
+          : 'singleplayer'}
   >
     <Tabs.List>
       <Tabs.Trigger value="singleplayer">Singleplayer</Tabs.Trigger>
