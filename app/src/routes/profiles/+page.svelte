@@ -3,7 +3,7 @@
     profile_create,
     profile_launch,
     profile_list,
-    ProfileError,
+    ProfileError
   } from '$lib/tauri/profile.svelte';
   import {
     FormDialog,
