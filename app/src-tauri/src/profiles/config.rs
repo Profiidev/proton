@@ -12,7 +12,7 @@ pub struct ProfileInfo {
   pub watcher: Arc<Notify>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Profile {
   pub id: String,
   pub name: String,
@@ -39,6 +39,18 @@ impl Profile {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PlayHistoryFavorite {
+  pub profile: String,
+  pub quick_play: Option<QuickPlayInfo>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PlayHistoryFavoriteInfo {
+  pub profile: Profile,
+  pub quick_play: Option<QuickPlayInfo>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum QuickPlayInfo {
   Singleplayer {
@@ -92,13 +104,13 @@ pub struct ProfileUpdate {
   pub version: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GameSettings {
   pub width: usize,
   pub height: usize,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JvmSettings {
   pub args: Vec<String>,
   pub env_vars: HashMap<String, String>,
@@ -106,7 +118,7 @@ pub struct JvmSettings {
   pub mem_max: usize,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DevSettings {
   pub show_console: bool,
   pub keep_console_open: bool,
