@@ -320,6 +320,16 @@ impl ProfileStore {
       }
     }
 
+    history.sort_unstable_by_key(|i| {
+      if let Some(quick_play) = &i.quick_play {
+        quick_play.last_played_time
+      } else {
+        i.profile.last_played.unwrap_or(Utc::now())
+      }
+    });
+    history.reverse();
+    history.truncate(12);
+
     Ok(history)
   }
 
