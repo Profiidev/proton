@@ -179,7 +179,7 @@ pub async fn profile_launch(
       item.history = true;
     }
   } else {
-    profile.history = true;
+    profile.last_played_non_quick_play = Some(Utc::now());
   }
   profile.update(store.data_dir()).await.log()?;
   store.update_data(UpdateType::Profiles);

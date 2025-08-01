@@ -16,8 +16,8 @@ export interface Profile {
   name: string;
   created_at: string;
   last_played?: string;
+  last_played_non_quick_play?: string;
   favorite: boolean;
-  history: boolean;
   version: string;
   loader: LoaderType;
   loader_version?: string;

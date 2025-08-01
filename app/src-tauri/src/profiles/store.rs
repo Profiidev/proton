@@ -135,7 +135,10 @@ impl ProfileStore {
 
   pub async fn list_history(&mut self) -> Result<Vec<PlayHistoryFavoriteInfo>> {
     self
-      .list_home_entries(|profile| profile.history, |quick_play| quick_play.history)
+      .list_home_entries(
+        |profile| profile.last_played_non_quick_play.is_some(),
+        |quick_play| quick_play.history,
+      )
       .await
   }
 

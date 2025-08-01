@@ -20,9 +20,9 @@ pub struct Profile {
   pub created_at: DateTime<Utc>,
   pub last_played: Option<DateTime<Utc>>,
   #[serde(default)]
-  pub favorite: bool,
+  pub last_played_non_quick_play: Option<DateTime<Utc>>,
   #[serde(default)]
-  pub history: bool,
+  pub favorite: bool,
   #[serde(default)]
   pub quick_play: Vec<QuickPlayInfo>,
   pub version: String,
