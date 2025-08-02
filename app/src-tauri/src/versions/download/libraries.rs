@@ -8,13 +8,11 @@ use zip::ZipArchive;
 
 use crate::{
   path,
-  utils::{
-    file::{create_or_open_file_std, download_file, file_hash},
-    future::FuturePool,
-  },
+  utils::file::{create_or_open_file_std, download_file, file_hash},
   versions::{
     check_rule,
-    event::{emit_download_check_status, DownloadCheckStatus},
+    download::{check_pool, download_pool},
+    event::DownloadCheckStatus,
     meta::{java::Component, minecraft::Version},
     JAVA_DIR, LIBRARY_DIR, MC_DIR,
   },
@@ -106,84 +104,48 @@ pub async fn check_download_version_java_libraries(
     "Got {} checks for java libraries",
     futures_1.len() + futures_2.len()
   );
-  let pool_1 = FuturePool::new(futures_1);
-  let pool_2 = FuturePool::new(futures_2);
-
-  let res = pool_1
-    .run(None, |done, total| {
-      emit_download_check_status(
-        handle,
-        DownloadCheckStatus::NativeLibraryCheck(done, total),
-        update_id,
-      )
-    })
-    .await;
-
-  let mut futures = Vec::new();
-  for result in res {
-    if let Some(fut) = result?? {
-      futures.push(fut);
-    }
-  }
+  let futures = check_pool(
+    futures_1,
+    handle,
+    update_id,
+    DownloadCheckStatus::NativeLibraryCheck,
+  )
+  .await?;
   debug!("Completed all checks for native java libraries");
 
   debug!("Downloading {} native java libraries", futures.len());
   let now = Instant::now();
-  let pool = FuturePool::new(futures);
-
-  let res = pool
-    .run(None, |done, total| {
-      emit_download_check_status(
-        handle,
-        DownloadCheckStatus::NativeLibraryDownload(done, total),
-        update_id,
-      )
-    })
-    .await;
-
-  for result in res {
-    result??;
-  }
+  download_pool(
+    futures,
+    handle,
+    update_id,
+    DownloadCheckStatus::NativeLibraryDownload,
+  )
+  .await?;
   debug!(
     "Completed all downloads for native java libraries in {:?}",
     now.elapsed()
   );
 
   debug!("Checking java libraries");
-  let res = pool_2
-    .run(None, |done, total| {
-      emit_download_check_status(
-        handle,
-        DownloadCheckStatus::LibraryCheck(done, total),
-        update_id,
-      )
-    })
-    .await;
-
-  let mut futures = Vec::new();
-  for result in res {
-    if let Some(fut) = result?? {
-      futures.push(fut);
-    }
-  }
+  let futures = check_pool(
+    futures_2,
+    handle,
+    update_id,
+    DownloadCheckStatus::LibraryCheck,
+  )
+  .await?;
   debug!("Completed all checks for java libraries");
 
   debug!("Downloading {} java libraries", futures.len());
   let now = Instant::now();
-  let pool = FuturePool::new(futures);
-
-  let res = pool
-    .run(None, |done, total| {
-      emit_download_check_status(
-        handle,
-        DownloadCheckStatus::LibraryDownload(done, total),
-        update_id,
-      )
-    })
-    .await;
-  for result in res {
-    result??;
-  }
+  download_pool(
+    futures,
+    handle,
+    update_id,
+    DownloadCheckStatus::LibraryDownload,
+  )
+  .await?;
   debug!(
     "Completed all downloads for java libraries in {:?}",
     now.elapsed()

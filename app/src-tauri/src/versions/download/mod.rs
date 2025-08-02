@@ -1,19 +1,24 @@
-use std::path::PathBuf;
+use std::{future::Future, path::PathBuf};
 
 use anyhow::Result;
 use reqwest::Client;
 use tauri::AppHandle;
 use thiserror::Error;
 
-use crate::versions::{
-  download::{
-    assets::check_download_version_assets,
-    java::check_download_java_files,
-    libraries::check_download_version_java_libraries,
-    manifest::{check_assets_manifest, check_client, check_java_manifest, check_version_manifest},
+use crate::{
+  utils::future::FuturePool,
+  versions::{
+    download::{
+      assets::check_download_version_assets,
+      java::check_download_java_files,
+      libraries::check_download_version_java_libraries,
+      manifest::{
+        check_assets_manifest, check_client, check_java_manifest, check_version_manifest,
+      },
+    },
+    event::{emit_download_check_status, DownloadCheckStatus},
+    meta::{java::PlatformVersion, minecraft::ManifestVersion},
   },
-  event::{emit_download_check_status, DownloadCheckStatus},
-  meta::{java::PlatformVersion, minecraft::ManifestVersion},
 };
 
 mod assets;
@@ -86,6 +91,61 @@ pub async fn check_download_version(
   .await?;
 
   emit_download_check_status(handle, DownloadCheckStatus::Done, update_id);
+
+  Ok(())
+}
+
+async fn check_pool<S, F, O>(
+  futures: Vec<F>,
+  handle: &AppHandle,
+  update_id: usize,
+  status: S,
+) -> Result<Vec<O>>
+where
+  S: Fn(usize, usize) -> DownloadCheckStatus,
+  F: Future<Output = Result<Option<O>>> + Send + 'static,
+  O: Send + 'static,
+{
+  let pool = FuturePool::new(futures);
+
+  let res = pool
+    .run(None, |done, total| {
+      emit_download_check_status(handle, status(done, total), update_id)
+    })
+    .await;
+
+  let mut futures = Vec::new();
+  for result in res {
+    if let Some(fut) = result?? {
+      futures.push(fut);
+    }
+  }
+
+  Ok(futures)
+}
+
+async fn download_pool<S, F, O>(
+  futures: Vec<F>,
+  handle: &AppHandle,
+  update_id: usize,
+  status: S,
+) -> Result<()>
+where
+  S: Fn(usize, usize) -> DownloadCheckStatus,
+  F: Future<Output = Result<O>> + Send + 'static,
+  O: Send + 'static,
+{
+  let pool = FuturePool::new(futures);
+
+  let res = pool
+    .run(None, |done, total| {
+      emit_download_check_status(handle, status(done, total), update_id)
+    })
+    .await;
+
+  for result in res {
+    result??;
+  }
 
   Ok(())
 }

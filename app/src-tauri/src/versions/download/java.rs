@@ -8,9 +8,10 @@ use tokio::fs;
 
 use crate::{
   path,
-  utils::{file::{download_file, file_hash}, future::FuturePool},
+  utils::file::{download_file, file_hash},
   versions::{
-    event::{emit_download_check_status, DownloadCheckStatus},
+    download::{check_pool, download_pool},
+    event::DownloadCheckStatus,
     meta::java::{self, Component, Files},
     JAVA_DIR,
   },
@@ -62,43 +63,18 @@ pub async fn check_download_java_files(
   }
 
   debug!("Got {} checks for java", futures.len());
-  let pool = FuturePool::new(futures);
-
-  let res = pool
-    .run(None, |done, total| {
-      emit_download_check_status(
-        handle,
-        DownloadCheckStatus::JavaCheck(done, total),
-        update_id,
-      )
-    })
-    .await;
-
-  let mut futures = Vec::new();
-  for result in res {
-    if let Some(fut) = result?? {
-      futures.push(fut);
-    }
-  }
+  let futures = check_pool(futures, handle, update_id, DownloadCheckStatus::JavaCheck).await?;
   debug!("Completed all checks for java in");
 
   debug!("Downloading {} java files", futures.len());
   let now = Instant::now();
-  let pool = FuturePool::new(futures);
-
-  let res = pool
-    .run(None, |done, total| {
-      emit_download_check_status(
-        handle,
-        DownloadCheckStatus::JavaDownload(done, total),
-        update_id,
-      )
-    })
-    .await;
-
-  for result in res {
-    result??;
-  }
+  download_pool(
+    futures,
+    handle,
+    update_id,
+    DownloadCheckStatus::JavaDownload,
+  )
+  .await?;
   debug!("Completed all downloads for java in {:?}", now.elapsed());
 
   Ok(())
