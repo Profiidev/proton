@@ -69,7 +69,10 @@ pub async fn download_and_parse_file_no_hash<R: DeserializeOwned>(
 }
 
 pub async fn file_hash(hash: &str, path: &PathBuf) -> Result<bool> {
-  let mut file = File::open(path).await?.into_std().await;
+  let Ok(file) = File::open(path).await else {
+    return Ok(false);
+  };
+  let mut file = file.into_std().await;
   let found_hash = spawn_blocking(move || {
     let mut hasher = Sha1::new();
     std::io::copy(&mut file, &mut hasher)?;

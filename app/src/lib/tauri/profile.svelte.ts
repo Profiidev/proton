@@ -210,27 +210,49 @@ const launch_repair = async (
 const get_message = (event: VersionCheckStatus): string | undefined => {
   if (typeof event === 'string') {
     switch (event) {
-      case 'Client':
-        return 'assets';
+      case 'VersionManifestCheck':
+        return 'Checking version manifest';
+      case 'VersionManifestDownload':
+        return 'Downloading version manifest';
+      case 'AssetsManifestCheck':
+        return 'Checking assets manifest';
+      case 'AssetsManifestDownload':
+        return 'Downloading assets manifest';
+      case 'JavaManifestCheck':
+        return 'Checking java manifest';
+      case 'JavaManifestDownload':
+        return 'Downloading java manifest';
+      case 'ClientCheck':
+        return 'Checking client jar';
+      case 'ClientDownload':
+        return 'Downloading client jar';
       case 'Done':
-        return undefined;
+        return undefined; // No message for done
     }
-  } else if ('Manifest' in event) {
-    return event.Manifest === 3
-      ? 'client'
-      : `version manifests ${event.Manifest}/3`;
-  } else if ('Assets' in event) {
-    let [done, total] = event.Assets;
-    return done === total ? 'java files' : `assets ${done}/${total}`;
-  } else if ('Java' in event) {
-    let [done, total] = event.Java;
-    return done === total ? 'native libraries' : `java files ${done}/${total}`;
-  } else if ('NativeLibrary' in event) {
-    let [done, total] = event.NativeLibrary;
-    return done === total ? 'libraries' : `native libraries ${done}/${total}`;
-  } else if ('Library' in event) {
-    let [done, total] = event.Library;
-    return `libraries ${done}/${total}`;
+  } else if ('AssetsCheck' in event) {
+    let [done, total] = event.AssetsCheck;
+    return `Checked ${done} of ${total} assets`;
+  } else if ('AssetsDownload' in event) {
+    let [done, total] = event.AssetsDownload;
+    return `Downloaded ${done} of ${total} assets`;
+  } else if ('JavaCheck' in event) {
+    let [done, total] = event.JavaCheck;
+    return `Checked ${done} of ${total} java files`;
+  } else if ('JavaDownload' in event) {
+    let [done, total] = event.JavaDownload;
+    return `Downloaded ${done} of ${total} java files`;
+  } else if ('NativeLibraryCheck' in event) {
+    let [done, total] = event.NativeLibraryCheck;
+    return `Checked ${done} of ${total} native libraries`;
+  } else if ('NativeLibraryDownload' in event) {
+    let [done, total] = event.NativeLibraryDownload;
+    return `Downloaded ${done} of ${total} native libraries`;
+  } else if ('LibraryCheck' in event) {
+    let [done, total] = event.LibraryCheck;
+    return `Checked ${done} of ${total} libraries`;
+  } else if ('LibraryDownload' in event) {
+    let [done, total] = event.LibraryDownload;
+    return `Downloaded ${done} of ${total} libraries`;
   }
 };
 
@@ -244,7 +266,7 @@ if (browser) {
     if (message) {
       check_toasts.set(
         event.id,
-        toast.loading(`Downloading/Checking ${message}`, {
+        toast.loading(message, {
           id,
           duration: TOAST_DURATION
         })

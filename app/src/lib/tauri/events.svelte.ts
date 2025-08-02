@@ -8,25 +8,38 @@ export enum LoginStatus {
 export const ACCOUNT_LOGIN_STATUS_EVENT = 'account-login-status';
 
 export type VersionCheckStatus =
+  | 'VersionManifestCheck'
+  | 'VersionManifestDownload'
+  | 'AssetsManifestCheck'
+  | 'AssetsManifestDownload'
+  | 'JavaManifestCheck'
+  | 'JavaManifestDownload'
+  | 'ClientCheck'
+  | 'ClientDownload'
   | {
-      Manifest: number;
+      AssetsCheck: [number, number];
     }
   | {
-      Assets: [number, number];
+      AssetsDownload: [number, number];
     }
   | {
-      Java: [number, number];
+      JavaCheck: [number, number];
     }
   | {
-      NativeLibrary: [number, number];
+      JavaDownload: [number, number];
     }
   | {
-      Library: [number, number];
+      NativeLibraryCheck: [number, number];
     }
   | {
-      Java: [number, number];
+      NativeLibraryDownload: [number, number];
     }
-  | 'Client'
+  | {
+      LibraryCheck: [number, number];
+    }
+  | {
+      LibraryDownload: [number, number];
+    }
   | 'Done';
 
 export type VersionCheckData = {
