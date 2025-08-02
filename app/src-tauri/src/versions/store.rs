@@ -1,7 +1,7 @@
-use std::{path::PathBuf, sync::Arc, time::Instant};
+use std::{sync::Arc, time::Instant};
 
 use anyhow::Result;
-use log::{debug, info};
+use log::info;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, Url};
@@ -10,24 +10,20 @@ use tokio::join;
 use crate::{
   path,
   utils::{
-    file::{
-      download_and_parse_file, download_and_parse_file_no_hash,
-      download_and_parse_file_no_hash_force, file_hash,
-    },
+    file::{download_and_parse_file_no_hash, download_and_parse_file_no_hash_force, file_hash},
     updater::{update_data, UpdateType},
   },
-  versions::event::CheckStatus,
+  versions::{
+    download::check_download_version,
+    event::{emit_download_check_status, DownloadCheckStatus},
+  },
 };
 
 use super::{
-  download::{
-    download_assets_manifest, download_client, download_java_files, download_version_assets,
-    download_version_java_libraries, DownloadError,
-  },
-  event::emit_check_status,
+  download::DownloadError,
   meta::{
-    java::{Component, Files, JavaVersions},
-    minecraft::{Manifest, Version, VersionType},
+    java::JavaVersions,
+    minecraft::{Manifest, VersionType},
   },
   JAVA_DIR, MC_DIR, VERSION_DIR,
 };
@@ -124,36 +120,23 @@ impl McVersionStore {
     let start = Instant::now();
     info!("Checking minecraft version {version}");
     let data_dir = self.handle.path().app_data_dir()?;
-    let version = self.get_version_manifest(version, &data_dir).await?;
-    emit_check_status(&self.handle, CheckStatus::Manifest(1), id);
-    let assets = download_assets_manifest(&data_dir, &self.client, &version).await?;
-    emit_check_status(&self.handle, CheckStatus::Manifest(2), id);
-    let (java, java_component) = self.get_java_manifest(&data_dir, &version).await?;
-    emit_check_status(&self.handle, CheckStatus::Manifest(3), id);
 
-    download_client(&data_dir, &self.client, &version).await?;
-    emit_check_status(&self.handle, CheckStatus::Client, id);
-    download_version_assets(self.client.clone(), &data_dir, &assets, &self.handle, id).await?;
-    download_java_files(
-      self.client.clone(),
-      &data_dir,
-      &java,
-      java_component,
-      &self.handle,
-      id,
-    )
-    .await?;
-    download_version_java_libraries(
-      self.client.clone(),
-      &data_dir,
-      &version,
-      &self.handle,
-      java_component,
-      id,
-    )
-    .await?;
+    let mc = self
+      .mc_manifest
+      .versions
+      .iter()
+      .find(|v| v.id == version)
+      .ok_or(DownloadError::NotFound)?;
 
-    emit_check_status(&self.handle, CheckStatus::Done, id);
+    #[cfg(target_os = "linux")]
+    let java = &self.java_manifest.linux;
+    #[cfg(target_os = "windows")]
+    let java = &self.java_manifest.windows_x64;
+    #[cfg(target_os = "macos")]
+    let java = &self.java_manifest.mac_os;
+
+    check_download_version(mc, java, &data_dir, &self.client, &self.handle, id).await?;
+
     info!(
       "Finished checking minecraft version {} in {:?}",
       id,
@@ -180,67 +163,10 @@ impl McVersionStore {
     );
     let ok = file_hash(&manifest_version.sha1, &path).await?;
     if ok {
-      emit_check_status(&self.handle, CheckStatus::Done, id);
+      emit_download_check_status(&self.handle, DownloadCheckStatus::Done, id);
     }
 
     Ok(ok)
-  }
-
-  async fn get_version_manifest(&self, id: &str, data_dir: &PathBuf) -> Result<Version> {
-    let manifest_version = self
-      .mc_manifest
-      .versions
-      .iter()
-      .find(|v| v.id == id)
-      .ok_or(DownloadError::NotFound)?;
-
-    let path = path!(data_dir, MC_DIR, VERSION_DIR, id, format!("{}.json", id));
-    debug!("Checking minecraft manifest for version {id}");
-    download_and_parse_file(
-      &self.client,
-      &path,
-      manifest_version.url.clone(),
-      &manifest_version.sha1,
-    )
-    .await
-  }
-
-  async fn get_java_manifest(
-    &self,
-    data_dir: &PathBuf,
-    version: &Version,
-  ) -> Result<(Files, Component)> {
-    let java_version = &version.java_version;
-    #[cfg(target_os = "linux")]
-    let version = &self.java_manifest.linux;
-    #[cfg(target_os = "windows")]
-    let version = &self.java_manifest.windows_x64;
-    #[cfg(target_os = "macos")]
-    let version = &self.java_manifest.mac_os;
-    let java_component = &java_version.component;
-
-    let list = match java_component {
-      Component::JavaRuntimeAlpha => &version.java_runtime_alpha,
-      Component::JavaRuntimeBeta => &version.java_runtime_beta,
-      Component::JavaRuntimeDelta => &version.java_runtime_delta,
-      Component::JavaRuntimeGamma => &version.java_runtime_gamma,
-      Component::JavaRuntimeGammaSnapshot => &version.java_runtime_gamma_snapshot,
-      Component::JreLegacy => &version.jre_legacy,
-      _ => return Err(DownloadError::NotSupported.into()),
-    };
-    let Some(version) = list.first() else {
-      return Err(DownloadError::NotSupported.into());
-    };
-
-    let id = java_component.to_string();
-    let path = path!(data_dir, JAVA_DIR, &id, format!("{}.json", &id));
-
-    let download = &version.manifest;
-    debug!("Checking java manifest for version {id}");
-    let files =
-      download_and_parse_file(&self.client, &path, download.url.clone(), &download.sha1).await?;
-
-    Ok((files, *java_component))
   }
 
   pub fn list_versions(&self) -> Vec<String> {

@@ -8,7 +8,7 @@ use log::debug;
 use reqwest::Client;
 use serde::{de::DeserializeOwned, Serialize};
 use sha1::{Digest, Sha1};
-use tauri::Url;
+use tauri::{async_runtime::spawn_blocking, Url};
 use thiserror::Error;
 use tokio::fs::{self, File};
 
@@ -50,30 +50,6 @@ pub async fn download_file_no_hash(client: &Client, path: &PathBuf, url: Url) ->
   Ok(bytes.to_vec())
 }
 
-pub async fn download_file(
-  client: &Client,
-  path: &PathBuf,
-  url: Url,
-  hash: &str,
-) -> Result<Vec<u8>> {
-  if File::open(path).await.is_ok() && file_hash(hash, path).await? {
-    return Ok(fs::read(path).await?);
-  }
-
-  debug!("Downloading file: {}", url.as_str());
-  let bytes = client.get(url).send().await?.bytes().await?;
-  if !hash_bytes(hash, &bytes)? {
-    return Err(FileError::HashMismatch.into());
-  }
-
-  if let Some(parent) = path.parent() {
-    fs::create_dir_all(parent).await?;
-  }
-  fs::write(path, &bytes).await?;
-
-  Ok(bytes.to_vec())
-}
-
 pub async fn download_and_parse_file_no_hash_force<R: DeserializeOwned>(
   client: &Client,
   path: &PathBuf,
@@ -92,21 +68,14 @@ pub async fn download_and_parse_file_no_hash<R: DeserializeOwned>(
   Ok(serde_json::from_slice(&data)?)
 }
 
-pub async fn download_and_parse_file<R: DeserializeOwned>(
-  client: &Client,
-  path: &PathBuf,
-  url: Url,
-  hash: &str,
-) -> Result<R> {
-  let data = download_file(client, path, url, hash).await?;
-  Ok(serde_json::from_slice(&data)?)
-}
-
 pub async fn file_hash(hash: &str, path: &PathBuf) -> Result<bool> {
   let mut file = File::open(path).await?.into_std().await;
-  let mut hasher = Sha1::new();
-  std::io::copy(&mut file, &mut hasher)?;
-  let found_hash = hex::encode(hasher.finalize());
+  let found_hash = spawn_blocking(move || {
+    let mut hasher = Sha1::new();
+    std::io::copy(&mut file, &mut hasher)?;
+    Ok::<_, std::io::Error>(hex::encode(hasher.finalize()))
+  })
+  .await??;
   Ok(hash == found_hash)
 }
 
@@ -135,10 +104,39 @@ pub async fn write_file<T: Serialize>(path: &PathBuf, data: &T) -> Result<()> {
   Ok(())
 }
 
-pub async fn create_or_open_file(path: &PathBuf) -> Result<File> {
+pub fn create_or_open_file_std(path: &PathBuf) -> Result<std::fs::File> {
   let path = Path::new(path);
+  if let Some(parent) = path.parent() {
+    std::fs::create_dir_all(parent)?;
+  }
+  Ok(std::fs::File::create(path)?)
+}
+
+pub async fn download_file(
+  client: &Client,
+  path: &PathBuf,
+  url: Url,
+  hash: &str,
+) -> Result<Vec<u8>> {
+  let bytes = client.get(url).send().await?.bytes().await?;
+  if !hash_bytes(hash, &bytes)? {
+    return Err(FileError::HashMismatch.into());
+  }
+
   if let Some(parent) = path.parent() {
     fs::create_dir_all(parent).await?;
   }
-  Ok(File::create(path).await?)
+  fs::write(path, &bytes).await?;
+
+  Ok(bytes.to_vec())
+}
+
+pub async fn download_and_parse_file<R: DeserializeOwned>(
+  client: &Client,
+  path: &PathBuf,
+  url: Url,
+  hash: &str,
+) -> Result<R> {
+  let data = download_file(client, path, url, hash).await?;
+  Ok(serde_json::from_slice(&data)?)
 }
