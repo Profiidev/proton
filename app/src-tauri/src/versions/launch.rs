@@ -9,6 +9,7 @@ use crate::{
   utils::file::read_parse_file,
   versions::{
     check_feature,
+    loader::Loader,
     meta::{minecraft::ArgumentValue, Features},
     QUICK_PLAY,
   },
@@ -38,6 +39,7 @@ pub struct LaunchArgs {
   pub version: String,
   pub working_sub_dir: String,
   pub quick_play: Option<QuickPlay>,
+  pub loader: Option<Box<dyn Loader>>,
 }
 
 pub enum QuickPlay {
@@ -47,9 +49,10 @@ pub enum QuickPlay {
 }
 
 impl LaunchArgs {
-  fn replace_vars(&self, version: &Version, arg: &str) -> String {
+  async fn replace_vars(&self, version: &Version, arg: &str) -> String {
     let classpath = if arg.contains("${classpath}") {
-      classpath(version, &path!(&self.data_dir, MC_DIR))
+      classpath(version, &path!(&self.data_dir, MC_DIR), &self.loader)
+        .await
         .into_string()
         .expect("Invalid Classpath")
     } else {
@@ -134,8 +137,13 @@ pub async fn launch_minecraft_version(args: &LaunchArgs) -> Result<Child> {
   let jvm_args = jvm_args(args, &version);
   let game_args = game_args(args, &version);
 
+  let main_class = if let Some(loader) = &args.loader {
+    loader.main_class(&args.data_dir).await?
+  } else {
+    version.main_class.clone()
+  };
+
   let game_path = path!(&args.data_dir, &args.working_sub_dir);
-  let main_class = &version.main_class;
   let java_component = &version.java_version.component;
   #[cfg(target_family = "unix")]
   let jre_bin = path!(
@@ -163,27 +171,27 @@ pub async fn launch_minecraft_version(args: &LaunchArgs) -> Result<Child> {
     .stdout(Stdio::piped())
     .stderr(Stdio::piped())
     .current_dir(game_path)
-    .args(jvm_args)
+    .args(jvm_args.await)
     .arg(main_class)
-    .args(game_args);
+    .args(game_args.await);
   debug!("Spawning minecraft with command: {command:?}");
 
   Ok(command.spawn()?)
 }
 
-fn jvm_args(args: &LaunchArgs, version: &Version) -> Vec<String> {
+async fn jvm_args(args: &LaunchArgs, version: &Version) -> Vec<String> {
   let mut jvm_args = Vec::new();
 
   for arg in &version.arguments.jvm {
     if let Argument::String(arg) = arg {
-      jvm_args.push(args.replace_vars(version, arg));
+      jvm_args.push(args.replace_vars(version, arg).await);
     }
   }
 
   jvm_args
 }
 
-fn game_args(args: &LaunchArgs, version: &Version) -> Vec<String> {
+async fn game_args(args: &LaunchArgs, version: &Version) -> Vec<String> {
   let mut game_args = Vec::new();
 
   let mut features = Features {
@@ -207,17 +215,17 @@ fn game_args(args: &LaunchArgs, version: &Version) -> Vec<String> {
 
   for arg in &version.arguments.game {
     match arg {
-      Argument::String(s) => game_args.push(args.replace_vars(version, s)),
+      Argument::String(s) => game_args.push(args.replace_vars(version, s).await),
       Argument::Object(arg) => {
         if arg.rules.iter().all(|rule| check_feature(rule, &features)) {
           match &arg.value {
             ArgumentValue::List(list) => {
               for s in list {
-                game_args.push(args.replace_vars(version, s));
+                game_args.push(args.replace_vars(version, s).await);
               }
             }
             ArgumentValue::String(ref s) => {
-              game_args.push(args.replace_vars(version, s));
+              game_args.push(args.replace_vars(version, s).await);
             }
           }
         }
@@ -231,7 +239,11 @@ fn game_args(args: &LaunchArgs, version: &Version) -> Vec<String> {
   game_args
 }
 
-fn classpath(version: &Version, mc_dir: &PathBuf) -> OsString {
+async fn classpath(
+  version: &Version,
+  mc_dir: &PathBuf,
+  loader: &Option<Box<dyn Loader>>,
+) -> OsString {
   let mut classpath = OsString::new();
   classpath.push(path!(
     mc_dir,
@@ -293,6 +305,11 @@ fn classpath(version: &Version, mc_dir: &PathBuf) -> OsString {
         classpath.push(path);
       }
     }
+  }
+
+  if let Some(loader) = loader {
+    classpath.push(SEPARATOR);
+    classpath.push(loader.classpath(mc_dir).await.unwrap_or_default());
   }
 
   classpath

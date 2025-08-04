@@ -125,6 +125,7 @@ impl ProfileStore {
       version: profile.version.clone(),
       working_sub_dir: profile.relative_to_data().display().to_string(),
       quick_play: quick_play.clone().map(|q| q.into()),
+      loader: None,
     })
     .await?;
 
