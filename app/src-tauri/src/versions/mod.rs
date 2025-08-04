@@ -6,7 +6,7 @@ pub mod commands;
 mod download;
 mod event;
 pub mod launch;
-mod loader;
+pub mod loader;
 mod meta;
 pub mod store;
 

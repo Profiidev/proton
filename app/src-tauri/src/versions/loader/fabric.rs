@@ -10,12 +10,10 @@ use tauri::Url;
 
 use crate::{
   path,
-  utils::file::{
-    download_and_parse_file_no_hash_force, download_file_no_hash_force, read_parse_file,
-  },
+  utils::file::{download_and_parse_file_no_hash_force, read_parse_file},
   versions::{
-    loader::{parse_maven_name, path_from_maven, url_from_maven, Loader},
-    LIBRARY_DIR, MC_DIR, SEPARATOR, VERSION_DIR,
+    loader::{download_maven, maven_classpath, Loader},
+    MC_DIR, SEPARATOR, VERSION_DIR,
   },
 };
 
@@ -51,37 +49,39 @@ impl Loader for FabricLoader {
     let meta: FabricVersionMeta = download_and_parse_file_no_hash_force(client, &path, url).await?;
 
     let libraries = match meta.launcher_meta {
-      FabricLauncherMeta::V1 { libraries, .. } => libraries,
-      FabricLauncherMeta::V2 { libraries, .. } => libraries,
+      FabricLauncherMeta::V1(FabricLauncherMetaV1 { libraries, .. }) => libraries,
+      FabricLauncherMeta::V2(FabricLauncherMetaV2 { libraries, .. }) => libraries,
     };
 
     for lib in libraries.client.into_iter().chain(libraries.common) {
-      let maven = parse_maven_name(&lib.name)?;
-      let lib_path = path!(data_dir, MC_DIR, LIBRARY_DIR, path_from_maven(&maven));
-      let lib_url = url_from_maven(MAVEN_BASE_URL, &maven)?;
-
-      download_file_no_hash_force(client, &lib_path, lib_url).await?;
+      download_maven(MAVEN_BASE_URL, data_dir, &lib.name, client).await?;
     }
+
+    download_maven(MAVEN_BASE_URL, data_dir, &meta.loader.maven, client).await?;
+    download_maven(MAVEN_BASE_URL, data_dir, &meta.intermediary.maven, client).await?;
 
     Ok(())
   }
 
   async fn classpath(&self, data_dir: &Path) -> Result<OsString> {
     let meta_path = self.meta_path(data_dir);
+    dbg!(meta_path.display().to_string());
     let meta: FabricVersionMeta = read_parse_file(&meta_path).await?;
 
     let mut classpath = OsString::new();
     let libraries = match meta.launcher_meta {
-      FabricLauncherMeta::V1 { libraries, .. } => libraries,
-      FabricLauncherMeta::V2 { libraries, .. } => libraries,
+      FabricLauncherMeta::V1(FabricLauncherMetaV1 { libraries, .. }) => libraries,
+      FabricLauncherMeta::V2(FabricLauncherMetaV2 { libraries, .. }) => libraries,
     };
 
     for lib in libraries.client.into_iter().chain(libraries.common) {
-      let maven = parse_maven_name(&lib.name)?;
-      let lib_path = path!(data_dir, MC_DIR, LIBRARY_DIR, path_from_maven(&maven));
-      classpath.push(lib_path);
+      classpath.push(maven_classpath(data_dir, &lib.name));
       classpath.push(SEPARATOR);
     }
+
+    classpath.push(maven_classpath(data_dir, &meta.loader.maven));
+    classpath.push(SEPARATOR);
+    classpath.push(maven_classpath(data_dir, &meta.intermediary.maven));
 
     Ok(classpath)
   }
@@ -91,8 +91,8 @@ impl Loader for FabricLoader {
     let meta: FabricVersionMeta = read_parse_file(&meta_path).await?;
 
     match meta.launcher_meta {
-      FabricLauncherMeta::V1 { main_class, .. } => Ok(main_class),
-      FabricLauncherMeta::V2 { main_class, .. } => Ok(main_class.client),
+      FabricLauncherMeta::V1(FabricLauncherMetaV1 { main_class, .. }) => Ok(main_class),
+      FabricLauncherMeta::V2(FabricLauncherMetaV2 { main_class, .. }) => Ok(main_class.client),
     }
   }
 }
@@ -121,21 +121,49 @@ struct IntermediaryMeta {
   stable: bool,
 }
 
-#[derive(Deserialize, Serialize)]
-#[serde(rename_all = "camelCase", tag = "version")]
+#[derive(Serialize)]
+#[serde(untagged)]
 enum FabricLauncherMeta {
-  #[serde(rename = "1")]
-  V1 {
-    libraries: FabricLibraries,
-    main_class: String,
-    arguments: FabricArguments,
-    launchwrapper: FabricLauncherWrapper,
-  },
-  #[serde(rename = "2")]
-  V2 {
-    libraries: FabricLibraries,
-    main_class: FabricMainClass,
-  },
+  V1(FabricLauncherMetaV1),
+  V2(FabricLauncherMetaV2),
+}
+
+impl<'de> Deserialize<'de> for FabricLauncherMeta {
+  fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+  where
+    D: serde::Deserializer<'de>,
+  {
+    use serde::__private::de::{Content, ContentRefDeserializer};
+
+    let content = Content::deserialize(deserializer)?;
+    match FabricLauncherMetaV1::deserialize(ContentRefDeserializer::<D::Error>::new(&content)) {
+      Ok(v1) => Ok(FabricLauncherMeta::V1(v1)),
+      Err(_) => {
+        match FabricLauncherMetaV2::deserialize(ContentRefDeserializer::<D::Error>::new(&content)) {
+          Ok(v2) => Ok(FabricLauncherMeta::V2(v2)),
+          Err(e) => Err(serde::de::Error::custom(format!(
+            "Failed to deserialize FabricLauncherMeta: {e}"
+          ))),
+        }
+      }
+    }
+  }
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct FabricLauncherMetaV1 {
+  libraries: FabricLibraries,
+  main_class: String,
+  arguments: FabricArguments,
+  launchwrapper: FabricLauncherWrapper,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct FabricLauncherMetaV2 {
+  libraries: FabricLibraries,
+  main_class: FabricMainClass,
 }
 
 #[derive(Deserialize, Serialize)]

@@ -1,4 +1,8 @@
-use std::{ffi::OsString, path::PathBuf, process::Stdio};
+use std::{
+  ffi::OsString,
+  path::{Path, PathBuf},
+  process::Stdio,
+};
 
 use anyhow::Result;
 use log::debug;
@@ -51,10 +55,15 @@ pub enum QuickPlay {
 impl LaunchArgs {
   async fn replace_vars(&self, version: &Version, arg: &str) -> String {
     let classpath = if arg.contains("${classpath}") {
-      classpath(version, &path!(&self.data_dir, MC_DIR), &self.loader)
-        .await
-        .into_string()
-        .expect("Invalid Classpath")
+      classpath(
+        version,
+        &path!(&self.data_dir, MC_DIR),
+        &self.data_dir,
+        &self.loader,
+      )
+      .await
+      .into_string()
+      .expect("Invalid Classpath")
     } else {
       String::new()
     };
@@ -242,6 +251,7 @@ async fn game_args(args: &LaunchArgs, version: &Version) -> Vec<String> {
 async fn classpath(
   version: &Version,
   mc_dir: &PathBuf,
+  data_dir: &Path,
   loader: &Option<Box<dyn Loader>>,
 ) -> OsString {
   let mut classpath = OsString::new();
@@ -309,7 +319,7 @@ async fn classpath(
 
   if let Some(loader) = loader {
     classpath.push(SEPARATOR);
-    classpath.push(loader.classpath(mc_dir).await.unwrap_or_default());
+    classpath.push(loader.classpath(data_dir).await.unwrap_or_default());
   }
 
   classpath
