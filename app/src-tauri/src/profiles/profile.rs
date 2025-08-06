@@ -2,7 +2,7 @@ use std::{io::Cursor, path::PathBuf};
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use image::{imageops::FilterType, ImageFormat};
+use image::{ImageFormat, imageops::FilterType};
 use tauri::{AppHandle, Manager};
 use tokio::fs;
 use uuid::Uuid;
@@ -10,15 +10,15 @@ use uuid::Uuid;
 use crate::{
   path,
   profiles::{
+    PROFILE_CONFIG, PROFILE_DIR, PROFILE_IMAGE, PROFILE_LOGS, SAVES_DIR,
     config::{Profile, ProfileError, ProfileInfo, QuickPlayInfo, QuickPlayType},
     watcher::watch_profile,
-    PROFILE_CONFIG, PROFILE_DIR, PROFILE_IMAGE, PROFILE_LOGS, SAVES_DIR,
   },
   utils::{
     dir::list_dirs_in_dir,
     file::{read_parse_file, write_file},
   },
-  versions::{loader::LoaderType, QUICK_PLAY},
+  versions::{QUICK_PLAY, loader::LoaderType},
 };
 
 impl Profile {

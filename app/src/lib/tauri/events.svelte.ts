@@ -40,6 +40,9 @@ export type VersionCheckStatus =
   | {
       LibraryDownload: [number, number];
     }
+  | 'ModLoaderMeta'
+  | { ModLoaderFilesCheck: [number, number] }
+  | { ModLoaderFilesDownload: [number, number] }
   | 'Done';
 
 export type VersionCheckData = {

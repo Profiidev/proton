@@ -11,28 +11,27 @@ use crate::{
   path,
   utils::{
     file::{download_and_parse_file_no_hash, download_and_parse_file_no_hash_force, file_hash},
-    updater::{update_data, UpdateType},
+    updater::{UpdateType, update_data},
   },
   versions::{
     download::check_download_version,
-    event::{emit_download_check_status, DownloadCheckStatus},
+    event::{DownloadCheckStatus, emit_download_check_status},
     loader::LoaderType,
   },
 };
 
 use super::{
+  JAVA_DIR, MC_DIR, VERSION_DIR,
   download::DownloadError,
   meta::{
     java::JavaVersions,
     minecraft::{Manifest, VersionType},
   },
-  JAVA_DIR, MC_DIR, VERSION_DIR,
 };
 
 const MC_VERSION_MANIFEST_URL: &str =
   "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json";
-const JAVA_VERSION_MANIFEST_URL: &str =
-  "https://launchermeta.mojang.com/v1/products/java-runtime/2ec0cc96c44e5a76b9c8b7c39df7210883d12871/all.json";
+const JAVA_VERSION_MANIFEST_URL: &str = "https://launchermeta.mojang.com/v1/products/java-runtime/2ec0cc96c44e5a76b9c8b7c39df7210883d12871/all.json";
 
 const MANIFEST_NAME: &str = "manifest.json";
 

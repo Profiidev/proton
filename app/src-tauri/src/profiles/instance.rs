@@ -4,7 +4,7 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use log::debug;
 use serde::Serialize;
-use tauri::{async_runtime::spawn, AppHandle};
+use tauri::{AppHandle, async_runtime::spawn};
 use thiserror::Error;
 use tokio::{
   fs,
@@ -19,8 +19,9 @@ use crate::{
   profiles::config::{Profile, ProfileInfo},
   utils::{
     log::ResultLogExt,
-    updater::{update_data, UpdateType},
-  }, versions::loader::LoaderType,
+    updater::{UpdateType, update_data},
+  },
+  versions::loader::LoaderType,
 };
 
 pub struct Instance {

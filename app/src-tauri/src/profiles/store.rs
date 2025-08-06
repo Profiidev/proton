@@ -9,19 +9,19 @@ use crate::{
   account::store::LaunchInfo,
   path,
   profiles::{
+    PROFILE_CONFIG,
     config::{
       PlayHistoryFavoriteInfo, Profile, ProfileError, ProfileInfo, QuickPlayInfo, QuickPlayType,
     },
     watcher::watch_profile,
-    PROFILE_CONFIG,
   },
   store::TauriAppStoreExt,
   utils::{
     file::read_parse_file,
-    updater::{update_data, UpdateType},
+    updater::{UpdateType, update_data},
   },
   versions::{
-    launch::{launch_minecraft_version, LaunchArgs},
+    launch::{LaunchArgs, launch_minecraft_version},
     loader::LoaderType,
   },
 };

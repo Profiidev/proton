@@ -230,6 +230,8 @@ const get_message = (event: VersionCheckStatus): string | undefined => {
         return 'Checking client jar';
       case 'ClientDownload':
         return 'Downloading client jar';
+      case 'ModLoaderMeta':
+        return 'Downloading ModLoader Version Meta';
       case 'Done':
         return undefined; // No message for done
     }
@@ -257,6 +259,12 @@ const get_message = (event: VersionCheckStatus): string | undefined => {
   } else if ('LibraryDownload' in event) {
     let [done, total] = event.LibraryDownload;
     return `Downloaded ${done} of ${total} libraries`;
+  } else if ('ModLoaderFilesCheck' in event) {
+    let [done, total] = event.ModLoaderFilesCheck;
+    return `Checked ${done} of ${total} mod loader files`;
+  } else if ('ModLoaderFilesDownload' in event) {
+    let [done, total] = event.ModLoaderFilesDownload;
+    return `Downloaded ${done} of ${total} mod loader files`;
   }
 };
 

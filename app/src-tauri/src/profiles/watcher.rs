@@ -3,8 +3,8 @@ use std::{path::PathBuf, sync::Arc};
 use anyhow::Result;
 use notify::{Config, Event, EventKind, RecommendedWatcher, Watcher};
 use tauri::{
-  async_runtime::{block_on, channel, spawn, Receiver},
   AppHandle, Manager,
+  async_runtime::{Receiver, block_on, channel, spawn},
 };
 use tokio::{
   select,

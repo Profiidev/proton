@@ -10,10 +10,10 @@ use crate::{
   path,
   utils::file::{download_file, file_hash},
   versions::{
+    JAVA_DIR,
     download::{check_pool, download_pool},
     event::DownloadCheckStatus,
     meta::java::{self, Component, Files},
-    JAVA_DIR,
   },
 };
 

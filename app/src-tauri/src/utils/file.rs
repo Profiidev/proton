@@ -6,9 +6,9 @@ use std::{
 use anyhow::Result;
 use log::debug;
 use reqwest::Client;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use sha1::{Digest, Sha1};
-use tauri::{async_runtime::spawn_blocking, Url};
+use tauri::{Url, async_runtime::spawn_blocking};
 use thiserror::Error;
 use tokio::fs::{self, File};
 

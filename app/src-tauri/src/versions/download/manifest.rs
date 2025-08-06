@@ -11,12 +11,12 @@ use crate::{
     future::DataOrFuture,
   },
   versions::{
+    ASSETS_DIR, ASSETS_INDEX_DIR, JAVA_DIR, MC_DIR, VERSION_DIR,
     download::DownloadError,
     meta::{
       java::{Component, Files, PlatformVersion},
       minecraft::{Assets, ManifestVersion, Version},
     },
-    ASSETS_DIR, ASSETS_INDEX_DIR, JAVA_DIR, MC_DIR, VERSION_DIR,
   },
 };
 

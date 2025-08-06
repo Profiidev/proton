@@ -9,10 +9,10 @@ use crate::{
   path,
   utils::file::{download_file, file_hash},
   versions::{
+    ASSETS_DIR, MC_DIR,
     download::{check_pool, download_pool},
     event::DownloadCheckStatus,
     meta::minecraft::Assets,
-    ASSETS_DIR, MC_DIR,
   },
 };
 

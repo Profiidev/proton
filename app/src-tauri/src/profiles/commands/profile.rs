@@ -32,9 +32,7 @@ pub async fn profile_create(
 ) -> Result<()> {
   trace!(
     "Command profile_create called with name {} version {} loader {:?}",
-    &name,
-    &version,
-    &loader,
+    &name, &version, &loader,
   );
   let mut store = state.lock().await;
 

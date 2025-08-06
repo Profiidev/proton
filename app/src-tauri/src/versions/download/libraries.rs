@@ -3,18 +3,17 @@ use std::{future::Future, path::PathBuf, time::Instant};
 use anyhow::Result;
 use log::debug;
 use reqwest::Client;
-use tauri::{async_runtime::spawn_blocking, AppHandle, Url};
+use tauri::{AppHandle, Url, async_runtime::spawn_blocking};
 use zip::ZipArchive;
 
 use crate::{
   path,
   utils::file::{create_or_open_file_std, download_file, file_hash},
   versions::{
-    check_rule,
+    JAVA_DIR, LIBRARY_DIR, MC_DIR, check_rule,
     download::{check_pool, download_pool},
     event::DownloadCheckStatus,
     meta::{java::Component, minecraft::Version},
-    JAVA_DIR, LIBRARY_DIR, MC_DIR,
   },
 };
 
@@ -38,20 +37,17 @@ pub async fn check_download_version_java_libraries(
 
     if let Some(classifier) = &downloads.classifiers {
       #[cfg(target_os = "linux")]
-      let Some(library_download) = &classifier.natives_linux
-      else {
+      let Some(library_download) = &classifier.natives_linux else {
         continue;
       };
 
       #[cfg(target_os = "windows")]
-      let Some(library_download) = &classifier.natives_windows
-      else {
+      let Some(library_download) = &classifier.natives_windows else {
         continue;
       };
 
       #[cfg(target_os = "macos")]
-      let Some(library_download) = &classifier.natives_osx
-      else {
+      let Some(library_download) = &classifier.natives_osx else {
         continue;
       };
 

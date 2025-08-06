@@ -1,6 +1,7 @@
 use std::{future::Future, path::PathBuf};
 
 use anyhow::Result;
+use log::debug;
 use reqwest::Client;
 use tauri::AppHandle;
 use thiserror::Error;
@@ -94,7 +95,9 @@ pub async fn check_download_version(
 
   if let Some(loader) = loader_version {
     emit_download_check_status(handle, DownloadCheckStatus::ModLoaderMeta, update_id);
+    debug!("Collecting checks for mod loader files");
     let futures = loader.download(client, data_dir).await?;
+    debug!("Collected {} mod loader file checks", futures.len());
     let futures = check_pool(
       futures,
       handle,
@@ -102,6 +105,7 @@ pub async fn check_download_version(
       DownloadCheckStatus::ModLoaderFilesCheck,
     )
     .await?;
+    debug!("Completed all checks for mod loader files");
     download_pool(
       futures,
       handle,
@@ -109,6 +113,7 @@ pub async fn check_download_version(
       DownloadCheckStatus::ModLoaderFilesDownload,
     )
     .await?;
+    debug!("Completed all downloads for mod loader files");
   }
 
   emit_download_check_status(handle, DownloadCheckStatus::Done, update_id);
