@@ -25,6 +25,8 @@ use tauri_plugin_log::{RotationStrategy, Target, TargetKind, TimezoneStrategy};
 use tokio::sync::Mutex;
 use versions::{commands::version_list, store::McVersionStore};
 
+use crate::versions::loader::LoaderType;
+
 mod account;
 mod profiles;
 mod settings;
@@ -134,6 +136,12 @@ async fn async_setup_refresh(handle: AppHandle) -> Result<()> {
   let version_state = handle.state::<Mutex<McVersionStore>>();
   let mut version_store = version_state.lock().await;
   version_store.refresh_manifests().await?;
+
+  let client = reqwest::Client::new();
+  for loader in LoaderType::mod_loaders() {
+    let data_dir = handle.path().app_data_dir()?;
+    loader.download_metadata(&client, &data_dir).await?;
+  }
 
   Ok(())
 }

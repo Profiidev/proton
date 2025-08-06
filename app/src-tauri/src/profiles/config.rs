@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::sync::Notify;
 
-use crate::versions::launch::QuickPlay;
+use crate::versions::{launch::QuickPlay, loader::LoaderType};
 
 #[derive(Clone)]
 pub struct ProfileInfo {
@@ -106,11 +106,6 @@ pub struct JvmSettings {
 pub struct DevSettings {
   pub show_console: bool,
   pub keep_console_open: bool,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-pub enum LoaderType {
-  Vanilla,
 }
 
 #[derive(Error, Debug)]

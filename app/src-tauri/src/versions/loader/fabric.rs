@@ -10,9 +10,14 @@ use tauri::Url;
 
 use crate::{
   path,
-  utils::file::{download_and_parse_file_no_hash_force, read_parse_file},
+  utils::file::{
+    download_and_parse_file_no_hash_force, download_file_no_hash_force, read_parse_file,
+  },
   versions::{
-    loader::{download_maven, maven_classpath, Loader},
+    loader::{
+      util::{download_maven, maven_classpath},
+      Loader, LoaderVersion,
+    },
     MC_DIR, SEPARATOR, VERSION_DIR,
   },
 };
@@ -20,14 +25,64 @@ use crate::{
 const API_BASE_URL: &str = "https://meta.fabricmc.net/v2/versions/loader";
 const MAVEN_BASE_URL: &str = "https://maven.fabricmc.net";
 
-pub struct FabricLoader {
-  version: String,
-  build: String,
-}
+pub struct FabricLoader;
 
 impl FabricLoader {
-  pub fn new(version: String, build: String) -> Self {
-    Self { version, build }
+  fn path(&self, data_dir: &Path) -> PathBuf {
+    path!(data_dir, MC_DIR, VERSION_DIR, "fabric-loaders.json")
+  }
+}
+
+#[async_trait::async_trait]
+impl Loader for FabricLoader {
+  async fn download_metadata(&self, client: &Client, data_dir: &Path) -> Result<()> {
+    let url = Url::parse(API_BASE_URL)?;
+    let path = self.path(data_dir);
+    download_file_no_hash_force(client, &path, url).await?;
+    Ok(())
+  }
+
+  async fn loader_versions_for_mc_version(
+    &self,
+    _: &str,
+    _: &Client,
+    data_dir: &Path,
+  ) -> Result<Vec<String>> {
+    let path = self.path(data_dir);
+    let versions = read_parse_file::<Vec<LoaderVersionMeta>>(&path)
+      .await?
+      .into_iter()
+      .map(|v| v.version)
+      .collect::<Vec<_>>();
+    Ok(versions)
+  }
+
+  async fn newest_loader_version_for_mc_version(&self, _: &str, data_dir: &Path) -> Result<String> {
+    let path = self.path(data_dir);
+    let versions: Vec<LoaderVersionMeta> = read_parse_file(&path).await?;
+    if versions.is_empty() {
+      return Err(anyhow::anyhow!("No loader versions found"));
+    }
+    Ok(versions[0].version.clone())
+  }
+}
+
+#[derive(Deserialize, Serialize)]
+struct LoaderVersionMeta {
+  version: String,
+}
+
+pub struct FabricLoaderVersion {
+  mc_version: String,
+  loader_version: String,
+}
+
+impl FabricLoaderVersion {
+  pub fn new(mc_version: String, loader_version: String) -> Self {
+    Self {
+      mc_version,
+      loader_version,
+    }
   }
 
   fn meta_path(&self, data_dir: &Path) -> PathBuf {
@@ -35,16 +90,19 @@ impl FabricLoader {
       data_dir,
       MC_DIR,
       VERSION_DIR,
-      &self.version,
-      format!("fabric-{}.json", self.build)
+      &self.mc_version,
+      format!("fabric-{}.json", self.loader_version)
     )
   }
 }
 
 #[async_trait::async_trait]
-impl Loader for FabricLoader {
+impl LoaderVersion for FabricLoaderVersion {
   async fn download(&self, client: &Client, data_dir: &Path) -> Result<()> {
-    let url = Url::parse(&format!("{API_BASE_URL}/{}/{}", self.version, self.build))?;
+    let url = Url::parse(&format!(
+      "{API_BASE_URL}/{}/{}",
+      self.mc_version, self.loader_version
+    ))?;
     let path = self.meta_path(data_dir);
     let meta: FabricVersionMeta = download_and_parse_file_no_hash_force(client, &path, url).await?;
 

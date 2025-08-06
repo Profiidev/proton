@@ -16,11 +16,11 @@ use tokio::{
 use uuid::Uuid;
 
 use crate::{
-  profiles::config::{LoaderType, Profile, ProfileInfo},
+  profiles::config::{Profile, ProfileInfo},
   utils::{
     log::ResultLogExt,
     updater::{update_data, UpdateType},
-  },
+  }, versions::loader::LoaderType,
 };
 
 pub struct Instance {

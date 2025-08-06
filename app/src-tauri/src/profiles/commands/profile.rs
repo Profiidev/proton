@@ -9,11 +9,11 @@ use tokio::sync::Mutex;
 use crate::{
   account::store::AccountStore,
   profiles::{
-    config::{LoaderType, Profile, ProfileUpdate, QuickPlayInfo},
+    config::{Profile, ProfileUpdate, QuickPlayInfo},
     store::ProfileStore,
   },
   utils::{log::ResultLogExt, updater::UpdateType},
-  versions::store::McVersionStore,
+  versions::{loader::LoaderType, store::McVersionStore},
 };
 
 #[derive(Error, Debug)]
@@ -29,19 +29,17 @@ pub async fn profile_create(
   icon: Option<Vec<u8>>,
   version: String,
   loader: LoaderType,
-  loader_version: Option<String>,
 ) -> Result<()> {
   trace!(
-    "Command profile_create called with name {} version {} loader {:?} loader_version {:?}",
+    "Command profile_create called with name {} version {} loader {:?}",
     &name,
     &version,
     &loader,
-    &loader_version
   );
   let mut store = state.lock().await;
 
   store
-    .create_profile(name, icon.as_deref(), version, loader, loader_version)
+    .create_profile(name, icon.as_deref(), version, loader)
     .await
     .log()?;
   store.update_data(UpdateType::Profiles);

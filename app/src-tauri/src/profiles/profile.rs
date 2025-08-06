@@ -10,7 +10,7 @@ use uuid::Uuid;
 use crate::{
   path,
   profiles::{
-    config::{LoaderType, Profile, ProfileError, ProfileInfo, QuickPlayInfo, QuickPlayType},
+    config::{Profile, ProfileError, ProfileInfo, QuickPlayInfo, QuickPlayType},
     watcher::watch_profile,
     PROFILE_CONFIG, PROFILE_DIR, PROFILE_IMAGE, PROFILE_LOGS, SAVES_DIR,
   },
@@ -18,7 +18,7 @@ use crate::{
     dir::list_dirs_in_dir,
     file::{read_parse_file, write_file},
   },
-  versions::QUICK_PLAY,
+  versions::{loader::LoaderType, QUICK_PLAY},
 };
 
 impl Profile {
@@ -33,11 +33,20 @@ impl Profile {
     icon: Option<&[u8]>,
     version: String,
     loader: LoaderType,
-    loader_version: Option<String>,
   ) -> Result<(String, ProfileInfo)> {
     let id = Uuid::new_v4().to_string();
     let relative_path = path!(PROFILE_DIR, &id);
     let path = path!(data_dir, &relative_path);
+
+    let loader_version = if let Some(loader) = loader.loader() {
+      Some(
+        loader
+          .newest_loader_version_for_mc_version(&version, data_dir)
+          .await?,
+      )
+    } else {
+      None
+    };
 
     let icon = match icon {
       Some(icon) => {

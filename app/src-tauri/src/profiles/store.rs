@@ -10,8 +10,7 @@ use crate::{
   path,
   profiles::{
     config::{
-      LoaderType, PlayHistoryFavoriteInfo, Profile, ProfileError, ProfileInfo, QuickPlayInfo,
-      QuickPlayType,
+      PlayHistoryFavoriteInfo, Profile, ProfileError, ProfileInfo, QuickPlayInfo, QuickPlayType,
     },
     watcher::watch_profile,
     PROFILE_CONFIG,
@@ -21,7 +20,10 @@ use crate::{
     file::read_parse_file,
     updater::{update_data, UpdateType},
   },
-  versions::launch::{launch_minecraft_version, LaunchArgs},
+  versions::{
+    launch::{launch_minecraft_version, LaunchArgs},
+    loader::{LoaderType, LoaderVersion},
+  },
 };
 
 use super::instance::{Instance, InstanceError, InstanceInfo};
@@ -64,18 +66,9 @@ impl ProfileStore {
     icon: Option<&[u8]>,
     version: String,
     loader: LoaderType,
-    loader_version: Option<String>,
   ) -> Result<()> {
-    let (id, info) = Profile::create(
-      &self.data_dir,
-      &self.handle,
-      name,
-      icon,
-      version,
-      loader,
-      loader_version,
-    )
-    .await?;
+    let (id, info) =
+      Profile::create(&self.data_dir, &self.handle, name, icon, version, loader).await?;
     self.profiles.insert(id, info);
     self.save()?;
 
@@ -114,6 +107,14 @@ impl ProfileStore {
   ) -> Result<()> {
     let data_dir = self.data_dir.clone();
 
+    let loader = Box::new(crate::versions::loader::fabric::FabricLoaderVersion::new(
+      profile.version.clone(),
+      "0.17.0".into(),
+    ));
+    loader
+      .download(&reqwest::Client::new(), &self.handle.path().app_data_dir()?)
+      .await?;
+
     let child = launch_minecraft_version(&LaunchArgs {
       access_token: info.access_token,
       launcher_name: self.handle.package_info().name.clone(),
@@ -125,7 +126,7 @@ impl ProfileStore {
       version: profile.version.clone(),
       working_sub_dir: profile.relative_to_data().display().to_string(),
       quick_play: quick_play.clone().map(|q| q.into()),
-      loader: None,
+      loader: Some(loader),
     })
     .await?;
 

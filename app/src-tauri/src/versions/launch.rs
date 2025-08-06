@@ -13,7 +13,7 @@ use crate::{
   utils::file::read_parse_file,
   versions::{
     check_feature,
-    loader::Loader,
+    loader::LoaderVersion,
     meta::{minecraft::ArgumentValue, Features},
     QUICK_PLAY,
   },
@@ -43,7 +43,7 @@ pub struct LaunchArgs {
   pub version: String,
   pub working_sub_dir: String,
   pub quick_play: Option<QuickPlay>,
-  pub loader: Option<Box<dyn Loader>>,
+  pub loader: Option<Box<dyn LoaderVersion>>,
 }
 
 pub enum QuickPlay {
@@ -252,7 +252,7 @@ async fn classpath(
   version: &Version,
   mc_dir: &PathBuf,
   data_dir: &Path,
-  loader: &Option<Box<dyn Loader>>,
+  loader: &Option<Box<dyn LoaderVersion>>,
 ) -> OsString {
   let mut classpath = OsString::new();
   classpath.push(path!(
