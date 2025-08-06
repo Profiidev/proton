@@ -8,6 +8,7 @@ mod event;
 pub mod launch;
 pub mod loader;
 mod meta;
+mod maven;
 pub mod store;
 
 const JAVA_DIR: &str = "java";

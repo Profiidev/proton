@@ -1,7 +1,4 @@
-use std::{
-  ffi::OsString,
-  path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use reqwest::Client;
@@ -14,11 +11,9 @@ use crate::{
     download_and_parse_file_no_hash_force, download_file_no_hash_force, read_parse_file,
   },
   versions::{
-    MC_DIR, SEPARATOR, VERSION_DIR,
-    loader::{
-      CheckFuture, Loader, LoaderVersion,
-      util::{download_maven_future, maven_classpath},
-    },
+    MC_DIR, VERSION_DIR,
+    loader::{CheckFuture, Loader, LoaderVersion, util::download_maven_future},
+    maven::{MavenName, full_path_from_maven, parse_maven_name},
   },
 };
 
@@ -145,27 +140,31 @@ impl LoaderVersion for FabricLoaderVersion {
     Ok(futures)
   }
 
-  async fn classpath(&self, data_dir: &Path) -> Result<OsString> {
+  async fn classpath(&self, data_dir: &Path) -> Result<Vec<(MavenName, PathBuf)>> {
     let meta_path = self.meta_path(data_dir);
-    dbg!(meta_path.display().to_string());
     let meta: FabricVersionMeta = read_parse_file(&meta_path).await?;
 
-    let mut classpath = OsString::new();
     let libraries = match meta.launcher_meta {
       FabricLauncherMeta::V1(FabricLauncherMetaV1 { libraries, .. }) => libraries,
       FabricLauncherMeta::V2(FabricLauncherMetaV2 { libraries, .. }) => libraries,
     };
 
+    let mut libs = Vec::new();
     for lib in libraries.client.into_iter().chain(libraries.common) {
-      classpath.push(maven_classpath(data_dir, &lib.name));
-      classpath.push(SEPARATOR);
+      let maven = parse_maven_name(&lib.name);
+      let path = full_path_from_maven(data_dir, &maven);
+      libs.push((maven, path));
     }
 
-    classpath.push(maven_classpath(data_dir, &meta.loader.maven));
-    classpath.push(SEPARATOR);
-    classpath.push(maven_classpath(data_dir, &meta.intermediary.maven));
+    let loader_maven = parse_maven_name(&meta.loader.maven);
+    let loader_path = full_path_from_maven(data_dir, &loader_maven);
+    libs.push((loader_maven, loader_path));
 
-    Ok(classpath)
+    let intermediary_maven = parse_maven_name(&meta.intermediary.maven);
+    let intermediary_path = full_path_from_maven(data_dir, &intermediary_maven);
+    libs.push((intermediary_maven, intermediary_path));
+
+    Ok(libs)
   }
 
   async fn main_class(&self, data_dir: &Path) -> Result<String> {

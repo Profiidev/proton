@@ -14,6 +14,7 @@ use crate::{
   versions::{
     QUICK_PLAY, check_feature,
     loader::LoaderVersion,
+    maven::{full_path_from_maven, parse_maven_name},
     meta::{Features, minecraft::ArgumentValue},
   },
 };
@@ -259,6 +260,7 @@ async fn classpath(
     format!("{}.jar", version.id)
   ));
 
+  let mut libraries = Vec::new();
   'l: for lib in &version.libraries {
     match lib {
       Library {
@@ -277,46 +279,30 @@ async fn classpath(
           }
         }
 
-        classpath.push(SEPARATOR);
         let path = path!(mc_dir, LIBRARY_DIR, &artifact.path);
-        classpath.push(path);
+        libraries.push((parse_maven_name(&lib.name), path));
       }
       lib => {
-        let mut original_name: &str = &lib.name;
-        let mut name = "";
-        let mut version = "";
-        let mut path = path!();
-
-        if let Some(i) = original_name.find(":") {
-          let mut paths = &original_name[..i];
-          original_name = &original_name[(i + 1)..];
-          while let Some(i) = paths.find(".") {
-            path = path!(path, &paths[..i]);
-            paths = &paths[(i + 1)..];
-          }
-          path = path!(path, &paths);
-        }
-        if let Some(i) = original_name.find(":") {
-          name = &original_name[..i];
-          version = &original_name[(i + 1)..];
-        }
-        classpath.push(SEPARATOR);
-        let path = path!(
-          mc_dir,
-          LIBRARY_DIR,
-          &path,
-          name,
-          version,
-          format!("{name}-{version}.jar")
-        );
-        classpath.push(path);
+        let maven = parse_maven_name(&lib.name);
+        let path = full_path_from_maven(data_dir, &maven);
+        libraries.push((maven, path));
       }
     }
   }
 
   if let Some(loader) = loader {
+    let loader_libs = loader.classpath(data_dir).await.unwrap_or_default();
+    libraries.retain(|(l, _)| {
+      !loader_libs
+        .iter()
+        .any(|(ll, _)| l.group == ll.group && l.artifact == ll.artifact)
+    });
+    libraries.extend(loader_libs);
+  }
+
+  for (_, path) in libraries {
     classpath.push(SEPARATOR);
-    classpath.push(loader.classpath(data_dir).await.unwrap_or_default());
+    classpath.push(path);
   }
 
   classpath

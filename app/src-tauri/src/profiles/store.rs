@@ -107,6 +107,11 @@ impl ProfileStore {
   ) -> Result<()> {
     let data_dir = self.data_dir.clone();
 
+    let loader = profile
+      .loader_version
+      .clone()
+      .and_then(|v| profile.loader.loader_version(profile.version.clone(), v));
+
     let child = launch_minecraft_version(&LaunchArgs {
       access_token: info.access_token,
       launcher_name: self.handle.package_info().name.clone(),
@@ -118,7 +123,7 @@ impl ProfileStore {
       version: profile.version.clone(),
       working_sub_dir: profile.relative_to_data().display().to_string(),
       quick_play: quick_play.clone().map(|q| q.into()),
-      loader: None,
+      loader,
     })
     .await?;
 

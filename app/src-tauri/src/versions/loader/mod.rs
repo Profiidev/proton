@@ -1,5 +1,4 @@
 use std::{
-  ffi::OsString,
   future::Future,
   path::{Path, PathBuf},
   pin::Pin,
@@ -9,7 +8,10 @@ use anyhow::Result;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
-use crate::versions::loader::fabric::{FabricLoader, FabricLoaderVersion};
+use crate::versions::{
+  loader::fabric::{FabricLoader, FabricLoaderVersion},
+  maven::MavenName,
+};
 
 pub mod fabric;
 mod util;
@@ -21,7 +23,7 @@ type CheckFuture = Pin<Box<dyn Future<Output = Result<Option<DownloadFuture>>> +
 pub trait LoaderVersion: Send + Sync + 'static {
   #[allow(clippy::ptr_arg)]
   async fn download(&self, client: &Client, data_dir: &PathBuf) -> Result<Vec<CheckFuture>>;
-  async fn classpath(&self, data_dir: &Path) -> Result<OsString>;
+  async fn classpath(&self, data_dir: &Path) -> Result<Vec<(MavenName, PathBuf)>>;
   async fn main_class(&self, data_dir: &Path) -> Result<String>;
 }
 
