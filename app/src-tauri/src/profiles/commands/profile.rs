@@ -57,6 +57,9 @@ pub async fn profile_update(
 
   let mut current_profile = store.profile(&profile.id).await.log()?;
 
+  if profile.version != current_profile.version {
+    current_profile.downloaded = false;
+  }
   current_profile.name = profile.name;
   current_profile.version = profile.version;
 
@@ -158,12 +161,24 @@ pub async fn profile_launch(
   let mut profile = store.profile(profile).await.log()?;
   if !profile.downloaded {
     mc_store
-      .check_or_download(&profile.version, id)
+      .check_or_download(
+        &profile.version,
+        id,
+        profile.loader,
+        profile.loader_version.clone(),
+      )
       .await
       .log()?;
     profile.downloaded = true;
   } else if !mc_store.check_meta(&profile.version, id).await.log()? {
-    mc_store.check_or_download(&profile.version, id).await?;
+    mc_store
+      .check_or_download(
+        &profile.version,
+        id,
+        profile.loader,
+        profile.loader_version.clone(),
+      )
+      .await?;
   }
 
   profile.last_played = Some(Utc::now());
@@ -205,7 +220,7 @@ pub async fn profile_repair(
   let profile = store.profile(profile).await.log()?;
   drop(store);
   mc_store
-    .check_or_download(&profile.version, id)
+    .check_or_download(&profile.version, id, profile.loader, profile.loader_version)
     .await
     .log()?;
 

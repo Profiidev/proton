@@ -16,7 +16,8 @@ use crate::{
         check_assets_manifest, check_client, check_java_manifest, check_version_manifest,
       },
     },
-    event::{emit_download_check_status, DownloadCheckStatus},
+    event::{DownloadCheckStatus, emit_download_check_status},
+    loader::LoaderVersion,
     meta::{java::PlatformVersion, minecraft::ManifestVersion},
   },
 };
@@ -41,6 +42,7 @@ pub async fn check_download_version(
   client: &Client,
   handle: &AppHandle,
   update_id: usize,
+  loader_version: Option<Box<dyn LoaderVersion>>,
 ) -> Result<()> {
   emit_download_check_status(handle, DownloadCheckStatus::VersionManifestCheck, update_id);
   let version_fut = check_version_manifest(mc, data_dir, client).await?;
@@ -89,6 +91,25 @@ pub async fn check_download_version(
     update_id,
   )
   .await?;
+
+  if let Some(loader) = loader_version {
+    emit_download_check_status(handle, DownloadCheckStatus::ModLoaderMeta, update_id);
+    let futures = loader.download(client, data_dir).await?;
+    let futures = check_pool(
+      futures,
+      handle,
+      update_id,
+      DownloadCheckStatus::ModLoaderFilesCheck,
+    )
+    .await?;
+    download_pool(
+      futures,
+      handle,
+      update_id,
+      DownloadCheckStatus::ModLoaderFilesDownload,
+    )
+    .await?;
+  }
 
   emit_download_check_status(handle, DownloadCheckStatus::Done, update_id);
 

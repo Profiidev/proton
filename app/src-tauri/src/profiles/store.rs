@@ -22,7 +22,7 @@ use crate::{
   },
   versions::{
     launch::{launch_minecraft_version, LaunchArgs},
-    loader::{LoaderType, LoaderVersion},
+    loader::LoaderType,
   },
 };
 
@@ -107,14 +107,6 @@ impl ProfileStore {
   ) -> Result<()> {
     let data_dir = self.data_dir.clone();
 
-    let loader = Box::new(crate::versions::loader::fabric::FabricLoaderVersion::new(
-      profile.version.clone(),
-      "0.17.0".into(),
-    ));
-    loader
-      .download(&reqwest::Client::new(), &self.handle.path().app_data_dir()?)
-      .await?;
-
     let child = launch_minecraft_version(&LaunchArgs {
       access_token: info.access_token,
       launcher_name: self.handle.package_info().name.clone(),
@@ -126,7 +118,7 @@ impl ProfileStore {
       version: profile.version.clone(),
       working_sub_dir: profile.relative_to_data().display().to_string(),
       quick_play: quick_play.clone().map(|q| q.into()),
-      loader: Some(loader),
+      loader: None,
     })
     .await?;
 

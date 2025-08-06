@@ -9,24 +9,21 @@ use log::debug;
 use tokio::process::{Child, Command};
 
 use crate::{
-  path,
+  CLIENT_ID, path,
   utils::file::read_parse_file,
   versions::{
-    check_feature,
+    QUICK_PLAY, check_feature,
     loader::LoaderVersion,
-    meta::{minecraft::ArgumentValue, Features},
-    QUICK_PLAY,
+    meta::{Features, minecraft::ArgumentValue},
   },
-  CLIENT_ID,
 };
 
 use super::{
-  check_rule,
+  ASSETS_DIR, JAVA_DIR, LIBRARY_DIR, MC_DIR, SEPARATOR, VERSION_DIR, check_rule,
   meta::{
     java::{Download, Library},
     minecraft::{Argument, Version},
   },
-  ASSETS_DIR, JAVA_DIR, LIBRARY_DIR, MC_DIR, SEPARATOR, VERSION_DIR,
 };
 
 #[cfg(all(not(debug_assertions), target_os = "windows"))]
@@ -233,7 +230,7 @@ async fn game_args(args: &LaunchArgs, version: &Version) -> Vec<String> {
                 game_args.push(args.replace_vars(version, s).await);
               }
             }
-            ArgumentValue::String(ref s) => {
+            ArgumentValue::String(s) => {
               game_args.push(args.replace_vars(version, s).await);
             }
           }

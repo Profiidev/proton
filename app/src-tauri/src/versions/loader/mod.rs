@@ -1,4 +1,9 @@
-use std::{ffi::OsString, path::Path};
+use std::{
+  ffi::OsString,
+  future::Future,
+  path::{Path, PathBuf},
+  pin::Pin,
+};
 
 use anyhow::Result;
 use reqwest::Client;
@@ -9,9 +14,13 @@ use crate::versions::loader::fabric::{FabricLoader, FabricLoaderVersion};
 pub mod fabric;
 mod util;
 
+type DownloadFuture = Pin<Box<dyn Future<Output = Result<()>> + Send + 'static>>;
+type CheckFuture = Pin<Box<dyn Future<Output = Result<Option<DownloadFuture>>> + Send + 'static>>;
+
 #[async_trait::async_trait]
 pub trait LoaderVersion: Send + Sync + 'static {
-  async fn download(&self, client: &Client, data_dir: &Path) -> Result<()>;
+  #[allow(clippy::ptr_arg)]
+  async fn download(&self, client: &Client, data_dir: &PathBuf) -> Result<Vec<CheckFuture>>;
   async fn classpath(&self, data_dir: &Path) -> Result<OsString>;
   async fn main_class(&self, data_dir: &Path) -> Result<String>;
 }

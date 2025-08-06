@@ -14,11 +14,11 @@ use crate::{
     download_and_parse_file_no_hash_force, download_file_no_hash_force, read_parse_file,
   },
   versions::{
-    loader::{
-      util::{download_maven, maven_classpath},
-      Loader, LoaderVersion,
-    },
     MC_DIR, SEPARATOR, VERSION_DIR,
+    loader::{
+      CheckFuture, Loader, LoaderVersion,
+      util::{download_maven_future, maven_classpath},
+    },
   },
 };
 
@@ -98,7 +98,7 @@ impl FabricLoaderVersion {
 
 #[async_trait::async_trait]
 impl LoaderVersion for FabricLoaderVersion {
-  async fn download(&self, client: &Client, data_dir: &Path) -> Result<()> {
+  async fn download(&self, client: &Client, data_dir: &PathBuf) -> Result<Vec<CheckFuture>> {
     let url = Url::parse(&format!(
       "{API_BASE_URL}/{}/{}",
       self.mc_version, self.loader_version
@@ -111,14 +111,38 @@ impl LoaderVersion for FabricLoaderVersion {
       FabricLauncherMeta::V2(FabricLauncherMetaV2 { libraries, .. }) => libraries,
     };
 
+    let mut futures = Vec::new();
     for lib in libraries.client.into_iter().chain(libraries.common) {
-      download_maven(MAVEN_BASE_URL, data_dir, &lib.name, client).await?;
+      let data_dir = data_dir.clone();
+      let client = client.clone();
+      futures.push(download_maven_future(
+        data_dir,
+        lib.name,
+        client,
+        lib
+          .url
+          .unwrap_or(Url::parse(MAVEN_BASE_URL).unwrap())
+          .to_string(),
+        lib.sha1,
+      ));
     }
 
-    download_maven(MAVEN_BASE_URL, data_dir, &meta.loader.maven, client).await?;
-    download_maven(MAVEN_BASE_URL, data_dir, &meta.intermediary.maven, client).await?;
+    futures.push(download_maven_future(
+      data_dir.clone(),
+      meta.loader.maven,
+      client.clone(),
+      MAVEN_BASE_URL.to_string(),
+      None,
+    ));
+    futures.push(download_maven_future(
+      data_dir.clone(),
+      meta.intermediary.maven,
+      client.clone(),
+      MAVEN_BASE_URL.to_string(),
+      None,
+    ));
 
-    Ok(())
+    Ok(futures)
   }
 
   async fn classpath(&self, data_dir: &Path) -> Result<OsString> {

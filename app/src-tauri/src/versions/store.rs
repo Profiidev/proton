@@ -16,6 +16,7 @@ use crate::{
   versions::{
     download::check_download_version,
     event::{emit_download_check_status, DownloadCheckStatus},
+    loader::LoaderType,
   },
 };
 
@@ -116,7 +117,13 @@ impl McVersionStore {
     Ok(())
   }
 
-  pub async fn check_or_download(&self, version: &str, id: usize) -> Result<()> {
+  pub async fn check_or_download(
+    &self,
+    version: &str,
+    id: usize,
+    loader: LoaderType,
+    loader_version: Option<String>,
+  ) -> Result<()> {
     let start = Instant::now();
     info!("Checking minecraft version {version}");
     let data_dir = self.handle.path().app_data_dir()?;
@@ -135,7 +142,18 @@ impl McVersionStore {
     #[cfg(target_os = "macos")]
     let java = &self.java_manifest.mac_os;
 
-    check_download_version(mc, java, &data_dir, &self.client, &self.handle, id).await?;
+    let loader_version = loader_version.and_then(|v| loader.loader_version(version.to_string(), v));
+
+    check_download_version(
+      mc,
+      java,
+      &data_dir,
+      &self.client,
+      &self.handle,
+      id,
+      loader_version,
+    )
+    .await?;
 
     info!(
       "Finished checking minecraft version {} in {:?}",

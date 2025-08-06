@@ -24,6 +24,9 @@ pub enum DownloadCheckStatus {
   NativeLibraryDownload(usize, usize),
   LibraryCheck(usize, usize),
   LibraryDownload(usize, usize),
+  ModLoaderMeta,
+  ModLoaderFilesCheck(usize, usize),
+  ModLoaderFilesDownload(usize, usize),
   Done,
 }
 
