@@ -53,7 +53,11 @@ export interface DevSettings {
 }
 
 export enum LoaderType {
-  Vanilla = 'Vanilla'
+  Vanilla = 'Vanilla',
+  Fabric = 'Fabric',
+  Quilt = 'Quilt',
+  Forge = 'Forge',
+  NeoForge = 'NeoForge'
 }
 
 export enum ProfileError {

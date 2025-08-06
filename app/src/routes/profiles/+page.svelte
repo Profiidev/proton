@@ -1,5 +1,6 @@
 <script lang="ts">
   import {
+    LoaderType,
     profile_create,
     profile_launch,
     profile_list,
@@ -32,7 +33,9 @@
 
   let version_filter = $state<string[]>([]);
   let loader_filter = $state<string[]>([]);
-  let text_filter = $state<string>('');
+  let text_filter = $state('');
+  let createOpen = $state(false);
+  let createDialog = $state<FormDialog>();
 
   let active_account = $derived(account_active.value);
   let profiles = $derived(profile_list.value);
@@ -42,6 +45,15 @@
       value: v
     }))
   );
+
+  $effect(() => {
+    if (createOpen) {
+      createDialog?.setValue({
+        loader: [LoaderType.Vanilla],
+        version: versions?.length ? [versions[0].value] : []
+      });
+    }
+  });
 
   let profile_fuse = $derived(
     new Fuse(profiles ?? [], {
@@ -97,6 +109,7 @@
 
   const createProfile = async (form: FormType<any>) => {
     form.data.version = form.data.version[0];
+    form.data.loader = form.data.loader[0];
     if (form.data.icon) {
       form.data.icon = await file_to_bytes(form.data.icon);
     }
@@ -140,7 +153,8 @@
       }}
       form={profileCreate}
       onsubmit={createProfile}
-      open={false}
+      bind:open={createOpen}
+      bind:this={createDialog as any}
       class="w-100"
     >
       {#snippet triggerInner()}
@@ -153,6 +167,16 @@
           </div>
           <div class="ml-auto">
             <FormInput label="Name" placeholder="Name" key="name" {...props} />
+            <FormSelect
+              label="Loader"
+              key="loader"
+              single={true}
+              data={Object.keys(LoaderType).map((l) => ({
+                label: l,
+                value: l as LoaderType
+              })) ?? []}
+              {...props}
+            />
             <FormSelect
               label="Version"
               key="version"
