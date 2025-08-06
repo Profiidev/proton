@@ -7,8 +7,8 @@ mod download;
 mod event;
 pub mod launch;
 pub mod loader;
-mod meta;
 mod maven;
+mod meta;
 pub mod store;
 
 const JAVA_DIR: &str = "java";
