@@ -59,8 +59,8 @@ pub fn watch_profile(path: PathBuf, profile: String, app: AppHandle) -> Result<A
         _ = stop_clone.notified() => break,
       };
 
-      if let EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_) = event.kind {
-        if event.paths.iter().any(|p| p.ends_with(QUICK_PLAY)) {
+      if let EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_) = event.kind
+        && event.paths.iter().any(|p| p.ends_with(QUICK_PLAY)) {
           let store = app.state::<Mutex<ProfileStore>>();
           let store = store.lock().await;
           if let Ok(mut info) = store.profile(&profile).await.log() {
@@ -69,7 +69,6 @@ pub fn watch_profile(path: PathBuf, profile: String, app: AppHandle) -> Result<A
             store.update_data(UpdateType::ProfileQuickPlay);
           }
         }
-      }
     }
     // keep the watcher alive until here
     drop(watcher);

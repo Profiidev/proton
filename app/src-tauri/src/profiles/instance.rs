@@ -183,15 +183,14 @@ async fn clean_instance(
   launched_at: DateTime<Utc>,
 ) {
   let mut instances = instances.lock().await;
-  if let Some(entry) = instances.get_mut(profile) {
-    if let Some(i) = entry.iter().position(|i| i.id() == id) {
+  if let Some(entry) = instances.get_mut(profile)
+    && let Some(i) = entry.iter().position(|i| i.id() == id) {
       let _ = entry.swap_remove(i);
     }
-  }
   update_data(handle, UpdateType::Instances);
 
-  if let Ok(logs_dir) = ProfileInfo::log_dir(handle, profile) {
-    if fs::create_dir_all(&logs_dir).await.is_ok() {
+  if let Ok(logs_dir) = ProfileInfo::log_dir(handle, profile)
+    && fs::create_dir_all(&logs_dir).await.is_ok() {
       let log_file = logs_dir.join(format!(
         "{}.log",
         launched_at.to_rfc3339().replace(":", "-")
@@ -203,5 +202,4 @@ async fn clean_instance(
 
       update_data(handle, UpdateType::ProfileLogs);
     }
-  }
 }
