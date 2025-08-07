@@ -51,21 +51,7 @@ pub enum QuickPlay {
 }
 
 impl LaunchArgs {
-  async fn replace_vars(&self, version: &Version, arg: &str) -> String {
-    let classpath = if arg.contains("${classpath}") {
-      classpath(
-        version,
-        &path!(&self.data_dir, MC_DIR),
-        &self.data_dir,
-        &self.loader,
-      )
-      .await
-      .into_string()
-      .expect("Invalid Classpath")
-    } else {
-      String::new()
-    };
-
+  fn replace_vars(&self, version: &Version, arg: &str, classpath: &str) -> String {
     let mut quick_singleplayer = String::new();
     let mut quick_multiplayer = String::new();
     let mut quick_realms = String::new();
@@ -119,11 +105,23 @@ impl LaunchArgs {
         .display()
         .to_string(),
       )
-      .replace("${classpath}", &classpath)
+      .replace("${classpath}", classpath)
       .replace("${quickPlayPath}", QUICK_PLAY)
       .replace("${quickPlaySingleplayer}", &quick_singleplayer)
       .replace("${quickPlayMultiplayer}", &quick_multiplayer)
       .replace("${quickPlayRealms}", &quick_realms)
+  }
+
+  async fn classpath(&self, version: &Version) -> Result<String> {
+    classpath(
+      version,
+      &path!(&self.data_dir, MC_DIR),
+      &self.data_dir,
+      &self.loader,
+    )
+    .await?
+    .into_string()
+    .map_err(|e| anyhow::anyhow!("Failed to convert classpath OsString to String: {:?}", e))
   }
 }
 
@@ -140,9 +138,10 @@ pub async fn launch_minecraft_version(args: &LaunchArgs) -> Result<Child> {
     format!("{}.json", args.version)
   );
   let version: Version = read_parse_file(&path).await?;
+  let classpath = args.classpath(&version).await?;
 
-  let jvm_args = jvm_args(args, &version);
-  let game_args = game_args(args, &version);
+  let jvm_args = jvm_args(args, &version, &classpath);
+  let game_args = game_args(args, &version, &classpath);
 
   let main_class = if let Some(loader) = &args.loader {
     loader.main_class(&args.data_dir).await?
@@ -178,27 +177,27 @@ pub async fn launch_minecraft_version(args: &LaunchArgs) -> Result<Child> {
     .stdout(Stdio::piped())
     .stderr(Stdio::piped())
     .current_dir(game_path)
-    .args(jvm_args.await)
+    .args(jvm_args)
     .arg(main_class)
-    .args(game_args.await);
+    .args(game_args);
   debug!("Spawning minecraft with command: {command:?}");
 
   Ok(command.spawn()?)
 }
 
-async fn jvm_args(args: &LaunchArgs, version: &Version) -> Vec<String> {
+fn jvm_args(args: &LaunchArgs, version: &Version, classpath: &str) -> Vec<String> {
   let mut jvm_args = Vec::new();
 
   for arg in &version.arguments.jvm {
     if let Argument::String(arg) = arg {
-      jvm_args.push(args.replace_vars(version, arg).await);
+      jvm_args.push(args.replace_vars(version, arg, classpath));
     }
   }
 
   jvm_args
 }
 
-async fn game_args(args: &LaunchArgs, version: &Version) -> Vec<String> {
+fn game_args(args: &LaunchArgs, version: &Version, classpath: &str) -> Vec<String> {
   let mut game_args = Vec::new();
 
   let mut features = Features {
@@ -222,17 +221,17 @@ async fn game_args(args: &LaunchArgs, version: &Version) -> Vec<String> {
 
   for arg in &version.arguments.game {
     match arg {
-      Argument::String(s) => game_args.push(args.replace_vars(version, s).await),
+      Argument::String(s) => game_args.push(args.replace_vars(version, s, classpath)),
       Argument::Object(arg) => {
         if arg.rules.iter().all(|rule| check_feature(rule, &features)) {
           match &arg.value {
             ArgumentValue::List(list) => {
               for s in list {
-                game_args.push(args.replace_vars(version, s).await);
+                game_args.push(args.replace_vars(version, s, classpath));
               }
             }
             ArgumentValue::String(s) => {
-              game_args.push(args.replace_vars(version, s).await);
+              game_args.push(args.replace_vars(version, s, classpath));
             }
           }
         }
@@ -251,7 +250,7 @@ async fn classpath(
   mc_dir: &PathBuf,
   data_dir: &Path,
   loader: &Option<Box<dyn LoaderVersion>>,
-) -> OsString {
+) -> Result<OsString> {
   let mut classpath = OsString::new();
   classpath.push(path!(
     mc_dir,
@@ -291,7 +290,7 @@ async fn classpath(
   }
 
   if let Some(loader) = loader {
-    let loader_libs = loader.classpath(data_dir).await.unwrap_or_default();
+    let loader_libs = loader.classpath(data_dir).await?;
     libraries.retain(|(l, _)| {
       !loader_libs
         .iter()
@@ -305,5 +304,5 @@ async fn classpath(
     classpath.push(path);
   }
 
-  classpath
+  Ok(classpath)
 }

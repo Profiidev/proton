@@ -17,21 +17,42 @@ use crate::{
   },
 };
 
-const API_BASE_URL: &str = "https://meta.fabricmc.net/v2/versions/loader";
-const MAVEN_BASE_URL: &str = "https://maven.fabricmc.net";
+const API_BASE_URL_FABRIC: &str = "https://meta.fabricmc.net/v2/versions/loader";
+const API_BASE_URL_QUILT: &str = "https://meta.quiltmc.org/v3/versions/loader";
+const MAVEN_BASE_URL_FABRIC: &str = "https://maven.fabricmc.net";
+const MAVEN_BASE_URL_QUILT: &str = "https://maven.quiltmc.org/repository/release";
+const INDEX_FILE_NAME_FABRIC: &str = "fabric-loaders.json";
+const INDEX_FILE_NAME_QUILT: &str = "quilt-loaders.json";
 
-pub struct FabricLoader;
+pub struct FabricLikeLoader {
+  pub base_url: String,
+  pub index_file_name: String,
+}
 
-impl FabricLoader {
+impl FabricLikeLoader {
+  pub fn fabric() -> Self {
+    Self {
+      base_url: API_BASE_URL_FABRIC.to_string(),
+      index_file_name: INDEX_FILE_NAME_FABRIC.to_string(),
+    }
+  }
+
+  pub fn quilt() -> Self {
+    Self {
+      base_url: API_BASE_URL_QUILT.to_string(),
+      index_file_name: INDEX_FILE_NAME_QUILT.to_string(),
+    }
+  }
+
   fn path(&self, data_dir: &Path) -> PathBuf {
-    path!(data_dir, MC_DIR, VERSION_DIR, "fabric-loaders.json")
+    path!(data_dir, MC_DIR, VERSION_DIR, &self.index_file_name)
   }
 }
 
 #[async_trait::async_trait]
-impl Loader for FabricLoader {
+impl Loader for FabricLikeLoader {
   async fn download_metadata(&self, client: &Client, data_dir: &Path) -> Result<()> {
-    let url = Url::parse(API_BASE_URL)?;
+    let url = Url::parse(&self.base_url)?;
     let path = self.path(data_dir);
     download_file_no_hash_force(client, &path, url).await?;
     Ok(())
@@ -67,16 +88,29 @@ struct LoaderVersionMeta {
   version: String,
 }
 
-pub struct FabricLoaderVersion {
+pub struct FabricLikeLoaderVersion {
   mc_version: String,
   loader_version: String,
+  base_url: String,
+  maven_base_url: String,
 }
 
-impl FabricLoaderVersion {
-  pub fn new(mc_version: String, loader_version: String) -> Self {
+impl FabricLikeLoaderVersion {
+  pub fn fabric(mc_version: String, loader_version: String) -> Self {
     Self {
       mc_version,
       loader_version,
+      base_url: API_BASE_URL_FABRIC.to_string(),
+      maven_base_url: MAVEN_BASE_URL_FABRIC.to_string(),
+    }
+  }
+
+  pub fn quilt(mc_version: String, loader_version: String) -> Self {
+    Self {
+      mc_version,
+      loader_version,
+      base_url: API_BASE_URL_QUILT.to_string(),
+      maven_base_url: MAVEN_BASE_URL_QUILT.to_string(),
     }
   }
 
@@ -92,11 +126,11 @@ impl FabricLoaderVersion {
 }
 
 #[async_trait::async_trait]
-impl LoaderVersion for FabricLoaderVersion {
+impl LoaderVersion for FabricLikeLoaderVersion {
   async fn download(&self, client: &Client, data_dir: &PathBuf) -> Result<Vec<CheckFuture>> {
     let url = Url::parse(&format!(
-      "{API_BASE_URL}/{}/{}",
-      self.mc_version, self.loader_version
+      "{}/{}/{}",
+      self.base_url, self.mc_version, self.loader_version
     ))?;
     let path = self.meta_path(data_dir);
     let meta: FabricVersionMeta = download_and_parse_file_no_hash_force(client, &path, url).await?;
@@ -116,26 +150,28 @@ impl LoaderVersion for FabricLoaderVersion {
         client,
         lib
           .url
-          .unwrap_or(Url::parse(MAVEN_BASE_URL).unwrap())
+          .unwrap_or(Url::parse(&self.maven_base_url).unwrap())
           .to_string(),
         lib.sha1,
       ));
     }
 
-    futures.push(download_maven_future(
-      data_dir.clone(),
-      meta.loader.maven,
-      client.clone(),
-      MAVEN_BASE_URL.to_string(),
-      None,
-    ));
-    futures.push(download_maven_future(
-      data_dir.clone(),
-      meta.intermediary.maven,
-      client.clone(),
-      MAVEN_BASE_URL.to_string(),
-      None,
-    ));
+    let mut libs = vec![meta.loader.maven, meta.intermediary.maven];
+    if let Some(hashed) = meta.hashed {
+      libs.push(hashed.maven);
+    }
+
+    for lib in libs {
+      let data_dir = data_dir.clone();
+      let client = client.clone();
+      let base_url = if lib.contains("fabricmc") {
+        MAVEN_BASE_URL_FABRIC.to_string()
+      } else {
+        self.maven_base_url.clone()
+      };
+
+      futures.push(download_maven_future(data_dir, lib, client, base_url, None));
+    }
 
     Ok(futures)
   }
@@ -181,25 +217,15 @@ impl LoaderVersion for FabricLoaderVersion {
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct FabricVersionMeta {
-  loader: FabricLoaderMeta,
-  intermediary: IntermediaryMeta,
+  loader: MavenLib,
+  intermediary: MavenLib,
+  hashed: Option<MavenLib>,
   launcher_meta: FabricLauncherMeta,
 }
 
 #[derive(Deserialize, Serialize)]
-struct FabricLoaderMeta {
-  separator: String,
-  build: usize,
+struct MavenLib {
   maven: String,
-  version: String,
-  stable: bool,
-}
-
-#[derive(Deserialize, Serialize)]
-struct IntermediaryMeta {
-  version: String,
-  maven: String,
-  stable: bool,
 }
 
 #[derive(Serialize)]
@@ -236,8 +262,6 @@ impl<'de> Deserialize<'de> for FabricLauncherMeta {
 struct FabricLauncherMetaV1 {
   libraries: FabricLibraries,
   main_class: String,
-  arguments: FabricArguments,
-  launchwrapper: FabricLauncherWrapper,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -259,25 +283,6 @@ struct FabricLibrary {
   name: String,
   url: Option<Url>,
   sha1: Option<String>,
-}
-
-#[derive(Deserialize, Serialize)]
-struct FabricArguments {
-  client: Vec<String>,
-  server: Vec<String>,
-  common: Vec<String>,
-}
-
-#[derive(Deserialize, Serialize)]
-struct FabricLauncherWrapper {
-  tweakers: FabricTweakers,
-}
-
-#[derive(Deserialize, Serialize)]
-struct FabricTweakers {
-  client: Vec<String>,
-  server: Vec<String>,
-  common: Vec<String>,
 }
 
 #[derive(Deserialize, Serialize)]

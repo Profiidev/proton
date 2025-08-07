@@ -9,7 +9,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
 use crate::versions::{
-  loader::fabric::{FabricLoader, FabricLoaderVersion},
+  loader::fabric::{FabricLikeLoader, FabricLikeLoaderVersion},
   maven::MavenName,
 };
 
@@ -55,7 +55,8 @@ pub enum LoaderType {
 impl LoaderType {
   pub fn loader(self) -> Option<Box<dyn Loader>> {
     match self {
-      LoaderType::Fabric => Some(Box::new(FabricLoader)),
+      LoaderType::Fabric => Some(Box::new(FabricLikeLoader::fabric())),
+      LoaderType::Quilt => Some(Box::new(FabricLikeLoader::quilt())),
       LoaderType::Vanilla => None,
       _ => unimplemented!("LoaderType not implemented: {:?}", self),
     }
@@ -67,7 +68,11 @@ impl LoaderType {
     loader_version: String,
   ) -> Option<Box<dyn LoaderVersion>> {
     match self {
-      LoaderType::Fabric => Some(Box::new(FabricLoaderVersion::new(
+      LoaderType::Fabric => Some(Box::new(FabricLikeLoaderVersion::fabric(
+        mc_version,
+        loader_version,
+      ))),
+      LoaderType::Quilt => Some(Box::new(FabricLikeLoaderVersion::quilt(
         mc_version,
         loader_version,
       ))),
@@ -77,6 +82,9 @@ impl LoaderType {
   }
 
   pub fn mod_loaders() -> Vec<Box<dyn Loader>> {
-    vec![LoaderType::Fabric.loader().unwrap()]
+    vec![
+      LoaderType::Fabric.loader().unwrap(),
+      LoaderType::Quilt.loader().unwrap(),
+    ]
   }
 }
