@@ -184,22 +184,24 @@ async fn clean_instance(
 ) {
   let mut instances = instances.lock().await;
   if let Some(entry) = instances.get_mut(profile)
-    && let Some(i) = entry.iter().position(|i| i.id() == id) {
-      let _ = entry.swap_remove(i);
-    }
+    && let Some(i) = entry.iter().position(|i| i.id() == id)
+  {
+    let _ = entry.swap_remove(i);
+  }
   update_data(handle, UpdateType::Instances);
 
   if let Ok(logs_dir) = ProfileInfo::log_dir(handle, profile)
-    && fs::create_dir_all(&logs_dir).await.is_ok() {
-      let log_file = logs_dir.join(format!(
-        "{}.log",
-        launched_at.to_rfc3339().replace(":", "-")
-      ));
+    && fs::create_dir_all(&logs_dir).await.is_ok()
+  {
+    let log_file = logs_dir.join(format!(
+      "{}.log",
+      launched_at.to_rfc3339().replace(":", "-")
+    ));
 
-      let lines = lines.lock().await;
-      let content = lines.join("\n");
-      let _ = fs::write(log_file, content).await.log();
+    let lines = lines.lock().await;
+    let content = lines.join("\n");
+    let _ = fs::write(log_file, content).await.log();
 
-      update_data(handle, UpdateType::ProfileLogs);
-    }
+    update_data(handle, UpdateType::ProfileLogs);
+  }
 }

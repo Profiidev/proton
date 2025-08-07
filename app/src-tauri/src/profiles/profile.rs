@@ -229,13 +229,14 @@ impl ProfileInfo {
     let mut stream = fs::read_dir(log_dir).await?;
     while let Some(entry) = stream.next_entry().await? {
       if entry.file_type().await?.is_file()
-        && let Some(name) = entry.file_name().to_str() {
-          // replace the last 3 dashes with colons but leave the rest of the name intact
-          let name = name.trim_end_matches(".log").replace("-", ":");
-          if let Ok(date) = DateTime::parse_from_str(&name, "%Y:%m:%dT%H:%M:%S.%f%:z") {
-            res.push(date.to_utc());
-          }
+        && let Some(name) = entry.file_name().to_str()
+      {
+        // replace the last 3 dashes with colons but leave the rest of the name intact
+        let name = name.trim_end_matches(".log").replace("-", ":");
+        if let Ok(date) = DateTime::parse_from_str(&name, "%Y:%m:%dT%H:%M:%S.%f%:z") {
+          res.push(date.to_utc());
         }
+      }
     }
 
     Ok(res)
