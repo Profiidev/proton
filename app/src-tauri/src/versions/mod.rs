@@ -6,6 +6,8 @@ pub mod commands;
 mod download;
 mod event;
 pub mod launch;
+pub mod loader;
+mod maven;
 mod meta;
 pub mod store;
 

@@ -11,13 +11,13 @@ use crate::{
   store::TauriAppStoreExt,
   utils::{
     log::ResultLogExt,
-    updater::{update_data, UpdateType},
+    updater::{UpdateType, update_data},
   },
 };
 
 use super::{
-  auth::{ms_mc_login, refresh_mc_token, AuthInfo},
-  info::{get_profile_info, ProfileInfo},
+  auth::{AuthInfo, ms_mc_login, refresh_mc_token},
+  info::{ProfileInfo, get_profile_info},
 };
 
 const CAPE_CHANGE_URL: &str = "https://api.minecraftservices.com/minecraft/profile/capes/active";

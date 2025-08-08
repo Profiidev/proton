@@ -26,7 +26,9 @@ pub async fn profile_favorites_set(
   quick_play: Option<QuickPlayInfo>,
   favorite: bool,
 ) -> Result<()> {
-  trace!("Command profile_favorites_set called with profile {profile} quick_play {quick_play:?} favorite {favorite}");
+  trace!(
+    "Command profile_favorites_set called with profile {profile} quick_play {quick_play:?} favorite {favorite}"
+  );
   let store = state.lock().await;
 
   let mut profile = store.profile(profile).await.log()?;

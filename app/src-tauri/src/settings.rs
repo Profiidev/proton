@@ -3,7 +3,7 @@ use tauri::{AppHandle, Result, Url};
 
 use crate::{
   store::TauriAppStoreExt,
-  utils::updater::{update_data, UpdateType},
+  utils::updater::{UpdateType, update_data},
 };
 
 const SETTINGS_KEY: &str = "settings";

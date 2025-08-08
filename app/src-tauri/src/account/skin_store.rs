@@ -4,7 +4,7 @@ use anyhow::Result;
 use base64::prelude::*;
 use image::ImageFormat;
 use log::debug;
-use reqwest::{multipart::Form, Client};
+use reqwest::{Client, multipart::Form};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, Url};
 use thiserror::Error;
@@ -16,7 +16,7 @@ use crate::{
   utils::{
     file::bytes_hash,
     log::ResultLogExt,
-    updater::{update_data, UpdateType},
+    updater::{UpdateType, update_data},
   },
 };
 

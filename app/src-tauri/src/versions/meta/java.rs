@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fmt::Display};
 
 use serde::{Deserialize, Serialize};
-use serde_json::{value::Serializer, Value};
+use serde_json::{Value, value::Serializer};
 use tauri::Url;
 
 use super::Rule;

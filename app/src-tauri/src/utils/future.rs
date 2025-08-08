@@ -1,4 +1,4 @@
-use std::future::Future;
+use std::{future::Future, pin::Pin};
 
 use anyhow::Result;
 use tokio::task::JoinSet;
@@ -50,5 +50,34 @@ where
     }
 
     results
+  }
+}
+
+pub enum DataOrFuture<T> {
+  Data(T),
+  Future(Pin<Box<dyn Future<Output = Result<T>> + Send>>),
+}
+
+impl<T> DataOrFuture<T> {
+  pub fn data(data: T) -> Self {
+    DataOrFuture::Data(data)
+  }
+
+  pub fn future<F>(future: F) -> Self
+  where
+    F: Future<Output = Result<T>> + Send + 'static,
+  {
+    DataOrFuture::Future(Box::pin(future))
+  }
+
+  pub fn is_data(&self) -> bool {
+    matches!(self, DataOrFuture::Data(_))
+  }
+
+  pub async fn resolve(self) -> Result<T> {
+    match self {
+      DataOrFuture::Data(data) => Ok(data),
+      DataOrFuture::Future(future) => future.await,
+    }
   }
 }

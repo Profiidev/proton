@@ -4,7 +4,7 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use log::debug;
 use serde::Serialize;
-use tauri::{async_runtime::spawn, AppHandle};
+use tauri::{AppHandle, async_runtime::spawn};
 use thiserror::Error;
 use tokio::{
   fs,
@@ -16,11 +16,12 @@ use tokio::{
 use uuid::Uuid;
 
 use crate::{
-  profiles::config::{LoaderType, Profile, ProfileInfo},
+  profiles::config::{Profile, ProfileInfo},
   utils::{
     log::ResultLogExt,
-    updater::{update_data, UpdateType},
+    updater::{UpdateType, update_data},
   },
+  versions::loader::LoaderType,
 };
 
 pub struct Instance {
@@ -182,25 +183,25 @@ async fn clean_instance(
   launched_at: DateTime<Utc>,
 ) {
   let mut instances = instances.lock().await;
-  if let Some(entry) = instances.get_mut(profile) {
-    if let Some(i) = entry.iter().position(|i| i.id() == id) {
-      let _ = entry.swap_remove(i);
-    }
+  if let Some(entry) = instances.get_mut(profile)
+    && let Some(i) = entry.iter().position(|i| i.id() == id)
+  {
+    let _ = entry.swap_remove(i);
   }
   update_data(handle, UpdateType::Instances);
 
-  if let Ok(logs_dir) = ProfileInfo::log_dir(handle, profile) {
-    if fs::create_dir_all(&logs_dir).await.is_ok() {
-      let log_file = logs_dir.join(format!(
-        "{}.log",
-        launched_at.to_rfc3339().replace(":", "-")
-      ));
+  if let Ok(logs_dir) = ProfileInfo::log_dir(handle, profile)
+    && fs::create_dir_all(&logs_dir).await.is_ok()
+  {
+    let log_file = logs_dir.join(format!(
+      "{}.log",
+      launched_at.to_rfc3339().replace(":", "-")
+    ));
 
-      let lines = lines.lock().await;
-      let content = lines.join("\n");
-      let _ = fs::write(log_file, content).await.log();
+    let lines = lines.lock().await;
+    let content = lines.join("\n");
+    let _ = fs::write(log_file, content).await.log();
 
-      update_data(handle, UpdateType::ProfileLogs);
-    }
+    update_data(handle, UpdateType::ProfileLogs);
   }
 }

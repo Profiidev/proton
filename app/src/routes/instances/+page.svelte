@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { version_list } from '$lib/tauri/versions.svelte';
+  import { vanilla_version_list } from '$lib/tauri/versions.svelte';
   import { Input, ScrollArea } from 'positron-components/components/ui';
   import { CircleStop } from '@lucide/svelte';
   import {
@@ -24,7 +24,7 @@
 
   let instances = $derived(instance_list.value);
   let versions = $derived(
-    (version_list.value ?? []).map((v) => ({
+    (vanilla_version_list.value ?? []).map((v) => ({
       label: v,
       value: v
     }))

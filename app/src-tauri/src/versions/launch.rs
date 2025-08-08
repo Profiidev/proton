@@ -1,27 +1,30 @@
-use std::{ffi::OsString, path::PathBuf, process::Stdio};
+use std::{
+  ffi::OsString,
+  path::{Path, PathBuf},
+  process::Stdio,
+};
 
 use anyhow::Result;
 use log::debug;
 use tokio::process::{Child, Command};
 
 use crate::{
-  path,
+  CLIENT_ID, path,
   utils::file::read_parse_file,
   versions::{
-    check_feature,
-    meta::{minecraft::ArgumentValue, Features},
-    QUICK_PLAY,
+    QUICK_PLAY, check_feature,
+    loader::LoaderVersion,
+    maven::{full_path_from_maven, parse_maven_name},
+    meta::{Features, minecraft::ArgumentValue},
   },
-  CLIENT_ID,
 };
 
 use super::{
-  check_rule,
+  ASSETS_DIR, JAVA_DIR, LIBRARY_DIR, MC_DIR, SEPARATOR, VERSION_DIR, check_rule,
   meta::{
     java::{Download, Library},
     minecraft::{Argument, Version},
   },
-  ASSETS_DIR, JAVA_DIR, LIBRARY_DIR, MC_DIR, SEPARATOR, VERSION_DIR,
 };
 
 #[cfg(all(not(debug_assertions), target_os = "windows"))]
@@ -38,6 +41,7 @@ pub struct LaunchArgs {
   pub version: String,
   pub working_sub_dir: String,
   pub quick_play: Option<QuickPlay>,
+  pub loader: Option<Box<dyn LoaderVersion>>,
 }
 
 pub enum QuickPlay {
@@ -47,15 +51,7 @@ pub enum QuickPlay {
 }
 
 impl LaunchArgs {
-  fn replace_vars(&self, version: &Version, arg: &str) -> String {
-    let classpath = if arg.contains("${classpath}") {
-      classpath(version, &path!(&self.data_dir, MC_DIR))
-        .into_string()
-        .expect("Invalid Classpath")
-    } else {
-      String::new()
-    };
-
+  fn replace_vars(&self, version: &Version, arg: &str, classpath: &str) -> String {
     let mut quick_singleplayer = String::new();
     let mut quick_multiplayer = String::new();
     let mut quick_realms = String::new();
@@ -109,11 +105,23 @@ impl LaunchArgs {
         .display()
         .to_string(),
       )
-      .replace("${classpath}", &classpath)
+      .replace("${classpath}", classpath)
       .replace("${quickPlayPath}", QUICK_PLAY)
       .replace("${quickPlaySingleplayer}", &quick_singleplayer)
       .replace("${quickPlayMultiplayer}", &quick_multiplayer)
       .replace("${quickPlayRealms}", &quick_realms)
+  }
+
+  async fn classpath(&self, version: &Version) -> Result<String> {
+    classpath(
+      version,
+      &path!(&self.data_dir, MC_DIR),
+      &self.data_dir,
+      &self.loader,
+    )
+    .await?
+    .into_string()
+    .map_err(|e| anyhow::anyhow!("Failed to convert classpath OsString to String: {:?}", e))
   }
 }
 
@@ -130,12 +138,18 @@ pub async fn launch_minecraft_version(args: &LaunchArgs) -> Result<Child> {
     format!("{}.json", args.version)
   );
   let version: Version = read_parse_file(&path).await?;
+  let classpath = args.classpath(&version).await?;
 
-  let jvm_args = jvm_args(args, &version);
-  let game_args = game_args(args, &version);
+  let jvm_args = jvm_args(args, &version, &classpath);
+  let game_args = game_args(args, &version, &classpath);
+
+  let main_class = if let Some(loader) = &args.loader {
+    loader.main_class(&args.data_dir).await?
+  } else {
+    version.main_class.clone()
+  };
 
   let game_path = path!(&args.data_dir, &args.working_sub_dir);
-  let main_class = &version.main_class;
   let java_component = &version.java_version.component;
   #[cfg(target_family = "unix")]
   let jre_bin = path!(
@@ -171,19 +185,19 @@ pub async fn launch_minecraft_version(args: &LaunchArgs) -> Result<Child> {
   Ok(command.spawn()?)
 }
 
-fn jvm_args(args: &LaunchArgs, version: &Version) -> Vec<String> {
+fn jvm_args(args: &LaunchArgs, version: &Version, classpath: &str) -> Vec<String> {
   let mut jvm_args = Vec::new();
 
   for arg in &version.arguments.jvm {
     if let Argument::String(arg) = arg {
-      jvm_args.push(args.replace_vars(version, arg));
+      jvm_args.push(args.replace_vars(version, arg, classpath));
     }
   }
 
   jvm_args
 }
 
-fn game_args(args: &LaunchArgs, version: &Version) -> Vec<String> {
+fn game_args(args: &LaunchArgs, version: &Version, classpath: &str) -> Vec<String> {
   let mut game_args = Vec::new();
 
   let mut features = Features {
@@ -207,17 +221,17 @@ fn game_args(args: &LaunchArgs, version: &Version) -> Vec<String> {
 
   for arg in &version.arguments.game {
     match arg {
-      Argument::String(s) => game_args.push(args.replace_vars(version, s)),
+      Argument::String(s) => game_args.push(args.replace_vars(version, s, classpath)),
       Argument::Object(arg) => {
         if arg.rules.iter().all(|rule| check_feature(rule, &features)) {
           match &arg.value {
             ArgumentValue::List(list) => {
               for s in list {
-                game_args.push(args.replace_vars(version, s));
+                game_args.push(args.replace_vars(version, s, classpath));
               }
             }
-            ArgumentValue::String(ref s) => {
-              game_args.push(args.replace_vars(version, s));
+            ArgumentValue::String(s) => {
+              game_args.push(args.replace_vars(version, s, classpath));
             }
           }
         }
@@ -231,7 +245,12 @@ fn game_args(args: &LaunchArgs, version: &Version) -> Vec<String> {
   game_args
 }
 
-fn classpath(version: &Version, mc_dir: &PathBuf) -> OsString {
+async fn classpath(
+  version: &Version,
+  mc_dir: &PathBuf,
+  data_dir: &Path,
+  loader: &Option<Box<dyn LoaderVersion>>,
+) -> Result<OsString> {
   let mut classpath = OsString::new();
   classpath.push(path!(
     mc_dir,
@@ -240,6 +259,7 @@ fn classpath(version: &Version, mc_dir: &PathBuf) -> OsString {
     format!("{}.jar", version.id)
   ));
 
+  let mut libraries = Vec::new();
   'l: for lib in &version.libraries {
     match lib {
       Library {
@@ -258,42 +278,31 @@ fn classpath(version: &Version, mc_dir: &PathBuf) -> OsString {
           }
         }
 
-        classpath.push(SEPARATOR);
         let path = path!(mc_dir, LIBRARY_DIR, &artifact.path);
-        classpath.push(path);
+        libraries.push((parse_maven_name(&lib.name), path));
       }
       lib => {
-        let mut original_name: &str = &lib.name;
-        let mut name = "";
-        let mut version = "";
-        let mut path = path!();
-
-        if let Some(i) = original_name.find(":") {
-          let mut paths = &original_name[..i];
-          original_name = &original_name[(i + 1)..];
-          while let Some(i) = paths.find(".") {
-            path = path!(path, &paths[..i]);
-            paths = &paths[(i + 1)..];
-          }
-          path = path!(path, &paths);
-        }
-        if let Some(i) = original_name.find(":") {
-          name = &original_name[..i];
-          version = &original_name[(i + 1)..];
-        }
-        classpath.push(SEPARATOR);
-        let path = path!(
-          mc_dir,
-          LIBRARY_DIR,
-          &path,
-          name,
-          version,
-          format!("{name}-{version}.jar")
-        );
-        classpath.push(path);
+        let maven = parse_maven_name(&lib.name);
+        let path = full_path_from_maven(data_dir, &maven);
+        libraries.push((maven, path));
       }
     }
   }
 
-  classpath
+  if let Some(loader) = loader {
+    let loader_libs = loader.classpath(data_dir).await?;
+    libraries.retain(|(l, _)| {
+      !loader_libs
+        .iter()
+        .any(|(ll, _)| l.group == ll.group && l.artifact == ll.artifact)
+    });
+    libraries.extend(loader_libs);
+  }
+
+  for (_, path) in libraries {
+    classpath.push(SEPARATOR);
+    classpath.push(path);
+  }
+
+  Ok(classpath)
 }

@@ -19,6 +19,10 @@ let
     xorg.libXext
     xorg.libXrandr
     xorg.libXxf86vm
+    xorg.libXrender
+    xorg.libXtst
+    xorg.libXi
+    freetype
 
     udev # oshi
 

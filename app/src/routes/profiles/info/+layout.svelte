@@ -30,7 +30,7 @@
   let deleteOpen = $state(false);
 
   $effect(() => {
-    if (profile === null) {
+    if (profile === undefined) {
       goto('/profiles');
     } else if (profile) {
       setProfile(profile);
