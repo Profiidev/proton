@@ -15,3 +15,15 @@ export const vanilla_version_list = create_data_state(
   () => version_list(LoaderType.Vanilla),
   UpdateType.Versions
 );
+
+export const loader_version_list = async (
+  loader: LoaderType,
+  mcVersion: string
+): Promise<string[] | undefined> => {
+  try {
+    return await invoke('loader_version_list', {
+      loader,
+      mcVersion
+    });
+  } catch (e) {}
+};

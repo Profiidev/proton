@@ -55,11 +55,14 @@ pub async fn profile_update(
 
   let mut current_profile = store.profile(&profile.id).await.log()?;
 
-  if profile.version != current_profile.version {
+  if profile.version != current_profile.version
+    || profile.loader_version != current_profile.loader_version
+  {
     current_profile.downloaded = false;
   }
   current_profile.name = profile.name;
   current_profile.version = profile.version;
+  current_profile.loader_version = profile.loader_version;
 
   current_profile.update(store.data_dir()).await.log()?;
   store.update_data(UpdateType::Profiles);

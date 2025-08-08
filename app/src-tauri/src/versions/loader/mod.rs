@@ -35,6 +35,7 @@ pub trait Loader: Send + Sync + 'static {
     &self,
     mc_version: &str,
     data_dir: &Path,
+    stable: bool,
   ) -> Result<Vec<String>>;
 
   async fn newest_loader_version_for_mc_version(
@@ -43,7 +44,7 @@ pub trait Loader: Send + Sync + 'static {
     data_dir: &Path,
   ) -> Result<String> {
     let versions = self
-      .loader_versions_for_mc_version(mc_version, data_dir)
+      .loader_versions_for_mc_version(mc_version, data_dir, true)
       .await?;
     if versions.is_empty() {
       return Err(anyhow::anyhow!(

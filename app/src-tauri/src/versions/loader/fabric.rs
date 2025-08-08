@@ -79,14 +79,32 @@ impl Loader for FabricLikeLoader {
     Ok(versions)
   }
 
-  async fn loader_versions_for_mc_version(&self, _: &str, data_dir: &Path) -> Result<Vec<String>> {
+  async fn loader_versions_for_mc_version(
+    &self,
+    _: &str,
+    data_dir: &Path,
+    stable: bool,
+  ) -> Result<Vec<String>> {
     let path = self.loader(data_dir);
-    let versions = read_parse_file::<Vec<LoaderVersionMeta>>(&path)
-      .await?
-      .into_iter()
-      .map(|v| v.version)
-      .collect::<Vec<_>>();
-    Ok(versions)
+    if self.index_file_name == INDEX_FILE_NAME_FABRIC {
+      let versions = read_parse_file::<Vec<GameVersionMeta>>(&path)
+        .await?
+        .into_iter()
+        .filter(|v| v.stable == stable || !stable)
+        .map(|v| v.version)
+        .collect::<Vec<_>>();
+      Ok(versions)
+    } else {
+      let versions = read_parse_file::<Vec<LoaderVersionMeta>>(&path)
+        .await?
+        .into_iter()
+        .filter(|v| {
+          (v.version.contains("beta") != stable && v.version.contains("pre") != stable) || !stable
+        })
+        .map(|v| v.version)
+        .collect::<Vec<_>>();
+      Ok(versions)
+    }
   }
 }
 

@@ -204,4 +204,22 @@ impl McVersionStore {
       )
     }
   }
+
+  pub async fn list_loader_versions(
+    &self,
+    loader: &LoaderType,
+    mc_version: &str,
+  ) -> Result<Vec<String>> {
+    if let Some(loader) = loader.loader() {
+      loader
+        .loader_versions_for_mc_version(
+          mc_version,
+          &self.handle.path().app_data_dir().unwrap(),
+          true,
+        )
+        .await
+    } else {
+      Ok(vec![])
+    }
+  }
 }

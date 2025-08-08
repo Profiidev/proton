@@ -86,6 +86,7 @@ pub struct ProfileUpdate {
   pub id: String,
   pub name: String,
   pub version: String,
+  pub loader_version: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

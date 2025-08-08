@@ -1,5 +1,6 @@
 <script lang="ts">
   import {
+    LoaderType,
     profile_get_icon,
     profile_update,
     profile_update_icon,
@@ -13,12 +14,16 @@
     type FormType
   } from 'positron-components/components/form';
   import { profileEditSchema } from './schema.svelte';
-  import type { SvelteComponent } from 'svelte';
+  import { type SvelteComponent } from 'svelte';
   import FormImage from '$lib/components/form/FormImage.svelte';
   import { getProfile } from '../store.svelte';
   import { file_to_bytes } from '$lib/util.svelte';
   import { toast } from 'svelte-sonner';
-  import { vanilla_version_list } from '$lib/tauri/versions.svelte';
+  import {
+    loader_version_list,
+    version_list
+  } from '$lib/tauri/versions.svelte';
+  import FormSelectUpdate from '$lib/components/form/FormSelectUpdate.svelte';
 
   interface Props {
     data: PageServerData;
@@ -32,12 +37,47 @@
   let setValue: (value: any) => void = $derived(
     form?.setValue || (() => undefined)
   );
-  let versions = $derived(
-    (vanilla_version_list.value ?? []).map((v) => ({
-      label: v,
-      value: v
-    }))
-  );
+  let versions = $state<{ label: string; value: string }[]>([]);
+  let selectedVersion = $state<[string]>();
+  let loader_versions = $state<{ label: string; value: string }[]>([]);
+  let selectedLoaderVersion = $state<[string]>();
+  $effect(() => {
+    if (!profile) {
+      return;
+    }
+
+    version_list(profile?.loader)
+      .catch(() => [] as string[])
+      .then((v) => {
+        versions =
+          v?.map((version) => ({
+            label: version,
+            value: version
+          })) ?? [];
+      });
+  });
+
+  $effect(() => {
+    if (!profile || profile.loader === LoaderType.Vanilla || !selectedVersion)
+      return;
+
+    loader_version_list(profile.loader, selectedVersion[0])
+      .catch(() => [] as string[])
+      .then((v) => {
+        loader_versions =
+          v?.map((version) => ({
+            label: version,
+            value: version
+          })) ?? [];
+
+        if (
+          v &&
+          (!selectedLoaderVersion || !v.includes(selectedLoaderVersion[0]))
+        ) {
+          selectedLoaderVersion = [v[0]];
+        }
+      });
+  });
 
   const profileEdit = {
     form: data.profileEdit,
@@ -50,7 +90,8 @@
       (async () => {
         let profileData = {
           ...profile,
-          version: [profile.version]
+          version: [profile.version],
+          loader_version: [profile.loader_version]
         };
         setTimeout(() => {
           setValue(profileData);
@@ -69,8 +110,18 @@
       return { error: 'Profile not found' };
     }
 
+    if (
+      profile.loader !== LoaderType.Vanilla &&
+      (!form.data.loader_version || form.data.loader_version.length !== 1)
+    ) {
+      return { field: 'loader_version', error: 'Loader version is required' };
+    }
+
     form.data.id = profile.id;
     form.data.version = form.data.version[0];
+    form.data.loader_version = form.data.loader_version
+      ? form.data.loader_version[0]
+      : undefined;
 
     if (form.data.icon) {
       let bytes = await file_to_bytes(form.data.icon);
@@ -117,13 +168,24 @@
           key="name"
           {...props}
         />
-        <FormSelect
+        <FormSelectUpdate
+          bind:val={selectedVersion}
           label="Version"
           key="version"
           single={true}
-          data={versions ?? []}
+          data={versions}
           {...props}
         />
+        {#if profile.loader !== LoaderType.Vanilla}
+          <FormSelectUpdate
+            bind:val={selectedLoaderVersion}
+            label="Loader Version"
+            key="loader_version"
+            single={true}
+            data={loader_versions}
+            {...props}
+          />
+        {/if}
       {/snippet}
       {#snippet footer({ children })}
         {@render children()}
