@@ -9,9 +9,14 @@
 
   interface Props {
     formData: SuperForm<S>;
+    //typescript is dump and thinks the type could be infinite if we use FormPath<S>
+    key: any;
     val: any;
   }
-  type FormSelectProps = Omit<ComponentProps<FormSelect<T, S>>, 'formData'>;
+  type FormSelectProps = Omit<
+    ComponentProps<FormSelect<T, S>>,
+    'formData' | 'key'
+  >;
 
   let {
     val = $bindable(),
