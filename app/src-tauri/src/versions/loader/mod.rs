@@ -30,17 +30,29 @@ pub trait LoaderVersion: Send + Sync + 'static {
 #[async_trait::async_trait]
 pub trait Loader: Send + Sync + 'static {
   async fn download_metadata(&self, client: &Client, data_dir: &Path) -> Result<()>;
+  async fn supported_versions(&self, data_dir: &Path, stable: bool) -> Result<Vec<String>>;
   async fn loader_versions_for_mc_version(
     &self,
     mc_version: &str,
-    client: &Client,
     data_dir: &Path,
   ) -> Result<Vec<String>>;
+
   async fn newest_loader_version_for_mc_version(
     &self,
     mc_version: &str,
     data_dir: &Path,
-  ) -> Result<String>;
+  ) -> Result<String> {
+    let versions = self
+      .loader_versions_for_mc_version(mc_version, data_dir)
+      .await?;
+    if versions.is_empty() {
+      return Err(anyhow::anyhow!(
+        "No loader versions found for Minecraft version: {}",
+        mc_version
+      ));
+    }
+    Ok(versions[0].clone())
+  }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]

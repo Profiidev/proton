@@ -17,12 +17,12 @@ use crate::{
   },
 };
 
-const API_BASE_URL_FABRIC: &str = "https://meta.fabricmc.net/v2/versions/loader";
-const API_BASE_URL_QUILT: &str = "https://meta.quiltmc.org/v3/versions/loader";
+const API_BASE_URL_FABRIC: &str = "https://meta.fabricmc.net/v2/versions";
+const API_BASE_URL_QUILT: &str = "https://meta.quiltmc.org/v3/versions";
 const MAVEN_BASE_URL_FABRIC: &str = "https://maven.fabricmc.net";
 const MAVEN_BASE_URL_QUILT: &str = "https://maven.quiltmc.org/repository/release";
-const INDEX_FILE_NAME_FABRIC: &str = "fabric-loaders.json";
-const INDEX_FILE_NAME_QUILT: &str = "quilt-loaders.json";
+const INDEX_FILE_NAME_FABRIC: &str = "fabric";
+const INDEX_FILE_NAME_QUILT: &str = "quilt";
 
 pub struct FabricLikeLoader {
   pub base_url: String,
@@ -44,27 +44,43 @@ impl FabricLikeLoader {
     }
   }
 
-  fn path(&self, data_dir: &Path) -> PathBuf {
-    path!(data_dir, MC_DIR, VERSION_DIR, &self.index_file_name)
+  fn loader(&self, data_dir: &Path) -> PathBuf {
+    let filename = format!("{}-loader.json", self.index_file_name);
+    path!(data_dir, MC_DIR, VERSION_DIR, filename)
+  }
+
+  fn game(&self, data_dir: &Path) -> PathBuf {
+    let filename = format!("{}-game.json", self.index_file_name);
+    path!(data_dir, MC_DIR, VERSION_DIR, filename)
   }
 }
 
 #[async_trait::async_trait]
 impl Loader for FabricLikeLoader {
   async fn download_metadata(&self, client: &Client, data_dir: &Path) -> Result<()> {
-    let url = Url::parse(&self.base_url)?;
-    let path = self.path(data_dir);
+    let url = Url::parse(&format!("{}/loader", self.base_url))?;
+    let path = self.loader(data_dir);
+    download_file_no_hash_force(client, &path, url).await?;
+
+    let url = Url::parse(&format!("{}/game", self.base_url))?;
+    let path = self.game(data_dir);
     download_file_no_hash_force(client, &path, url).await?;
     Ok(())
   }
 
-  async fn loader_versions_for_mc_version(
-    &self,
-    _: &str,
-    _: &Client,
-    data_dir: &Path,
-  ) -> Result<Vec<String>> {
-    let path = self.path(data_dir);
+  async fn supported_versions(&self, data_dir: &Path, stable: bool) -> Result<Vec<String>> {
+    let path = self.game(data_dir);
+    let versions = read_parse_file::<Vec<GameVersionMeta>>(&path)
+      .await?
+      .into_iter()
+      .filter(|v| v.stable == stable || !stable)
+      .map(|v| v.version)
+      .collect::<Vec<_>>();
+    Ok(versions)
+  }
+
+  async fn loader_versions_for_mc_version(&self, _: &str, data_dir: &Path) -> Result<Vec<String>> {
+    let path = self.loader(data_dir);
     let versions = read_parse_file::<Vec<LoaderVersionMeta>>(&path)
       .await?
       .into_iter()
@@ -72,20 +88,17 @@ impl Loader for FabricLikeLoader {
       .collect::<Vec<_>>();
     Ok(versions)
   }
-
-  async fn newest_loader_version_for_mc_version(&self, _: &str, data_dir: &Path) -> Result<String> {
-    let path = self.path(data_dir);
-    let versions: Vec<LoaderVersionMeta> = read_parse_file(&path).await?;
-    if versions.is_empty() {
-      return Err(anyhow::anyhow!("No loader versions found"));
-    }
-    Ok(versions[0].version.clone())
-  }
 }
 
 #[derive(Deserialize, Serialize)]
 struct LoaderVersionMeta {
   version: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct GameVersionMeta {
+  version: String,
+  stable: bool,
 }
 
 pub struct FabricLikeLoaderVersion {
@@ -129,7 +142,7 @@ impl FabricLikeLoaderVersion {
 impl LoaderVersion for FabricLikeLoaderVersion {
   async fn download(&self, client: &Client, data_dir: &PathBuf) -> Result<Vec<CheckFuture>> {
     let url = Url::parse(&format!(
-      "{}/{}/{}",
+      "{}/loader/{}/{}",
       self.base_url, self.mc_version, self.loader_version
     ))?;
     let path = self.meta_path(data_dir);

@@ -18,7 +18,7 @@
   import { getProfile } from '../store.svelte';
   import { file_to_bytes } from '$lib/util.svelte';
   import { toast } from 'svelte-sonner';
-  import { version_list } from '$lib/tauri/versions.svelte';
+  import { vanilla_version_list } from '$lib/tauri/versions.svelte';
 
   interface Props {
     data: PageServerData;
@@ -33,7 +33,7 @@
     form?.setValue || (() => undefined)
   );
   let versions = $derived(
-    (version_list.value ?? []).map((v) => ({
+    (vanilla_version_list.value ?? []).map((v) => ({
       label: v,
       value: v
     }))

@@ -186,14 +186,22 @@ impl McVersionStore {
     Ok(ok)
   }
 
-  pub fn list_versions(&self) -> Vec<String> {
-    self
-      .mc_manifest
-      .versions
-      .iter()
-      .filter(|v| v.r#type == VersionType::Release)
-      .map(|v| &v.id)
-      .cloned()
-      .collect()
+  pub async fn list_versions(&self, loader: &LoaderType) -> Result<Vec<String>> {
+    if let Some(loader) = loader.loader() {
+      loader
+        .supported_versions(&self.handle.path().app_data_dir().unwrap(), true)
+        .await
+    } else {
+      Ok(
+        self
+          .mc_manifest
+          .versions
+          .iter()
+          .filter(|v| v.r#type == VersionType::Release)
+          .map(|v| &v.id)
+          .cloned()
+          .collect(),
+      )
+    }
   }
 }
