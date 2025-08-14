@@ -9,11 +9,15 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
 use crate::versions::{
-  loader::fabric::{FabricLikeLoader, FabricLikeLoaderVersion},
+  loader::{
+    fabric::{FabricLikeLoader, FabricLikeLoaderVersion},
+    forge::ForgeLikeLoader,
+  },
   maven::MavenName,
 };
 
 pub mod fabric;
+pub mod forge;
 mod util;
 
 type DownloadFuture = Pin<Box<dyn Future<Output = Result<()>> + Send + 'static>>;
@@ -70,8 +74,9 @@ impl LoaderType {
     match self {
       LoaderType::Fabric => Some(Box::new(FabricLikeLoader::fabric())),
       LoaderType::Quilt => Some(Box::new(FabricLikeLoader::quilt())),
+      LoaderType::Forge => Some(Box::new(ForgeLikeLoader::forge())),
+      LoaderType::NeoForge => Some(Box::new(ForgeLikeLoader::neoforge())),
       LoaderType::Vanilla => None,
-      _ => unimplemented!("LoaderType not implemented: {:?}", self),
     }
   }
 
@@ -98,6 +103,8 @@ impl LoaderType {
     vec![
       LoaderType::Fabric.loader().unwrap(),
       LoaderType::Quilt.loader().unwrap(),
+      LoaderType::Forge.loader().unwrap(),
+      LoaderType::NeoForge.loader().unwrap(),
     ]
   }
 }

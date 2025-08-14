@@ -25,8 +25,8 @@ const INDEX_FILE_NAME_FABRIC: &str = "fabric";
 const INDEX_FILE_NAME_QUILT: &str = "quilt";
 
 pub struct FabricLikeLoader {
-  pub base_url: String,
-  pub index_file_name: String,
+  base_url: String,
+  index_file_name: String,
 }
 
 impl FabricLikeLoader {

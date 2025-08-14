@@ -52,3 +52,25 @@ pub async fn download_maven(
   download_file_no_hash_force(client, &loader_path, loader_url).await?;
   Ok(())
 }
+
+#[allow(clippy::ptr_arg)]
+pub fn compare_mc_versions(a: &String, b: &String) -> std::cmp::Ordering {
+  let a_parts: Vec<&str> = a.split('.').collect();
+  let b_parts: Vec<&str> = b.split('.').collect();
+
+  for (a_part, b_part) in a_parts.iter().zip(b_parts.iter()) {
+    match a_part.parse::<u32>() {
+      Ok(a_num) => match b_part.parse::<u32>() {
+        Ok(b_num) => {
+          if a_num != b_num {
+            return a_num.cmp(&b_num);
+          }
+        }
+        Err(_) => return std::cmp::Ordering::Greater,
+      },
+      Err(_) => return std::cmp::Ordering::Less,
+    }
+  }
+
+  a_parts.len().cmp(&b_parts.len())
+}

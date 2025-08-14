@@ -101,6 +101,11 @@ pub async fn read_parse_file<R: DeserializeOwned>(path: &PathBuf) -> Result<R> {
   Ok(serde_json::from_str(&data)?)
 }
 
+pub async fn read_parse_xml_file<R: DeserializeOwned>(path: &PathBuf) -> Result<R> {
+  let data = fs::read_to_string(path).await?;
+  Ok(serde_xml_rs::from_str(&data)?)
+}
+
 pub async fn write_file<T: Serialize>(path: &PathBuf, data: &T) -> Result<()> {
   let data = serde_json::to_string(data)?;
   fs::write(path, data).await?;
