@@ -1,5 +1,5 @@
 use std::{
-  collections::HashMap,
+  collections::{HashMap, HashSet},
   ffi::OsString,
   path::{Path, PathBuf},
   process::Stdio,
@@ -227,6 +227,7 @@ impl ForgeLikeLoaderVersion {
 
 const INSTALLER_PATH: &str = "installer.jar";
 const INSTALLER_PROFILE_PATH: &str = "install_profile.json";
+const VERSION_JSON_PATH: &str = "version.json";
 
 #[async_trait::async_trait]
 impl LoaderVersion for ForgeLikeLoaderVersion {
@@ -241,6 +242,12 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
 
     let profile = read_parse_file::<ForgeInstallerProfile>(&profile_path).await?;
 
+    let version_json_path = self.installer_path(data_dir).join(VERSION_JSON_PATH);
+    let version_json_data = extract_file_from_zip(&path, &profile.json[1..]).await?;
+    fs::write(&version_json_path, &version_json_data).await?;
+
+    let version_json: ForgeVersion = read_parse_file(&version_json_path).await?;
+
     for entry in profile.data.values() {
       if entry.client.starts_with("/") {
         let file_path = self.installer_path(data_dir).join(&entry.client[1..]);
@@ -253,18 +260,35 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
     }
 
     let mut futures = Vec::new();
+    let mut added_libs = HashSet::new();
+
     for library in profile.libraries {
-      let data_dir = data_dir.clone();
-      let base_url = self.maven_base_url.clone();
-      let client = client.clone();
+      futures.push(download_maven_future(
+        data_dir.clone(),
+        library.name.clone(),
+        client.clone(),
+        self.maven_base_url.clone(),
+        Some(library.downloads.artifact.sha1),
+      ));
+      added_libs.insert(library.name);
+    }
+
+    for library in version_json.libraries {
+      if library.downloads.artifact.url.is_none() {
+        continue; // Skip libraries without a URL
+      }
+      if added_libs.contains(&library.name) {
+        continue; // Skip already added libraries
+      }
 
       futures.push(download_maven_future(
-        data_dir,
-        library.name,
-        client,
-        base_url,
+        data_dir.clone(),
+        library.name.clone(),
+        client.clone(),
+        self.maven_base_url.clone(),
         Some(library.downloads.artifact.sha1),
-      ))
+      ));
+      added_libs.insert(library.name);
     }
 
     Ok(futures)
@@ -385,11 +409,30 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
   }
 
   async fn classpath(&self, data_dir: &Path) -> Result<Vec<(MavenName, PathBuf)>> {
-    Ok(vec![])
+    let version_json_path = self.installer_path(data_dir).join(VERSION_JSON_PATH);
+    let version_json: ForgeVersion = read_parse_file(&version_json_path).await?;
+
+    let mut classpath = Vec::new();
+    let mut added_libs = HashSet::new();
+
+    for library in version_json.libraries {
+      if added_libs.contains(&library.name) {
+        continue; // Skip already added libraries
+      }
+
+      let maven = parse_maven_name(&library.name)?;
+      let path = full_path_from_maven(data_dir, &maven);
+      classpath.push((maven, path));
+      added_libs.insert(library.name);
+    }
+
+    Ok(classpath)
   }
 
   async fn main_class(&self, data_dir: &Path) -> Result<String> {
-    Ok("net.minecraftforge.fml.common.Mod".into())
+    let version_json_path = self.installer_path(data_dir).join(VERSION_JSON_PATH);
+    let version_json: ForgeVersion = read_parse_file(&version_json_path).await?;
+    Ok(version_json.main_class)
   }
 }
 
@@ -543,4 +586,51 @@ struct Artifact {
   url: Url,
   sha1: String,
   size: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+struct ForgeVersion {
+  id: String,
+  main_class: String,
+  libraries: Vec<VersionLibrary>,
+  arguments: Arguments,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct VersionLibrary {
+  name: String,
+  downloads: VersionDownloads,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct VersionDownloads {
+  artifact: VersionArtifact,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct VersionArtifact {
+  path: String,
+  #[serde(deserialize_with = "deserialize_url_option")]
+  url: Option<Url>,
+  sha1: String,
+  size: u64,
+}
+
+fn deserialize_url_option<'de, D>(deserializer: D) -> Result<Option<Url>, D::Error>
+where
+  D: serde::Deserializer<'de>,
+{
+  let url = String::deserialize(deserializer)?;
+  if let Ok(parsed_url) = Url::parse(&url) {
+    Ok(Some(parsed_url))
+  } else {
+    Ok(None)
+  }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct Arguments {
+  game: Vec<String>,
+  jvm: Vec<String>,
 }

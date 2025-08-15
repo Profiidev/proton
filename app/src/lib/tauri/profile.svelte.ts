@@ -233,9 +233,9 @@ const get_message = (event: VersionCheckStatus): string | undefined => {
       case 'ModLoaderMeta':
         return 'Downloading ModLoader Version Meta';
       case 'ModLoaderPreprocess':
-        return 'Preprocessing ModLoader files';
+        return 'Running preprocessing of ModLoader';
       case 'ModLoaderPreprocessDone':
-        return 'ModLoader preprocessing done';
+        return 'Preprocessing of ModLoader done';
       case 'Done':
         return undefined; // No message for done
     }
