@@ -30,6 +30,7 @@ pub trait LoaderVersion: Send + Sync + 'static {
   async fn preprocess(&self, data_dir: &Path, jre_bin: PathBuf) -> Result<()>;
   async fn classpath(&self, data_dir: &Path) -> Result<Vec<(MavenName, PathBuf)>>;
   async fn main_class(&self, data_dir: &Path) -> Result<String>;
+  async fn arguments(&self, data_dir: &Path) -> Result<(Vec<String>, Vec<String>)>;
 }
 
 #[async_trait::async_trait]

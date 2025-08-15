@@ -434,6 +434,12 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
     let version_json: ForgeVersion = read_parse_file(&version_json_path).await?;
     Ok(version_json.main_class)
   }
+
+  async fn arguments(&self, data_dir: &Path) -> Result<(Vec<String>, Vec<String>)> {
+    let version_json_path = self.installer_path(data_dir).join(VERSION_JSON_PATH);
+    let version_json: ForgeVersion = read_parse_file(&version_json_path).await?;
+    Ok((version_json.arguments.jvm, version_json.arguments.game))
+  }
 }
 
 fn default_data(data: &mut HashMap<String, DataEntry>, mc_version: &str, data_dir: &Path) {

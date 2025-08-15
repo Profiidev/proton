@@ -251,6 +251,10 @@ impl LoaderVersion for FabricLikeLoaderVersion {
       FabricLauncherMeta::V2(FabricLauncherMetaV2 { main_class, .. }) => Ok(main_class.client),
     }
   }
+
+  async fn arguments(&self, _: &Path) -> Result<(Vec<String>, Vec<String>)> {
+    Ok((vec![], vec![])) // Fabric does not require additional arguments
+  }
 }
 
 #[derive(Deserialize, Serialize)]

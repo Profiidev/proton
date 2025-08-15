@@ -77,13 +77,18 @@ fn path_from_maven(maven: &MavenName) -> PathBuf {
 
 pub fn url_from_maven(base_url: &str, maven: &MavenName) -> Result<Url> {
   Ok(Url::parse(&format!(
-    "{}/{}/{}/{}/{}-{}.{}",
+    "{}/{}/{}/{}/{}-{}{}.{}",
     base_url,
     maven.group.replace('.', "/"),
     maven.artifact,
     maven.version,
     maven.artifact,
     maven.version,
+    maven
+      .version_ext
+      .as_deref()
+      .map(|ext| format!("-{}", ext))
+      .unwrap_or_default(),
     maven.ext
   ))?)
 }

@@ -140,8 +140,15 @@ pub async fn launch_minecraft_version(args: &LaunchArgs) -> Result<Child> {
   let version: Version = read_parse_file(&path).await?;
   let classpath = args.classpath(&version).await?;
 
-  let jvm_args = jvm_args(args, &version, &classpath);
-  let game_args = game_args(args, &version, &classpath);
+  let mut jvm_args = jvm_args(args, &version, &classpath);
+  let mut game_args = game_args(args, &version, &classpath);
+
+  if let Some(loader) = &args.loader {
+    debug!("Adding loader arguments to JVM args");
+    let (loader_jvm_args, loader_game_args) = loader.arguments(&args.data_dir).await?;
+    jvm_args.extend(loader_jvm_args);
+    game_args.extend(loader_game_args);
+  }
 
   let main_class = if let Some(loader) = &args.loader {
     loader.main_class(&args.data_dir).await?
