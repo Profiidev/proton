@@ -112,12 +112,12 @@ pub async fn write_file<T: Serialize>(path: &PathBuf, data: &T) -> Result<()> {
   Ok(())
 }
 
-pub fn create_or_open_file_std(path: &PathBuf) -> Result<std::fs::File> {
+pub async fn create_or_open_file(path: &PathBuf) -> Result<File> {
   let path = Path::new(path);
   if let Some(parent) = path.parent() {
-    std::fs::create_dir_all(parent)?;
+    fs::create_dir_all(parent).await?;
   }
-  Ok(std::fs::File::create(path)?)
+  Ok(File::create(path).await?)
 }
 
 pub async fn download_file(

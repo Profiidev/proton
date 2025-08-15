@@ -124,11 +124,13 @@ pub struct FabricLikeLoaderVersion {
   loader_version: String,
   base_url: String,
   maven_base_url: String,
+  meta_file_name: String,
 }
 
 impl FabricLikeLoaderVersion {
   pub fn fabric(mc_version: String, loader_version: String) -> Self {
     Self {
+      meta_file_name: format!("{}-{}.json", INDEX_FILE_NAME_FABRIC, loader_version),
       mc_version,
       loader_version,
       base_url: API_BASE_URL_FABRIC.to_string(),
@@ -138,6 +140,7 @@ impl FabricLikeLoaderVersion {
 
   pub fn quilt(mc_version: String, loader_version: String) -> Self {
     Self {
+      meta_file_name: format!("{}-{}.json", INDEX_FILE_NAME_QUILT, loader_version),
       mc_version,
       loader_version,
       base_url: API_BASE_URL_QUILT.to_string(),
@@ -151,7 +154,7 @@ impl FabricLikeLoaderVersion {
       MC_DIR,
       VERSION_DIR,
       &self.mc_version,
-      format!("fabric-{}.json", self.loader_version)
+      &self.meta_file_name
     )
   }
 }
@@ -207,6 +210,11 @@ impl LoaderVersion for FabricLikeLoaderVersion {
     Ok(futures)
   }
 
+  async fn preprocess(&self, _: &Path, _: PathBuf) -> Result<()> {
+    // Fabric versions do not require preprocessing
+    Ok(())
+  }
+
   async fn classpath(&self, data_dir: &Path) -> Result<Vec<(MavenName, PathBuf)>> {
     let meta_path = self.meta_path(data_dir);
     let meta: FabricVersionMeta = read_parse_file(&meta_path).await?;
@@ -218,16 +226,16 @@ impl LoaderVersion for FabricLikeLoaderVersion {
 
     let mut libs = Vec::new();
     for lib in libraries.client.into_iter().chain(libraries.common) {
-      let maven = parse_maven_name(&lib.name);
+      let maven = parse_maven_name(&lib.name)?;
       let path = full_path_from_maven(data_dir, &maven);
       libs.push((maven, path));
     }
 
-    let loader_maven = parse_maven_name(&meta.loader.maven);
+    let loader_maven = parse_maven_name(&meta.loader.maven)?;
     let loader_path = full_path_from_maven(data_dir, &loader_maven);
     libs.push((loader_maven, loader_path));
 
-    let intermediary_maven = parse_maven_name(&meta.intermediary.maven);
+    let intermediary_maven = parse_maven_name(&meta.intermediary.maven)?;
     let intermediary_path = full_path_from_maven(data_dir, &intermediary_maven);
     libs.push((intermediary_maven, intermediary_path));
 

@@ -43,6 +43,8 @@ export type VersionCheckStatus =
   | 'ModLoaderMeta'
   | { ModLoaderFilesCheck: [number, number] }
   | { ModLoaderFilesDownload: [number, number] }
+  | 'ModLoaderPreprocess'
+  | 'ModLoaderPreprocessDone'
   | 'Done';
 
 export type VersionCheckData = {

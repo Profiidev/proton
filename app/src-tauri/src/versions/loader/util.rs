@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
+use async_zip::tokio::read::fs::ZipFileReader;
 use reqwest::Client;
 
 use crate::{
@@ -26,7 +27,7 @@ pub fn download_maven_future(
       anyhow::Ok(())
     }) as DownloadFuture;
 
-    let maven = parse_maven_name(&name);
+    let maven = parse_maven_name(&name)?;
     let path = full_path_from_maven(&data, &maven);
     if let Some(sha1) = sha1 {
       if !file_hash(&sha1, &path).await? {
@@ -46,7 +47,7 @@ pub async fn download_maven(
   name: &str,
   client: &Client,
 ) -> Result<()> {
-  let maven = parse_maven_name(name);
+  let maven = parse_maven_name(name)?;
   let loader_path = full_path_from_maven(data_dir, &maven);
   let loader_url = url_from_maven(base_url, &maven)?;
   download_file_no_hash_force(client, &loader_path, loader_url).await?;
@@ -73,4 +74,27 @@ pub fn compare_mc_versions(a: &String, b: &String) -> std::cmp::Ordering {
   }
 
   a_parts.len().cmp(&b_parts.len())
+}
+
+pub async fn extract_file_from_zip(zip_path: &Path, file_name: &str) -> Result<Vec<u8>> {
+  let zip = ZipFileReader::new(zip_path).await?;
+  let mut data = None;
+
+  for i in 0..zip.file().entries().len() {
+    let mut reader = zip.reader_with_entry(i).await?;
+    let entry = reader.entry();
+
+    if entry.filename().as_str().unwrap_or_default() == file_name {
+      let mut bytes = Vec::new();
+      reader.read_to_end_checked(&mut bytes).await?;
+      data = Some(bytes);
+      break;
+    }
+  }
+
+  if let Some(bytes) = data {
+    Ok(bytes)
+  } else {
+    Err(anyhow::anyhow!("File '{}' not found in zip", file_name))
+  }
 }

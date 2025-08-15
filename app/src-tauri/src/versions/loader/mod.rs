@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::versions::{
   loader::{
     fabric::{FabricLikeLoader, FabricLikeLoaderVersion},
-    forge::ForgeLikeLoader,
+    forge::{ForgeLikeLoader, ForgeLikeLoaderVersion},
   },
   maven::MavenName,
 };
@@ -27,6 +27,7 @@ type CheckFuture = Pin<Box<dyn Future<Output = Result<Option<DownloadFuture>>> +
 pub trait LoaderVersion: Send + Sync + 'static {
   #[allow(clippy::ptr_arg)]
   async fn download(&self, client: &Client, data_dir: &PathBuf) -> Result<Vec<CheckFuture>>;
+  async fn preprocess(&self, data_dir: &Path, jre_bin: PathBuf) -> Result<()>;
   async fn classpath(&self, data_dir: &Path) -> Result<Vec<(MavenName, PathBuf)>>;
   async fn main_class(&self, data_dir: &Path) -> Result<String>;
 }
@@ -94,8 +95,15 @@ impl LoaderType {
         mc_version,
         loader_version,
       ))),
+      LoaderType::Forge => Some(Box::new(ForgeLikeLoaderVersion::forge(
+        mc_version,
+        loader_version,
+      ))),
+      LoaderType::NeoForge => Some(Box::new(ForgeLikeLoaderVersion::neoforge(
+        mc_version,
+        loader_version,
+      ))),
       LoaderType::Vanilla => None,
-      _ => unimplemented!("LoaderType not implemented: {:?}", self),
     }
   }
 

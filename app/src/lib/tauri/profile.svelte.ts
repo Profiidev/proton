@@ -232,6 +232,10 @@ const get_message = (event: VersionCheckStatus): string | undefined => {
         return 'Downloading client jar';
       case 'ModLoaderMeta':
         return 'Downloading ModLoader Version Meta';
+      case 'ModLoaderPreprocess':
+        return 'Preprocessing ModLoader files';
+      case 'ModLoaderPreprocessDone':
+        return 'ModLoader preprocessing done';
       case 'Done':
         return undefined; // No message for done
     }

@@ -27,6 +27,8 @@ pub enum DownloadCheckStatus {
   ModLoaderMeta,
   ModLoaderFilesCheck(usize, usize),
   ModLoaderFilesDownload(usize, usize),
+  ModLoaderPreprocess,
+  ModLoaderPreprocessDone,
   Done,
 }
 

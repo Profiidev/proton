@@ -114,6 +114,18 @@ pub async fn check_download_version(
     )
     .await?;
     debug!("Completed all downloads for mod loader files");
+
+    debug!("Running mod loader preprocess");
+    emit_download_check_status(handle, DownloadCheckStatus::ModLoaderPreprocess, update_id);
+    loader
+      .preprocess(data_dir, java_component.bin_path(data_dir))
+      .await?;
+    emit_download_check_status(
+      handle,
+      DownloadCheckStatus::ModLoaderPreprocessDone,
+      update_id,
+    );
+    debug!("Completed mod loader preprocess");
   }
 
   emit_download_check_status(handle, DownloadCheckStatus::Done, update_id);

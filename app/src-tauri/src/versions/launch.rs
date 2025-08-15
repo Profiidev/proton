@@ -151,22 +151,7 @@ pub async fn launch_minecraft_version(args: &LaunchArgs) -> Result<Child> {
 
   let game_path = path!(&args.data_dir, &args.working_sub_dir);
   let java_component = &version.java_version.component;
-  #[cfg(target_family = "unix")]
-  let jre_bin = path!(
-    &args.data_dir,
-    JAVA_DIR,
-    java_component.to_string(),
-    "bin",
-    "java"
-  );
-  #[cfg(target_family = "windows")]
-  let jre_bin = path!(
-    &args.data_dir,
-    JAVA_DIR,
-    java_component.to_string(),
-    "bin",
-    "java.exe"
-  );
+  let jre_bin = java_component.bin_path(&args.data_dir);
 
   let mut command = Command::new(jre_bin);
 
@@ -279,10 +264,10 @@ async fn classpath(
         }
 
         let path = path!(mc_dir, LIBRARY_DIR, &artifact.path);
-        libraries.push((parse_maven_name(&lib.name), path));
+        libraries.push((parse_maven_name(&lib.name)?, path));
       }
       lib => {
-        let maven = parse_maven_name(&lib.name);
+        let maven = parse_maven_name(&lib.name)?;
         let path = full_path_from_maven(data_dir, &maven);
         libraries.push((maven, path));
       }
