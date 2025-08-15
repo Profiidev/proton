@@ -67,6 +67,8 @@ impl LaunchArgs {
       }
     }
 
+    let mc_path = MCPath::new(&self.data_dir);
+
     arg
       .replace("${clientid}", CLIENT_ID)
       .replace("${auth_player_name}", &self.player_name)
@@ -83,10 +85,7 @@ impl LaunchArgs {
       .replace("${version_name}", &self.version)
       .replace(
         "${assets_root}",
-        &MCPath::new(&self.data_dir)
-          .assets_path()
-          .display()
-          .to_string(),
+        &mc_path.assets_path().display().to_string(),
       )
       .replace("${assets_index_name}", &version.asset_index.id)
       .replace("${version_type}", &version.r#type.to_string())
@@ -104,6 +103,11 @@ impl LaunchArgs {
       .replace("${quickPlaySingleplayer}", &quick_singleplayer)
       .replace("${quickPlayMultiplayer}", &quick_multiplayer)
       .replace("${quickPlayRealms}", &quick_realms)
+      .replace(
+        "${library_directory}",
+        &mc_path.library_path().display().to_string(),
+      )
+      .replace("${classpath_separator}", SEPARATOR)
   }
 
   async fn classpath(
@@ -137,8 +141,12 @@ pub async fn launch_minecraft_version(args: &LaunchArgs) -> Result<Child> {
   if let Some(loader) = &args.loader {
     debug!("Adding loader arguments to JVM args");
     let (loader_jvm_args, loader_game_args) = loader.arguments(&version_path).await?;
-    jvm_args.extend(loader_jvm_args);
-    game_args.extend(loader_game_args);
+    for arg in &loader_jvm_args {
+      jvm_args.push(args.replace_vars(&version, arg, &classpath));
+    }
+    for arg in &loader_game_args {
+      game_args.push(args.replace_vars(&version, arg, &classpath));
+    }
   }
 
   let main_class = if let Some(loader) = &args.loader {
@@ -162,7 +170,12 @@ pub async fn launch_minecraft_version(args: &LaunchArgs) -> Result<Child> {
     .args(jvm_args)
     .arg(main_class)
     .args(game_args);
-  debug!("Spawning minecraft with command: {command:?}");
+
+  let command_fmt = format!("{command:?}");
+  debug!(
+    "Spawning minecraft with command: {}",
+    command_fmt.replace(&args.access_token, "**REDACTED**")
+  );
 
   Ok(command.spawn()?)
 }
