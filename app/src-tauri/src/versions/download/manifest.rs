@@ -1,4 +1,4 @@
-use std::{future::Future, path::PathBuf};
+use std::future::Future;
 
 use anyhow::Result;
 use log::debug;
@@ -11,27 +11,21 @@ use crate::{
     future::DataOrFuture,
   },
   versions::{
-    ASSETS_DIR, ASSETS_INDEX_DIR, JAVA_DIR, MC_DIR, VERSION_DIR,
     download::DownloadError,
     meta::{
       java::{Component, Files, PlatformVersion},
       minecraft::{Assets, ManifestVersion, Version},
     },
+    paths::{JavaVersionPath, MCPath, MCVersionPath},
   },
 };
 
 pub async fn check_version_manifest(
   info: &ManifestVersion,
-  data_dir: &PathBuf,
+  version_path: &MCVersionPath,
   client: &Client,
 ) -> Result<DataOrFuture<Version>> {
-  let path = path!(
-    data_dir,
-    MC_DIR,
-    VERSION_DIR,
-    &info.id,
-    format!("{}.json", info.id)
-  );
+  let path = version_path.version_manifest();
 
   debug!("Checking minecraft manifest for version {}", info.id);
   if !file_hash(&info.sha1, &path).await? {
@@ -48,15 +42,12 @@ pub async fn check_version_manifest(
 
 pub async fn check_assets_manifest(
   info: &Version,
-  data_dir: &PathBuf,
+  mc_path: &MCPath,
   client: &Client,
 ) -> Result<DataOrFuture<Assets>> {
   let assets_index = &info.asset_index;
   let path = path!(
-    data_dir,
-    MC_DIR,
-    ASSETS_DIR,
-    ASSETS_INDEX_DIR,
+    mc_path.assets_index_path(),
     format!("{}.json", assets_index.id)
   );
 
@@ -76,9 +67,9 @@ pub async fn check_assets_manifest(
 pub async fn check_java_manifest(
   info: &Version,
   version: &PlatformVersion,
-  data_dir: &PathBuf,
+  java_path: &JavaVersionPath,
   client: &Client,
-) -> Result<DataOrFuture<(Files, Component)>> {
+) -> Result<DataOrFuture<Files>> {
   let java_version = &info.java_version;
   let java_component = &java_version.component;
 
@@ -96,40 +87,30 @@ pub async fn check_java_manifest(
   };
 
   let id = java_component.to_string();
-  let path = path!(data_dir, JAVA_DIR, &id, format!("{}.json", &id));
+  let path = path!(java_path.base_path(), format!("{}.json", &id));
 
   let download = &version.manifest;
   debug!("Checking java manifest for {id}");
   if !file_hash(&download.sha1, &path).await? {
     let client = client.clone();
     let download = download.clone();
-    let java_component = *java_component;
     return Ok(DataOrFuture::future(async move {
       debug!("Downloading java manifest for {id}");
-      Ok((
-        download_and_parse_file(&client, &path, download.url.clone(), &download.sha1).await?,
-        java_component,
-      ))
+      download_and_parse_file(&client, &path, download.url.clone(), &download.sha1).await
     }));
   }
 
   let files = read_parse_file(&path).await?;
-  Ok(DataOrFuture::data((files, *java_component)))
+  Ok(DataOrFuture::data(files))
 }
 
 pub async fn check_client(
   version: &Version,
-  data_dir: &PathBuf,
+  version_path: &MCVersionPath,
   client: &Client,
 ) -> Result<Option<impl Future<Output = Result<()>> + Send>> {
   let download = &version.downloads.client;
-  let path = path!(
-    data_dir,
-    MC_DIR,
-    VERSION_DIR,
-    &version.id,
-    format!("{}.jar", version.id)
-  );
+  let path = version_path.client_jar();
 
   debug!("Checking client jar for version {}", version.id);
   if !file_hash(&download.sha1, &path).await? {

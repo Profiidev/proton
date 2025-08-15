@@ -1,7 +1,7 @@
 use std::{
   collections::{HashMap, HashSet},
   ffi::OsString,
-  path::{Path, PathBuf},
+  path::PathBuf,
   process::Stdio,
 };
 
@@ -16,12 +16,13 @@ use crate::{
   path,
   utils::file::{download_file_no_hash_force, read_parse_file, read_parse_xml_file},
   versions::{
-    LIBRARY_DIR, MC_DIR, SEPARATOR, VERSION_DIR,
+    SEPARATOR,
     loader::{
       CheckFuture, Loader, LoaderVersion,
       util::{compare_mc_versions, download_maven_future, extract_file_from_zip},
     },
     maven::{MavenName, full_path_from_maven, parse_maven_name},
+    paths::{MCPath, MCVersionPath},
   },
 };
 
@@ -61,20 +62,23 @@ impl ForgeLikeLoader {
     }
   }
 
-  fn index(&self, data_dir: &Path) -> PathBuf {
+  fn index(&self, version_path: &MCVersionPath) -> PathBuf {
     let filename = format!("{}-index.json", self.index_file_name);
-    path!(data_dir, MC_DIR, VERSION_DIR, filename)
+    path!(version_path.version_root(), filename)
   }
 
-  fn index_2(&self, data_dir: &Path) -> PathBuf {
+  fn index_2(&self, version_path: &MCVersionPath) -> PathBuf {
     let filename = format!("{}-index-2.json", self.index_file_name);
-    path!(data_dir, MC_DIR, VERSION_DIR, filename)
+    path!(version_path.version_root(), filename)
   }
 
-  async fn neoforge_version_pairs(&self, data_dir: &Path) -> Result<Vec<(String, String)>> {
-    let path = self.index(data_dir);
+  async fn neoforge_version_pairs(
+    &self,
+    version_path: &MCVersionPath,
+  ) -> Result<Vec<(String, String)>> {
+    let path = self.index(version_path);
     let forge_versions = read_parse_xml_file::<NeoForgeIndex>(&path).await?;
-    let path = self.index_2(data_dir);
+    let path = self.index_2(version_path);
     let neoforge_versions = read_parse_xml_file::<NeoForgeIndex>(&path).await?;
 
     let forge_versions_parsed = forge_versions
@@ -101,22 +105,22 @@ impl ForgeLikeLoader {
 
 #[async_trait::async_trait]
 impl Loader for ForgeLikeLoader {
-  async fn download_metadata(&self, client: &Client, data_dir: &Path) -> Result<()> {
+  async fn download_metadata(&self, client: &Client, version_path: &MCVersionPath) -> Result<()> {
     let url = Url::parse(&self.index_url)?;
-    let path = self.index(data_dir);
+    let path = self.index(version_path);
     download_file_no_hash_force(client, &path, url).await?;
 
     if let Some(url_2) = &self.index_url_2 {
       let url = Url::parse(url_2)?;
-      let path = self.index_2(data_dir);
+      let path = self.index_2(version_path);
       download_file_no_hash_force(client, &path, url).await?;
     }
 
     Ok(())
   }
 
-  async fn supported_versions(&self, data_dir: &Path, _: bool) -> Result<Vec<String>> {
-    let path = self.index(data_dir);
+  async fn supported_versions(&self, version_path: &MCVersionPath, _: bool) -> Result<Vec<String>> {
+    let path = self.index(version_path);
     if self.index_file_name == INDEX_FILE_NAME_FORGE {
       let mut versions = read_parse_file::<VersionIndex>(&path)
         .await?
@@ -130,7 +134,7 @@ impl Loader for ForgeLikeLoader {
 
       Ok(versions)
     } else {
-      let versions = self.neoforge_version_pairs(data_dir).await?;
+      let versions = self.neoforge_version_pairs(version_path).await?;
       let mut versions: Vec<String> = versions.into_iter().map(|(mc, _)| mc).collect();
       versions.sort_by(compare_mc_versions);
       versions.dedup();
@@ -143,10 +147,10 @@ impl Loader for ForgeLikeLoader {
   async fn loader_versions_for_mc_version(
     &self,
     mc_version: &str,
-    data_dir: &Path,
+    version_path: &MCVersionPath,
     _: bool,
   ) -> Result<Vec<String>> {
-    let path = self.index(data_dir);
+    let path = self.index(version_path);
     if self.index_file_name == INDEX_FILE_NAME_FORGE {
       let versions = read_parse_file::<VersionIndex>(&path)
         .await?
@@ -163,7 +167,7 @@ impl Loader for ForgeLikeLoader {
 
       Ok(versions)
     } else {
-      let versions = self.neoforge_version_pairs(data_dir).await?;
+      let versions = self.neoforge_version_pairs(version_path).await?;
       let mut versions: Vec<String> = versions
         .into_iter()
         .filter(|(mc, _)| mc == mc_version)
@@ -214,12 +218,9 @@ impl ForgeLikeLoaderVersion {
     }
   }
 
-  fn installer_path(&self, data_dir: &Path) -> PathBuf {
+  fn installer_path(&self, version_path: &MCVersionPath) -> PathBuf {
     path!(
-      data_dir,
-      MC_DIR,
-      VERSION_DIR,
-      &self.mc_version,
+      version_path.base_path(),
       format!("{}-{}", self.index_file_name, self.loader_version)
     )
   }
@@ -231,18 +232,25 @@ const VERSION_JSON_PATH: &str = "version.json";
 
 #[async_trait::async_trait]
 impl LoaderVersion for ForgeLikeLoaderVersion {
-  async fn download(&self, client: &Client, data_dir: &PathBuf) -> Result<Vec<CheckFuture>> {
+  async fn download(
+    &self,
+    client: &Client,
+    version_path: &MCVersionPath,
+    mc_path: &MCPath,
+  ) -> Result<Vec<CheckFuture>> {
     let url = Url::parse(&self.installer_url)?;
-    let path = self.installer_path(data_dir).join(INSTALLER_PATH);
+    let path = self.installer_path(version_path).join(INSTALLER_PATH);
     download_file_no_hash_force(client, &path, url).await?;
 
-    let profile_path = self.installer_path(data_dir).join(INSTALLER_PROFILE_PATH);
+    let profile_path = self
+      .installer_path(version_path)
+      .join(INSTALLER_PROFILE_PATH);
     let installer_data = extract_file_from_zip(&path, INSTALLER_PROFILE_PATH).await?;
     fs::write(&profile_path, &installer_data).await?;
 
     let profile = read_parse_file::<ForgeInstallerProfile>(&profile_path).await?;
 
-    let version_json_path = self.installer_path(data_dir).join(VERSION_JSON_PATH);
+    let version_json_path = self.installer_path(version_path).join(VERSION_JSON_PATH);
     let version_json_data = extract_file_from_zip(&path, &profile.json[1..]).await?;
     fs::write(&version_json_path, &version_json_data).await?;
 
@@ -250,7 +258,7 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
 
     for entry in profile.data.values() {
       if entry.client.starts_with("/") {
-        let file_path = self.installer_path(data_dir).join(&entry.client[1..]);
+        let file_path = self.installer_path(version_path).join(&entry.client[1..]);
         let data = extract_file_from_zip(&path, &entry.client[1..]).await?;
 
         let parent = file_path.parent().unwrap();
@@ -264,7 +272,7 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
 
     for library in profile.libraries {
       futures.push(download_maven_future(
-        data_dir.clone(),
+        mc_path.clone(),
         library.name.clone(),
         client.clone(),
         self.maven_base_url.clone(),
@@ -282,7 +290,7 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
       }
 
       futures.push(download_maven_future(
-        data_dir.clone(),
+        mc_path.clone(),
         library.name.clone(),
         client.clone(),
         self.maven_base_url.clone(),
@@ -294,28 +302,35 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
     Ok(futures)
   }
 
-  async fn preprocess(&self, data_dir: &Path, jre_bin: PathBuf) -> Result<()> {
-    let profile_path = self.installer_path(data_dir).join(INSTALLER_PROFILE_PATH);
+  async fn preprocess(
+    &self,
+    version_path: &MCVersionPath,
+    mc_path: &MCPath,
+    jre_bin: PathBuf,
+  ) -> Result<()> {
+    let profile_path = self
+      .installer_path(version_path)
+      .join(INSTALLER_PROFILE_PATH);
     let profile: ForgeInstallerProfile = read_parse_file(&profile_path).await?;
     let mut data = profile.data;
 
     for entry in data.values_mut() {
       if entry.client.starts_with("/") {
         entry.client = self
-          .installer_path(data_dir)
+          .installer_path(version_path)
           .join(&entry.client[1..])
           .to_string_lossy()
           .into_owned();
       }
       if entry.server.starts_with("/") {
         entry.server = self
-          .installer_path(data_dir)
+          .installer_path(version_path)
           .join(&entry.server[1..])
           .to_string_lossy()
           .into_owned();
       }
     }
-    default_data(&mut data, &self.mc_version, data_dir);
+    default_data(&mut data, &self.mc_version, version_path, mc_path);
 
     for processor in profile.processors {
       if let Some(sides) = processor.sides
@@ -325,7 +340,7 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
       }
 
       let jar_maven = parse_maven_name(&processor.jar)?;
-      let jar_path = full_path_from_maven(data_dir, &jar_maven);
+      let jar_path = full_path_from_maven(mc_path, &jar_maven);
 
       //find Main-Class in the jar
       let manifest_data = extract_file_from_zip(&jar_path, "META-INF/MANIFEST.MF").await?;
@@ -344,7 +359,7 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
 
       for lib in processor.classpath {
         let maven = parse_maven_name(&lib)?;
-        let path = full_path_from_maven(data_dir, &maven);
+        let path = full_path_from_maven(mc_path, &maven);
         classpath.push(SEPARATOR);
         classpath.push(path);
       }
@@ -368,7 +383,7 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
         if arg.starts_with("[") && arg.ends_with("]") {
           let arg = &arg[1..arg.len() - 1];
           let maven = parse_maven_name(arg)?;
-          let path = full_path_from_maven(data_dir, &maven);
+          let path = full_path_from_maven(mc_path, &maven);
           args.push(path.to_string_lossy().into_owned());
         } else {
           args.push(arg);
@@ -378,7 +393,7 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
       let mut command = Command::new(&jre_bin);
 
       command
-        .current_dir(self.installer_path(data_dir))
+        .current_dir(self.installer_path(version_path))
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .arg("-cp")
@@ -408,8 +423,12 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
     Ok(())
   }
 
-  async fn classpath(&self, data_dir: &Path) -> Result<Vec<(MavenName, PathBuf)>> {
-    let version_json_path = self.installer_path(data_dir).join(VERSION_JSON_PATH);
+  async fn classpath(
+    &self,
+    version_path: &MCVersionPath,
+    mc_path: &MCPath,
+  ) -> Result<Vec<(MavenName, PathBuf)>> {
+    let version_json_path = self.installer_path(version_path).join(VERSION_JSON_PATH);
     let version_json: ForgeVersion = read_parse_file(&version_json_path).await?;
 
     let mut classpath = Vec::new();
@@ -421,7 +440,7 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
       }
 
       let maven = parse_maven_name(&library.name)?;
-      let path = full_path_from_maven(data_dir, &maven);
+      let path = full_path_from_maven(mc_path, &maven);
       classpath.push((maven, path));
       added_libs.insert(library.name);
     }
@@ -429,20 +448,25 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
     Ok(classpath)
   }
 
-  async fn main_class(&self, data_dir: &Path) -> Result<String> {
-    let version_json_path = self.installer_path(data_dir).join(VERSION_JSON_PATH);
+  async fn main_class(&self, version_path: &MCVersionPath) -> Result<String> {
+    let version_json_path = self.installer_path(version_path).join(VERSION_JSON_PATH);
     let version_json: ForgeVersion = read_parse_file(&version_json_path).await?;
     Ok(version_json.main_class)
   }
 
-  async fn arguments(&self, data_dir: &Path) -> Result<(Vec<String>, Vec<String>)> {
-    let version_json_path = self.installer_path(data_dir).join(VERSION_JSON_PATH);
+  async fn arguments(&self, version_path: &MCVersionPath) -> Result<(Vec<String>, Vec<String>)> {
+    let version_json_path = self.installer_path(version_path).join(VERSION_JSON_PATH);
     let version_json: ForgeVersion = read_parse_file(&version_json_path).await?;
     Ok((version_json.arguments.jvm, version_json.arguments.game))
   }
 }
 
-fn default_data(data: &mut HashMap<String, DataEntry>, mc_version: &str, data_dir: &Path) {
+fn default_data(
+  data: &mut HashMap<String, DataEntry>,
+  mc_version: &str,
+  version_path: &MCVersionPath,
+  mc_path: &MCPath,
+) {
   // Default data: SIDE, MINECRAFT_VERSION, MINECRAFT_JAR, ROOT, LIBRARY_DIR
   data.insert(
     "SIDE".to_string(),
@@ -463,15 +487,7 @@ fn default_data(data: &mut HashMap<String, DataEntry>, mc_version: &str, data_di
   data.insert(
     "MINECRAFT_JAR".to_string(),
     DataEntry {
-      client: path!(
-        data_dir,
-        MC_DIR,
-        VERSION_DIR,
-        mc_version,
-        format!("{}.jar", mc_version)
-      )
-      .to_string_lossy()
-      .into_owned(),
+      client: version_path.client_jar().to_string_lossy().into_owned(),
       server: String::new(),
     },
   );
@@ -479,7 +495,7 @@ fn default_data(data: &mut HashMap<String, DataEntry>, mc_version: &str, data_di
   data.insert(
     "ROOT".to_string(),
     DataEntry {
-      client: path!(data_dir, MC_DIR, VERSION_DIR, "root")
+      client: path!(version_path.version_root(), "root")
         .to_string_lossy()
         .into_owned(),
       server: String::new(),
@@ -489,9 +505,7 @@ fn default_data(data: &mut HashMap<String, DataEntry>, mc_version: &str, data_di
   data.insert(
     "LIBRARY_DIR".to_string(),
     DataEntry {
-      client: path!(data_dir, MC_DIR, LIBRARY_DIR)
-        .to_string_lossy()
-        .into_owned(),
+      client: mc_path.library_path().to_string_lossy().into_owned(),
       server: String::new(),
     },
   );

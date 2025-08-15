@@ -20,6 +20,7 @@ use crate::{
     event::{DownloadCheckStatus, emit_download_check_status},
     loader::LoaderVersion,
     meta::{java::PlatformVersion, minecraft::ManifestVersion},
+    paths::{JavaVersionPath, MCPath, MCVersionPath},
   },
 };
 
@@ -45,8 +46,11 @@ pub async fn check_download_version(
   update_id: usize,
   loader_version: Option<Box<dyn LoaderVersion>>,
 ) -> Result<()> {
+  let mc_path = MCPath::new(data_dir);
+  let version_path = MCVersionPath::new(data_dir, &mc.id);
+
   emit_download_check_status(handle, DownloadCheckStatus::VersionManifestCheck, update_id);
-  let version_fut = check_version_manifest(mc, data_dir, client).await?;
+  let version_fut = check_version_manifest(mc, &version_path, client).await?;
   if !version_fut.is_data() {
     emit_download_check_status(
       handle,
@@ -55,9 +59,10 @@ pub async fn check_download_version(
     );
   }
   let version = version_fut.resolve().await?;
+  let java_path = JavaVersionPath::new(data_dir, version.java_version.component);
 
   emit_download_check_status(handle, DownloadCheckStatus::AssetsManifestCheck, update_id);
-  let assets_fut = check_assets_manifest(&version, data_dir, client).await?;
+  let assets_fut = check_assets_manifest(&version, &mc_path, client).await?;
   if !assets_fut.is_data() {
     emit_download_check_status(
       handle,
@@ -68,35 +73,28 @@ pub async fn check_download_version(
   let assets = assets_fut.resolve().await?;
 
   emit_download_check_status(handle, DownloadCheckStatus::JavaManifestCheck, update_id);
-  let java_fut = check_java_manifest(&version, java, data_dir, client).await?;
+  let java_fut = check_java_manifest(&version, java, &java_path, client).await?;
   if !java_fut.is_data() {
     emit_download_check_status(handle, DownloadCheckStatus::JavaManifestDownload, update_id);
   }
-  let (files, java_component) = java_fut.resolve().await?;
+  let files = java_fut.resolve().await?;
 
   emit_download_check_status(handle, DownloadCheckStatus::ClientCheck, update_id);
-  let client_fut = check_client(&version, data_dir, client).await?;
+  let client_fut = check_client(&version, &version_path, client).await?;
   if let Some(client_fut) = client_fut {
     emit_download_check_status(handle, DownloadCheckStatus::ClientDownload, update_id);
     client_fut.await?;
   }
 
-  check_download_version_assets(&assets, data_dir, client, handle, update_id).await?;
-  check_download_java_files(&files, java_component, client, data_dir, handle, update_id).await?;
-  check_download_version_java_libraries(
-    &version,
-    java_component,
-    client,
-    data_dir,
-    handle,
-    update_id,
-  )
-  .await?;
+  check_download_version_assets(&assets, &mc_path, client, handle, update_id).await?;
+  check_download_java_files(&files, client, &java_path, handle, update_id).await?;
+  check_download_version_java_libraries(&version, client, &java_path, &mc_path, handle, update_id)
+    .await?;
 
   if let Some(loader) = loader_version {
     emit_download_check_status(handle, DownloadCheckStatus::ModLoaderMeta, update_id);
     debug!("Collecting checks for mod loader files");
-    let futures = loader.download(client, data_dir).await?;
+    let futures = loader.download(client, &version_path, &mc_path).await?;
     debug!("Collected {} mod loader file checks", futures.len());
     let futures = check_pool(
       futures,
@@ -118,7 +116,7 @@ pub async fn check_download_version(
     debug!("Running mod loader preprocess");
     emit_download_check_status(handle, DownloadCheckStatus::ModLoaderPreprocess, update_id);
     loader
-      .preprocess(data_dir, java_component.bin_path(data_dir))
+      .preprocess(&version_path, &mc_path, java_path.bin_path())
       .await?;
     emit_download_check_status(
       handle,

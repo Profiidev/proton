@@ -28,7 +28,7 @@ use versions::{
   store::McVersionStore,
 };
 
-use crate::versions::loader::LoaderType;
+use crate::versions::{loader::LoaderType, paths::MCVersionPath};
 
 mod account;
 mod profiles;
@@ -144,7 +144,8 @@ async fn async_setup_refresh(handle: AppHandle) -> Result<()> {
   let client = reqwest::Client::new();
   for loader in LoaderType::mod_loaders() {
     let data_dir = handle.path().app_data_dir()?;
-    loader.download_metadata(&client, &data_dir).await?;
+    let version_path = MCVersionPath::new(&data_dir, "");
+    loader.download_metadata(&client, &version_path).await?;
   }
 
   Ok(())

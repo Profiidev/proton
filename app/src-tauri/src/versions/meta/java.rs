@@ -1,11 +1,8 @@
-use std::{collections::HashMap, fmt::Display, path::PathBuf};
+use std::{collections::HashMap, fmt::Display};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, value::Serializer};
 use tauri::Url;
-
-#[cfg(target_family = "unix")]
-use crate::{path, versions::JAVA_DIR};
 
 use super::Rule;
 
@@ -37,17 +34,6 @@ pub enum Component {
   JreLegacy,
   #[serde(other)]
   Unknown,
-}
-
-impl Component {
-  pub fn bin_path(&self, data_dir: &PathBuf) -> PathBuf {
-    #[cfg(target_family = "unix")]
-    let jre_path = path!(data_dir, JAVA_DIR, self.to_string(), "bin", "java");
-    #[cfg(target_family = "windows")]
-    let jre_path = path!(data_dir, JAVA_DIR, self.to_string(), "bin", "java.exe");
-
-    jre_path
-  }
 }
 
 impl Display for Component {

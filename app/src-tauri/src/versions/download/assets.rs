@@ -1,4 +1,4 @@
-use std::{path::PathBuf, time::Instant};
+use std::time::Instant;
 
 use anyhow::Result;
 use log::debug;
@@ -9,10 +9,10 @@ use crate::{
   path,
   utils::file::{download_file, file_hash},
   versions::{
-    ASSETS_DIR, MC_DIR,
     download::{check_pool, download_pool},
     event::DownloadCheckStatus,
     meta::minecraft::Assets,
+    paths::MCPath,
   },
 };
 
@@ -20,7 +20,7 @@ pub const MC_RESOURCES_URL: &str = "https://resources.download.minecraft.net";
 
 pub async fn check_download_version_assets(
   assets: &Assets,
-  data_dir: &PathBuf,
+  mc_path: &MCPath,
   client: &Client,
   handle: &AppHandle,
   update_id: usize,
@@ -31,7 +31,7 @@ pub async fn check_download_version_assets(
   for asset in assets.objects.values() {
     let prefix_hash = &asset.hash[0..2];
     let hash = asset.hash.clone();
-    let path = path!(data_dir, MC_DIR, ASSETS_DIR, "objects", prefix_hash, &hash);
+    let path = path!(mc_path.assets_objects_path(), prefix_hash, &hash);
     let url = format!("{MC_RESOURCES_URL}/{prefix_hash}/{hash}").parse()?;
 
     let client = client.clone();

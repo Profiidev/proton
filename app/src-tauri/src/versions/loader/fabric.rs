@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use anyhow::Result;
 use reqwest::Client;
@@ -11,9 +11,9 @@ use crate::{
     download_and_parse_file_no_hash_force, download_file_no_hash_force, read_parse_file,
   },
   versions::{
-    MC_DIR, VERSION_DIR,
     loader::{CheckFuture, Loader, LoaderVersion, util::download_maven_future},
     maven::{MavenName, full_path_from_maven, parse_maven_name},
+    paths::{MCPath, MCVersionPath},
   },
 };
 
@@ -44,32 +44,36 @@ impl FabricLikeLoader {
     }
   }
 
-  fn loader(&self, data_dir: &Path) -> PathBuf {
+  fn loader(&self, version_path: &MCVersionPath) -> PathBuf {
     let filename = format!("{}-loader.json", self.index_file_name);
-    path!(data_dir, MC_DIR, VERSION_DIR, filename)
+    path!(version_path.version_root(), filename)
   }
 
-  fn game(&self, data_dir: &Path) -> PathBuf {
+  fn game(&self, version_path: &MCVersionPath) -> PathBuf {
     let filename = format!("{}-game.json", self.index_file_name);
-    path!(data_dir, MC_DIR, VERSION_DIR, filename)
+    path!(version_path.version_root(), filename)
   }
 }
 
 #[async_trait::async_trait]
 impl Loader for FabricLikeLoader {
-  async fn download_metadata(&self, client: &Client, data_dir: &Path) -> Result<()> {
+  async fn download_metadata(&self, client: &Client, version_path: &MCVersionPath) -> Result<()> {
     let url = Url::parse(&format!("{}/loader", self.base_url))?;
-    let path = self.loader(data_dir);
+    let path = self.loader(version_path);
     download_file_no_hash_force(client, &path, url).await?;
 
     let url = Url::parse(&format!("{}/game", self.base_url))?;
-    let path = self.game(data_dir);
+    let path = self.game(version_path);
     download_file_no_hash_force(client, &path, url).await?;
     Ok(())
   }
 
-  async fn supported_versions(&self, data_dir: &Path, stable: bool) -> Result<Vec<String>> {
-    let path = self.game(data_dir);
+  async fn supported_versions(
+    &self,
+    version_path: &MCVersionPath,
+    stable: bool,
+  ) -> Result<Vec<String>> {
+    let path = self.game(version_path);
     let versions = read_parse_file::<Vec<GameVersionMeta>>(&path)
       .await?
       .into_iter()
@@ -82,10 +86,10 @@ impl Loader for FabricLikeLoader {
   async fn loader_versions_for_mc_version(
     &self,
     _: &str,
-    data_dir: &Path,
+    version_path: &MCVersionPath,
     stable: bool,
   ) -> Result<Vec<String>> {
-    let path = self.loader(data_dir);
+    let path = self.loader(version_path);
     if self.index_file_name == INDEX_FILE_NAME_FABRIC {
       let versions = read_parse_file::<Vec<GameVersionMeta>>(&path)
         .await?
@@ -148,25 +152,24 @@ impl FabricLikeLoaderVersion {
     }
   }
 
-  fn meta_path(&self, data_dir: &Path) -> PathBuf {
-    path!(
-      data_dir,
-      MC_DIR,
-      VERSION_DIR,
-      &self.mc_version,
-      &self.meta_file_name
-    )
+  fn meta_path(&self, version_path: &MCVersionPath) -> PathBuf {
+    path!(version_path.base_path(), &self.meta_file_name)
   }
 }
 
 #[async_trait::async_trait]
 impl LoaderVersion for FabricLikeLoaderVersion {
-  async fn download(&self, client: &Client, data_dir: &PathBuf) -> Result<Vec<CheckFuture>> {
+  async fn download(
+    &self,
+    client: &Client,
+    version_path: &MCVersionPath,
+    mc_path: &MCPath,
+  ) -> Result<Vec<CheckFuture>> {
     let url = Url::parse(&format!(
       "{}/loader/{}/{}",
       self.base_url, self.mc_version, self.loader_version
     ))?;
-    let path = self.meta_path(data_dir);
+    let path = self.meta_path(version_path);
     let meta: FabricVersionMeta = download_and_parse_file_no_hash_force(client, &path, url).await?;
 
     let libraries = match meta.launcher_meta {
@@ -176,10 +179,10 @@ impl LoaderVersion for FabricLikeLoaderVersion {
 
     let mut futures = Vec::new();
     for lib in libraries.client.into_iter().chain(libraries.common) {
-      let data_dir = data_dir.clone();
+      let mc_path = mc_path.clone();
       let client = client.clone();
       futures.push(download_maven_future(
-        data_dir,
+        mc_path,
         lib.name,
         client,
         lib
@@ -196,7 +199,7 @@ impl LoaderVersion for FabricLikeLoaderVersion {
     }
 
     for lib in libs {
-      let data_dir = data_dir.clone();
+      let mc_path = mc_path.clone();
       let client = client.clone();
       let base_url = if lib.contains("fabricmc") {
         MAVEN_BASE_URL_FABRIC.to_string()
@@ -204,19 +207,23 @@ impl LoaderVersion for FabricLikeLoaderVersion {
         self.maven_base_url.clone()
       };
 
-      futures.push(download_maven_future(data_dir, lib, client, base_url, None));
+      futures.push(download_maven_future(mc_path, lib, client, base_url, None));
     }
 
     Ok(futures)
   }
 
-  async fn preprocess(&self, _: &Path, _: PathBuf) -> Result<()> {
+  async fn preprocess(&self, _: &MCVersionPath, _: &MCPath, _: PathBuf) -> Result<()> {
     // Fabric versions do not require preprocessing
     Ok(())
   }
 
-  async fn classpath(&self, data_dir: &Path) -> Result<Vec<(MavenName, PathBuf)>> {
-    let meta_path = self.meta_path(data_dir);
+  async fn classpath(
+    &self,
+    version_path: &MCVersionPath,
+    mc_path: &MCPath,
+  ) -> Result<Vec<(MavenName, PathBuf)>> {
+    let meta_path = self.meta_path(version_path);
     let meta: FabricVersionMeta = read_parse_file(&meta_path).await?;
 
     let libraries = match meta.launcher_meta {
@@ -227,23 +234,23 @@ impl LoaderVersion for FabricLikeLoaderVersion {
     let mut libs = Vec::new();
     for lib in libraries.client.into_iter().chain(libraries.common) {
       let maven = parse_maven_name(&lib.name)?;
-      let path = full_path_from_maven(data_dir, &maven);
+      let path = full_path_from_maven(mc_path, &maven);
       libs.push((maven, path));
     }
 
     let loader_maven = parse_maven_name(&meta.loader.maven)?;
-    let loader_path = full_path_from_maven(data_dir, &loader_maven);
+    let loader_path = full_path_from_maven(mc_path, &loader_maven);
     libs.push((loader_maven, loader_path));
 
     let intermediary_maven = parse_maven_name(&meta.intermediary.maven)?;
-    let intermediary_path = full_path_from_maven(data_dir, &intermediary_maven);
+    let intermediary_path = full_path_from_maven(mc_path, &intermediary_maven);
     libs.push((intermediary_maven, intermediary_path));
 
     Ok(libs)
   }
 
-  async fn main_class(&self, data_dir: &Path) -> Result<String> {
-    let meta_path = self.meta_path(data_dir);
+  async fn main_class(&self, version_path: &MCVersionPath) -> Result<String> {
+    let meta_path = self.meta_path(version_path);
     let meta: FabricVersionMeta = read_parse_file(&meta_path).await?;
 
     match meta.launcher_meta {
@@ -252,7 +259,7 @@ impl LoaderVersion for FabricLikeLoaderVersion {
     }
   }
 
-  async fn arguments(&self, _: &Path) -> Result<(Vec<String>, Vec<String>)> {
+  async fn arguments(&self, _: &MCVersionPath) -> Result<(Vec<String>, Vec<String>)> {
     Ok((vec![], vec![])) // Fabric does not require additional arguments
   }
 }

@@ -1,12 +1,9 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use anyhow::Result;
 use tauri::Url;
 
-use crate::{
-  path,
-  versions::{LIBRARY_DIR, MC_DIR},
-};
+use crate::{path, versions::paths::MCPath};
 
 pub fn parse_maven_name(name: &str) -> Result<MavenName> {
   let parts: Vec<&str> = name.split(':').collect();
@@ -48,8 +45,8 @@ pub fn parse_maven_name(name: &str) -> Result<MavenName> {
   })
 }
 
-pub fn full_path_from_maven(data_dir: &Path, maven: &MavenName) -> PathBuf {
-  path!(data_dir, MC_DIR, LIBRARY_DIR, path_from_maven(maven))
+pub fn full_path_from_maven(mc_path: &MCPath, maven: &MavenName) -> PathBuf {
+  path!(mc_path.library_path(), path_from_maven(maven))
 }
 
 fn path_from_maven(maven: &MavenName) -> PathBuf {

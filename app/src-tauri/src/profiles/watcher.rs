@@ -14,7 +14,7 @@ use tokio::{
 use crate::{
   profiles::store::ProfileStore,
   utils::{log::ResultLogExt, updater::UpdateType},
-  versions::QUICK_PLAY,
+  versions::paths::QUICK_PLAY,
 };
 
 fn async_watcher(config: Config) -> notify::Result<(RecommendedWatcher, Receiver<Event>)> {

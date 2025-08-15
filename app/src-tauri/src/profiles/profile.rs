@@ -18,7 +18,10 @@ use crate::{
     dir::list_dirs_in_dir,
     file::{read_parse_file, write_file},
   },
-  versions::{QUICK_PLAY, loader::LoaderType},
+  versions::{
+    loader::LoaderType,
+    paths::{MCVersionPath, QUICK_PLAY},
+  },
 };
 
 impl Profile {
@@ -39,9 +42,10 @@ impl Profile {
     let path = path!(data_dir, &relative_path);
 
     let loader_version = if let Some(loader) = loader.loader() {
+      let version_path = MCVersionPath::new(data_dir, &version);
       Some(
         loader
-          .newest_loader_version_for_mc_version(&version, data_dir)
+          .newest_loader_version_for_mc_version(&version, &version_path)
           .await?,
       )
     } else {

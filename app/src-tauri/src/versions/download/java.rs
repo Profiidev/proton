@@ -10,27 +10,25 @@ use crate::{
   path,
   utils::file::{download_file, file_hash},
   versions::{
-    JAVA_DIR,
     download::{check_pool, download_pool},
     event::DownloadCheckStatus,
-    meta::java::{self, Component, Files},
+    meta::java::{self, Files},
+    paths::JavaVersionPath,
   },
 };
 
 pub async fn check_download_java_files(
   files: &Files,
-  component: Component,
   client: &Client,
-  data_dir: &PathBuf,
+  java_path: &JavaVersionPath,
   handle: &AppHandle,
   update_id: usize,
 ) -> Result<()> {
   debug!("Collecting checks for java");
   let mut futures = Vec::new();
-  let version = component.to_string();
 
   for (path, file) in &files.files {
-    let path = path!(data_dir, JAVA_DIR, &version, path);
+    let path = path!(java_path.base_path(), path);
     match file {
       java::File::Directory => fs::create_dir_all(path).await?,
       java::File::Link { .. } => {}

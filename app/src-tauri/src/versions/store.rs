@@ -8,7 +8,6 @@ use tauri::{AppHandle, Manager, Url};
 use tokio::join;
 
 use crate::{
-  path,
   utils::{
     file::{download_and_parse_file_no_hash, download_and_parse_file_no_hash_force, file_hash},
     updater::{UpdateType, update_data},
@@ -17,11 +16,12 @@ use crate::{
     download::check_download_version,
     event::{DownloadCheckStatus, emit_download_check_status},
     loader::LoaderType,
+    meta::java::Component,
+    paths::{JavaVersionPath, MCPath, MCVersionPath},
   },
 };
 
 use super::{
-  JAVA_DIR, MC_DIR, VERSION_DIR,
   download::DownloadError,
   meta::{
     java::JavaVersions,
@@ -32,8 +32,6 @@ use super::{
 const MC_VERSION_MANIFEST_URL: &str =
   "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json";
 const JAVA_VERSION_MANIFEST_URL: &str = "https://launchermeta.mojang.com/v1/products/java-runtime/2ec0cc96c44e5a76b9c8b7c39df7210883d12871/all.json";
-
-const MANIFEST_NAME: &str = "manifest.json";
 
 #[derive(Clone)]
 pub struct McVersionStore {
@@ -53,8 +51,8 @@ impl McVersionStore {
   pub async fn new(handle: AppHandle) -> Result<McVersionStore> {
     let client = Client::new();
     let data_dir = handle.path().app_data_dir()?;
-    let mc_manifest_path = path!(&data_dir, MC_DIR, MANIFEST_NAME);
-    let java_manifest_path = path!(&data_dir, JAVA_DIR, MANIFEST_NAME);
+    let mc_manifest_path = MCPath::new(&data_dir).mc_manifest();
+    let java_manifest_path = JavaVersionPath::new(&data_dir, Component::Unknown).java_manifest();
 
     let (mc_manifest, java_manifest) = join!(
       download_and_parse_file_no_hash(
@@ -83,8 +81,8 @@ impl McVersionStore {
 
   pub async fn refresh_manifests(&mut self) -> Result<()> {
     let data_dir = self.handle.path().app_data_dir()?;
-    let mc_manifest_path = path!(&data_dir, MC_DIR, MANIFEST_NAME);
-    let java_manifest_path = path!(&data_dir, JAVA_DIR, MANIFEST_NAME);
+    let mc_manifest_path = MCPath::new(&data_dir).mc_manifest();
+    let java_manifest_path = JavaVersionPath::new(&data_dir, Component::Unknown).java_manifest();
 
     let (mc_manifest, java_manifest) = join!(
       download_and_parse_file_no_hash_force(
@@ -171,13 +169,8 @@ impl McVersionStore {
       .iter()
       .find(|v| v.id == version)
       .ok_or(DownloadError::NotFound)?;
-    let path = path!(
-      &data_dir,
-      MC_DIR,
-      VERSION_DIR,
-      version,
-      format!("{}.json", version)
-    );
+
+    let path = MCVersionPath::new(&data_dir, &manifest_version.id).version_manifest();
     let ok = file_hash(&manifest_version.sha1, &path).await?;
     if ok {
       emit_download_check_status(&self.handle, DownloadCheckStatus::Done, id);
@@ -188,9 +181,9 @@ impl McVersionStore {
 
   pub async fn list_versions(&self, loader: &LoaderType) -> Result<Vec<String>> {
     if let Some(loader) = loader.loader() {
-      loader
-        .supported_versions(&self.handle.path().app_data_dir().unwrap(), true)
-        .await
+      let data_dir = self.handle.path().app_data_dir().unwrap();
+      let version_path = MCVersionPath::new(&data_dir, "");
+      loader.supported_versions(&version_path, true).await
     } else {
       Ok(
         self
@@ -211,12 +204,10 @@ impl McVersionStore {
     mc_version: &str,
   ) -> Result<Vec<String>> {
     if let Some(loader) = loader.loader() {
+      let data_dir = self.handle.path().app_data_dir().unwrap();
+      let version_path = MCVersionPath::new(&data_dir, mc_version);
       loader
-        .loader_versions_for_mc_version(
-          mc_version,
-          &self.handle.path().app_data_dir().unwrap(),
-          true,
-        )
+        .loader_versions_for_mc_version(mc_version, &version_path, true)
         .await
     } else {
       Ok(vec![])
