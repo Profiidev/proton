@@ -43,7 +43,7 @@ impl OfflineState {
     } else {
       if self.offline {
         log::info!("Reconnected to the internet");
-        if self.state_init {
+        if !self.state_init {
           let handle = self.app.clone();
           // we need to move it into a different task to avoid blocking the freeing of the lock
           spawn(async move {
@@ -78,18 +78,22 @@ pub async fn try_reconnect(state: State<'_, Mutex<OfflineState>>) -> Result<bool
 }
 
 pub trait OfflineResultExt {
+  /// ### Do NOT call this method if you hold a lock on the `OfflineState` state.
   async fn check_online_state(self, handle: &AppHandle) -> Self;
 }
 
 impl<T, E: Debug + Display> OfflineResultExt for std::result::Result<T, E> {
   async fn check_online_state(self, handle: &AppHandle) -> Self {
-    if self.is_err() {
+    let state = handle.state::<Mutex<OfflineState>>();
+    let mut state = state.lock().await;
+    if self.is_err() && !state.offline {
       debug!("Checking online state due to error");
-      let state = handle.state::<Mutex<OfflineState>>();
-      let mut state = state.lock().await;
       state.check_online_state().await;
-      drop(state);
+    } else if self.is_ok() && state.offline {
+      debug!("Checking online state due to success");
+      state.check_online_state().await;
     }
+    drop(state);
     self.log()
   }
 }

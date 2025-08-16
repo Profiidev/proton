@@ -30,7 +30,7 @@ use versions::{
 
 use crate::{
   offline::{MANIFEST_REFRESH_ERROR, OfflineState, is_offline, try_reconnect},
-  utils::log::ResultLogExt,
+  utils::{log::ResultLogExt, updater::default_client},
   versions::{loader::LoaderType, paths::MCVersionPath},
 };
 
@@ -170,7 +170,7 @@ async fn async_setup_refresh(handle: &AppHandle) -> Result<()> {
   version_store.refresh_manifests().await?;
   drop(version_store);
 
-  let client = reqwest::Client::new();
+  let client = default_client();
   for loader in LoaderType::mod_loaders() {
     let data_dir = handle.path().app_data_dir()?;
     let version_path = MCVersionPath::new(&data_dir, "");

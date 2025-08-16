@@ -16,7 +16,7 @@ use crate::{
   utils::{
     file::bytes_hash,
     log::ResultLogExt,
-    updater::{UpdateType, update_data},
+    updater::{UpdateType, default_client, update_data},
   },
 };
 
@@ -110,7 +110,7 @@ impl SkinStore {
       skins,
       capes,
       handle,
-      client: Client::new(),
+      client: default_client(),
     })
   }
 
