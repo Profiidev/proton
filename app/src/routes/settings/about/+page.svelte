@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { is_offline } from '$lib/tauri/offline.svelte';
   import {
     checkForUpdates,
     getUpdateVersion,
@@ -8,6 +9,7 @@
   import { getVersion } from '@tauri-apps/api/app';
   import { Button, toast } from 'positron-components';
 
+  let offline = $derived(is_offline.value);
   let version = $state<string>();
   getVersion().then((v) => {
     version = v;
@@ -17,6 +19,13 @@
   let loading = $state(false);
 
   const check = async () => {
+    if (offline) {
+      toast.warning(
+        'You are currently offline, please reconnect to the internet to check for updates'
+      );
+      return;
+    }
+
     loading = true;
     let update = await checkForUpdates();
     loading = false;

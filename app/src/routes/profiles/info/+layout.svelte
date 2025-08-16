@@ -10,7 +10,8 @@
   import {
     SimpleSidebar,
     Button,
-    DropdownMenu
+    DropdownMenu,
+    toast
   } from 'positron-components/components';
   import { setProfile } from './store.svelte.js';
   import { FolderOpen, Menu, Play, Star, Trash, Wrench } from '@lucide/svelte';
@@ -19,9 +20,11 @@
   import { account_active } from '$lib/tauri/account.svelte.js';
   import { profile_favorites_set } from '$lib/tauri/home.svelte.js';
   import DestroyDialog from '$lib/components/form/DestroyDialog.svelte';
+  import { is_offline } from '$lib/tauri/offline.svelte.js';
 
   let { data, children } = $props();
 
+  let offline = $derived(is_offline.value);
   let active_account = $derived(account_active.value);
   let profiles = $derived(profile_list.value);
   let profile = $derived(
@@ -131,7 +134,15 @@
               Open Directory</DropdownMenu.Item
             >
             <DropdownMenu.Item
-              onclick={() => profile_repair(profile.id, profile.name)}
+              onclick={() => {
+                if (offline) {
+                  toast.warning(
+                    'You are currently offline, please reconnect to the internet to repair a profile'
+                  );
+                  return;
+                }
+                profile_repair(profile.id, profile.name);
+              }}
               class="cursor-pointer"
             >
               <Wrench />

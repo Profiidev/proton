@@ -9,6 +9,7 @@
     account_list_skins,
     State
   } from '$lib/tauri/account.svelte';
+  import { is_offline } from '$lib/tauri/offline.svelte';
   import { file_to_bytes } from '$lib/util.svelte';
   import { LoaderCircle, Plus } from '@lucide/svelte';
   import {
@@ -19,6 +20,7 @@
     toast
   } from 'positron-components/components/ui';
 
+  let offline = $derived(is_offline.value);
   let skins = $derived(account_list_skins.value);
   let accounts = $derived(account_list.value);
   let active_account = $derived(account_active.value);
@@ -51,6 +53,12 @@
 
   const change = async (id: string) => {
     if (!active_account) return;
+    if (offline) {
+      toast.warning(
+        'You are currently offline, please reconnect to the internet to change Skin'
+      );
+      return;
+    }
 
     if (!(await account_change_skin(id))) {
       toast.success('Successfully changed Skin');

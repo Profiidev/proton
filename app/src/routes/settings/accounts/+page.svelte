@@ -22,10 +22,12 @@
     Button,
     Separator
   } from 'positron-components/components/ui';
+  import { is_offline } from '$lib/tauri/offline.svelte';
 
   let accounts: Accounts | undefined = $derived(account_list.value);
   let active = $derived(account_active.value);
   let add_loading = $state(false);
+  let offline = $derived(is_offline.value);
   let login_toast: string | number | undefined;
 
   const change = async (id: string) => {
@@ -43,6 +45,13 @@
   };
 
   const add = async () => {
+    if (offline) {
+      toast.warning(
+        'You are currently offline, please reconnect to the internet to add an Account'
+      );
+      return;
+    }
+
     add_loading = true;
     login_toast = toast.loading('Waiting for Microsoft Login', {
       duration: TOAST_DURATION,

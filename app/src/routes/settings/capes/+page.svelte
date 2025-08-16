@@ -9,6 +9,7 @@
     account_list,
     State
   } from '$lib/tauri/account.svelte';
+  import { is_offline } from '$lib/tauri/offline.svelte';
   import { LoaderCircle } from '@lucide/svelte';
   import {
     ScrollArea,
@@ -16,6 +17,7 @@
     toast
   } from 'positron-components/components/ui';
 
+  let offline = $derived(is_offline.value);
   let accounts = $derived(account_list.value);
   let active_account = $derived(account_active.value);
   let account = $derived(
@@ -30,6 +32,12 @@
 
   const change = async (id: string) => {
     if (!active_account) return;
+    if (offline) {
+      toast.warning(
+        'You are currently offline, please reconnect to the internet to change Cape'
+      );
+      return;
+    }
 
     if (!(await account_change_cape(id))) {
       toast.success('Successfully changed Cape');
