@@ -11,7 +11,9 @@ use crate::{
     download_and_parse_file_no_hash_force, download_file_no_hash_force, read_parse_file,
   },
   versions::{
-    loader::{CheckFuture, Loader, LoaderVersion, util::download_maven_future},
+    loader::{
+      Arguments, CheckFuture, ClasspathEntry, Loader, LoaderVersion, util::download_maven_future,
+    },
     maven::MavenArtifact,
     paths::{MCPath, MCVersionPath},
   },
@@ -227,7 +229,7 @@ impl LoaderVersion for FabricLikeLoaderVersion {
     &self,
     version_path: &MCVersionPath,
     mc_path: &MCPath,
-  ) -> Result<Vec<(MavenArtifact, PathBuf)>> {
+  ) -> Result<Vec<ClasspathEntry>> {
     let meta_path = self.meta_path(version_path);
     let meta: FabricVersionMeta = read_parse_file(&meta_path).await?;
 
@@ -240,16 +242,16 @@ impl LoaderVersion for FabricLikeLoaderVersion {
     for lib in libraries.client.into_iter().chain(libraries.common) {
       let maven = MavenArtifact::new(&lib.name)?;
       let path = maven.full_path(mc_path);
-      libs.push((maven, path));
+      libs.push(ClasspathEntry::new(maven, path));
     }
 
     let loader_maven = MavenArtifact::new(&meta.loader.maven)?;
     let loader_path = loader_maven.full_path(mc_path);
-    libs.push((loader_maven, loader_path));
+    libs.push(ClasspathEntry::new(loader_maven, loader_path));
 
     let intermediary_maven = MavenArtifact::new(&meta.intermediary.maven)?;
     let intermediary_path = intermediary_maven.full_path(mc_path);
-    libs.push((intermediary_maven, intermediary_path));
+    libs.push(ClasspathEntry::new(intermediary_maven, intermediary_path));
 
     Ok(libs)
   }
@@ -264,8 +266,8 @@ impl LoaderVersion for FabricLikeLoaderVersion {
     }
   }
 
-  async fn arguments(&self, _: &MCVersionPath) -> Result<(Vec<String>, Vec<String>, bool)> {
-    Ok((vec![], vec![], false)) // Fabric does not require additional arguments
+  async fn arguments(&self, _: &MCVersionPath) -> Result<Arguments> {
+    Ok(Arguments::default()) // Fabric does not require additional arguments
   }
 }
 

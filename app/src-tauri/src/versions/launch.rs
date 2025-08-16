@@ -9,7 +9,7 @@ use crate::{
   utils::file::read_parse_file,
   versions::{
     check_feature,
-    loader::LoaderVersion,
+    loader::{Arguments, ClasspathEntry, LoaderVersion},
     maven::MavenArtifact,
     meta::{Features, minecraft::ArgumentValue},
     paths::{JavaVersionPath, MCPath, MCVersionPath, QUICK_PLAY},
@@ -149,14 +149,17 @@ pub async fn launch_minecraft_version(args: &LaunchArgs) -> Result<Child> {
 
   if let Some(loader) = &args.loader {
     debug!("Adding loader arguments to JVM args");
-    let (loader_jvm_args, loader_game_args, overwrite_game) =
-      loader.arguments(&version_path).await?;
+    let Arguments {
+      jvm_args: loader_jvm_args,
+      game_args: loader_game_args,
+      overwrite_game_args,
+    } = loader.arguments(&version_path).await?;
 
     for arg in &loader_jvm_args {
       jvm_args.push(args.replace_vars(&version, arg, &classpath));
     }
 
-    if overwrite_game {
+    if overwrite_game_args {
       game_args.clear();
     }
     for arg in &loader_game_args {
@@ -284,28 +287,28 @@ async fn classpath(
         }
 
         let path = path!(mc_path.library_path(), &artifact.path);
-        libraries.push((MavenArtifact::new(&lib.name)?, path));
+        libraries.push(ClasspathEntry::new(MavenArtifact::new(&lib.name)?, path));
       }
       lib => {
         let maven = MavenArtifact::new(&lib.name)?;
         let path = maven.full_path(mc_path);
-        libraries.push((maven, path));
+        libraries.push(ClasspathEntry::new(maven, path));
       }
     }
   }
 
   if let Some(loader) = loader {
     let loader_libs = loader.classpath(version_path, mc_path).await?;
-    libraries.retain(|(l, _)| {
-      !loader_libs
-        .iter()
-        .any(|(ll, _)| l.group == ll.group && l.artifact == ll.artifact)
+    libraries.retain(|l| {
+      !loader_libs.iter().any(|ll| {
+        l.artifact.group == ll.artifact.group && l.artifact.artifact == ll.artifact.artifact
+      })
     });
     libraries.extend(loader_libs);
   }
 
   let mut add_libs = HashSet::new();
-  for (_, path) in libraries {
+  for ClasspathEntry { path, .. } in libraries {
     if add_libs.contains(&path) {
       continue; // Skip already added libraries
     }

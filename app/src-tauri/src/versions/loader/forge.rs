@@ -19,7 +19,7 @@ use crate::{
   versions::{
     SEPARATOR,
     loader::{
-      CheckFuture, Loader, LoaderVersion,
+      CheckFuture, ClasspathEntry, Loader, LoaderVersion,
       util::{compare_mc_versions, download_maven_future, extract_file_from_zip},
     },
     maven::MavenArtifact,
@@ -477,7 +477,7 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
     &self,
     version_path: &MCVersionPath,
     mc_path: &MCPath,
-  ) -> Result<Vec<(MavenArtifact, PathBuf)>> {
+  ) -> Result<Vec<ClasspathEntry>> {
     let installer_path = self.installer_path(version_path).await?;
     let version_json: ForgeVersion =
       if let Ok(data) = read_parse_file(&installer_path.join(VERSION_JSON_PATH)).await {
@@ -498,7 +498,7 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
 
       let maven = MavenArtifact::new(&library.name)?;
       let path = maven.full_path(mc_path);
-      classpath.push((maven, path));
+      classpath.push(ClasspathEntry::new(maven, path));
       added_libs.insert(library.name);
     }
 
@@ -518,10 +518,7 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
     Ok(version_json.main_class)
   }
 
-  async fn arguments(
-    &self,
-    version_path: &MCVersionPath,
-  ) -> Result<(Vec<String>, Vec<String>, bool)> {
+  async fn arguments(&self, version_path: &MCVersionPath) -> Result<super::Arguments> {
     let installer_path = self.installer_path(version_path).await?;
     let version_json: ForgeVersion =
       if let Ok(data) = read_parse_file(&installer_path.join(VERSION_JSON_PATH)).await {
@@ -534,7 +531,7 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
 
     let mut jvm_args = Vec::new();
     let mut game_args = Vec::new();
-    let mut overwrite_game = false;
+    let mut overwrite_game_args = false;
 
     if let Some(arguments) = version_json.arguments {
       if let Some(jvm) = arguments.jvm {
@@ -550,10 +547,14 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
           .map(String::from)
           .collect::<Vec<_>>(),
       );
-      overwrite_game = true;
+      overwrite_game_args = true;
     }
 
-    Ok((jvm_args, game_args, overwrite_game))
+    Ok(super::Arguments::new(
+      jvm_args,
+      game_args,
+      overwrite_game_args,
+    ))
   }
 }
 

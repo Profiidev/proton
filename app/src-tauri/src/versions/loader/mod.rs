@@ -20,6 +20,18 @@ mod util;
 type DownloadFuture = Pin<Box<dyn Future<Output = Result<()>> + Send + 'static>>;
 type CheckFuture = Pin<Box<dyn Future<Output = Result<Option<DownloadFuture>>> + Send + 'static>>;
 
+pub struct ClasspathEntry {
+  pub artifact: MavenArtifact,
+  pub path: PathBuf,
+}
+
+#[derive(Default)]
+pub struct Arguments {
+  pub jvm_args: Vec<String>,
+  pub game_args: Vec<String>,
+  pub overwrite_game_args: bool,
+}
+
 #[async_trait::async_trait]
 pub trait LoaderVersion: Send + Sync + 'static {
   #[allow(clippy::ptr_arg)]
@@ -40,12 +52,9 @@ pub trait LoaderVersion: Send + Sync + 'static {
     &self,
     version_path: &MCVersionPath,
     mc_path: &MCPath,
-  ) -> Result<Vec<(MavenArtifact, PathBuf)>>;
+  ) -> Result<Vec<ClasspathEntry>>;
   async fn main_class(&self, version_path: &MCVersionPath) -> Result<String>;
-  async fn arguments(
-    &self,
-    version_path: &MCVersionPath,
-  ) -> Result<(Vec<String>, Vec<String>, bool)>;
+  async fn arguments(&self, version_path: &MCVersionPath) -> Result<Arguments>;
 }
 
 #[async_trait::async_trait]
@@ -134,5 +143,21 @@ impl LoaderType {
       LoaderType::Forge.loader().unwrap(),
       LoaderType::NeoForge.loader().unwrap(),
     ]
+  }
+}
+
+impl ClasspathEntry {
+  pub fn new(artifact: MavenArtifact, path: PathBuf) -> Self {
+    Self { artifact, path }
+  }
+}
+
+impl Arguments {
+  pub fn new(jvm_args: Vec<String>, game_args: Vec<String>, overwrite_game_args: bool) -> Self {
+    Self {
+      jvm_args,
+      game_args,
+      overwrite_game_args,
+    }
   }
 }
