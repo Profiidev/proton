@@ -1,7 +1,8 @@
 use std::fmt::{Debug, Display};
 
+use log::debug;
 use tauri::{AppHandle, Emitter, Manager, Result, State};
-use tokio::{net::TcpStream, sync::Mutex};
+use tokio::{net::TcpStream, spawn, sync::Mutex};
 
 use crate::{
   async_setup_refresh,
@@ -42,11 +43,15 @@ impl OfflineState {
     } else {
       if self.offline {
         log::info!("Reconnected to the internet");
-        if self.state_init
-          && let Err(e) = async_setup_refresh(&self.app).await.log()
-        {
-          log::error!("Failed to refresh manifests: {e}");
-          let _ = self.app.emit(MANIFEST_REFRESH_ERROR, ()).log();
+        if self.state_init {
+          let handle = self.app.clone();
+          // we need to move it into a different task to avoid blocking the freeing of the lock
+          spawn(async move {
+            if let Err(e) = async_setup_refresh(&handle).await.log() {
+              log::error!("Failed to refresh manifests: {e}");
+              let _ = handle.emit(MANIFEST_REFRESH_ERROR, ()).log();
+            }
+          });
         }
       }
       self.offline = false;
@@ -79,9 +84,11 @@ pub trait OfflineResultExt {
 impl<T, E: Debug + Display> OfflineResultExt for std::result::Result<T, E> {
   async fn check_online_state(self, handle: &AppHandle) -> Self {
     if self.is_err() {
+      debug!("Checking online state due to error");
       let state = handle.state::<Mutex<OfflineState>>();
       let mut state = state.lock().await;
       state.check_online_state().await;
+      drop(state);
     }
     self.log()
   }

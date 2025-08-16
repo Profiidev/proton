@@ -172,7 +172,8 @@ pub async fn profile_launch(
         profile.loader_version.clone(),
       )
       .await
-      .log()?;
+      .check_online_state(mc_store.handle())
+      .await?;
     profile.downloaded = true;
   } else if !mc_store.check_meta(&profile.version, id).await.log()? {
     mc_store
@@ -182,6 +183,8 @@ pub async fn profile_launch(
         profile.loader,
         profile.loader_version.clone(),
       )
+      .await
+      .check_online_state(mc_store.handle())
       .await?;
   }
 

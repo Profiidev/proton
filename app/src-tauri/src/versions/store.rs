@@ -215,4 +215,8 @@ impl McVersionStore {
       Ok(vec![])
     }
   }
+
+  pub fn handle(&self) -> &AppHandle {
+    &self.handle
+  }
 }

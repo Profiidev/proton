@@ -138,7 +138,12 @@ pub async fn account_change_skin(
     .await?;
 
   if let Some(token) = accounts_store.mc_token(&account) {
-    let profile = store.select_skin(id, token).await.log()?;
+    // check online state if err because this requires internet and can indicate offline state
+    let profile = store
+      .select_skin(id, token)
+      .await
+      .check_online_state(accounts_store.handle())
+      .await?;
     accounts_store.update_profile(profile)?;
   } else {
     warn!("Account {account} not found");
