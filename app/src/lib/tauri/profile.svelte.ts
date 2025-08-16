@@ -60,6 +60,13 @@ export enum LoaderType {
   NeoForge = 'NeoForge'
 }
 
+export const ModdedLoaderType = {
+  Fabric: LoaderType.Fabric,
+  Quilt: LoaderType.Quilt,
+  Forge: LoaderType.Forge,
+  NeoForge: LoaderType.NeoForge
+} as const;
+
 export enum ProfileError {
   InvalidImage = 'InvalidImage',
   NotFound = 'NotFound',
@@ -241,34 +248,34 @@ const get_message = (event: VersionCheckStatus): string | undefined => {
     }
   } else if ('AssetsCheck' in event) {
     let [done, total] = event.AssetsCheck;
-    return `Checked ${Math.round((done / total) * 1000) / 10}% assets (${done}/${total})`;
+    return `Checked ${((done / total) * 100).toFixed(1)}% of assets (${done}/${total})`;
   } else if ('AssetsDownload' in event) {
     let [done, total] = event.AssetsDownload;
-    return `Downloaded ${Math.round((done / total) * 1000) / 10}% assets (${done}/${total})`;
+    return `Downloaded ${((done / total) * 100).toFixed(1)}% of assets (${done}/${total})`;
   } else if ('JavaCheck' in event) {
     let [done, total] = event.JavaCheck;
-    return `Checked ${Math.round((done / total) * 1000) / 10}% java files (${done}/${total})`;
+    return `Checked ${((done / total) * 100).toFixed(1)}% of java files (${done}/${total})`;
   } else if ('JavaDownload' in event) {
     let [done, total] = event.JavaDownload;
-    return `Downloaded ${Math.round((done / total) * 1000) / 10}% java files (${done}/${total})`;
+    return `Downloaded ${((done / total) * 100).toFixed(1)}% of java files (${done}/${total})`;
   } else if ('NativeLibraryCheck' in event) {
     let [done, total] = event.NativeLibraryCheck;
-    return `Checked ${Math.round((done / total) * 1000) / 10}% native libraries (${done}/${total})`;
+    return `Checked ${((done / total) * 100).toFixed(1)}% of native libraries (${done}/${total})`;
   } else if ('NativeLibraryDownload' in event) {
     let [done, total] = event.NativeLibraryDownload;
-    return `Downloaded ${Math.round((done / total) * 1000) / 10}% native libraries (${done}/${total})`;
+    return `Downloaded ${((done / total) * 100).toFixed(1)}% of native libraries (${done}/${total})`;
   } else if ('LibraryCheck' in event) {
     let [done, total] = event.LibraryCheck;
-    return `Checked ${Math.round((done / total) * 1000) / 10}% libraries (${done}/${total})`;
+    return `Checked ${((done / total) * 100).toFixed(1)}% of libraries (${done}/${total})`;
   } else if ('LibraryDownload' in event) {
     let [done, total] = event.LibraryDownload;
-    return `Downloaded ${Math.round((done / total) * 1000) / 10}% libraries (${done}/${total})`;
+    return `Downloaded ${((done / total) * 100).toFixed(1)}% of libraries (${done}/${total})`;
   } else if ('ModLoaderFilesCheck' in event) {
     let [done, total] = event.ModLoaderFilesCheck;
-    return `Checked ${Math.round((done / total) * 1000) / 10}% mod loader files (${done}/${total})`;
+    return `Checked ${((done / total) * 100).toFixed(1)}% of mod loader files (${done}/${total})`;
   } else if ('ModLoaderFilesDownload' in event) {
     let [done, total] = event.ModLoaderFilesDownload;
-    return `Downloaded ${Math.round((done / total) * 1000) / 10}% mod loader files (${done}/${total})`;
+    return `Downloaded ${((done / total) * 100).toFixed(1)}% of mod loader files (${done}/${total})`;
   }
 };
 

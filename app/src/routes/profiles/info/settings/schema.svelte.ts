@@ -1,9 +1,9 @@
+import { LoaderType, ModdedLoaderType } from '$lib/tauri/profile.svelte';
 import { z } from 'zod';
 
-export const profileEditSchema = z.object({
+const baseProfileEditSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   version: z.array(z.string()).min(1, 'Version is required'),
-  loader_version: z.array(z.string()).min(1, 'Loader version is required'),
   icon: z
     .instanceof(File, {
       message: 'Icon must be a file'
@@ -14,3 +14,19 @@ export const profileEditSchema = z.object({
     )
     .optional()
 });
+
+const vanillaProfileEditSchema = z.object({
+  loader: z.literal(LoaderType.Vanilla)
+});
+
+const moddedProfileEditSchema = z.object({
+  loader: z.nativeEnum(ModdedLoaderType),
+  loader_version: z.array(z.string()).min(1, 'Loader version is required')
+});
+
+export const profileEditSchema = z
+  .discriminatedUnion('loader', [
+    vanillaProfileEditSchema,
+    moddedProfileEditSchema
+  ])
+  .and(baseProfileEditSchema);
