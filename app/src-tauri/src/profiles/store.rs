@@ -254,6 +254,10 @@ impl ProfileStore {
     &self.data_dir
   }
 
+  pub fn handle(&self) -> &AppHandle {
+    &self.handle
+  }
+
   fn save(&self) -> Result<()> {
     let mut profiles = HashMap::new();
     for (id, info) in &self.profiles {

@@ -10,7 +10,7 @@ use tokio::join;
 use crate::{
   utils::{
     file::{download_and_parse_file_no_hash, download_and_parse_file_no_hash_force, file_hash},
-    updater::{UpdateType, update_data},
+    updater::{UpdateType, default_client, update_data},
   },
   versions::{
     download::check_download_version,
@@ -49,7 +49,7 @@ struct IndexInfo {
 
 impl McVersionStore {
   pub async fn new(handle: AppHandle) -> Result<McVersionStore> {
-    let client = Client::new();
+    let client = default_client();
     let data_dir = handle.path().app_data_dir()?;
     let mc_manifest_path = MCPath::new(&data_dir).mc_manifest();
     let java_manifest_path =
@@ -214,5 +214,9 @@ impl McVersionStore {
     } else {
       Ok(vec![])
     }
+  }
+
+  pub fn handle(&self) -> &AppHandle {
+    &self.handle
   }
 }

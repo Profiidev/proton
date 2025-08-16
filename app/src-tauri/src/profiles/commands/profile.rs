@@ -8,6 +8,7 @@ use tokio::sync::Mutex;
 
 use crate::{
   account::store::AccountStore,
+  offline::OfflineResultExt,
   profiles::{
     config::{Profile, ProfileUpdate, QuickPlayInfo},
     store::ProfileStore,
@@ -148,7 +149,7 @@ pub async fn profile_launch(
   quick_play: Option<QuickPlayInfo>,
 ) -> Result<()> {
   trace!("Command profile_launch called with profile {profile} id {id}");
-  let mut store = state.lock().await;
+  let store = state.lock().await;
   // clone so the lock is dropped before the download
   let mc_store = versions.lock().await.clone();
   let auth_store = auth.lock().await;
@@ -160,6 +161,8 @@ pub async fn profile_launch(
   drop(auth_store);
 
   let mut profile = store.profile(profile).await.log()?;
+  drop(store);
+
   if !profile.downloaded {
     mc_store
       .check_or_download(
@@ -169,7 +172,8 @@ pub async fn profile_launch(
         profile.loader_version.clone(),
       )
       .await
-      .log()?;
+      .check_online_state(mc_store.handle())
+      .await?;
     profile.downloaded = true;
   } else if !mc_store.check_meta(&profile.version, id).await.log()? {
     mc_store
@@ -179,6 +183,8 @@ pub async fn profile_launch(
         profile.loader,
         profile.loader_version.clone(),
       )
+      .await
+      .check_online_state(mc_store.handle())
       .await?;
   }
 
@@ -195,6 +201,8 @@ pub async fn profile_launch(
   } else {
     profile.last_played_non_quick_play = Some(Utc::now());
   }
+
+  let mut store = state.lock().await;
   profile.update(store.data_dir()).await.log()?;
   store.update_data(UpdateType::Profiles);
 
@@ -220,7 +228,10 @@ pub async fn profile_repair(
 
   let mut profile = store.profile(profile).await.log()?;
   let data_dir = store.data_dir().clone();
+  let handle = store.handle().clone();
   drop(store);
+
+  // check online state if err because this requires internet and can indicate offline state
   mc_store
     .check_or_download(
       &profile.version,
@@ -229,7 +240,8 @@ pub async fn profile_repair(
       profile.loader_version.clone(),
     )
     .await
-    .log()?;
+    .check_online_state(&handle)
+    .await?;
 
   profile.downloaded = true;
   profile.update(&data_dir).await.log()?;

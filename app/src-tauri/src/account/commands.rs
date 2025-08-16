@@ -6,6 +6,7 @@ use tokio::sync::Mutex;
 
 use crate::{
   account::skin_store::{Cape, Skin},
+  offline::OfflineResultExt,
   utils::log::ResultLogExt,
 };
 
@@ -24,7 +25,12 @@ pub async fn account_list(
 pub async fn account_refresh(state: State<'_, Mutex<AccountStore>>) -> Result<()> {
   trace!("Command account_refresh called");
   let mut store = state.lock().await;
-  store.refresh_all().await.log()?;
+  // check online state if err because this requires internet and can indicate offline state
+  store
+    .refresh_all()
+    .await
+    .check_online_state(store.handle())
+    .await?;
 
   Ok(())
 }
@@ -42,7 +48,12 @@ pub async fn account_refresh_one(id: &str, state: State<'_, Mutex<AccountStore>>
 pub async fn account_login(state: State<'_, Mutex<AccountStore>>) -> Result<()> {
   trace!("Command account_login called");
   let mut store = state.lock().await;
-  store.login().await.log()?;
+  // check online state if err because this requires internet and can indicate offline state
+  store
+    .login()
+    .await
+    .check_online_state(store.handle())
+    .await?;
 
   Ok(())
 }
@@ -119,10 +130,20 @@ pub async fn account_change_skin(
   let mut accounts_store = accounts.lock().await;
 
   let account = accounts_store.active().to_string();
-  accounts_store.refresh_auth(&account).await.log()?;
+  // check online state if err because this requires internet and can indicate offline state
+  accounts_store
+    .refresh_auth(&account)
+    .await
+    .check_online_state(accounts_store.handle())
+    .await?;
 
   if let Some(token) = accounts_store.mc_token(&account) {
-    let profile = store.select_skin(id, token).await.log()?;
+    // check online state if err because this requires internet and can indicate offline state
+    let profile = store
+      .select_skin(id, token)
+      .await
+      .check_online_state(accounts_store.handle())
+      .await?;
     accounts_store.update_profile(profile)?;
   } else {
     warn!("Account {account} not found");
@@ -139,7 +160,12 @@ pub async fn account_change_cape(accounts: State<'_, Mutex<AccountStore>>, id: &
   let mut accounts_store = accounts.lock().await;
 
   let account = accounts_store.active().to_string();
-  accounts_store.select_cape_by_id(&account, id).await.log()?;
+  // check online state if err because this requires internet and can indicate offline state
+  accounts_store
+    .select_cape_by_id(&account, id)
+    .await
+    .check_online_state(accounts_store.handle())
+    .await?;
 
   Ok(())
 }

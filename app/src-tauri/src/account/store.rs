@@ -11,7 +11,7 @@ use crate::{
   store::TauriAppStoreExt,
   utils::{
     log::ResultLogExt,
-    updater::{UpdateType, update_data},
+    updater::{UpdateType, default_client, update_data},
   },
 };
 
@@ -54,8 +54,12 @@ impl AccountStore {
       accounts,
       active,
       handle,
-      client: Client::new(),
+      client: default_client(),
     })
+  }
+
+  pub fn handle(&self) -> &AppHandle {
+    &self.handle
   }
 
   pub fn list_profiles(&self) -> HashMap<String, Option<ProfileInfo>> {
