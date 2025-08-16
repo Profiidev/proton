@@ -95,11 +95,13 @@ pub async fn check_download_version(
 
   if let Some(loader) = loader_version {
     emit_download_check_status(handle, DownloadCheckStatus::ModLoaderMeta, update_id);
+
     debug!("Collecting checks for mod loader files");
     let futures = loader
       .download(client, &version_path, &mc_path, &libs)
       .await?;
     debug!("Collected {} mod loader file checks", futures.len());
+
     let futures = check_pool(
       futures,
       handle,
@@ -108,6 +110,7 @@ pub async fn check_download_version(
     )
     .await?;
     debug!("Completed all checks for mod loader files");
+
     download_pool(
       futures,
       handle,
@@ -119,9 +122,11 @@ pub async fn check_download_version(
 
     debug!("Running mod loader preprocess");
     emit_download_check_status(handle, DownloadCheckStatus::ModLoaderPreprocess, update_id);
+
     loader
       .preprocess(&version_path, &mc_path, java_path.bin_path())
       .await?;
+
     emit_download_check_status(
       handle,
       DownloadCheckStatus::ModLoaderPreprocessDone,

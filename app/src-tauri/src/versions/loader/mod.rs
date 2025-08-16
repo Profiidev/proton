@@ -150,6 +150,12 @@ impl ClasspathEntry {
   pub fn new(artifact: MavenArtifact, path: PathBuf) -> Self {
     Self { artifact, path }
   }
+
+  pub fn from_name(name: &str, mc_path: &MCPath) -> Result<Self> {
+    let artifact = MavenArtifact::new(name)?;
+    let path = artifact.full_path(mc_path);
+    Ok(Self { artifact, path })
+  }
 }
 
 impl Arguments {

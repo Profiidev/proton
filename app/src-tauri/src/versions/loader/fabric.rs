@@ -14,7 +14,6 @@ use crate::{
     loader::{
       Arguments, CheckFuture, ClasspathEntry, Loader, LoaderVersion, util::download_maven_future,
     },
-    maven::MavenArtifact,
     paths::{MCPath, MCVersionPath},
   },
 };
@@ -183,12 +182,10 @@ impl LoaderVersion for FabricLikeLoaderVersion {
 
     let mut futures = Vec::new();
     for lib in libraries.client.into_iter().chain(libraries.common) {
-      let mc_path = mc_path.clone();
-      let client = client.clone();
       futures.push(download_maven_future(
-        mc_path,
+        mc_path.clone(),
         lib.name,
-        client,
+        client.clone(),
         lib
           .url
           .unwrap_or(Url::parse(&self.maven_base_url).unwrap())
@@ -204,8 +201,6 @@ impl LoaderVersion for FabricLikeLoaderVersion {
     }
 
     for lib in libs {
-      let mc_path = mc_path.clone();
-      let client = client.clone();
       let base_url = if lib.contains("fabricmc") {
         MAVEN_BASE_URL_FABRIC.to_string()
       } else {
@@ -213,7 +208,12 @@ impl LoaderVersion for FabricLikeLoaderVersion {
       };
 
       futures.push(download_maven_future(
-        mc_path, lib, client, base_url, None, None,
+        mc_path.clone(),
+        lib,
+        client.clone(),
+        base_url,
+        None,
+        None,
       ));
     }
 
@@ -240,18 +240,14 @@ impl LoaderVersion for FabricLikeLoaderVersion {
 
     let mut libs = Vec::new();
     for lib in libraries.client.into_iter().chain(libraries.common) {
-      let maven = MavenArtifact::new(&lib.name)?;
-      let path = maven.full_path(mc_path);
-      libs.push(ClasspathEntry::new(maven, path));
+      libs.push(ClasspathEntry::from_name(&lib.name, mc_path)?);
     }
 
-    let loader_maven = MavenArtifact::new(&meta.loader.maven)?;
-    let loader_path = loader_maven.full_path(mc_path);
-    libs.push(ClasspathEntry::new(loader_maven, loader_path));
-
-    let intermediary_maven = MavenArtifact::new(&meta.intermediary.maven)?;
-    let intermediary_path = intermediary_maven.full_path(mc_path);
-    libs.push(ClasspathEntry::new(intermediary_maven, intermediary_path));
+    libs.push(ClasspathEntry::from_name(&meta.loader.maven, mc_path)?);
+    libs.push(ClasspathEntry::from_name(
+      &meta.intermediary.maven,
+      mc_path,
+    )?);
 
     Ok(libs)
   }

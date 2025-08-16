@@ -4,6 +4,7 @@ use anyhow::Result;
 use async_zip::tokio::read::fs::ZipFileReader;
 use reqwest::Client;
 use tauri::Url;
+use tokio::fs;
 
 use crate::{
   utils::file::{download_file_no_hash_force, file_hash},
@@ -101,4 +102,32 @@ pub async fn extract_file_from_zip(zip_path: &Path, file_name: &str) -> Result<V
   } else {
     Err(anyhow::anyhow!("File '{}' not found in zip", file_name))
   }
+}
+
+pub async fn extract_and_save_file_from_zip(
+  zip_path: &Path,
+  file_name: &str,
+  save_path: &Path,
+) -> Result<()> {
+  let data = extract_file_from_zip(zip_path, file_name).await?;
+  let parent = save_path
+    .parent()
+    .ok_or_else(|| anyhow::anyhow!("Invalid save path"))?;
+  fs::create_dir_all(parent).await?;
+  fs::write(save_path, data).await?;
+  Ok(())
+}
+
+pub async fn main_class_from_jar(jar_path: &Path) -> Result<String> {
+  //find Main-Class in the jar
+  let manifest_data = extract_file_from_zip(jar_path, "META-INF/MANIFEST.MF").await?;
+  let manifest = String::from_utf8(manifest_data)?;
+  let mut main_class = None;
+  for line in manifest.lines() {
+    if line.starts_with("Main-Class: ") {
+      main_class = Some(line.strip_prefix("Main-Class: ").unwrap().to_string());
+      break;
+    }
+  }
+  main_class.ok_or_else(|| anyhow::anyhow!("Main-Class not found"))
 }

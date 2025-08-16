@@ -20,7 +20,10 @@ use crate::{
     SEPARATOR,
     loader::{
       CheckFuture, ClasspathEntry, Loader, LoaderVersion,
-      util::{compare_mc_versions, download_maven_future, extract_file_from_zip},
+      util::{
+        compare_mc_versions, download_maven_future, extract_and_save_file_from_zip,
+        extract_file_from_zip, main_class_from_jar,
+      },
     },
     maven::MavenArtifact,
     paths::{MCPath, MCVersionPath},
@@ -251,6 +254,19 @@ impl ForgeLikeLoaderVersion {
       .replace("{loader_version}", &loader_version);
     Ok(url)
   }
+
+  async fn version_json(&self, version_path: &MCVersionPath) -> Result<ForgeVersion> {
+    let installer_path = self.installer_path(version_path).await?;
+    Ok(
+      if let Ok(data) = read_parse_file(&installer_path.join(VERSION_JSON_PATH)).await {
+        data
+      } else {
+        read_parse_file::<ForgeVersionManifestOld>(&installer_path.join(INSTALLER_PROFILE_PATH))
+          .await?
+          .into_new()?
+      },
+    )
+  }
 }
 
 const INSTALLER_PATH: &str = "installer.jar";
@@ -273,8 +289,7 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
     download_file_no_hash_force(client, &path, url).await?;
 
     let profile_path = installer_path.join(INSTALLER_PROFILE_PATH);
-    let installer_data = extract_file_from_zip(&path, INSTALLER_PROFILE_PATH).await?;
-    fs::write(&profile_path, &installer_data).await?;
+    extract_and_save_file_from_zip(&path, INSTALLER_PROFILE_PATH, &profile_path).await?;
 
     let mut futures = Vec::new();
     let mut added_libs = HashSet::new();
@@ -282,17 +297,12 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
     let version_json: ForgeVersion =
       if let Ok(profile) = read_parse_file::<ForgeInstallerProfile>(&profile_path).await {
         let version_json_path = installer_path.join(VERSION_JSON_PATH);
-        let version_json_data = extract_file_from_zip(&path, &profile.json[1..]).await?;
-        fs::write(&version_json_path, &version_json_data).await?;
+        extract_and_save_file_from_zip(&path, &profile.json[1..], &version_json_path).await?;
 
         for entry in profile.data.values() {
           if entry.client.starts_with("/") {
             let file_path = installer_path.join(&entry.client[1..]);
-            let data = extract_file_from_zip(&path, &entry.client[1..]).await?;
-
-            let parent = file_path.parent().unwrap();
-            fs::create_dir_all(parent).await?;
-            fs::write(&file_path, &data).await?;
+            extract_and_save_file_from_zip(&path, &entry.client[1..], &file_path).await?;
           }
         }
 
@@ -316,12 +326,9 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
         read_parse_file(&version_json_path).await?
       } else {
         let old = read_parse_file::<ForgeVersionManifestOld>(&profile_path).await?;
+        let old_path = MavenArtifact::new(&old.install.path)?.full_path(mc_path);
 
-        let data = extract_file_from_zip(&path, &old.install.file_path).await?;
-        let path = MavenArtifact::new(&old.install.path)?.full_path(mc_path);
-        let parent = path.parent().unwrap();
-        fs::create_dir_all(parent).await?;
-        fs::write(&path, &data).await?;
+        extract_and_save_file_from_zip(&path, &old.install.file_path, &old_path).await?;
         added_libs.insert(old.install.path.clone());
 
         old.into_new()?
@@ -371,12 +378,6 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
             .to_string_lossy()
             .into_owned();
         }
-        if entry.server.starts_with("/") {
-          entry.server = installer_path
-            .join(&entry.server[1..])
-            .to_string_lossy()
-            .into_owned();
-        }
       }
       default_data(&mut data, &self.mc_version, version_path, mc_path);
 
@@ -388,18 +389,7 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
         }
 
         let jar_path = MavenArtifact::new(&processor.jar)?.full_path(mc_path);
-
-        //find Main-Class in the jar
-        let manifest_data = extract_file_from_zip(&jar_path, "META-INF/MANIFEST.MF").await?;
-        let manifest = String::from_utf8(manifest_data)?;
-        let mut main_class = None;
-        for line in manifest.lines() {
-          if line.starts_with("Main-Class: ") {
-            main_class = Some(line.strip_prefix("Main-Class: ").unwrap().to_string());
-            break;
-          }
-        }
-        let main_class = main_class.ok_or_else(|| anyhow::anyhow!("Main-Class not found"))?;
+        let main_class = main_class_from_jar(&jar_path).await?;
 
         let mut classpath = OsString::new();
         classpath.push(jar_path);
@@ -478,16 +468,7 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
     version_path: &MCVersionPath,
     mc_path: &MCPath,
   ) -> Result<Vec<ClasspathEntry>> {
-    let installer_path = self.installer_path(version_path).await?;
-    let version_json: ForgeVersion =
-      if let Ok(data) = read_parse_file(&installer_path.join(VERSION_JSON_PATH)).await {
-        data
-      } else {
-        read_parse_file::<ForgeVersionManifestOld>(&installer_path.join(INSTALLER_PROFILE_PATH))
-          .await?
-          .into_new()?
-      };
-
+    let version_json = self.version_json(version_path).await?;
     let mut classpath = Vec::new();
     let mut added_libs = HashSet::new();
 
@@ -496,9 +477,7 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
         continue; // Skip already added libraries
       }
 
-      let maven = MavenArtifact::new(&library.name)?;
-      let path = maven.full_path(mc_path);
-      classpath.push(ClasspathEntry::new(maven, path));
+      classpath.push(ClasspathEntry::from_name(&library.name, mc_path)?);
       added_libs.insert(library.name);
     }
 
@@ -506,29 +485,12 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
   }
 
   async fn main_class(&self, version_path: &MCVersionPath) -> Result<String> {
-    let installer_path = self.installer_path(version_path).await?;
-    let version_json: ForgeVersion =
-      if let Ok(data) = read_parse_file(&installer_path.join(VERSION_JSON_PATH)).await {
-        data
-      } else {
-        read_parse_file::<ForgeVersionManifestOld>(&installer_path.join(INSTALLER_PROFILE_PATH))
-          .await?
-          .into_new()?
-      };
+    let version_json = self.version_json(version_path).await?;
     Ok(version_json.main_class)
   }
 
   async fn arguments(&self, version_path: &MCVersionPath) -> Result<super::Arguments> {
-    let installer_path = self.installer_path(version_path).await?;
-    let version_json: ForgeVersion =
-      if let Ok(data) = read_parse_file(&installer_path.join(VERSION_JSON_PATH)).await {
-        data
-      } else {
-        read_parse_file::<ForgeVersionManifestOld>(&installer_path.join(INSTALLER_PROFILE_PATH))
-          .await?
-          .into_new()?
-      };
-
+    let version_json = self.version_json(version_path).await?;
     let mut jvm_args = Vec::new();
     let mut game_args = Vec::new();
     let mut overwrite_game_args = false;
