@@ -164,6 +164,8 @@ impl LoaderVersion for FabricLikeLoaderVersion {
     client: &Client,
     version_path: &MCVersionPath,
     mc_path: &MCPath,
+    // fabric does not specify libraries also specified by vanilla, so we can skip them
+    _: &[String],
   ) -> Result<Vec<CheckFuture>> {
     let url = Url::parse(&format!(
       "{}/loader/{}/{}",

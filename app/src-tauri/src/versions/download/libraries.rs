@@ -27,10 +27,11 @@ pub async fn check_download_version_java_libraries(
   mc_path: &MCPath,
   handle: &AppHandle,
   update_id: usize,
-) -> Result<()> {
+) -> Result<Vec<String>> {
   debug!("Collecting checks for java libraries");
   let mut futures_1 = Vec::new();
   let mut futures_2 = Vec::new();
+  let mut libs = Vec::new();
 
   'l: for library in &version.libraries {
     let Some(downloads) = &library.downloads else {
@@ -38,6 +39,9 @@ pub async fn check_download_version_java_libraries(
     };
 
     if let Some(classifier) = &downloads.classifiers {
+      // add library before checks so it does not need to be checked again by the loader
+      libs.push(library.name.clone());
+
       #[cfg(target_os = "linux")]
       let Some(library_download) = &classifier.natives_linux else {
         continue;
@@ -77,6 +81,7 @@ pub async fn check_download_version_java_libraries(
       let client = client.clone();
       let url = library_download.url.clone();
       let hash = library_download.sha1.clone();
+
       futures_2.push(async move {
         debug!("Checking java library {}", path.display());
         if !file_hash(&hash, &path).await? {
@@ -88,6 +93,7 @@ pub async fn check_download_version_java_libraries(
         }
         anyhow::Ok(None)
       });
+      libs.push(library.name.clone());
     }
   }
 
@@ -142,7 +148,7 @@ pub async fn check_download_version_java_libraries(
     now.elapsed()
   );
 
-  Ok(())
+  Ok(libs)
 }
 
 async fn check_download_native_library(

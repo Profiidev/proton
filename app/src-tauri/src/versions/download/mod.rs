@@ -88,13 +88,17 @@ pub async fn check_download_version(
 
   check_download_version_assets(&assets, &mc_path, client, handle, update_id).await?;
   check_download_java_files(&files, client, &java_path, handle, update_id).await?;
-  check_download_version_java_libraries(&version, client, &java_path, &mc_path, handle, update_id)
-    .await?;
+  let libs = check_download_version_java_libraries(
+    &version, client, &java_path, &mc_path, handle, update_id,
+  )
+  .await?;
 
   if let Some(loader) = loader_version {
     emit_download_check_status(handle, DownloadCheckStatus::ModLoaderMeta, update_id);
     debug!("Collecting checks for mod loader files");
-    let futures = loader.download(client, &version_path, &mc_path).await?;
+    let futures = loader
+      .download(client, &version_path, &mc_path, &libs)
+      .await?;
     debug!("Collected {} mod loader file checks", futures.len());
     let futures = check_pool(
       futures,

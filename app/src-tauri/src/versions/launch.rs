@@ -112,6 +112,7 @@ impl LaunchArgs {
         &mc_path.library_path().display().to_string(),
       )
       .replace("${classpath_separator}", SEPARATOR)
+      .replace("${user_properties}", "{}")
   }
 
   async fn classpath(

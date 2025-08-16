@@ -28,6 +28,7 @@ pub trait LoaderVersion: Send + Sync + 'static {
     client: &Client,
     version_path: &MCVersionPath,
     mc_path: &MCPath,
+    existing_libs: &[String],
   ) -> Result<Vec<CheckFuture>>;
   async fn preprocess(
     &self,

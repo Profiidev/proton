@@ -260,6 +260,7 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
     client: &Client,
     version_path: &MCVersionPath,
     mc_path: &MCPath,
+    existing_libs: &[String],
   ) -> Result<Vec<CheckFuture>> {
     let installer_path = self.installer_path(version_path).await?;
 
@@ -324,6 +325,9 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
       };
 
     for library in version_json.libraries {
+      if existing_libs.contains(&library.name) {
+        continue; // Skip already specified libraries from vanilla
+      }
       if library.downloads.artifact.url.is_none() {
         try_extract_lib_from_zip(mc_path, &library, &path).await?;
         continue; // Skip libraries without a URL
@@ -599,9 +603,7 @@ fn default_data(
   data.insert(
     "ROOT".to_string(),
     DataEntry {
-      client: path!(version_path.version_root(), "root")
-        .to_string_lossy()
-        .into_owned(),
+      client: version_path.base_path().to_string_lossy().into_owned(),
       server: String::new(),
     },
   );
