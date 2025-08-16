@@ -49,7 +49,7 @@ pub fn full_path_from_maven(mc_path: &MCPath, maven: &MavenName) -> PathBuf {
   path!(mc_path.library_path(), path_from_maven(maven))
 }
 
-fn path_from_maven(maven: &MavenName) -> PathBuf {
+pub fn path_from_maven(maven: &MavenName) -> PathBuf {
   let mut path = path!();
   let mut group: &str = &maven.group;
   while let Some(segment) = group.find('.') {
@@ -90,6 +90,7 @@ pub fn url_from_maven(base_url: &str, maven: &MavenName) -> Result<Url> {
   ))?)
 }
 
+#[derive(Debug)]
 pub struct MavenName {
   pub group: String,
   pub artifact: String,

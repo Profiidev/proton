@@ -3,6 +3,7 @@ use std::path::Path;
 use anyhow::Result;
 use async_zip::tokio::read::fs::ZipFileReader;
 use reqwest::Client;
+use tauri::Url;
 
 use crate::{
   utils::file::{download_file_no_hash_force, file_hash},
@@ -19,12 +20,13 @@ pub fn download_maven_future(
   client: Client,
   base_url: String,
   sha1: Option<String>,
+  url: Option<Url>,
 ) -> CheckFuture {
   Box::pin(async move {
     let local_name = name.clone();
     let mc = mc_path.clone();
     let download = Box::pin(async move {
-      download_maven(&base_url, &mc, &local_name, &client).await?;
+      download_maven(&base_url, &mc, &local_name, &client, url).await?;
       anyhow::Ok(())
     }) as DownloadFuture;
 
@@ -47,10 +49,11 @@ pub async fn download_maven(
   mc_path: &MCPath,
   name: &str,
   client: &Client,
+  url: Option<Url>,
 ) -> Result<()> {
   let maven = parse_maven_name(name)?;
   let loader_path = full_path_from_maven(mc_path, &maven);
-  let loader_url = url_from_maven(base_url, &maven)?;
+  let loader_url = url.unwrap_or_else(|| url_from_maven(base_url, &maven).unwrap());
   download_file_no_hash_force(client, &loader_path, loader_url).await?;
   Ok(())
 }

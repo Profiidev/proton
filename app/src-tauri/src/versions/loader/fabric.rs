@@ -190,6 +190,7 @@ impl LoaderVersion for FabricLikeLoaderVersion {
           .unwrap_or(Url::parse(&self.maven_base_url).unwrap())
           .to_string(),
         lib.sha1,
+        None,
       ));
     }
 
@@ -207,7 +208,9 @@ impl LoaderVersion for FabricLikeLoaderVersion {
         self.maven_base_url.clone()
       };
 
-      futures.push(download_maven_future(mc_path, lib, client, base_url, None));
+      futures.push(download_maven_future(
+        mc_path, lib, client, base_url, None, None,
+      ));
     }
 
     Ok(futures)

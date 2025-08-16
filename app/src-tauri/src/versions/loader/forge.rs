@@ -1,7 +1,7 @@
 use std::{
   collections::{HashMap, HashSet},
   ffi::OsString,
-  path::PathBuf,
+  path::{Path, PathBuf},
   process::Stdio,
 };
 
@@ -294,18 +294,25 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
     let mut added_libs = HashSet::new();
 
     for library in profile.libraries {
+      if library.downloads.artifact.url.is_none() {
+        try_extract_lib_from_zip(mc_path, &library, &path).await?;
+        continue; // Skip libraries without a URL
+      }
+
       futures.push(download_maven_future(
         mc_path.clone(),
         library.name.clone(),
         client.clone(),
         self.maven_base_url.clone(),
         Some(library.downloads.artifact.sha1),
+        library.downloads.artifact.url,
       ));
       added_libs.insert(library.name);
     }
 
     for library in version_json.libraries {
       if library.downloads.artifact.url.is_none() {
+        try_extract_lib_from_zip(mc_path, &library, &path).await?;
         continue; // Skip libraries without a URL
       }
       if added_libs.contains(&library.name) {
@@ -318,6 +325,7 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
         client.clone(),
         self.maven_base_url.clone(),
         Some(library.downloads.artifact.sha1),
+        library.downloads.artifact.url,
       ));
       added_libs.insert(library.name);
     }
@@ -487,8 +495,23 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
       .join(VERSION_JSON_PATH);
     let version_json: ForgeVersion = read_parse_file(&version_json_path).await?;
 
-    Ok((version_json.arguments.jvm, version_json.arguments.game))
+    Ok((
+      version_json.arguments.jvm.unwrap_or_default(),
+      version_json.arguments.game.unwrap_or_default(),
+    ))
   }
+}
+
+async fn try_extract_lib_from_zip(mc_path: &MCPath, library: &Library, zip: &Path) -> Result<()> {
+  let path = format!("maven/{}", library.downloads.artifact.path);
+  if let Ok(data) = extract_file_from_zip(zip, &path).await {
+    let maven = parse_maven_name(&library.name)?;
+    let library_path = full_path_from_maven(mc_path, &maven);
+    let parent = library_path.parent().unwrap();
+    fs::create_dir_all(parent).await?;
+    fs::write(&library_path, &data).await?;
+  }
+  Ok(())
 }
 
 fn default_data(
@@ -632,7 +655,8 @@ struct Downloads {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct Artifact {
   path: String,
-  url: Url,
+  #[serde(deserialize_with = "deserialize_url_option")]
+  url: Option<Url>,
   sha1: String,
   size: u64,
 }
@@ -642,28 +666,8 @@ struct Artifact {
 struct ForgeVersion {
   id: String,
   main_class: String,
-  libraries: Vec<VersionLibrary>,
+  libraries: Vec<Library>,
   arguments: Arguments,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct VersionLibrary {
-  name: String,
-  downloads: VersionDownloads,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct VersionDownloads {
-  artifact: VersionArtifact,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct VersionArtifact {
-  path: String,
-  #[serde(deserialize_with = "deserialize_url_option")]
-  url: Option<Url>,
-  sha1: String,
-  size: u64,
 }
 
 fn deserialize_url_option<'de, D>(deserializer: D) -> Result<Option<Url>, D::Error>
@@ -680,6 +684,6 @@ where
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct Arguments {
-  game: Vec<String>,
-  jvm: Vec<String>,
+  game: Option<Vec<String>>,
+  jvm: Option<Vec<String>>,
 }

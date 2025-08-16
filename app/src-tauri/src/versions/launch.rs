@@ -1,4 +1,4 @@
-use std::{ffi::OsString, path::PathBuf, process::Stdio};
+use std::{collections::HashSet, ffi::OsString, path::PathBuf, process::Stdio};
 
 use anyhow::Result;
 use log::debug;
@@ -289,9 +289,14 @@ async fn classpath(
     libraries.extend(loader_libs);
   }
 
+  let mut add_libs = HashSet::new();
   for (_, path) in libraries {
+    if add_libs.contains(&path) {
+      continue; // Skip already added libraries
+    }
     classpath.push(SEPARATOR);
-    classpath.push(path);
+    classpath.push(&path);
+    add_libs.insert(path);
   }
 
   Ok(classpath)
