@@ -17,15 +17,20 @@ const MANIFEST_NAME: &str = "manifest.json";
 pub struct JavaVersionPath {
   base_path: PathBuf,
   java_root: PathBuf,
+  mc_version: String,
+  component: Component,
 }
 
 impl JavaVersionPath {
-  pub fn new(data_dir: &PathBuf, component: Component) -> Self {
+  pub fn new(data_dir: &PathBuf, component: Component, mc_version: String) -> Self {
     let base_path = path!(data_dir, JAVA_DIR, &component.to_string());
     let java_root = path!(data_dir, JAVA_DIR);
+
     JavaVersionPath {
       base_path,
       java_root,
+      mc_version,
+      component,
     }
   }
 
@@ -39,6 +44,14 @@ impl JavaVersionPath {
 
   pub fn library_path(&self) -> PathBuf {
     path!(&self.base_path, LIBRARY_DIR)
+  }
+
+  pub fn native_path(&self) -> PathBuf {
+    if let Component::JreLegacy = self.component {
+      path!(&self.base_path, &self.mc_version)
+    } else {
+      self.library_path()
+    }
   }
 
   pub fn bin_path(&self) -> PathBuf {

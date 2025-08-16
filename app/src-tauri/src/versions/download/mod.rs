@@ -59,7 +59,7 @@ pub async fn check_download_version(
     );
   }
   let version = version_fut.resolve().await?;
-  let java_path = JavaVersionPath::new(data_dir, version.java_version.component);
+  let java_path = JavaVersionPath::new(data_dir, version.java_version.component, mc.id.clone());
 
   emit_download_check_status(handle, DownloadCheckStatus::AssetsManifestCheck, update_id);
   let assets_fut = check_assets_manifest(&version, &mc_path, client).await?;

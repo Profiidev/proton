@@ -218,12 +218,21 @@ pub async fn profile_repair(
   // clone so the lock is dropped before the download
   let mc_store = versions.lock().await.clone();
 
-  let profile = store.profile(profile).await.log()?;
+  let mut profile = store.profile(profile).await.log()?;
+  let data_dir = store.data_dir().clone();
   drop(store);
   mc_store
-    .check_or_download(&profile.version, id, profile.loader, profile.loader_version)
+    .check_or_download(
+      &profile.version,
+      id,
+      profile.loader,
+      profile.loader_version.clone(),
+    )
     .await
     .log()?;
+
+  profile.downloaded = true;
+  profile.update(&data_dir).await.log()?;
 
   Ok(())
 }

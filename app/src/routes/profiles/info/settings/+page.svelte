@@ -58,7 +58,12 @@
   });
 
   $effect(() => {
-    if (!profile || profile.loader === LoaderType.Vanilla || !selectedVersion)
+    if (
+      !profile ||
+      profile.loader === LoaderType.Vanilla ||
+      !selectedVersion ||
+      selectedVersion.length !== 1
+    )
       return;
 
     loader_version_list(profile.loader, selectedVersion[0])

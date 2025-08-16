@@ -52,7 +52,8 @@ impl McVersionStore {
     let client = Client::new();
     let data_dir = handle.path().app_data_dir()?;
     let mc_manifest_path = MCPath::new(&data_dir).mc_manifest();
-    let java_manifest_path = JavaVersionPath::new(&data_dir, Component::Unknown).java_manifest();
+    let java_manifest_path =
+      JavaVersionPath::new(&data_dir, Component::Unknown, String::new()).java_manifest();
 
     let (mc_manifest, java_manifest) = join!(
       download_and_parse_file_no_hash(
@@ -82,7 +83,8 @@ impl McVersionStore {
   pub async fn refresh_manifests(&mut self) -> Result<()> {
     let data_dir = self.handle.path().app_data_dir()?;
     let mc_manifest_path = MCPath::new(&data_dir).mc_manifest();
-    let java_manifest_path = JavaVersionPath::new(&data_dir, Component::Unknown).java_manifest();
+    let java_manifest_path =
+      JavaVersionPath::new(&data_dir, Component::Unknown, String::new()).java_manifest();
 
     let (mc_manifest, java_manifest) = join!(
       download_and_parse_file_no_hash_force(

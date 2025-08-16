@@ -93,10 +93,14 @@ impl LaunchArgs {
       .replace("${launcher_name}", &self.launcher_name)
       .replace(
         "${natives_directory}",
-        &JavaVersionPath::new(&self.data_dir, version.java_version.component)
-          .library_path()
-          .display()
-          .to_string(),
+        &JavaVersionPath::new(
+          &self.data_dir,
+          version.java_version.component,
+          self.version.clone(),
+        )
+        .native_path()
+        .display()
+        .to_string(),
       )
       .replace("${classpath}", classpath)
       .replace("${quickPlayPath}", QUICK_PLAY)
@@ -132,7 +136,11 @@ pub async fn launch_minecraft_version(args: &LaunchArgs) -> Result<Child> {
   let version: Version = read_parse_file(&version_path.version_manifest()).await?;
   let mc_path = MCPath::new(&args.data_dir);
 
-  let java_path = JavaVersionPath::new(&args.data_dir, version.java_version.component);
+  let java_path = JavaVersionPath::new(
+    &args.data_dir,
+    version.java_version.component,
+    args.version.clone(),
+  );
   let classpath = args.classpath(&version, &mc_path, &version_path).await?;
 
   let mut jvm_args = jvm_args(args, &version, &classpath);

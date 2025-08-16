@@ -53,8 +53,8 @@ pub async fn check_download_version_java_libraries(
         continue;
       };
 
-      let path = path!(java_path.library_path(), &library_download.path);
-      let java_lib_path = java_path.library_path();
+      let path = path!(java_path.native_path(), &library_download.path);
+      let java_lib_path = java_path.native_path();
       let client = client.clone();
       let url = library_download.url.clone();
       let hash = library_download.sha1.clone();
