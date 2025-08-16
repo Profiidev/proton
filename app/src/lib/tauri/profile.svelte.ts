@@ -241,34 +241,34 @@ const get_message = (event: VersionCheckStatus): string | undefined => {
     }
   } else if ('AssetsCheck' in event) {
     let [done, total] = event.AssetsCheck;
-    return `Checked ${done} of ${total} assets`;
+    return `Checked ${Math.round((done / total) * 1000) / 10}% assets (${done}/${total})`;
   } else if ('AssetsDownload' in event) {
     let [done, total] = event.AssetsDownload;
-    return `Downloaded ${done} of ${total} assets`;
+    return `Downloaded ${Math.round((done / total) * 1000) / 10}% assets (${done}/${total})`;
   } else if ('JavaCheck' in event) {
     let [done, total] = event.JavaCheck;
-    return `Checked ${done} of ${total} java files`;
+    return `Checked ${Math.round((done / total) * 1000) / 10}% java files (${done}/${total})`;
   } else if ('JavaDownload' in event) {
     let [done, total] = event.JavaDownload;
-    return `Downloaded ${done} of ${total} java files`;
+    return `Downloaded ${Math.round((done / total) * 1000) / 10}% java files (${done}/${total})`;
   } else if ('NativeLibraryCheck' in event) {
     let [done, total] = event.NativeLibraryCheck;
-    return `Checked ${done} of ${total} native libraries`;
+    return `Checked ${Math.round((done / total) * 1000) / 10}% native libraries (${done}/${total})`;
   } else if ('NativeLibraryDownload' in event) {
     let [done, total] = event.NativeLibraryDownload;
-    return `Downloaded ${done} of ${total} native libraries`;
+    return `Downloaded ${Math.round((done / total) * 1000) / 10}% native libraries (${done}/${total})`;
   } else if ('LibraryCheck' in event) {
     let [done, total] = event.LibraryCheck;
-    return `Checked ${done} of ${total} libraries`;
+    return `Checked ${Math.round((done / total) * 1000) / 10}% libraries (${done}/${total})`;
   } else if ('LibraryDownload' in event) {
     let [done, total] = event.LibraryDownload;
-    return `Downloaded ${done} of ${total} libraries`;
+    return `Downloaded ${Math.round((done / total) * 1000) / 10}% libraries (${done}/${total})`;
   } else if ('ModLoaderFilesCheck' in event) {
     let [done, total] = event.ModLoaderFilesCheck;
-    return `Checked ${done} of ${total} mod loader files`;
+    return `Checked ${Math.round((done / total) * 1000) / 10}% mod loader files (${done}/${total})`;
   } else if ('ModLoaderFilesDownload' in event) {
     let [done, total] = event.ModLoaderFilesDownload;
-    return `Downloaded ${done} of ${total} mod loader files`;
+    return `Downloaded ${Math.round((done / total) * 1000) / 10}% mod loader files (${done}/${total})`;
   }
 };
 

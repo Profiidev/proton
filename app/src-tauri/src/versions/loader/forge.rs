@@ -21,7 +21,7 @@ use crate::{
       CheckFuture, Loader, LoaderVersion,
       util::{compare_mc_versions, download_maven_future, extract_file_from_zip},
     },
-    maven::{MavenName, full_path_from_maven, parse_maven_name},
+    maven::{MavenName, full_path_from_maven, parse_maven_name, path_from_maven, url_from_maven},
     paths::{MCPath, MCVersionPath},
   },
 };
@@ -271,44 +271,57 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
     let installer_data = extract_file_from_zip(&path, INSTALLER_PROFILE_PATH).await?;
     fs::write(&profile_path, &installer_data).await?;
 
-    let profile = read_parse_file::<ForgeInstallerProfile>(&profile_path).await?;
-
-    let version_json_path = installer_path.join(VERSION_JSON_PATH);
-    let version_json_data = extract_file_from_zip(&path, &profile.json[1..]).await?;
-    fs::write(&version_json_path, &version_json_data).await?;
-
-    let version_json: ForgeVersion = read_parse_file(&version_json_path).await?;
-
-    for entry in profile.data.values() {
-      if entry.client.starts_with("/") {
-        let file_path = installer_path.join(&entry.client[1..]);
-        let data = extract_file_from_zip(&path, &entry.client[1..]).await?;
-
-        let parent = file_path.parent().unwrap();
-        fs::create_dir_all(parent).await?;
-        fs::write(&file_path, &data).await?;
-      }
-    }
-
     let mut futures = Vec::new();
     let mut added_libs = HashSet::new();
 
-    for library in profile.libraries {
-      if library.downloads.artifact.url.is_none() {
-        try_extract_lib_from_zip(mc_path, &library, &path).await?;
-        continue; // Skip libraries without a URL
-      }
+    let version_json: ForgeVersion =
+      if let Ok(profile) = read_parse_file::<ForgeInstallerProfile>(&profile_path).await {
+        let version_json_path = installer_path.join(VERSION_JSON_PATH);
+        let version_json_data = extract_file_from_zip(&path, &profile.json[1..]).await?;
+        fs::write(&version_json_path, &version_json_data).await?;
 
-      futures.push(download_maven_future(
-        mc_path.clone(),
-        library.name.clone(),
-        client.clone(),
-        self.maven_base_url.clone(),
-        Some(library.downloads.artifact.sha1),
-        library.downloads.artifact.url,
-      ));
-      added_libs.insert(library.name);
-    }
+        for entry in profile.data.values() {
+          if entry.client.starts_with("/") {
+            let file_path = installer_path.join(&entry.client[1..]);
+            let data = extract_file_from_zip(&path, &entry.client[1..]).await?;
+
+            let parent = file_path.parent().unwrap();
+            fs::create_dir_all(parent).await?;
+            fs::write(&file_path, &data).await?;
+          }
+        }
+
+        for library in profile.libraries {
+          if library.downloads.artifact.url.is_none() {
+            try_extract_lib_from_zip(mc_path, &library, &path).await?;
+            continue; // Skip libraries without a URL
+          }
+
+          futures.push(download_maven_future(
+            mc_path.clone(),
+            library.name.clone(),
+            client.clone(),
+            self.maven_base_url.clone(),
+            library.downloads.artifact.sha1,
+            library.downloads.artifact.url,
+          ));
+          added_libs.insert(library.name);
+        }
+
+        read_parse_file(&version_json_path).await?
+      } else {
+        let old = read_parse_file::<ForgeVersionManifestOld>(&profile_path).await?;
+
+        let data = extract_file_from_zip(&path, &old.install.file_path).await?;
+        let maven = parse_maven_name(&old.install.path)?;
+        let path = full_path_from_maven(mc_path, &maven);
+        let parent = path.parent().unwrap();
+        fs::create_dir_all(parent).await?;
+        fs::write(&path, &data).await?;
+        added_libs.insert(old.install.path.clone());
+
+        old.into_new()?
+      };
 
     for library in version_json.libraries {
       if library.downloads.artifact.url.is_none() {
@@ -324,7 +337,7 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
         library.name.clone(),
         client.clone(),
         self.maven_base_url.clone(),
-        Some(library.downloads.artifact.sha1),
+        library.downloads.artifact.sha1,
         library.downloads.artifact.url,
       ));
       added_libs.insert(library.name);
@@ -341,111 +354,116 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
   ) -> Result<()> {
     let installer_path = self.installer_path(version_path).await?;
     let profile_path = installer_path.join(INSTALLER_PROFILE_PATH);
-    let profile: ForgeInstallerProfile = read_parse_file(&profile_path).await?;
-    let mut data = profile.data;
+    if let Ok(profile) = read_parse_file::<ForgeInstallerProfile>(&profile_path).await {
+      let mut data = profile.data;
 
-    for entry in data.values_mut() {
-      if entry.client.starts_with("/") {
-        entry.client = installer_path
-          .join(&entry.client[1..])
-          .to_string_lossy()
-          .into_owned();
-      }
-      if entry.server.starts_with("/") {
-        entry.server = installer_path
-          .join(&entry.server[1..])
-          .to_string_lossy()
-          .into_owned();
-      }
-    }
-    default_data(&mut data, &self.mc_version, version_path, mc_path);
-
-    for processor in profile.processors {
-      if let Some(sides) = processor.sides
-        && !sides.contains(&"client".to_string())
-      {
-        continue; // Skip processors that are not for the client side
-      }
-
-      let jar_maven = parse_maven_name(&processor.jar)?;
-      let jar_path = full_path_from_maven(mc_path, &jar_maven);
-
-      //find Main-Class in the jar
-      let manifest_data = extract_file_from_zip(&jar_path, "META-INF/MANIFEST.MF").await?;
-      let manifest = String::from_utf8(manifest_data)?;
-      let mut main_class = None;
-      for line in manifest.lines() {
-        if line.starts_with("Main-Class: ") {
-          main_class = Some(line.strip_prefix("Main-Class: ").unwrap().to_string());
-          break;
+      for entry in data.values_mut() {
+        if entry.client.starts_with("/") {
+          entry.client = installer_path
+            .join(&entry.client[1..])
+            .to_string_lossy()
+            .into_owned();
+        }
+        if entry.server.starts_with("/") {
+          entry.server = installer_path
+            .join(&entry.server[1..])
+            .to_string_lossy()
+            .into_owned();
         }
       }
-      let main_class = main_class.ok_or_else(|| anyhow::anyhow!("Main-Class not found"))?;
+      default_data(&mut data, &self.mc_version, version_path, mc_path);
 
-      let mut classpath = OsString::new();
-      classpath.push(jar_path);
+      for processor in profile.processors {
+        if let Some(sides) = processor.sides
+          && !sides.contains(&"client".to_string())
+        {
+          continue; // Skip processors that are not for the client side
+        }
 
-      for lib in processor.classpath {
-        let maven = parse_maven_name(&lib)?;
-        let path = full_path_from_maven(mc_path, &maven);
-        classpath.push(SEPARATOR);
-        classpath.push(path);
-      }
+        let jar_maven = parse_maven_name(&processor.jar)?;
+        let jar_path = full_path_from_maven(mc_path, &jar_maven);
 
-      let mut args = Vec::new();
-      for arg in processor.args {
-        let arg = if arg.starts_with("{") && arg.ends_with("}") {
-          let arg_name = &arg[1..arg.len() - 1];
-          if let Some(value) = data.get(arg_name) {
-            value.client.clone()
-          } else {
-            return Err(anyhow::anyhow!(
-              "Argument {} not found in profile data",
-              arg_name
-            ));
+        //find Main-Class in the jar
+        let manifest_data = extract_file_from_zip(&jar_path, "META-INF/MANIFEST.MF").await?;
+        let manifest = String::from_utf8(manifest_data)?;
+        let mut main_class = None;
+        for line in manifest.lines() {
+          if line.starts_with("Main-Class: ") {
+            main_class = Some(line.strip_prefix("Main-Class: ").unwrap().to_string());
+            break;
           }
-        } else {
-          arg
-        };
+        }
+        let main_class = main_class.ok_or_else(|| anyhow::anyhow!("Main-Class not found"))?;
 
-        if arg.starts_with("[") && arg.ends_with("]") {
-          let arg = &arg[1..arg.len() - 1];
-          let maven = parse_maven_name(arg)?;
+        let mut classpath = OsString::new();
+        classpath.push(jar_path);
+
+        for lib in processor.classpath {
+          let maven = parse_maven_name(&lib)?;
           let path = full_path_from_maven(mc_path, &maven);
-          args.push(path.to_string_lossy().into_owned());
-        } else {
-          args.push(arg);
+          classpath.push(SEPARATOR);
+          classpath.push(path);
+        }
+
+        let mut args = Vec::new();
+        for arg in processor.args {
+          let arg = if arg.starts_with("{") && arg.ends_with("}") {
+            let arg_name = &arg[1..arg.len() - 1];
+            if let Some(value) = data.get(arg_name) {
+              value.client.clone()
+            } else {
+              return Err(anyhow::anyhow!(
+                "Argument {} not found in profile data",
+                arg_name
+              ));
+            }
+          } else {
+            arg
+          };
+
+          if arg.starts_with("[") && arg.ends_with("]") {
+            let arg = &arg[1..arg.len() - 1];
+            let maven = parse_maven_name(arg)?;
+            let path = full_path_from_maven(mc_path, &maven);
+            args.push(path.to_string_lossy().into_owned());
+          } else {
+            args.push(arg);
+          }
+        }
+
+        let mut command = Command::new(&jre_bin);
+
+        command
+          .current_dir(&installer_path)
+          .stdout(Stdio::piped())
+          .stderr(Stdio::piped())
+          .arg("-cp")
+          .arg(classpath)
+          .arg(&main_class)
+          .args(&args);
+        debug!("Running processor command: {command:?}");
+
+        let command = command.spawn()?;
+
+        let output = command.wait_with_output().await?;
+
+        debug!("Processor command finished with status: {}", output.status);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        debug!("Processor stdout: {}", stdout);
+        debug!("Processor stderr: {}", stderr);
+
+        if !output.status.success() {
+          return Err(anyhow::anyhow!(
+            "Processor command failed with status: {}",
+            output.status
+          ));
         }
       }
-
-      let mut command = Command::new(&jre_bin);
-
-      command
-        .current_dir(&installer_path)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .arg("-cp")
-        .arg(classpath)
-        .arg(&main_class)
-        .args(&args);
-      debug!("Running processor command: {command:?}");
-
-      let command = command.spawn()?;
-
-      let output = command.wait_with_output().await?;
-
-      debug!("Processor command finished with status: {}", output.status);
-      let stdout = String::from_utf8_lossy(&output.stdout);
-      let stderr = String::from_utf8_lossy(&output.stderr);
-      debug!("Processor stdout: {}", stdout);
-      debug!("Processor stderr: {}", stderr);
-
-      if !output.status.success() {
-        return Err(anyhow::anyhow!(
-          "Processor command failed with status: {}",
-          output.status
-        ));
-      }
+    } else {
+      // just test the old version so when the new version fails to parse because of a corrupted file
+      // and the old version is not valid there is still an error returned
+      read_parse_file::<ForgeVersionManifestOld>(&profile_path).await?;
     }
 
     Ok(())
@@ -456,11 +474,15 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
     version_path: &MCVersionPath,
     mc_path: &MCPath,
   ) -> Result<Vec<(MavenName, PathBuf)>> {
-    let version_json_path = self
-      .installer_path(version_path)
-      .await?
-      .join(VERSION_JSON_PATH);
-    let version_json: ForgeVersion = read_parse_file(&version_json_path).await?;
+    let installer_path = self.installer_path(version_path).await?;
+    let version_json: ForgeVersion =
+      if let Ok(data) = read_parse_file(&installer_path.join(VERSION_JSON_PATH)).await {
+        data
+      } else {
+        read_parse_file::<ForgeVersionManifestOld>(&installer_path.join(INSTALLER_PROFILE_PATH))
+          .await?
+          .into_new()?
+      };
 
     let mut classpath = Vec::new();
     let mut added_libs = HashSet::new();
@@ -480,25 +502,54 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
   }
 
   async fn main_class(&self, version_path: &MCVersionPath) -> Result<String> {
-    let version_json_path = self
-      .installer_path(version_path)
-      .await?
-      .join(VERSION_JSON_PATH);
-    let version_json: ForgeVersion = read_parse_file(&version_json_path).await?;
+    let installer_path = self.installer_path(version_path).await?;
+    let version_json: ForgeVersion =
+      if let Ok(data) = read_parse_file(&installer_path.join(VERSION_JSON_PATH)).await {
+        data
+      } else {
+        read_parse_file::<ForgeVersionManifestOld>(&installer_path.join(INSTALLER_PROFILE_PATH))
+          .await?
+          .into_new()?
+      };
     Ok(version_json.main_class)
   }
 
-  async fn arguments(&self, version_path: &MCVersionPath) -> Result<(Vec<String>, Vec<String>)> {
-    let version_json_path = self
-      .installer_path(version_path)
-      .await?
-      .join(VERSION_JSON_PATH);
-    let version_json: ForgeVersion = read_parse_file(&version_json_path).await?;
+  async fn arguments(
+    &self,
+    version_path: &MCVersionPath,
+  ) -> Result<(Vec<String>, Vec<String>, bool)> {
+    let installer_path = self.installer_path(version_path).await?;
+    let version_json: ForgeVersion =
+      if let Ok(data) = read_parse_file(&installer_path.join(VERSION_JSON_PATH)).await {
+        data
+      } else {
+        read_parse_file::<ForgeVersionManifestOld>(&installer_path.join(INSTALLER_PROFILE_PATH))
+          .await?
+          .into_new()?
+      };
 
-    Ok((
-      version_json.arguments.jvm.unwrap_or_default(),
-      version_json.arguments.game.unwrap_or_default(),
-    ))
+    let mut jvm_args = Vec::new();
+    let mut game_args = Vec::new();
+    let mut overwrite_game = false;
+
+    if let Some(arguments) = version_json.arguments {
+      if let Some(jvm) = arguments.jvm {
+        jvm_args.extend(jvm);
+      }
+      if let Some(game) = arguments.game {
+        game_args.extend(game);
+      }
+    } else if let Some(minecraft_args) = version_json.minecraft_arguments {
+      game_args.extend(
+        minecraft_args
+          .split(' ')
+          .map(String::from)
+          .collect::<Vec<_>>(),
+      );
+      overwrite_game = true;
+    }
+
+    Ok((jvm_args, game_args, overwrite_game))
   }
 }
 
@@ -657,8 +708,8 @@ struct Artifact {
   path: String,
   #[serde(deserialize_with = "deserialize_url_option")]
   url: Option<Url>,
-  sha1: String,
-  size: u64,
+  sha1: Option<String>,
+  //size: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -667,7 +718,43 @@ struct ForgeVersion {
   id: String,
   main_class: String,
   libraries: Vec<Library>,
-  arguments: Arguments,
+  arguments: Option<Arguments>,
+  minecraft_arguments: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+struct ForgeVersionManifestOld {
+  install: ForgeInstallOld,
+  version_info: ForgeVersionOld,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+struct ForgeInstallOld {
+  path: String,
+  file_path: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+struct ForgeVersionOld {
+  id: String,
+  main_class: String,
+  minecraft_arguments: String,
+  libraries: Vec<LibraryOld>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct LibraryOld {
+  name: String,
+  url: Option<Url>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct Arguments {
+  game: Option<Vec<String>>,
+  jvm: Option<Vec<String>>,
 }
 
 fn deserialize_url_option<'de, D>(deserializer: D) -> Result<Option<Url>, D::Error>
@@ -682,8 +769,49 @@ where
   }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct Arguments {
-  game: Option<Vec<String>>,
-  jvm: Option<Vec<String>>,
+impl ForgeVersionManifestOld {
+  const MINECRAFT_MAVEN: &str = "https://libraries.minecraft.net";
+
+  fn into_new(self) -> Result<ForgeVersion> {
+    let library_results = self
+      .version_info
+      .libraries
+      .into_iter()
+      .map(|lib| {
+        let maven = parse_maven_name(&lib.name)?;
+        let base_url = lib
+          .url
+          .as_ref()
+          .map(|u| u.as_str())
+          .unwrap_or(Self::MINECRAFT_MAVEN);
+
+        let url = Some(url_from_maven(base_url, &maven)?);
+        let path = path_from_maven(&maven).to_string_lossy().into_owned();
+
+        anyhow::Ok(Library {
+          name: lib.name,
+          downloads: Downloads {
+            artifact: Artifact {
+              path,
+              url,
+              sha1: None,
+            },
+          },
+        })
+      })
+      .collect::<Vec<_>>();
+
+    let mut libraries = Vec::new();
+    for result in library_results {
+      libraries.push(result?);
+    }
+
+    Ok(ForgeVersion {
+      id: self.version_info.id,
+      main_class: self.version_info.main_class,
+      libraries,
+      minecraft_arguments: Some(self.version_info.minecraft_arguments),
+      arguments: None,
+    })
+  }
 }

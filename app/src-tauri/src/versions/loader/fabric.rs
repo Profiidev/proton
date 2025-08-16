@@ -262,8 +262,8 @@ impl LoaderVersion for FabricLikeLoaderVersion {
     }
   }
 
-  async fn arguments(&self, _: &MCVersionPath) -> Result<(Vec<String>, Vec<String>)> {
-    Ok((vec![], vec![])) // Fabric does not require additional arguments
+  async fn arguments(&self, _: &MCVersionPath) -> Result<(Vec<String>, Vec<String>, bool)> {
+    Ok((vec![], vec![], false)) // Fabric does not require additional arguments
   }
 }
 

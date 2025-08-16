@@ -41,7 +41,10 @@ pub trait LoaderVersion: Send + Sync + 'static {
     mc_path: &MCPath,
   ) -> Result<Vec<(MavenName, PathBuf)>>;
   async fn main_class(&self, version_path: &MCVersionPath) -> Result<String>;
-  async fn arguments(&self, version_path: &MCVersionPath) -> Result<(Vec<String>, Vec<String>)>;
+  async fn arguments(
+    &self,
+    version_path: &MCVersionPath,
+  ) -> Result<(Vec<String>, Vec<String>, bool)>;
 }
 
 #[async_trait::async_trait]

@@ -140,9 +140,15 @@ pub async fn launch_minecraft_version(args: &LaunchArgs) -> Result<Child> {
 
   if let Some(loader) = &args.loader {
     debug!("Adding loader arguments to JVM args");
-    let (loader_jvm_args, loader_game_args) = loader.arguments(&version_path).await?;
+    let (loader_jvm_args, loader_game_args, overwrite_game) =
+      loader.arguments(&version_path).await?;
+
     for arg in &loader_jvm_args {
       jvm_args.push(args.replace_vars(&version, arg, &classpath));
+    }
+
+    if overwrite_game {
+      game_args.clear();
     }
     for arg in &loader_game_args {
       game_args.push(args.replace_vars(&version, arg, &classpath));
