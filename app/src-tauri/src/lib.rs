@@ -20,7 +20,7 @@ use profiles::commands::{
   profile_update_icon,
 };
 use settings::{settings_get, settings_set};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_log::{RotationStrategy, Target, TargetKind, TimezoneStrategy};
 use tokio::sync::Mutex;
 use versions::{
@@ -28,9 +28,14 @@ use versions::{
   store::McVersionStore,
 };
 
-use crate::versions::{loader::LoaderType, paths::MCVersionPath};
+use crate::{
+  offline::{MANIFEST_REFRESH_ERROR, OfflineState, is_offline, try_reconnect},
+  utils::log::ResultLogExt,
+  versions::{loader::LoaderType, paths::MCVersionPath},
+};
 
 mod account;
+mod offline;
 mod profiles;
 mod settings;
 mod store;
@@ -113,6 +118,9 @@ pub fn run() {
       //settings
       settings_get,
       settings_set,
+      //offline
+      is_offline,
+      try_reconnect,
     ])
     .setup(|app| {
       let _ = app.handle().app_store()?;
@@ -120,6 +128,7 @@ pub fn run() {
       app.manage(Mutex::new(SkinStore::new(app.handle().clone())?));
       app.manage(Mutex::new(AccountStore::new(app.handle().clone())?));
       app.manage(Mutex::new(ProfileStore::new(app.handle().clone())?));
+      app.manage(Mutex::new(OfflineState::new(app.handle().clone())));
 
       app.manage(Mutex::new(tauri::async_runtime::block_on(
         McVersionStore::new(app.handle().clone()),
@@ -127,9 +136,9 @@ pub fn run() {
 
       let handle = app.handle().clone();
       app.manage(tauri::async_runtime::spawn(async move {
-        if let Err(err) = async_setup_refresh(handle).await {
+        if let Err(err) = async_online_check(&handle).await.log() {
           log::error!("Error: {err}");
-          std::process::exit(1);
+          let _ = handle.emit(MANIFEST_REFRESH_ERROR, ()).log();
         }
       }));
 
@@ -139,7 +148,23 @@ pub fn run() {
     .expect("error while running tauri application");
 }
 
-async fn async_setup_refresh(handle: AppHandle) -> Result<()> {
+async fn async_online_check(handle: &AppHandle) -> Result<()> {
+  let offline_state = handle.state::<Mutex<OfflineState>>();
+  let mut state = offline_state.lock().await;
+  if !state.check_online_state().await {
+    return Err(anyhow::anyhow!("Offline state detected"));
+  }
+  drop(state);
+
+  async_setup_refresh(handle).await?;
+
+  let mut state = offline_state.lock().await;
+  state.state_init();
+
+  Ok(())
+}
+
+async fn async_setup_refresh(handle: &AppHandle) -> Result<()> {
   let version_state = handle.state::<Mutex<McVersionStore>>();
   let mut version_store = version_state.lock().await;
   version_store.refresh_manifests().await?;

@@ -18,14 +18,17 @@
   import { goto } from '$app/navigation';
   import { checkForUpdates } from '$lib/tauri/updater.svelte';
   import { listen_instance_crash } from '$lib/tauri/instance.svelte';
+  import { listen_manifest_refresh_error } from '$lib/tauri/offline.svelte';
   let { children } = $props();
 
   setMode('dark');
 
   let instance_crash_unsub = () => {};
+  let manifest_refresh_error_unsub = () => {};
 
   onMount(async () => {
     instance_crash_unsub = await listen_instance_crash();
+    manifest_refresh_error_unsub = await listen_manifest_refresh_error();
     if (await account_refresh()) {
       toast.error('Failed to refresh Accounts');
     }
@@ -44,6 +47,7 @@
   onMount(() => {
     return () => {
       instance_crash_unsub();
+      manifest_refresh_error_unsub();
     };
   });
 

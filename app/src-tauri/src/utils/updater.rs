@@ -23,6 +23,8 @@ pub enum UpdateType {
   InstanceLogs,
   //settings
   Settings,
+  //offline
+  Offline,
 }
 
 pub fn update_data(handle: &AppHandle, r#type: UpdateType) {

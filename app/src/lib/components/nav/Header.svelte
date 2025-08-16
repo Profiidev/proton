@@ -1,16 +1,20 @@
 <script lang="ts">
   import {
+    Badge,
     Breadcrumb,
     Button,
-    Separator
+    Separator,
+    toast
   } from 'positron-components/components/ui';
   import { Minus, Square, X } from '@lucide/svelte';
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import { page } from '$app/state';
   import { profile_list } from '$lib/tauri/profile.svelte';
+  import { is_offline, try_reconnect } from '$lib/tauri/offline.svelte';
 
   let items: { label: string; href: string }[] = $state([]);
   let profiles = $derived(profile_list.value);
+  let offline = $derived(is_offline.value);
 
   const calcItems = async () => {
     let parts = page.url.pathname.split('/').slice(1);
@@ -53,6 +57,14 @@
     });
   });
 
+  const reconnect = async () => {
+    if (await try_reconnect()) {
+      toast.success('Reconnected successfully');
+    } else {
+      toast.error('Failed to reconnect');
+    }
+  };
+
   const close = () => {
     getCurrentWindow().close();
   };
@@ -82,8 +94,16 @@
       {/each}
     </Breadcrumb.List>
   </Breadcrumb.Root>
+  {#if offline}
+    <Badge
+      class="ml-auto cursor-pointer rounded-full"
+      variant="destructive"
+      onclick={reconnect}>Offline</Badge
+    >
+    <Separator orientation="vertical" class="mr-2 ml-4" />
+  {/if}
   <Button
-    class="ml-auto size-8 cursor-pointer rounded-full"
+    class={`size-8 cursor-pointer rounded-full ${offline ? '' : 'ml-auto'}`}
     size="icon"
     variant="ghost"
     onclick={minimize}
