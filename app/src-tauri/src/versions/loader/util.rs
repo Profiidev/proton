@@ -9,7 +9,7 @@ use crate::{
   utils::file::{download_file_no_hash_force, file_hash},
   versions::{
     loader::{CheckFuture, DownloadFuture},
-    maven::{full_path_from_maven, parse_maven_name, url_from_maven},
+    maven::MavenArtifact,
     paths::MCPath,
   },
 };
@@ -30,8 +30,8 @@ pub fn download_maven_future(
       anyhow::Ok(())
     }) as DownloadFuture;
 
-    let maven = parse_maven_name(&name)?;
-    let path = full_path_from_maven(&mc_path, &maven);
+    let maven = MavenArtifact::new(&name)?;
+    let path = maven.full_path(&mc_path);
     if let Some(sha1) = sha1 {
       if !file_hash(&sha1, &path).await? {
         Ok(Some(download))
@@ -51,9 +51,9 @@ pub async fn download_maven(
   client: &Client,
   url: Option<Url>,
 ) -> Result<()> {
-  let maven = parse_maven_name(name)?;
-  let loader_path = full_path_from_maven(mc_path, &maven);
-  let loader_url = url.unwrap_or_else(|| url_from_maven(base_url, &maven).unwrap());
+  let maven = MavenArtifact::new(name)?;
+  let loader_path = maven.full_path(mc_path);
+  let loader_url = url.unwrap_or_else(|| maven.url(base_url).unwrap());
   download_file_no_hash_force(client, &loader_path, loader_url).await?;
   Ok(())
 }

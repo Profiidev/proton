@@ -9,7 +9,7 @@ use crate::versions::{
     fabric::{FabricLikeLoader, FabricLikeLoaderVersion},
     forge::{ForgeLikeLoader, ForgeLikeLoaderVersion},
   },
-  maven::MavenName,
+  maven::MavenArtifact,
   paths::{MCPath, MCVersionPath},
 };
 
@@ -40,7 +40,7 @@ pub trait LoaderVersion: Send + Sync + 'static {
     &self,
     version_path: &MCVersionPath,
     mc_path: &MCPath,
-  ) -> Result<Vec<(MavenName, PathBuf)>>;
+  ) -> Result<Vec<(MavenArtifact, PathBuf)>>;
   async fn main_class(&self, version_path: &MCVersionPath) -> Result<String>;
   async fn arguments(
     &self,

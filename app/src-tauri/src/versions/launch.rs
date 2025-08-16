@@ -10,7 +10,7 @@ use crate::{
   versions::{
     check_feature,
     loader::LoaderVersion,
-    maven::{full_path_from_maven, parse_maven_name},
+    maven::MavenArtifact,
     meta::{Features, minecraft::ArgumentValue},
     paths::{JavaVersionPath, MCPath, MCVersionPath, QUICK_PLAY},
   },
@@ -284,11 +284,11 @@ async fn classpath(
         }
 
         let path = path!(mc_path.library_path(), &artifact.path);
-        libraries.push((parse_maven_name(&lib.name)?, path));
+        libraries.push((MavenArtifact::new(&lib.name)?, path));
       }
       lib => {
-        let maven = parse_maven_name(&lib.name)?;
-        let path = full_path_from_maven(mc_path, &maven);
+        let maven = MavenArtifact::new(&lib.name)?;
+        let path = maven.full_path(mc_path);
         libraries.push((maven, path));
       }
     }

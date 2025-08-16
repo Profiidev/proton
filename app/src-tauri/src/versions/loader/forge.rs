@@ -22,7 +22,7 @@ use crate::{
       CheckFuture, Loader, LoaderVersion,
       util::{compare_mc_versions, download_maven_future, extract_file_from_zip},
     },
-    maven::{MavenName, full_path_from_maven, parse_maven_name, path_from_maven, url_from_maven},
+    maven::MavenArtifact,
     paths::{MCPath, MCVersionPath},
   },
 };
@@ -318,8 +318,7 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
         let old = read_parse_file::<ForgeVersionManifestOld>(&profile_path).await?;
 
         let data = extract_file_from_zip(&path, &old.install.file_path).await?;
-        let maven = parse_maven_name(&old.install.path)?;
-        let path = full_path_from_maven(mc_path, &maven);
+        let path = MavenArtifact::new(&old.install.path)?.full_path(mc_path);
         let parent = path.parent().unwrap();
         fs::create_dir_all(parent).await?;
         fs::write(&path, &data).await?;
@@ -388,8 +387,7 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
           continue; // Skip processors that are not for the client side
         }
 
-        let jar_maven = parse_maven_name(&processor.jar)?;
-        let jar_path = full_path_from_maven(mc_path, &jar_maven);
+        let jar_path = MavenArtifact::new(&processor.jar)?.full_path(mc_path);
 
         //find Main-Class in the jar
         let manifest_data = extract_file_from_zip(&jar_path, "META-INF/MANIFEST.MF").await?;
@@ -407,8 +405,7 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
         classpath.push(jar_path);
 
         for lib in processor.classpath {
-          let maven = parse_maven_name(&lib)?;
-          let path = full_path_from_maven(mc_path, &maven);
+          let path = MavenArtifact::new(&lib)?.full_path(mc_path);
           classpath.push(SEPARATOR);
           classpath.push(path);
         }
@@ -431,8 +428,7 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
 
           if arg.starts_with("[") && arg.ends_with("]") {
             let arg = &arg[1..arg.len() - 1];
-            let maven = parse_maven_name(arg)?;
-            let path = full_path_from_maven(mc_path, &maven);
+            let path = MavenArtifact::new(arg)?.full_path(mc_path);
             args.push(path.to_string_lossy().into_owned());
           } else {
             args.push(arg);
@@ -481,7 +477,7 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
     &self,
     version_path: &MCVersionPath,
     mc_path: &MCPath,
-  ) -> Result<Vec<(MavenName, PathBuf)>> {
+  ) -> Result<Vec<(MavenArtifact, PathBuf)>> {
     let installer_path = self.installer_path(version_path).await?;
     let version_json: ForgeVersion =
       if let Ok(data) = read_parse_file(&installer_path.join(VERSION_JSON_PATH)).await {
@@ -500,8 +496,8 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
         continue; // Skip already added libraries
       }
 
-      let maven = parse_maven_name(&library.name)?;
-      let path = full_path_from_maven(mc_path, &maven);
+      let maven = MavenArtifact::new(&library.name)?;
+      let path = maven.full_path(mc_path);
       classpath.push((maven, path));
       added_libs.insert(library.name);
     }
@@ -564,8 +560,7 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
 async fn try_extract_lib_from_zip(mc_path: &MCPath, library: &Library, zip: &Path) -> Result<()> {
   let path = format!("maven/{}", library.downloads.artifact.path);
   if let Ok(data) = extract_file_from_zip(zip, &path).await {
-    let maven = parse_maven_name(&library.name)?;
-    let library_path = full_path_from_maven(mc_path, &maven);
+    let library_path = MavenArtifact::new(&library.name)?.full_path(mc_path);
     let parent = library_path.parent().unwrap();
     fs::create_dir_all(parent).await?;
     fs::write(&library_path, &data).await?;
@@ -784,15 +779,15 @@ impl ForgeVersionManifestOld {
       .libraries
       .into_iter()
       .map(|lib| {
-        let maven = parse_maven_name(&lib.name)?;
+        let maven = MavenArtifact::new(&lib.name)?;
         let base_url = lib
           .url
           .as_ref()
           .map(|u| u.as_str())
           .unwrap_or(Self::MINECRAFT_MAVEN);
 
-        let url = Some(url_from_maven(base_url, &maven)?);
-        let path = path_from_maven(&maven).to_string_lossy().into_owned();
+        let url = Some(maven.url(base_url)?);
+        let path = maven.path().to_string_lossy().into_owned();
 
         anyhow::Ok(Library {
           name: lib.name,
