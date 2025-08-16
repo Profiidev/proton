@@ -143,6 +143,7 @@ async fn async_setup_refresh(handle: AppHandle) -> Result<()> {
   let version_state = handle.state::<Mutex<McVersionStore>>();
   let mut version_store = version_state.lock().await;
   version_store.refresh_manifests().await?;
+  drop(version_store);
 
   let client = reqwest::Client::new();
   for loader in LoaderType::mod_loaders() {
