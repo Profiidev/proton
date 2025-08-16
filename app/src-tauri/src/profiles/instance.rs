@@ -4,7 +4,7 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use log::debug;
 use serde::Serialize;
-use tauri::{AppHandle, async_runtime::spawn};
+use tauri::{AppHandle, Emitter, async_runtime::spawn};
 use thiserror::Error;
 use tokio::{
   fs,
@@ -23,6 +23,8 @@ use crate::{
   },
   versions::loader::LoaderType,
 };
+
+const CRASH_EVENT: &str = "instance-crash";
 
 pub struct Instance {
   id: String,
@@ -86,6 +88,7 @@ impl Instance {
 
     let id_ = id.clone();
     let profile_ = profile.id.clone();
+    let profile_name = profile.name.clone();
     let lines_ = lines.clone();
     let instances_ = instances.clone();
     let notify = stop_signal.clone();
@@ -102,9 +105,16 @@ impl Instance {
             clean_instance(&handle, &instances_, &profile_, &id_, &lines_, launched_at).await;
             break;
           }
-          _ = child.wait() => {
+          exit = child.wait() => {
             debug!("Child with profile {profile_} and id {id_} exited");
             clean_instance(&handle, &instances_, &profile_, &id_, &lines_, launched_at).await;
+
+            if let Ok(status) = exit && !status.success() {
+              debug!("Child with profile {profile_} and id {id_} exited with status: {}", status);
+              let _ = handle.emit(CRASH_EVENT, CrashInfo {
+                profile_name,
+              }).log();
+            }
             break;
           }
           else => break
@@ -204,4 +214,9 @@ async fn clean_instance(
 
     update_data(handle, UpdateType::ProfileLogs);
   }
+}
+
+#[derive(Serialize, Clone, Debug)]
+struct CrashInfo {
+  profile_name: String,
 }

@@ -1,4 +1,5 @@
 use std::{
+  cmp::Ordering,
   collections::{HashMap, HashSet},
   ffi::OsString,
   path::{Path, PathBuf},
@@ -101,7 +102,10 @@ impl Loader for ForgeLikeLoader {
       let mut versions = read_parse_file::<VersionIndex>(&path)
         .await?
         .keys()
-        .filter(|v| !v.contains("pre"))
+        .filter(|v| {
+          // all versions 1.5.1 and below are not supported because they require manual jar patching
+          !v.contains("pre") && compare_mc_versions(&"1.5.1".to_string(), v) == Ordering::Less
+        })
         .cloned()
         .collect::<Vec<_>>();
 

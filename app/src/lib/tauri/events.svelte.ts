@@ -53,6 +53,7 @@ export type VersionCheckData = {
 };
 
 export const VERSION_CHECK_STATUS_EVENT = 'version-check-status';
+export const INSTANCE_CRASH_EVENT = 'instance-crash';
 
 //10 minutes
 export const TOAST_DURATION = 600000;

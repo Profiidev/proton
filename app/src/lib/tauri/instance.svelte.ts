@@ -1,6 +1,10 @@
 import { create_data_state, UpdateType } from '$lib/data_state.svelte';
 import { invoke } from '@tauri-apps/api/core';
 import type { LoaderType } from './profile.svelte';
+import { browser } from '$app/environment';
+import { listen } from '@tauri-apps/api/event';
+import { INSTANCE_CRASH_EVENT } from './events.svelte';
+import { toast } from 'svelte-sonner';
 
 export type InstanceInfo = {
   id: string;
@@ -38,4 +42,16 @@ export const instance_stop = async (
   try {
     await invoke('instance_stop', { profile, id });
   } catch (e) {}
+};
+
+interface InstanceCrash {
+  profile_name: string;
+}
+
+export const listen_instance_crash = async () => {
+  if (!browser) return () => {};
+  return await listen(INSTANCE_CRASH_EVENT, (event) => {
+    const { profile_name } = event.payload as InstanceCrash;
+    toast.warning(`An instance of profile ${profile_name} has crashed.`);
+  });
 };
