@@ -181,7 +181,14 @@ impl SkinStore {
       skin.clone().load_skin(&self.handle)
     } else {
       debug!("Skin with url {} not found. downloading", &url);
-      let skin = self.client.get(url.clone()).send().await?.bytes().await?;
+      let skin = self
+        .client
+        .get(url.clone())
+        .send()
+        .await?
+        .error_for_status()?
+        .bytes()
+        .await?;
       self.add_skin(Some(url), &skin).await
     }
   }
@@ -191,7 +198,14 @@ impl SkinStore {
       skin.clone().load_cape(&self.handle)
     } else {
       debug!("Cape with url {} not found. downloading", &url);
-      let cape = self.client.get(url.clone()).send().await?.bytes().await?;
+      let cape = self
+        .client
+        .get(url.clone())
+        .send()
+        .await?
+        .error_for_status()?
+        .bytes()
+        .await?;
       self.add_cape(url, &cape)
     }
   }
@@ -240,7 +254,8 @@ impl SkinStore {
           file: None,
         })
         .send()
-        .await?;
+        .await?
+        .error_for_status()?;
       debug!("Got response with code: {}", res.status());
 
       res.json().await?
@@ -263,7 +278,8 @@ impl SkinStore {
         .bearer_auth(mc_token)
         .multipart(form)
         .send()
-        .await?;
+        .await?
+        .error_for_status()?;
       debug!("Got response with code: {}", res.status());
 
       let profile: ProfileInfo = res.json().await?;

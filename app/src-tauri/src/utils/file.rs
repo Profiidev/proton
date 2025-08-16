@@ -24,7 +24,13 @@ pub async fn download_file_no_hash_force(
   url: Url,
 ) -> Result<Vec<u8>> {
   debug!("Downloading file: {}", url.as_str());
-  let bytes = client.get(url).send().await?.bytes().await?;
+  let bytes = client
+    .get(url)
+    .send()
+    .await?
+    .error_for_status()?
+    .bytes()
+    .await?;
 
   if let Some(parent) = path.parent() {
     fs::create_dir_all(parent).await?;
@@ -40,7 +46,13 @@ pub async fn download_file_no_hash(client: &Client, path: &PathBuf, url: Url) ->
   }
 
   debug!("Downloading file: {}", url.as_str());
-  let bytes = client.get(url).send().await?.bytes().await?;
+  let bytes = client
+    .get(url)
+    .send()
+    .await?
+    .error_for_status()?
+    .bytes()
+    .await?;
 
   if let Some(parent) = path.parent() {
     fs::create_dir_all(parent).await?;
@@ -126,7 +138,13 @@ pub async fn download_file(
   url: Url,
   hash: &str,
 ) -> Result<Vec<u8>> {
-  let bytes = client.get(url).send().await?.bytes().await?;
+  let bytes = client
+    .get(url)
+    .send()
+    .await?
+    .error_for_status()?
+    .bytes()
+    .await?;
   if !hash_bytes(hash, &bytes)? {
     return Err(FileError::HashMismatch.into());
   }

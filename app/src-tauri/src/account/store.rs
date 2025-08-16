@@ -202,7 +202,8 @@ impl AccountStore {
           cape_id: id.to_string(),
         })
         .send()
-        .await?;
+        .await?
+        .error_for_status()?;
       debug!("Got response with code: {}", res.status());
 
       let profile: ProfileInfo = res.json().await?;

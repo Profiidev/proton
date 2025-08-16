@@ -63,7 +63,8 @@ pub async fn get_profile_info(client: &Client, mc_token: &str) -> Result<Profile
     .get(MC_PROFILE_URL)
     .bearer_auth(mc_token)
     .send()
-    .await?;
+    .await?
+    .error_for_status()?;
   debug!("Got response with code: {}", res.status());
 
   Ok(res.json().await?)

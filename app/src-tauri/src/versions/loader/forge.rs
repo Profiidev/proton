@@ -616,10 +616,10 @@ struct NeoForgeVersions {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct ForgeInstallerProfile {
-  spec: usize,
-  profile: String,
-  version: String,
-  minecraft: String,
+  //spec: usize,
+  //profile: String,
+  //version: String,
+  //minecraft: String,
   data: HashMap<String, DataEntry>,
   processors: Vec<Processor>,
   libraries: Vec<Library>,
