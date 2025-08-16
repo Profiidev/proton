@@ -1,4 +1,6 @@
-use tauri::{AppHandle, Emitter, Result, State};
+use std::fmt::{Debug, Display};
+
+use tauri::{AppHandle, Emitter, Manager, Result, State};
 use tokio::{net::TcpStream, sync::Mutex};
 
 use crate::{
@@ -68,4 +70,19 @@ pub async fn is_offline(state: State<'_, Mutex<OfflineState>>) -> Result<bool> {
 pub async fn try_reconnect(state: State<'_, Mutex<OfflineState>>) -> Result<bool> {
   let mut state = state.lock().await;
   Ok(state.check_online_state().await)
+}
+
+pub trait OfflineResultExt {
+  async fn check_online_state(self, handle: &AppHandle) -> Self;
+}
+
+impl<T, E: Debug + Display> OfflineResultExt for std::result::Result<T, E> {
+  async fn check_online_state(self, handle: &AppHandle) -> Self {
+    if self.is_err() {
+      let state = handle.state::<Mutex<OfflineState>>();
+      let mut state = state.lock().await;
+      state.check_online_state().await;
+    }
+    self.log()
+  }
 }

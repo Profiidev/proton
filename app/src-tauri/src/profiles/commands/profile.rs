@@ -8,6 +8,7 @@ use tokio::sync::Mutex;
 
 use crate::{
   account::store::AccountStore,
+  offline::OfflineResultExt,
   profiles::{
     config::{Profile, ProfileUpdate, QuickPlayInfo},
     store::ProfileStore,
@@ -224,7 +225,10 @@ pub async fn profile_repair(
 
   let mut profile = store.profile(profile).await.log()?;
   let data_dir = store.data_dir().clone();
+  let handle = store.handle().clone();
   drop(store);
+
+  // check online state if err because this requires internet and can indicate offline state
   mc_store
     .check_or_download(
       &profile.version,
@@ -233,7 +237,8 @@ pub async fn profile_repair(
       profile.loader_version.clone(),
     )
     .await
-    .log()?;
+    .check_online_state(&handle)
+    .await?;
 
   profile.downloaded = true;
   profile.update(&data_dir).await.log()?;

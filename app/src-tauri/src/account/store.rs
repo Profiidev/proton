@@ -58,6 +58,10 @@ impl AccountStore {
     })
   }
 
+  pub fn handle(&self) -> &AppHandle {
+    &self.handle
+  }
+
   pub fn list_profiles(&self) -> HashMap<String, Option<ProfileInfo>> {
     self
       .accounts
