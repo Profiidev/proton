@@ -148,7 +148,7 @@ pub async fn profile_launch(
   quick_play: Option<QuickPlayInfo>,
 ) -> Result<()> {
   trace!("Command profile_launch called with profile {profile} id {id}");
-  let mut store = state.lock().await;
+  let store = state.lock().await;
   // clone so the lock is dropped before the download
   let mc_store = versions.lock().await.clone();
   let auth_store = auth.lock().await;
@@ -160,6 +160,8 @@ pub async fn profile_launch(
   drop(auth_store);
 
   let mut profile = store.profile(profile).await.log()?;
+  drop(store);
+
   if !profile.downloaded {
     mc_store
       .check_or_download(
@@ -195,6 +197,8 @@ pub async fn profile_launch(
   } else {
     profile.last_played_non_quick_play = Some(Utc::now());
   }
+
+  let mut store = state.lock().await;
   profile.update(store.data_dir()).await.log()?;
   store.update_data(UpdateType::Profiles);
 
