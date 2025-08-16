@@ -19,7 +19,7 @@ export enum UpdateType {
   //settings
   Settings = 'Settings',
   //offline
-  Offline = 'Offline',
+  Offline = 'Offline'
 }
 
 let updater_cbs = new Map<UpdateType, Map<string, () => void>>();
