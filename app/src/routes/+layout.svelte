@@ -18,17 +18,28 @@
   import { goto } from '$app/navigation';
   import { checkForUpdates } from '$lib/tauri/updater.svelte';
   import { listen_instance_crash } from '$lib/tauri/instance.svelte';
-  import { listen_manifest_refresh_error } from '$lib/tauri/offline.svelte';
+  import {
+    is_offline,
+    listen_manifest_refresh_error
+  } from '$lib/tauri/offline.svelte';
   let { children } = $props();
 
   setMode('dark');
 
   let instance_crash_unsub = () => {};
   let manifest_refresh_error_unsub = () => {};
+  let offline = $derived(is_offline.value);
 
   onMount(async () => {
     instance_crash_unsub = await listen_instance_crash();
     manifest_refresh_error_unsub = await listen_manifest_refresh_error();
+
+    if (offline) {
+      toast.warning('You are currently offline, some features may not work', {
+        duration: 10000
+      });
+    }
+
     if (await account_refresh()) {
       toast.error('Failed to refresh Accounts');
     }
