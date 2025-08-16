@@ -2,7 +2,7 @@ use std::{io::Cursor, path::PathBuf};
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use image::{imageops::FilterType, ImageFormat};
+use image::{ImageFormat, imageops::FilterType};
 use tauri::{AppHandle, Manager};
 use tokio::fs;
 use uuid::Uuid;
@@ -10,15 +10,18 @@ use uuid::Uuid;
 use crate::{
   path,
   profiles::{
-    config::{LoaderType, Profile, ProfileError, ProfileInfo, QuickPlayInfo, QuickPlayType},
-    watcher::watch_profile,
     PROFILE_CONFIG, PROFILE_DIR, PROFILE_IMAGE, PROFILE_LOGS, SAVES_DIR,
+    config::{Profile, ProfileError, ProfileInfo, QuickPlayInfo, QuickPlayType},
+    watcher::watch_profile,
   },
   utils::{
     dir::list_dirs_in_dir,
     file::{read_parse_file, write_file},
   },
-  versions::QUICK_PLAY,
+  versions::{
+    loader::LoaderType,
+    paths::{MCVersionPath, QUICK_PLAY},
+  },
 };
 
 impl Profile {
@@ -33,11 +36,21 @@ impl Profile {
     icon: Option<&[u8]>,
     version: String,
     loader: LoaderType,
-    loader_version: Option<String>,
   ) -> Result<(String, ProfileInfo)> {
     let id = Uuid::new_v4().to_string();
     let relative_path = path!(PROFILE_DIR, &id);
     let path = path!(data_dir, &relative_path);
+
+    let loader_version = if let Some(loader) = loader.loader() {
+      let version_path = MCVersionPath::new(data_dir, &version);
+      Some(
+        loader
+          .newest_loader_version_for_mc_version(&version, &version_path)
+          .await?,
+      )
+    } else {
+      None
+    };
 
     let icon = match icon {
       Some(icon) => {
@@ -58,8 +71,8 @@ impl Profile {
       name,
       created_at: Utc::now(),
       last_played: None,
+      last_played_non_quick_play: None,
       favorite: false,
-      history: false,
       quick_play: Vec::new(),
       version,
       loader,
@@ -219,13 +232,13 @@ impl ProfileInfo {
     let mut res = Vec::new();
     let mut stream = fs::read_dir(log_dir).await?;
     while let Some(entry) = stream.next_entry().await? {
-      if entry.file_type().await?.is_file() {
-        if let Some(name) = entry.file_name().to_str() {
-          // replace the last 3 dashes with colons but leave the rest of the name intact
-          let name = name.trim_end_matches(".log").replace("-", ":");
-          if let Ok(date) = DateTime::parse_from_str(&name, "%Y:%m:%dT%H:%M:%S.%f%:z") {
-            res.push(date.to_utc());
-          }
+      if entry.file_type().await?.is_file()
+        && let Some(name) = entry.file_name().to_str()
+      {
+        // replace the last 3 dashes with colons but leave the rest of the name intact
+        let name = name.trim_end_matches(".log").replace("-", ":");
+        if let Ok(date) = DateTime::parse_from_str(&name, "%Y:%m:%dT%H:%M:%S.%f%:z") {
+          res.push(date.to_utc());
         }
       }
     }

@@ -16,8 +16,8 @@ export interface Profile {
   name: string;
   created_at: string;
   last_played?: string;
+  last_played_non_quick_play?: string;
   favorite: boolean;
-  history: boolean;
   version: string;
   loader: LoaderType;
   loader_version?: string;
@@ -53,8 +53,19 @@ export interface DevSettings {
 }
 
 export enum LoaderType {
-  Vanilla = 'Vanilla'
+  Vanilla = 'Vanilla',
+  Fabric = 'Fabric',
+  Quilt = 'Quilt',
+  Forge = 'Forge',
+  NeoForge = 'NeoForge'
 }
+
+export const ModdedLoaderType = {
+  Fabric: LoaderType.Fabric,
+  Quilt: LoaderType.Quilt,
+  Forge: LoaderType.Forge,
+  NeoForge: LoaderType.NeoForge
+} as const;
 
 export enum ProfileError {
   InvalidImage = 'InvalidImage',
@@ -210,27 +221,61 @@ const launch_repair = async (
 const get_message = (event: VersionCheckStatus): string | undefined => {
   if (typeof event === 'string') {
     switch (event) {
-      case 'Client':
-        return 'assets';
+      case 'VersionManifestCheck':
+        return 'Checking version manifest';
+      case 'VersionManifestDownload':
+        return 'Downloading version manifest';
+      case 'AssetsManifestCheck':
+        return 'Checking assets manifest';
+      case 'AssetsManifestDownload':
+        return 'Downloading assets manifest';
+      case 'JavaManifestCheck':
+        return 'Checking java manifest';
+      case 'JavaManifestDownload':
+        return 'Downloading java manifest';
+      case 'ClientCheck':
+        return 'Checking client jar';
+      case 'ClientDownload':
+        return 'Downloading client jar';
+      case 'ModLoaderMeta':
+        return 'Downloading ModLoader Version Meta';
+      case 'ModLoaderPreprocess':
+        return 'Running preprocessing of ModLoader';
+      case 'ModLoaderPreprocessDone':
+        return 'Preprocessing of ModLoader done';
       case 'Done':
-        return undefined;
+        return undefined; // No message for done
     }
-  } else if ('Manifest' in event) {
-    return event.Manifest === 3
-      ? 'client'
-      : `version manifests ${event.Manifest}/3`;
-  } else if ('Assets' in event) {
-    let [done, total] = event.Assets;
-    return done === total ? 'java files' : `assets ${done}/${total}`;
-  } else if ('Java' in event) {
-    let [done, total] = event.Java;
-    return done === total ? 'native libraries' : `java files ${done}/${total}`;
-  } else if ('NativeLibrary' in event) {
-    let [done, total] = event.NativeLibrary;
-    return done === total ? 'libraries' : `native libraries ${done}/${total}`;
-  } else if ('Library' in event) {
-    let [done, total] = event.Library;
-    return `libraries ${done}/${total}`;
+  } else if ('AssetsCheck' in event) {
+    let [done, total] = event.AssetsCheck;
+    return `Checked ${((done / total) * 100).toFixed(1)}% of assets (${done}/${total})`;
+  } else if ('AssetsDownload' in event) {
+    let [done, total] = event.AssetsDownload;
+    return `Downloaded ${((done / total) * 100).toFixed(1)}% of assets (${done}/${total})`;
+  } else if ('JavaCheck' in event) {
+    let [done, total] = event.JavaCheck;
+    return `Checked ${((done / total) * 100).toFixed(1)}% of java files (${done}/${total})`;
+  } else if ('JavaDownload' in event) {
+    let [done, total] = event.JavaDownload;
+    return `Downloaded ${((done / total) * 100).toFixed(1)}% of java files (${done}/${total})`;
+  } else if ('NativeLibraryCheck' in event) {
+    let [done, total] = event.NativeLibraryCheck;
+    return `Checked ${((done / total) * 100).toFixed(1)}% of native libraries (${done}/${total})`;
+  } else if ('NativeLibraryDownload' in event) {
+    let [done, total] = event.NativeLibraryDownload;
+    return `Downloaded ${((done / total) * 100).toFixed(1)}% of native libraries (${done}/${total})`;
+  } else if ('LibraryCheck' in event) {
+    let [done, total] = event.LibraryCheck;
+    return `Checked ${((done / total) * 100).toFixed(1)}% of libraries (${done}/${total})`;
+  } else if ('LibraryDownload' in event) {
+    let [done, total] = event.LibraryDownload;
+    return `Downloaded ${((done / total) * 100).toFixed(1)}% of libraries (${done}/${total})`;
+  } else if ('ModLoaderFilesCheck' in event) {
+    let [done, total] = event.ModLoaderFilesCheck;
+    return `Checked ${((done / total) * 100).toFixed(1)}% of mod loader files (${done}/${total})`;
+  } else if ('ModLoaderFilesDownload' in event) {
+    let [done, total] = event.ModLoaderFilesDownload;
+    return `Downloaded ${((done / total) * 100).toFixed(1)}% of mod loader files (${done}/${total})`;
   }
 };
 
@@ -244,7 +289,7 @@ if (browser) {
     if (message) {
       check_toasts.set(
         event.id,
-        toast.loading(`Downloading/Checking ${message}`, {
+        toast.loading(message, {
           id,
           duration: TOAST_DURATION
         })

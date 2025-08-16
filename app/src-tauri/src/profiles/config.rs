@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::sync::Notify;
 
-use crate::versions::launch::QuickPlay;
+use crate::versions::{launch::QuickPlay, loader::LoaderType};
 
 #[derive(Clone)]
 pub struct ProfileInfo {
@@ -20,9 +20,9 @@ pub struct Profile {
   pub created_at: DateTime<Utc>,
   pub last_played: Option<DateTime<Utc>>,
   #[serde(default)]
-  pub favorite: bool,
+  pub last_played_non_quick_play: Option<DateTime<Utc>>,
   #[serde(default)]
-  pub history: bool,
+  pub favorite: bool,
   #[serde(default)]
   pub quick_play: Vec<QuickPlayInfo>,
   pub version: String,
@@ -86,6 +86,7 @@ pub struct ProfileUpdate {
   pub id: String,
   pub name: String,
   pub version: String,
+  pub loader_version: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -106,11 +107,6 @@ pub struct JvmSettings {
 pub struct DevSettings {
   pub show_console: bool,
   pub keep_console_open: bool,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-pub enum LoaderType {
-  Vanilla,
 }
 
 #[derive(Error, Debug)]

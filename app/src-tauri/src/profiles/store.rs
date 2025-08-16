@@ -9,19 +9,21 @@ use crate::{
   account::store::LaunchInfo,
   path,
   profiles::{
+    PROFILE_CONFIG,
     config::{
-      LoaderType, PlayHistoryFavoriteInfo, Profile, ProfileError, ProfileInfo, QuickPlayInfo,
-      QuickPlayType,
+      PlayHistoryFavoriteInfo, Profile, ProfileError, ProfileInfo, QuickPlayInfo, QuickPlayType,
     },
     watcher::watch_profile,
-    PROFILE_CONFIG,
   },
   store::TauriAppStoreExt,
   utils::{
     file::read_parse_file,
-    updater::{update_data, UpdateType},
+    updater::{UpdateType, update_data},
   },
-  versions::launch::{launch_minecraft_version, LaunchArgs},
+  versions::{
+    launch::{LaunchArgs, launch_minecraft_version},
+    loader::LoaderType,
+  },
 };
 
 use super::instance::{Instance, InstanceError, InstanceInfo};
@@ -64,18 +66,9 @@ impl ProfileStore {
     icon: Option<&[u8]>,
     version: String,
     loader: LoaderType,
-    loader_version: Option<String>,
   ) -> Result<()> {
-    let (id, info) = Profile::create(
-      &self.data_dir,
-      &self.handle,
-      name,
-      icon,
-      version,
-      loader,
-      loader_version,
-    )
-    .await?;
+    let (id, info) =
+      Profile::create(&self.data_dir, &self.handle, name, icon, version, loader).await?;
     self.profiles.insert(id, info);
     self.save()?;
 
@@ -114,6 +107,11 @@ impl ProfileStore {
   ) -> Result<()> {
     let data_dir = self.data_dir.clone();
 
+    let loader = profile
+      .loader_version
+      .clone()
+      .and_then(|v| profile.loader.loader_version(profile.version.clone(), v));
+
     let child = launch_minecraft_version(&LaunchArgs {
       access_token: info.access_token,
       launcher_name: self.handle.package_info().name.clone(),
@@ -125,6 +123,7 @@ impl ProfileStore {
       version: profile.version.clone(),
       working_sub_dir: profile.relative_to_data().display().to_string(),
       quick_play: quick_play.clone().map(|q| q.into()),
+      loader,
     })
     .await?;
 
@@ -135,7 +134,10 @@ impl ProfileStore {
 
   pub async fn list_history(&mut self) -> Result<Vec<PlayHistoryFavoriteInfo>> {
     self
-      .list_home_entries(|profile| profile.history, |quick_play| quick_play.history)
+      .list_home_entries(
+        |profile| profile.last_played_non_quick_play.is_some(),
+        |quick_play| quick_play.history,
+      )
       .await
   }
 

@@ -4,7 +4,7 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use log::debug;
 use serde::Serialize;
-use tauri::{async_runtime::spawn, AppHandle};
+use tauri::{AppHandle, Emitter, async_runtime::spawn};
 use thiserror::Error;
 use tokio::{
   fs,
@@ -16,12 +16,15 @@ use tokio::{
 use uuid::Uuid;
 
 use crate::{
-  profiles::config::{LoaderType, Profile, ProfileInfo},
+  profiles::config::{Profile, ProfileInfo},
   utils::{
     log::ResultLogExt,
-    updater::{update_data, UpdateType},
+    updater::{UpdateType, update_data},
   },
+  versions::loader::LoaderType,
 };
+
+const CRASH_EVENT: &str = "instance-crash";
 
 pub struct Instance {
   id: String,
@@ -85,6 +88,7 @@ impl Instance {
 
     let id_ = id.clone();
     let profile_ = profile.id.clone();
+    let profile_name = profile.name.clone();
     let lines_ = lines.clone();
     let instances_ = instances.clone();
     let notify = stop_signal.clone();
@@ -101,9 +105,16 @@ impl Instance {
             clean_instance(&handle, &instances_, &profile_, &id_, &lines_, launched_at).await;
             break;
           }
-          _ = child.wait() => {
+          exit = child.wait() => {
             debug!("Child with profile {profile_} and id {id_} exited");
             clean_instance(&handle, &instances_, &profile_, &id_, &lines_, launched_at).await;
+
+            if let Ok(status) = exit && !status.success() {
+              debug!("Child with profile {profile_} and id {id_} exited with status: {}", status);
+              let _ = handle.emit(CRASH_EVENT, CrashInfo {
+                profile_name,
+              }).log();
+            }
             break;
           }
           else => break
@@ -182,25 +193,30 @@ async fn clean_instance(
   launched_at: DateTime<Utc>,
 ) {
   let mut instances = instances.lock().await;
-  if let Some(entry) = instances.get_mut(profile) {
-    if let Some(i) = entry.iter().position(|i| i.id() == id) {
-      let _ = entry.swap_remove(i);
-    }
+  if let Some(entry) = instances.get_mut(profile)
+    && let Some(i) = entry.iter().position(|i| i.id() == id)
+  {
+    let _ = entry.swap_remove(i);
   }
   update_data(handle, UpdateType::Instances);
 
-  if let Ok(logs_dir) = ProfileInfo::log_dir(handle, profile) {
-    if fs::create_dir_all(&logs_dir).await.is_ok() {
-      let log_file = logs_dir.join(format!(
-        "{}.log",
-        launched_at.to_rfc3339().replace(":", "-")
-      ));
+  if let Ok(logs_dir) = ProfileInfo::log_dir(handle, profile)
+    && fs::create_dir_all(&logs_dir).await.is_ok()
+  {
+    let log_file = logs_dir.join(format!(
+      "{}.log",
+      launched_at.to_rfc3339().replace(":", "-")
+    ));
 
-      let lines = lines.lock().await;
-      let content = lines.join("\n");
-      let _ = fs::write(log_file, content).await.log();
+    let lines = lines.lock().await;
+    let content = lines.join("\n");
+    let _ = fs::write(log_file, content).await.log();
 
-      update_data(handle, UpdateType::ProfileLogs);
-    }
+    update_data(handle, UpdateType::ProfileLogs);
   }
+}
+
+#[derive(Serialize, Clone, Debug)]
+struct CrashInfo {
+  profile_name: String,
 }

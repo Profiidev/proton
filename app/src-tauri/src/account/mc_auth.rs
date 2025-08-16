@@ -83,7 +83,8 @@ pub async fn get_minecraft_token(
       identity_token: format!("XBL3.0 x={user_hash};{xbox_security_token}"),
     })
     .send()
-    .await?;
+    .await?
+    .error_for_status()?;
   debug!("Got response with code: {}", res.status());
 
   let res: MCTokenRes = res.json().await?;
@@ -145,7 +146,8 @@ pub async fn get_xbox_security_token(client: &Client, xbox_token: &str) -> Resul
       token_type: TOKEN_TYPE.into(),
     })
     .send()
-    .await?;
+    .await?
+    .error_for_status()?;
   debug!("Got response with code: {}", res.status());
 
   let res: XboxAuthRes = res.json().await?;
@@ -170,7 +172,8 @@ pub async fn get_xbox_token(client: &Client, ms_access_token: &str) -> Result<To
       token_type: TOKEN_TYPE.into(),
     })
     .send()
-    .await?;
+    .await?
+    .error_for_status()?;
   debug!("Got response with code: {}", res.status());
 
   let res: XboxAuthRes = res.json().await?;
@@ -207,7 +210,8 @@ pub async fn refresh_ms_token(client: &Client, ms_refresh_token: &str) -> Result
       ("grant_type", "refresh_token"),
     ])
     .send()
-    .await?;
+    .await?
+    .error_for_status()?;
 
   debug!("Got response with code: {}", res.status());
   if res.status() != StatusCode::OK {
@@ -274,7 +278,7 @@ pub async fn get_ms_token(client: &Client, handle: &AppHandle) -> Result<MsToken
       ]);
       debug!("Retrieving ms token with code: {}", &code);
 
-      let res = req.send().await?;
+      let res = req.send().await?.error_for_status()?;
       debug!("Got response with code: {}", res.status());
 
       let res: MSTokenRes = res.json().await?;

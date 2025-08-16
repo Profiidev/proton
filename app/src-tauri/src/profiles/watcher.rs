@@ -3,8 +3,8 @@ use std::{path::PathBuf, sync::Arc};
 use anyhow::Result;
 use notify::{Config, Event, EventKind, RecommendedWatcher, Watcher};
 use tauri::{
-  async_runtime::{block_on, channel, spawn, Receiver},
   AppHandle, Manager,
+  async_runtime::{Receiver, block_on, channel, spawn},
 };
 use tokio::{
   select,
@@ -14,7 +14,7 @@ use tokio::{
 use crate::{
   profiles::store::ProfileStore,
   utils::{log::ResultLogExt, updater::UpdateType},
-  versions::QUICK_PLAY,
+  versions::paths::QUICK_PLAY,
 };
 
 fn async_watcher(config: Config) -> notify::Result<(RecommendedWatcher, Receiver<Event>)> {
@@ -59,15 +59,15 @@ pub fn watch_profile(path: PathBuf, profile: String, app: AppHandle) -> Result<A
         _ = stop_clone.notified() => break,
       };
 
-      if let EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_) = event.kind {
-        if event.paths.iter().any(|p| p.ends_with(QUICK_PLAY)) {
-          let store = app.state::<Mutex<ProfileStore>>();
-          let store = store.lock().await;
-          if let Ok(mut info) = store.profile(&profile).await.log() {
-            let _ = info.update_quick_play(&data_dir).await.log();
-            let _ = info.update(&data_dir).await.log();
-            store.update_data(UpdateType::ProfileQuickPlay);
-          }
+      if let EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_) = event.kind
+        && event.paths.iter().any(|p| p.ends_with(QUICK_PLAY))
+      {
+        let store = app.state::<Mutex<ProfileStore>>();
+        let store = store.lock().await;
+        if let Ok(mut info) = store.profile(&profile).await.log() {
+          let _ = info.update_quick_play(&data_dir).await.log();
+          let _ = info.update(&data_dir).await.log();
+          store.update_data(UpdateType::ProfileQuickPlay);
         }
       }
     }

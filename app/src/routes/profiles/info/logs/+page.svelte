@@ -92,7 +92,7 @@
         onclick={() => (clearOpen = true)}
       >
         <Trash />
-        Clear Logs
+        Clear Runs
       </DropdownMenu.Item>
     </DropdownMenu.Content>
   </DropdownMenu.Root>

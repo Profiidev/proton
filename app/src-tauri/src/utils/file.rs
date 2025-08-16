@@ -6,9 +6,9 @@ use std::{
 use anyhow::Result;
 use log::debug;
 use reqwest::Client;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use sha1::{Digest, Sha1};
-use tauri::Url;
+use tauri::{Url, async_runtime::spawn_blocking};
 use thiserror::Error;
 use tokio::fs::{self, File};
 
@@ -24,7 +24,13 @@ pub async fn download_file_no_hash_force(
   url: Url,
 ) -> Result<Vec<u8>> {
   debug!("Downloading file: {}", url.as_str());
-  let bytes = client.get(url).send().await?.bytes().await?;
+  let bytes = client
+    .get(url)
+    .send()
+    .await?
+    .error_for_status()?
+    .bytes()
+    .await?;
 
   if let Some(parent) = path.parent() {
     fs::create_dir_all(parent).await?;
@@ -40,31 +46,13 @@ pub async fn download_file_no_hash(client: &Client, path: &PathBuf, url: Url) ->
   }
 
   debug!("Downloading file: {}", url.as_str());
-  let bytes = client.get(url).send().await?.bytes().await?;
-
-  if let Some(parent) = path.parent() {
-    fs::create_dir_all(parent).await?;
-  }
-  fs::write(path, &bytes).await?;
-
-  Ok(bytes.to_vec())
-}
-
-pub async fn download_file(
-  client: &Client,
-  path: &PathBuf,
-  url: Url,
-  hash: &str,
-) -> Result<Vec<u8>> {
-  if File::open(path).await.is_ok() && file_hash(hash, path).await? {
-    return Ok(fs::read(path).await?);
-  }
-
-  debug!("Downloading file: {}", url.as_str());
-  let bytes = client.get(url).send().await?.bytes().await?;
-  if !hash_bytes(hash, &bytes)? {
-    return Err(FileError::HashMismatch.into());
-  }
+  let bytes = client
+    .get(url)
+    .send()
+    .await?
+    .error_for_status()?
+    .bytes()
+    .await?;
 
   if let Some(parent) = path.parent() {
     fs::create_dir_all(parent).await?;
@@ -92,21 +80,17 @@ pub async fn download_and_parse_file_no_hash<R: DeserializeOwned>(
   Ok(serde_json::from_slice(&data)?)
 }
 
-pub async fn download_and_parse_file<R: DeserializeOwned>(
-  client: &Client,
-  path: &PathBuf,
-  url: Url,
-  hash: &str,
-) -> Result<R> {
-  let data = download_file(client, path, url, hash).await?;
-  Ok(serde_json::from_slice(&data)?)
-}
-
 pub async fn file_hash(hash: &str, path: &PathBuf) -> Result<bool> {
-  let mut file = File::open(path).await?.into_std().await;
-  let mut hasher = Sha1::new();
-  std::io::copy(&mut file, &mut hasher)?;
-  let found_hash = hex::encode(hasher.finalize());
+  let Ok(file) = File::open(path).await else {
+    return Ok(false);
+  };
+  let mut file = file.into_std().await;
+  let found_hash = spawn_blocking(move || {
+    let mut hasher = Sha1::new();
+    std::io::copy(&mut file, &mut hasher)?;
+    Ok::<_, std::io::Error>(hex::encode(hasher.finalize()))
+  })
+  .await??;
   Ok(hash == found_hash)
 }
 
@@ -129,6 +113,11 @@ pub async fn read_parse_file<R: DeserializeOwned>(path: &PathBuf) -> Result<R> {
   Ok(serde_json::from_str(&data)?)
 }
 
+pub async fn read_parse_xml_file<R: DeserializeOwned>(path: &PathBuf) -> Result<R> {
+  let data = fs::read_to_string(path).await?;
+  Ok(serde_xml_rs::from_str(&data)?)
+}
+
 pub async fn write_file<T: Serialize>(path: &PathBuf, data: &T) -> Result<()> {
   let data = serde_json::to_string(data)?;
   fs::write(path, data).await?;
@@ -141,4 +130,39 @@ pub async fn create_or_open_file(path: &PathBuf) -> Result<File> {
     fs::create_dir_all(parent).await?;
   }
   Ok(File::create(path).await?)
+}
+
+pub async fn download_file(
+  client: &Client,
+  path: &PathBuf,
+  url: Url,
+  hash: &str,
+) -> Result<Vec<u8>> {
+  let bytes = client
+    .get(url)
+    .send()
+    .await?
+    .error_for_status()?
+    .bytes()
+    .await?;
+  if !hash_bytes(hash, &bytes)? {
+    return Err(FileError::HashMismatch.into());
+  }
+
+  if let Some(parent) = path.parent() {
+    fs::create_dir_all(parent).await?;
+  }
+  fs::write(path, &bytes).await?;
+
+  Ok(bytes.to_vec())
+}
+
+pub async fn download_and_parse_file<R: DeserializeOwned>(
+  client: &Client,
+  path: &PathBuf,
+  url: Url,
+  hash: &str,
+) -> Result<R> {
+  let data = download_file(client, path, url, hash).await?;
+  Ok(serde_json::from_slice(&data)?)
 }

@@ -23,7 +23,12 @@ use settings::{settings_get, settings_set};
 use tauri::{AppHandle, Manager};
 use tauri_plugin_log::{RotationStrategy, Target, TargetKind, TimezoneStrategy};
 use tokio::sync::Mutex;
-use versions::{commands::version_list, store::McVersionStore};
+use versions::{
+  commands::{loader_version_list, version_list},
+  store::McVersionStore,
+};
+
+use crate::versions::{loader::LoaderType, paths::MCVersionPath};
 
 mod account;
 mod profiles;
@@ -47,7 +52,10 @@ pub fn run() {
         .target(Target::new(TargetKind::LogDir {
           file_name: Some(Local::now().to_rfc3339().replace(":", "-")),
         }))
-        .filter(|metadata| !metadata.target().starts_with("notify::"))
+        .filter(|metadata| {
+          !metadata.target().starts_with("notify::")
+            && !metadata.target().starts_with("serde_xml_rs::")
+        })
         .rotation_strategy(RotationStrategy::KeepAll)
         .timezone_strategy(TimezoneStrategy::UseLocal)
         .build(),
@@ -78,6 +86,7 @@ pub fn run() {
       account_change_cape,
       //versions
       version_list,
+      loader_version_list,
       //profiles
       profile_create,
       profile_remove,
@@ -134,6 +143,13 @@ async fn async_setup_refresh(handle: AppHandle) -> Result<()> {
   let version_state = handle.state::<Mutex<McVersionStore>>();
   let mut version_store = version_state.lock().await;
   version_store.refresh_manifests().await?;
+
+  let client = reqwest::Client::new();
+  for loader in LoaderType::mod_loaders() {
+    let data_dir = handle.path().app_data_dir()?;
+    let version_path = MCVersionPath::new(&data_dir, "");
+    loader.download_metadata(&client, &version_path).await?;
+  }
 
   Ok(())
 }

@@ -6,17 +6,11 @@ pub mod commands;
 mod download;
 mod event;
 pub mod launch;
+pub mod loader;
+mod maven;
 mod meta;
+pub mod paths;
 pub mod store;
-
-const JAVA_DIR: &str = "java";
-
-const MC_DIR: &str = "minecraft";
-const VERSION_DIR: &str = "versions";
-const LIBRARY_DIR: &str = "lib";
-const ASSETS_DIR: &str = "assets";
-const ASSETS_INDEX_DIR: &str = "indexes";
-pub const QUICK_PLAY: &str = "quick_play.json";
 
 #[cfg(target_os = "linux")]
 const OS_NAME: Option<OsName> = Some(OsName::Linux);

@@ -9,11 +9,11 @@ use tokio::sync::Mutex;
 use crate::{
   account::store::AccountStore,
   profiles::{
-    config::{LoaderType, Profile, ProfileUpdate, QuickPlayInfo},
+    config::{Profile, ProfileUpdate, QuickPlayInfo},
     store::ProfileStore,
   },
   utils::{log::ResultLogExt, updater::UpdateType},
-  versions::store::McVersionStore,
+  versions::{loader::LoaderType, store::McVersionStore},
 };
 
 #[derive(Error, Debug)]
@@ -29,19 +29,15 @@ pub async fn profile_create(
   icon: Option<Vec<u8>>,
   version: String,
   loader: LoaderType,
-  loader_version: Option<String>,
 ) -> Result<()> {
   trace!(
-    "Command profile_create called with name {} version {} loader {:?} loader_version {:?}",
-    &name,
-    &version,
-    &loader,
-    &loader_version
+    "Command profile_create called with name {} version {} loader {:?}",
+    &name, &version, &loader,
   );
   let mut store = state.lock().await;
 
   store
-    .create_profile(name, icon.as_deref(), version, loader, loader_version)
+    .create_profile(name, icon.as_deref(), version, loader)
     .await
     .log()?;
   store.update_data(UpdateType::Profiles);
@@ -59,8 +55,14 @@ pub async fn profile_update(
 
   let mut current_profile = store.profile(&profile.id).await.log()?;
 
+  if profile.version != current_profile.version
+    || profile.loader_version != current_profile.loader_version
+  {
+    current_profile.downloaded = false;
+  }
   current_profile.name = profile.name;
   current_profile.version = profile.version;
+  current_profile.loader_version = profile.loader_version;
 
   current_profile.update(store.data_dir()).await.log()?;
   store.update_data(UpdateType::Profiles);
@@ -160,12 +162,24 @@ pub async fn profile_launch(
   let mut profile = store.profile(profile).await.log()?;
   if !profile.downloaded {
     mc_store
-      .check_or_download(&profile.version, id)
+      .check_or_download(
+        &profile.version,
+        id,
+        profile.loader,
+        profile.loader_version.clone(),
+      )
       .await
       .log()?;
     profile.downloaded = true;
   } else if !mc_store.check_meta(&profile.version, id).await.log()? {
-    mc_store.check_or_download(&profile.version, id).await?;
+    mc_store
+      .check_or_download(
+        &profile.version,
+        id,
+        profile.loader,
+        profile.loader_version.clone(),
+      )
+      .await?;
   }
 
   profile.last_played = Some(Utc::now());
@@ -179,7 +193,7 @@ pub async fn profile_launch(
       item.history = true;
     }
   } else {
-    profile.history = true;
+    profile.last_played_non_quick_play = Some(Utc::now());
   }
   profile.update(store.data_dir()).await.log()?;
   store.update_data(UpdateType::Profiles);
@@ -204,12 +218,21 @@ pub async fn profile_repair(
   // clone so the lock is dropped before the download
   let mc_store = versions.lock().await.clone();
 
-  let profile = store.profile(profile).await.log()?;
+  let mut profile = store.profile(profile).await.log()?;
+  let data_dir = store.data_dir().clone();
   drop(store);
   mc_store
-    .check_or_download(&profile.version, id)
+    .check_or_download(
+      &profile.version,
+      id,
+      profile.loader,
+      profile.loader_version.clone(),
+    )
     .await
     .log()?;
+
+  profile.downloaded = true;
+  profile.update(&data_dir).await.log()?;
 
   Ok(())
 }

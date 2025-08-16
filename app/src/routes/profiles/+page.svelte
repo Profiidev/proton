@@ -1,5 +1,6 @@
 <script lang="ts">
   import {
+    LoaderType,
     profile_create,
     profile_launch,
     profile_list,
@@ -13,7 +14,10 @@
   } from 'positron-components/components/form';
   import type { PageServerData } from './$types';
   import { profileCreateSchema } from './schema.svelte';
-  import { version_list } from '$lib/tauri/versions.svelte';
+  import {
+    vanilla_version_list,
+    version_list
+  } from '$lib/tauri/versions.svelte';
   import { Input, ScrollArea } from 'positron-components/components/ui';
   import { Plus } from '@lucide/svelte';
   import FormImage from '../../lib/components/form/FormImage.svelte';
@@ -23,6 +27,7 @@
   import { goto } from '$app/navigation';
   import { account_active } from '$lib/tauri/account.svelte';
   import ProfileListButton from '$lib/components/profile/ProfileListButton.svelte';
+  import FormSelectUpdate from '$lib/components/form/FormSelectUpdate.svelte';
 
   interface Props {
     data: PageServerData;
@@ -32,16 +37,44 @@
 
   let version_filter = $state<string[]>([]);
   let loader_filter = $state<string[]>([]);
-  let text_filter = $state<string>('');
+  let text_filter = $state('');
+  let createOpen = $state(false);
+  let createDialog = $state<FormDialog>();
+  let currentLoader = $state<[LoaderType]>([LoaderType.Vanilla]);
+  let currentVersion = $state<[string]>();
+  let new_version_list = $state<string[]>();
+  $effect(() => {
+    version_list(currentLoader[0])
+      .catch(() => [] as string[])
+      .then((versions) => {
+        new_version_list = versions;
+        if (
+          versions &&
+          currentVersion &&
+          !versions.includes(currentVersion[0])
+        ) {
+          currentVersion = [versions[0]];
+        }
+      });
+  });
 
   let active_account = $derived(account_active.value);
   let profiles = $derived(profile_list.value);
-  let versions = $derived(
-    (version_list.value ?? []).map((v) => ({
+  let vanilla_versions = $derived(
+    (vanilla_version_list.value ?? []).map((v) => ({
       label: v,
       value: v
     }))
   );
+
+  $effect(() => {
+    if (createOpen) {
+      createDialog?.setValue({
+        loader: [LoaderType.Vanilla],
+        version: vanilla_versions?.length ? [vanilla_versions[0].value] : []
+      });
+    }
+  });
 
   let profile_fuse = $derived(
     new Fuse(profiles ?? [], {
@@ -79,7 +112,9 @@
       .toSorted(compareProfiles)
   );
   let filtered_versions = $derived(
-    versions?.filter((v) => profiles?.some((p) => p.version === v.value))
+    vanilla_versions?.filter((v) =>
+      profiles?.some((p) => p.version === v.value)
+    )
   );
   let filtered_loaders = $derived(
     profiles
@@ -97,6 +132,7 @@
 
   const createProfile = async (form: FormType<any>) => {
     form.data.version = form.data.version[0];
+    form.data.loader = form.data.loader[0];
     if (form.data.icon) {
       form.data.icon = await file_to_bytes(form.data.icon);
     }
@@ -140,7 +176,8 @@
       }}
       form={profileCreate}
       onsubmit={createProfile}
-      open={false}
+      bind:open={createOpen}
+      bind:this={createDialog as any}
       class="w-100"
     >
       {#snippet triggerInner()}
@@ -153,11 +190,26 @@
           </div>
           <div class="ml-auto">
             <FormInput label="Name" placeholder="Name" key="name" {...props} />
-            <FormSelect
+            <FormSelectUpdate
+              bind:val={currentLoader}
+              label="Loader"
+              key="loader"
+              single={true}
+              data={Object.keys(LoaderType).map((l) => ({
+                label: l,
+                value: l as LoaderType
+              })) ?? []}
+              {...props}
+            />
+            <FormSelectUpdate
+              bind:val={currentVersion}
               label="Version"
               key="version"
               single={true}
-              data={versions ?? []}
+              data={new_version_list?.map((v) => ({
+                label: v,
+                value: v
+              })) ?? []}
               {...props}
             />
           </div>

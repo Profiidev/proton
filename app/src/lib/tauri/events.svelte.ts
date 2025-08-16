@@ -8,25 +8,43 @@ export enum LoginStatus {
 export const ACCOUNT_LOGIN_STATUS_EVENT = 'account-login-status';
 
 export type VersionCheckStatus =
+  | 'VersionManifestCheck'
+  | 'VersionManifestDownload'
+  | 'AssetsManifestCheck'
+  | 'AssetsManifestDownload'
+  | 'JavaManifestCheck'
+  | 'JavaManifestDownload'
+  | 'ClientCheck'
+  | 'ClientDownload'
   | {
-      Manifest: number;
+      AssetsCheck: [number, number];
     }
   | {
-      Assets: [number, number];
+      AssetsDownload: [number, number];
     }
   | {
-      Java: [number, number];
+      JavaCheck: [number, number];
     }
   | {
-      NativeLibrary: [number, number];
+      JavaDownload: [number, number];
     }
   | {
-      Library: [number, number];
+      NativeLibraryCheck: [number, number];
     }
   | {
-      Java: [number, number];
+      NativeLibraryDownload: [number, number];
     }
-  | 'Client'
+  | {
+      LibraryCheck: [number, number];
+    }
+  | {
+      LibraryDownload: [number, number];
+    }
+  | 'ModLoaderMeta'
+  | { ModLoaderFilesCheck: [number, number] }
+  | { ModLoaderFilesDownload: [number, number] }
+  | 'ModLoaderPreprocess'
+  | 'ModLoaderPreprocessDone'
   | 'Done';
 
 export type VersionCheckData = {
@@ -35,6 +53,7 @@ export type VersionCheckData = {
 };
 
 export const VERSION_CHECK_STATUS_EVENT = 'version-check-status';
+export const INSTANCE_CRASH_EVENT = 'instance-crash';
 
 //10 minutes
 export const TOAST_DURATION = 600000;
