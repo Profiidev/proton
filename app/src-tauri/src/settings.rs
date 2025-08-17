@@ -12,6 +12,23 @@ const SETTINGS_KEY: &str = "settings";
 pub struct Settings {
   sidebar_width: Option<f32>,
   url: Option<Url>,
+  #[serde(default)]
+  pub minecraft: MinecraftSettings,
+}
+
+#[derive(Serialize, Deserialize, Default)]
+pub struct MinecraftSettings {
+  pub show_snapshots: bool,
+}
+
+pub trait SettingsExt {
+  fn app_settings(&self) -> anyhow::Result<Settings>;
+}
+
+impl SettingsExt for AppHandle {
+  fn app_settings(&self) -> anyhow::Result<Settings> {
+    self.app_store()?.get_or_default(SETTINGS_KEY)
+  }
 }
 
 #[tauri::command]

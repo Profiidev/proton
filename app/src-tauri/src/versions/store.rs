@@ -8,6 +8,7 @@ use tauri::{AppHandle, Manager, Url};
 use tokio::join;
 
 use crate::{
+  settings::SettingsExt,
   utils::{
     file::{download_and_parse_file_no_hash, download_and_parse_file_no_hash_force, file_hash},
     updater::{UpdateType, default_client, update_data},
@@ -182,17 +183,36 @@ impl McVersionStore {
   }
 
   pub async fn list_versions(&self, loader: &LoaderType) -> Result<Vec<String>> {
+    let stable = !self.handle.app_settings()?.minecraft.show_snapshots;
+
     if let Some(loader) = loader.loader() {
+      let mc_versions = self
+        .mc_manifest
+        .versions
+        .iter()
+        .map(|v| v.id.clone())
+        .collect::<Vec<_>>();
+
       let data_dir = self.handle.path().app_data_dir().unwrap();
       let version_path = MCVersionPath::new(&data_dir, "");
-      loader.supported_versions(&version_path, true).await
+      let mut supported_versions = loader.supported_versions(&version_path, stable).await?;
+
+      // Sort the supported versions based on their position in the mc_versions list which is the order of release time
+      supported_versions.sort_by_cached_key(|v| {
+        mc_versions
+          .iter()
+          .position(|mc_v| mc_v == v)
+          .unwrap_or(usize::MAX)
+      });
+
+      Ok(supported_versions)
     } else {
       Ok(
         self
           .mc_manifest
           .versions
           .iter()
-          .filter(|v| v.r#type == VersionType::Release)
+          .filter(|v| v.r#type == VersionType::Release || !stable)
           .map(|v| &v.id)
           .cloned()
           .collect(),
@@ -205,11 +225,13 @@ impl McVersionStore {
     loader: &LoaderType,
     mc_version: &str,
   ) -> Result<Vec<String>> {
+    let stable = !self.handle.app_settings()?.minecraft.show_snapshots;
+
     if let Some(loader) = loader.loader() {
       let data_dir = self.handle.path().app_data_dir().unwrap();
       let version_path = MCVersionPath::new(&data_dir, mc_version);
       loader
-        .loader_versions_for_mc_version(mc_version, &version_path, true)
+        .loader_versions_for_mc_version(mc_version, &version_path, stable)
         .await
     } else {
       Ok(vec![])
