@@ -52,6 +52,8 @@ impl OfflineState {
               let _ = handle.emit(MANIFEST_REFRESH_ERROR, ()).log();
             }
           });
+
+          self.state_init = true;
         }
       }
       self.offline = false;
