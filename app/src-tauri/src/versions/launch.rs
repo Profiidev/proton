@@ -39,6 +39,7 @@ pub struct LaunchArgs {
   pub working_sub_dir: String,
   pub quick_play: Option<QuickPlay>,
   pub loader: Option<Box<dyn LoaderVersion>>,
+  pub custom_window_size: Option<(u32, u32)>,
 }
 
 pub enum QuickPlay {
@@ -68,6 +69,14 @@ impl LaunchArgs {
     }
 
     let mc_path = MCPath::new(&self.data_dir);
+
+    let arg = if let Some((width, height)) = self.custom_window_size {
+      arg
+        .replace("${resolution_width}", &width.to_string())
+        .replace("${resolution_height}", &height.to_string())
+    } else {
+      arg.to_string()
+    };
 
     arg
       .replace("${clientid}", CLIENT_ID)
@@ -215,6 +224,7 @@ fn game_args(args: &LaunchArgs, version: &Version, classpath: &str) -> Vec<Strin
 
   let mut features = Features {
     has_quick_plays_support: Some(true),
+    has_custom_resolution: Some(args.custom_window_size.is_some()),
     ..Default::default()
   };
 

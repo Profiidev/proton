@@ -15,6 +15,7 @@ use crate::{
     },
     watcher::watch_profile,
   },
+  settings::SettingsExt,
   store::TauriAppStoreExt,
   utils::{
     file::read_parse_file,
@@ -106,6 +107,13 @@ impl ProfileStore {
     quick_play: Option<QuickPlayInfo>,
   ) -> Result<()> {
     let data_dir = self.data_dir.clone();
+    let settings = self.handle.app_settings()?.minecraft;
+
+    let custom_window_size = if settings.custom_window_size {
+      Some((settings.custom_window_width, settings.custom_window_height))
+    } else {
+      None
+    };
 
     let loader = profile
       .loader_version
@@ -124,6 +132,7 @@ impl ProfileStore {
       working_sub_dir: profile.relative_to_data().display().to_string(),
       quick_play: quick_play.clone().map(|q| q.into()),
       loader,
+      custom_window_size,
     })
     .await?;
 
