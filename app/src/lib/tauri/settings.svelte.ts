@@ -5,6 +5,11 @@ import { RequestError } from 'positron-components/backend';
 export interface Settings {
   sidebar_width?: number;
   url?: URL;
+  minecraft: MinecraftSettings;
+}
+
+export interface MinecraftSettings {
+  show_snapshots: boolean;
 }
 
 const settings_get_ = async (): Promise<Settings | undefined> => {

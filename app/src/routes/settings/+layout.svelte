@@ -17,6 +17,10 @@
       title: 'Capes'
     },
     {
+      href: '/settings/minecraft',
+      title: 'Minecraft'
+    },
+    {
       href: '/settings/about',
       title: 'About'
     }
