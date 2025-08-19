@@ -12,6 +12,37 @@ const SETTINGS_KEY: &str = "settings";
 pub struct Settings {
   sidebar_width: Option<f32>,
   url: Option<Url>,
+  #[serde(default)]
+  pub minecraft: MinecraftSettings,
+}
+
+#[derive(Serialize, Deserialize, Default)]
+pub struct MinecraftSettings {
+  pub show_snapshots: bool,
+  #[serde(default)]
+  pub custom_window_size: bool,
+  #[serde(default = "default_custom_window_width")]
+  pub custom_window_width: u32,
+  #[serde(default = "default_custom_window_height")]
+  pub custom_window_height: u32,
+}
+
+pub fn default_custom_window_width() -> u32 {
+  854
+}
+
+pub fn default_custom_window_height() -> u32 {
+  480
+}
+
+pub trait SettingsExt {
+  fn app_settings(&self) -> anyhow::Result<Settings>;
+}
+
+impl SettingsExt for AppHandle {
+  fn app_settings(&self) -> anyhow::Result<Settings> {
+    self.app_store()?.get_or_default(SETTINGS_KEY)
+  }
 }
 
 #[tauri::command]

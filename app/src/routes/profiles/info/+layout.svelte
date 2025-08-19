@@ -8,11 +8,10 @@
     profile_repair
   } from '$lib/tauri/profile.svelte.js';
   import {
-    SimpleSidebar,
     Button,
     DropdownMenu,
     toast
-  } from 'positron-components/components';
+  } from 'positron-components/components/ui';
   import { setProfile } from './store.svelte.js';
   import { FolderOpen, Menu, Play, Star, Trash, Wrench } from '@lucide/svelte';
   import ProfileIcon from '$lib/components/profile/ProfileIcon.svelte';
@@ -21,6 +20,7 @@
   import { profile_favorites_set } from '$lib/tauri/home.svelte.js';
   import DestroyDialog from '$lib/components/form/DestroyDialog.svelte';
   import { is_offline } from '$lib/tauri/offline.svelte.js';
+  import SimpleSidebar from '$lib/components/nav/SimpleSidebar.svelte';
 
   let { data, children } = $props();
 

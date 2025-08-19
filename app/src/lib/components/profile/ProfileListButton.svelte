@@ -19,11 +19,15 @@
       version?: string;
     };
     text?: string;
+    textIcon?: Component;
   }
 
   let { onclick, onclickInner, item, text, innerVariant, ...restProps }: Props =
     $props();
-  let innerIcon = $derived({ icon: restProps.innerIcon || CirclePlay });
+  let innerIcon = $derived({
+    icon: restProps.innerIcon || CirclePlay,
+    textIcon: restProps.textIcon
+  });
 </script>
 
 <Button
@@ -33,7 +37,10 @@
 >
   <ProfileIcon id={item.id} />
   <div class="ml-2 flex min-w-0 flex-1 flex-col justify-start gap-2">
-    <p class="truncate text-start text-sm">
+    <p class="flex items-center gap-1 truncate text-start text-sm">
+      {#if innerIcon.textIcon}
+        <innerIcon.textIcon />
+      {/if}
       {text ? text : item.name || 'unknown'}
     </p>
     <p class="text-muted-foreground truncate text-start text-sm">

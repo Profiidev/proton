@@ -99,29 +99,30 @@ impl Loader for ForgeLikeLoader {
     Ok(())
   }
 
-  async fn supported_versions(&self, version_path: &MCVersionPath, _: bool) -> Result<Vec<String>> {
+  async fn supported_versions(
+    &self,
+    version_path: &MCVersionPath,
+    stable: bool,
+  ) -> Result<Vec<String>> {
     let path = self.index(version_path);
     if self.index_file_name == INDEX_FILE_NAME_FORGE {
-      let mut versions = read_parse_file::<VersionIndex>(&path)
+      let versions = read_parse_file::<VersionIndex>(&path)
         .await?
         .keys()
         .filter(|v| {
           // all versions 1.5.1 and below are not supported because they require manual jar patching
-          !v.contains("pre") && compare_mc_versions(&"1.5.1".to_string(), v) == Ordering::Less
+          (!v.contains("pre") || !stable)
+            && compare_mc_versions(&"1.5.1".to_string(), v) == Ordering::Less
         })
         .cloned()
         .collect::<Vec<_>>();
-
-      versions.sort_by(compare_mc_versions);
-      versions.reverse();
 
       Ok(versions)
     } else {
       let versions = self.neoforge_version_pairs(version_path).await?;
       let mut versions: Vec<String> = versions.into_iter().map(|(mc, _)| mc).collect();
-      versions.sort_by(compare_mc_versions);
+      versions.sort();
       versions.dedup();
-      versions.reverse();
 
       Ok(versions)
     }
