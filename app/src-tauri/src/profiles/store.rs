@@ -103,16 +103,22 @@ impl ProfileStore {
   pub async fn launch_profile(
     &mut self,
     info: LaunchInfo,
-    profile: &Profile,
+    profile: Profile,
     quick_play: Option<QuickPlayInfo>,
   ) -> Result<()> {
     let data_dir = self.data_dir.clone();
     let settings = self.handle.app_settings()?.minecraft;
 
-    let custom_window_size = if settings.custom_window_size {
-      Some((settings.custom_window_width, settings.custom_window_height))
+    let jvm_settings = if profile.use_local_jvm {
+      profile.jvm.clone().unwrap_or_default()
     } else {
-      None
+      settings.jvm_settings
+    };
+
+    let game_settings = if profile.use_local_game {
+      profile.game.clone().unwrap_or_default()
+    } else {
+      settings.game_settings
     };
 
     let loader = profile
@@ -132,11 +138,12 @@ impl ProfileStore {
       working_sub_dir: profile.relative_to_data().display().to_string(),
       quick_play: quick_play.clone().map(|q| q.into()),
       loader,
-      custom_window_size,
+      game_settings,
+      jvm_settings,
     })
     .await?;
 
-    Instance::create(child, &self.handle, profile, &self.instances).await?;
+    Instance::create(child, &self.handle, &profile, &self.instances).await?;
 
     Ok(())
   }

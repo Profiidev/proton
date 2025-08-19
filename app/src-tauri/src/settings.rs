@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Result, Url};
 
 use crate::{
+  profiles::config::{GameSettings, JvmSettings},
   store::TauriAppStoreExt,
   utils::updater::{UpdateType, update_data},
 };
@@ -20,19 +21,9 @@ pub struct Settings {
 pub struct MinecraftSettings {
   pub show_snapshots: bool,
   #[serde(default)]
-  pub custom_window_size: bool,
-  #[serde(default = "default_custom_window_width")]
-  pub custom_window_width: u32,
-  #[serde(default = "default_custom_window_height")]
-  pub custom_window_height: u32,
-}
-
-pub fn default_custom_window_width() -> u32 {
-  854
-}
-
-pub fn default_custom_window_height() -> u32 {
-  480
+  pub game_settings: GameSettings,
+  #[serde(default)]
+  pub jvm_settings: JvmSettings,
 }
 
 pub trait SettingsExt {

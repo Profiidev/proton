@@ -207,7 +207,7 @@ pub async fn profile_launch(
   store.update_data(UpdateType::Profiles);
 
   store
-    .launch_profile(info, &profile, quick_play)
+    .launch_profile(info, profile, quick_play)
     .await
     .log()?;
 

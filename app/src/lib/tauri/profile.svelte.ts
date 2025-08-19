@@ -36,6 +36,7 @@ export interface ProfileUpdate {
 }
 
 export interface GameSettings {
+  use_custom: boolean;
   width: number;
   height: number;
 }
@@ -43,7 +44,6 @@ export interface GameSettings {
 export interface JvmSettings {
   args: string[];
   env_vars: { [key: string]: string };
-  mem_min: number;
   mem_max: number;
 }
 

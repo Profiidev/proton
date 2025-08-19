@@ -8,6 +8,7 @@
   import SwitchTooltip from '$lib/components/form/SwitchTooltip.svelte';
   import { Input, Label } from 'positron-components/components/ui';
   import { cn } from 'positron-components';
+  import type { GameSettings } from '$lib/tauri/profile.svelte';
 
   let settings = $derived(settings_get.value);
 
@@ -28,6 +29,15 @@
     ) {
       toast.error('Failed to save Minecraft settings');
     }
+  };
+
+  const saveGameSettings = async (new_settings: Partial<GameSettings>) => {
+    await saveSettings({
+      game_settings: {
+        ...settings!.minecraft.game_settings,
+        ...new_settings
+      }
+    });
   };
 </script>
 
@@ -51,9 +61,11 @@
           id="use-custom-window-size"
           label="Use custom Window Size (1.13+)"
           tooltip="Changes the size of the Minecraft window to a custom resolution."
-          checked={settings.minecraft.custom_window_size ?? false}
+          checked={settings.minecraft.game_settings.use_custom ?? false}
           onCheckedChange={(value) => {
-            saveSettings({ custom_window_size: value });
+            saveGameSettings({
+              use_custom: value
+            });
           }}
         />
         <div class="ml-6 flex items-center gap-2">
@@ -61,7 +73,8 @@
             for="custom-window-size"
             class={cn(
               'whitespace-nowrap',
-              !settings.minecraft.custom_window_size && 'text-muted-foreground'
+              !settings.minecraft.game_settings.use_custom &&
+                'text-muted-foreground'
             )}>Custom Window Size</Label
           >
           <Input
@@ -69,17 +82,19 @@
             type="number"
             placeholder="e.g 854"
             class="ml-auto max-w-20"
-            value={settings.minecraft.custom_window_width ?? ''}
-            disabled={!settings.minecraft.custom_window_size}
+            value={settings.minecraft.game_settings.width ?? ''}
+            disabled={!settings.minecraft.game_settings.use_custom}
             oninput={(e) => {
               const value = (e.target as HTMLInputElement)?.value;
               if (value && !isNaN(Number(value))) {
-                saveSettings({ custom_window_width: Number(value) });
+                saveGameSettings({
+                  width: Number(value)
+                });
               }
             }}
           />
           <span
-            class={!settings.minecraft.custom_window_size
+            class={!settings.minecraft.game_settings.use_custom
               ? 'text-muted-foreground'
               : ''}>x</span
           >
@@ -88,12 +103,14 @@
             type="number"
             placeholder="e.g 480"
             class="max-w-20"
-            value={settings.minecraft.custom_window_height ?? ''}
-            disabled={!settings.minecraft.custom_window_size}
+            value={settings.minecraft.game_settings.height ?? ''}
+            disabled={!settings.minecraft.game_settings.use_custom}
             oninput={(e) => {
               const value = (e.target as HTMLInputElement)?.value;
               if (value && !isNaN(Number(value))) {
-                saveSettings({ custom_window_height: Number(value) });
+                saveGameSettings({
+                  height: Number(value)
+                });
               }
             }}
           />

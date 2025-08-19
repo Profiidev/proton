@@ -1,6 +1,7 @@
 import { create_data_state, UpdateType } from '$lib/data_state.svelte';
 import { invoke } from '@tauri-apps/api/core';
 import { RequestError } from 'positron-components/backend';
+import type { GameSettings, JvmSettings } from './profile.svelte';
 
 export interface Settings {
   sidebar_width?: number;
@@ -10,9 +11,8 @@ export interface Settings {
 
 export interface MinecraftSettings {
   show_snapshots: boolean;
-  custom_window_size: boolean;
-  custom_window_width: number;
-  custom_window_height: number;
+  game_settings: GameSettings;
+  jvm_settings: JvmSettings;
 }
 
 const settings_get_ = async (): Promise<Settings | undefined> => {
