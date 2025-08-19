@@ -2,6 +2,7 @@
   import { Label, Switch, Tooltip } from 'positron-components/components/ui';
 
   interface Props {
+    id: string;
     label: string;
     checked: boolean;
     onCheckedChange: (value: boolean) => void;
@@ -9,6 +10,7 @@
   }
 
   let {
+    id,
     label,
     checked = $bindable(false),
     onCheckedChange,
@@ -20,7 +22,7 @@
   <Tooltip.Provider>
     <Tooltip.Root>
       <Tooltip.Trigger>
-        <Label for="instant-redirect">{label}</Label>
+        <Label for={id}>{label}</Label>
       </Tooltip.Trigger>
       <Tooltip.Content side="right">
         <p>
@@ -29,10 +31,5 @@
       </Tooltip.Content>
     </Tooltip.Root>
   </Tooltip.Provider>
-  <Switch
-    id="instant-redirect"
-    class="ml-auto"
-    bind:checked
-    {onCheckedChange}
-  />
+  <Switch {id} class="ml-auto" bind:checked {onCheckedChange} />
 </div>
