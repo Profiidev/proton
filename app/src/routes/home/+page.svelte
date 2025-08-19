@@ -9,6 +9,7 @@
   } from '$lib/tauri/home.svelte';
   import { profile_launch } from '$lib/tauri/profile.svelte';
   import { compareProfiles } from '$lib/util.svelte';
+  import { FastForward } from '@lucide/svelte';
   import { Separator } from 'positron-components/components/ui';
 
   let favorites = $derived(profile_favorites_list.value);
@@ -32,7 +33,9 @@
       {#each sorted_favorites as favorite}
         <ProfileListButton
           onclick={() =>
-            goto(`/profiles/info/quick_play?id=${favorite.profile.id}`)}
+            goto(
+              `/profiles/info/quick_play/${favorite.quick_play?.type.toLocaleLowerCase() ?? 'singleplayer'}?id=${favorite.profile.id}`
+            )}
           onclickInner={() => {
             profile_launch(
               favorite.profile.id,
@@ -44,6 +47,7 @@
           item={favorite.profile}
           text={favorite.quick_play &&
             favorite.quick_play.name + ' (' + favorite.profile.name + ')'}
+          textIcon={favorite.quick_play ? FastForward : undefined}
         />
       {/each}
     </div>
@@ -65,7 +69,9 @@
       {#each sorted_history as item}
         <ProfileListButton
           onclick={() =>
-            goto(`/profiles/info/quick_play?id=${item.profile.id}`)}
+            goto(
+              `/profiles/info/quick_play/${item.quick_play?.type.toLocaleLowerCase() ?? 'singleplayer'}?id=${item.profile.id}`
+            )}
           onclickInner={() => {
             profile_launch(
               item.profile.id,
@@ -77,6 +83,7 @@
           item={item.profile}
           text={item.quick_play &&
             item.quick_play.name + ' (' + item.profile.name + ')'}
+          textIcon={item.quick_play ? FastForward : undefined}
         />
       {/each}
     </div>
