@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Result, Url};
+use sysinfo::System;
+use tauri::{AppHandle, Result, State, Url};
 
 use crate::{
   profiles::config::{GameSettings, JvmSettings},
@@ -9,8 +10,23 @@ use crate::{
 
 const SETTINGS_KEY: &str = "settings";
 
+pub struct MaxMem {
+  max_mem: u64,
+}
+
+impl MaxMem {
+  pub fn new() -> Self {
+    let system = System::new_all();
+    let bytes = system.total_memory();
+    let mb = bytes / 1024 / 1024;
+    MaxMem { max_mem: mb }
+  }
+}
+
 #[derive(Serialize, Deserialize, Default)]
 pub struct Settings {
+  #[serde(default)]
+  system_max_mem: u64,
   sidebar_width: Option<f32>,
   url: Option<Url>,
   #[serde(default)]
@@ -37,9 +53,11 @@ impl SettingsExt for AppHandle {
 }
 
 #[tauri::command]
-pub async fn settings_get(app_handle: AppHandle) -> Result<Settings> {
+pub async fn settings_get(app_handle: AppHandle, state: State<'_, MaxMem>) -> Result<Settings> {
   let store = app_handle.app_store()?;
-  Ok(store.get_or_default(SETTINGS_KEY)?)
+  let mut settings: Settings = store.get_or_default(SETTINGS_KEY)?;
+  settings.system_max_mem = state.max_mem;
+  Ok(settings)
 }
 
 #[tauri::command]

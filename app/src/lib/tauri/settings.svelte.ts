@@ -4,6 +4,7 @@ import { RequestError } from 'positron-components/backend';
 import type { GameSettings, JvmSettings } from './profile.svelte';
 
 export interface Settings {
+  system_max_mem?: number; // in MB
   sidebar_width?: number;
   url?: URL;
   minecraft: MinecraftSettings;

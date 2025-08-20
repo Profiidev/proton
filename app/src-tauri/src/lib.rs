@@ -30,6 +30,7 @@ use versions::{
 
 use crate::{
   offline::{MANIFEST_REFRESH_ERROR, OfflineState, is_offline, try_reconnect},
+  settings::MaxMem,
   utils::{log::ResultLogExt, updater::default_client},
   versions::{loader::LoaderType, paths::MCVersionPath},
 };
@@ -136,6 +137,7 @@ pub fn run() {
 
       let handle = app.handle().clone();
       app.manage(tauri::async_runtime::spawn(async move {
+        handle.manage(MaxMem::new());
         if let Err(err) = async_online_check(&handle).await.log() {
           log::error!("Error: {err}");
           let _ = handle.emit(MANIFEST_REFRESH_ERROR, ()).log();
