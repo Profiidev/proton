@@ -9,6 +9,7 @@
     onCheckedChange: (value: boolean) => void;
     tooltip: string;
     class?: string;
+    disabled?: boolean;
   }
 
   let {
@@ -17,7 +18,8 @@
     checked = $bindable(false),
     onCheckedChange,
     tooltip,
-    class: className
+    class: className,
+    disabled
   }: Props = $props();
 </script>
 
@@ -25,7 +27,9 @@
   <Tooltip.Provider>
     <Tooltip.Root>
       <Tooltip.Trigger>
-        <Label for={id}>{label}</Label>
+        <Label for={id} class={cn(disabled && 'text-muted-foreground')}
+          >{label}</Label
+        >
       </Tooltip.Trigger>
       <Tooltip.Content side="right">
         <p>
@@ -34,5 +38,5 @@
       </Tooltip.Content>
     </Tooltip.Root>
   </Tooltip.Provider>
-  <Switch {id} class="ml-auto" bind:checked {onCheckedChange} />
+  <Switch {id} class="ml-auto" bind:checked {onCheckedChange} {disabled} />
 </div>
