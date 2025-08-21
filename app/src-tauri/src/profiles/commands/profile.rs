@@ -64,6 +64,10 @@ pub async fn profile_update(
   current_profile.name = profile.name;
   current_profile.version = profile.version;
   current_profile.loader_version = profile.loader_version;
+  current_profile.use_local_game = profile.use_local_game;
+  current_profile.game = profile.game;
+  current_profile.use_local_jvm = profile.use_local_jvm;
+  current_profile.jvm = profile.jvm;
 
   current_profile.update(store.data_dir()).await.log()?;
   store.update_data(UpdateType::Profiles);

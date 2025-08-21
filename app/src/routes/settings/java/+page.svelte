@@ -30,7 +30,7 @@
 </script>
 
 <div class="mt-2 ml-4 flex flex-1 flex-col">
-  <div class="flex items-center">
+  <div class="flex items-center mb-2">
     <p class="text-xl">Java</p>
   </div>
   <JavaSettings

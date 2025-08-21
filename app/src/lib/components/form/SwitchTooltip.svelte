@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { cn } from 'positron-components/utils';
   import { Label, Switch, Tooltip } from 'positron-components/components/ui';
 
   interface Props {
@@ -7,6 +8,7 @@
     checked: boolean;
     onCheckedChange: (value: boolean) => void;
     tooltip: string;
+    class?: string;
   }
 
   let {
@@ -14,11 +16,12 @@
     label,
     checked = $bindable(false),
     onCheckedChange,
-    tooltip
+    tooltip,
+    class: className
   }: Props = $props();
 </script>
 
-<div class="flex items-center">
+<div class={cn('flex items-center', className)}>
   <Tooltip.Provider>
     <Tooltip.Root>
       <Tooltip.Trigger>

@@ -56,6 +56,8 @@
       >
     </Tabs.List>
 
-    {@render children()}
+    <div class="mx-2">
+      {@render children()}
+    </div>
   </Tabs.Root>
 </div>

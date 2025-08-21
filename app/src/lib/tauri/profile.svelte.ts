@@ -25,14 +25,16 @@ export interface Profile {
   game?: GameSettings;
   use_local_jvm: boolean;
   jvm?: JvmSettings;
-  use_local_dev: boolean;
-  dev?: DevSettings;
 }
 
 export interface ProfileUpdate {
   id: string;
   name: string;
   version: string;
+  use_local_game: boolean;
+  game?: GameSettings;
+  use_local_jvm: boolean;
+  jvm?: JvmSettings;
 }
 
 export interface GameSettings {

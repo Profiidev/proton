@@ -9,14 +9,16 @@
   } from 'positron-components/components/ui';
   import type { JvmSettings } from '$lib/tauri/profile.svelte';
   import { Plus, Trash } from '@lucide/svelte';
+  import { cn } from 'positron-components/utils';
 
   interface Props {
     settings?: JvmSettings;
     maxMem: number;
     updateSettings: (settings: JvmSettings) => Promise<void>;
+    disabled?: boolean;
   }
 
-  let { settings, updateSettings, maxMem }: Props = $props();
+  let { settings, updateSettings, maxMem, disabled }: Props = $props();
 
   let newKey = $state('');
   let newValue = $state('');
@@ -42,11 +44,14 @@
   };
 </script>
 
-<div class="mt-4 mr-4 mb-4 flex min-h-0 flex-grow-1 flex-col gap-4">
+<div class="mr-4 mb-4 flex min-h-0 flex-grow-1 flex-col gap-4">
   {#if settings}
     <div class="flex items-center gap-2">
-      <Label for="jvm-memory-slider" class="whitespace-nowrap"
-        >Java Memory Limit</Label
+      <Label
+        for="jvm-memory-slider"
+        class={cn('whitespace-nowrap', disabled && 'text-muted-foreground')}
+      >
+        Java Memory Limit</Label
       >
       <Input
         id="jvm-memory-slider"
@@ -62,8 +67,16 @@
             saveJavaSettings({ mem_max: value });
           }
         }}
+        {disabled}
       />
-      <p class="text-sm whitespace-nowrap">MB</p>
+      <p
+        class={cn(
+          'text-sm whitespace-nowrap',
+          disabled && 'text-muted-foreground'
+        )}
+      >
+        MB
+      </p>
       <Slider
         type="single"
         id="jvm-memory-slider"
@@ -76,9 +89,14 @@
           if (value === settings.mem_max) return;
           saveJavaSettings({ mem_max: value });
         }}
+        {disabled}
       />
     </div>
-    <Label for="jvm-args" class="whitespace-nowrap">Java Arguments</Label>
+    <Label
+      for="jvm-args"
+      class={cn('whitespace-nowrap', disabled && 'text-muted-foreground')}
+      >Java Arguments</Label
+    >
     <Input
       id="jvm-args"
       type="text"
@@ -93,8 +111,13 @@
           saveJavaSettings({ args: value });
         }
       }}
+      {disabled}
     />
-    <Label for="jvm-env" class="whitespace-nowrap">Environment Variables</Label>
+    <Label
+      for="jvm-env"
+      class={cn('whitespace-nowrap', disabled && 'text-muted-foreground')}
+      >Environment Variables</Label
+    >
     {#if Object.keys(settings.env_vars).length === 0}
       <p class="text-muted-foreground text-sm">No environment variables set</p>
     {:else}
@@ -118,6 +141,7 @@
                     saveJavaSettings({ env_vars: newEnv });
                   }
                 }}
+                {disabled}
               />
               <Input
                 type="text"
@@ -137,6 +161,7 @@
                     saveJavaSettings({ env_vars: newEnv });
                   }
                 }}
+                {disabled}
               />
               <Button
                 size="icon"
@@ -148,6 +173,7 @@
                   delete newEnv[key];
                   saveJavaSettings({ env_vars: newEnv });
                 }}
+                {disabled}
               >
                 <Trash />
               </Button>
@@ -157,8 +183,18 @@
       </ScrollArea.ScrollArea>
     {/if}
     <div class="flex items-center gap-2">
-      <Input type="text" placeholder="e.g NEW_VAR" bind:value={newKey} />
-      <Input type="text" placeholder="e.g 123" bind:value={newValue} />
+      <Input
+        type="text"
+        placeholder="e.g NEW_VAR"
+        bind:value={newKey}
+        {disabled}
+      />
+      <Input
+        type="text"
+        placeholder="e.g 123"
+        bind:value={newValue}
+        {disabled}
+      />
       <Button
         size="icon"
         onclick={() => {
@@ -173,6 +209,7 @@
           newKey = '';
           newValue = '';
         }}
+        {disabled}
       >
         <Plus />
       </Button>

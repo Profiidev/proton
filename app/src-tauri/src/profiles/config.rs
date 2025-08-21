@@ -85,6 +85,10 @@ pub struct ProfileUpdate {
   pub name: String,
   pub version: String,
   pub loader_version: Option<String>,
+  pub use_local_game: bool,
+  pub game: Option<GameSettings>,
+  pub use_local_jvm: bool,
+  pub jvm: Option<JvmSettings>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
