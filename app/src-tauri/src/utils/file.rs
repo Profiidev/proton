@@ -4,6 +4,7 @@ use std::{
 };
 
 use anyhow::Result;
+use chrono::{DateTime, Duration, Utc};
 use log::debug;
 use reqwest::Client;
 use serde::{Serialize, de::DeserializeOwned};
@@ -165,4 +166,15 @@ pub async fn download_and_parse_file<R: DeserializeOwned>(
 ) -> Result<R> {
   let data = download_file(client, path, url, hash).await?;
   Ok(serde_json::from_slice(&data)?)
+}
+
+pub async fn last_modified_ago(path: &PathBuf) -> Result<Option<Duration>> {
+  if !path.exists() {
+    return Ok(None);
+  }
+  let metadata = fs::metadata(path).await?;
+  let sys_time = metadata.modified()?;
+  let time: DateTime<Utc> = sys_time.into();
+
+  Ok(Some(Utc::now() - time))
 }

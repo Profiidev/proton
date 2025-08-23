@@ -1,8 +1,10 @@
 use std::{io::Cursor, path::PathBuf};
 
 use anyhow::Result;
-use chrono::{DateTime, Utc};
+use base64::prelude::*;
+use chrono::{DateTime, Duration, Utc};
 use image::{ImageFormat, imageops::FilterType};
+use log::debug;
 use tauri::{AppHandle, Manager};
 use tokio::fs;
 use uuid::Uuid;
@@ -16,13 +18,18 @@ use crate::{
   },
   utils::{
     dir::list_dirs_in_dir,
-    file::{read_parse_file, write_file},
+    file::{bytes_hash, last_modified_ago, read_parse_file, write_file},
   },
   versions::{
     loader::LoaderType,
     paths::{MCVersionPath, QUICK_PLAY},
   },
 };
+
+const DEFAULT_ICON: &[u8] = include_bytes!("../../assets/default_icon.png");
+const ICON_FILE: &str = "icon.png";
+const ICON_BASE_URL: &str = "https://api.mcstatus.io/v2/icon";
+const SERVER_ICON_DIR: &str = "server_icons";
 
 impl Profile {
   pub fn relative_to_data(&self) -> PathBuf {
@@ -178,6 +185,59 @@ impl Profile {
     }
 
     Ok(())
+  }
+
+  pub async fn quick_play_icon(
+    &self,
+    data_dir: &PathBuf,
+    quick_play: &QuickPlayInfo,
+  ) -> Result<String> {
+    match quick_play.r#type {
+      QuickPlayType::Singleplayer => {
+        let icon_path = path!(data_dir, self.relative_to_data(), &quick_play.id, ICON_FILE);
+
+        if icon_path.exists() {
+          let icon = fs::read(icon_path).await?;
+          return Ok(BASE64_STANDARD.encode(icon));
+        }
+      }
+      QuickPlayType::Multiplayer => {
+        let dir = path!(data_dir, self.relative_to_data(), SERVER_ICON_DIR);
+        if !dir.exists() {
+          fs::create_dir_all(&dir).await?;
+        }
+        let icon_hash = bytes_hash(quick_play.id.as_bytes())?;
+        let icon_path = path!(dir, format!("{}.png", icon_hash));
+
+        // if the icon was fetched less than an hour ago, use the cached version
+        if let Ok(Some(duration)) = last_modified_ago(&icon_path).await
+          && duration < Duration::hours(1)
+        {
+          debug!("Using cached server icon for {}", quick_play.id);
+          let icon = fs::read(icon_path).await?;
+          return Ok(BASE64_STANDARD.encode(icon));
+        }
+
+        debug!("Fetching server icon for {}", quick_play.id);
+        let url = format!("{}/{}", ICON_BASE_URL, quick_play.id);
+        if let Ok(resp) = reqwest::get(&url).await
+          && resp.status().is_success()
+          && let Ok(bytes) = resp.bytes().await
+        {
+          let icon = bytes.to_vec();
+          std::fs::write(&icon_path, &icon)?;
+          return Ok(BASE64_STANDARD.encode(icon));
+        }
+      }
+      _ => (),
+    }
+
+    debug!(
+      "Using default icon for {} type {:?}",
+      quick_play.id, quick_play.r#type
+    );
+
+    Ok(BASE64_STANDARD.encode(DEFAULT_ICON))
   }
 }
 

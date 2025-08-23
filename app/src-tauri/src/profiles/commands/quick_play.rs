@@ -3,6 +3,7 @@ use tauri::{Result, State};
 use tokio::sync::Mutex;
 
 use crate::{
+  offline::OfflineResultExt,
   profiles::{config::QuickPlayInfo, store::ProfileStore},
   utils::{log::ResultLogExt, updater::UpdateType},
 };
@@ -43,4 +44,28 @@ pub async fn profile_quick_play_remove(
   store.update_data(UpdateType::ProfileQuickPlay);
 
   Ok(())
+}
+
+#[tauri::command]
+pub async fn profile_quick_play_icon(
+  state: State<'_, Mutex<ProfileStore>>,
+  profile: &str,
+  quick_play: QuickPlayInfo,
+) -> Result<String> {
+  trace!("Command profile_quick_play_icon called with profile {profile} quick_play {quick_play:?}");
+  let store = state.lock().await;
+
+  let profile = store.profile(profile).await.log()?;
+  let handle = store.handle().clone();
+  let data_dir = store.data_dir().clone();
+
+  drop(store);
+
+  let icon = profile
+    .quick_play_icon(&data_dir, &quick_play)
+    .await
+    .check_online_state(&handle)
+    .await?;
+
+  Ok(icon)
 }
