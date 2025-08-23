@@ -33,8 +33,6 @@ pub struct Profile {
   pub game: Option<GameSettings>,
   pub use_local_jvm: bool,
   pub jvm: Option<JvmSettings>,
-  pub use_local_dev: bool,
-  pub dev: Option<DevSettings>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -87,26 +85,45 @@ pub struct ProfileUpdate {
   pub name: String,
   pub version: String,
   pub loader_version: Option<String>,
+  pub use_local_game: bool,
+  pub game: Option<GameSettings>,
+  pub use_local_jvm: bool,
+  pub jvm: Option<JvmSettings>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GameSettings {
+  pub use_custom: bool,
   pub width: usize,
   pub height: usize,
+}
+
+impl Default for GameSettings {
+  fn default() -> Self {
+    Self {
+      use_custom: false,
+      width: 854,
+      height: 480,
+    }
+  }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JvmSettings {
   pub args: Vec<String>,
   pub env_vars: HashMap<String, String>,
-  pub mem_min: usize,
+  // in megabytes
   pub mem_max: usize,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct DevSettings {
-  pub show_console: bool,
-  pub keep_console_open: bool,
+impl Default for JvmSettings {
+  fn default() -> Self {
+    Self {
+      args: Vec::new(),
+      env_vars: HashMap::new(),
+      mem_max: 2 * 1024, // 2 GB
+    }
+  }
 }
 
 #[derive(Error, Debug)]

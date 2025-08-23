@@ -21,6 +21,10 @@
       title: 'Minecraft'
     },
     {
+      href: '/settings/java',
+      title: 'Java'
+    },
+    {
       href: '/settings/about',
       title: 'About'
     }

@@ -7,7 +7,7 @@
   } from '$lib/tauri/updater.svelte';
   import { LoaderCircle } from '@lucide/svelte';
   import { getVersion } from '@tauri-apps/api/app';
-  import { Button, toast } from 'positron-components';
+  import { Button, toast } from 'positron-components/components/ui';
 
   let offline = $derived(is_offline.value);
   let version = $state<string>();

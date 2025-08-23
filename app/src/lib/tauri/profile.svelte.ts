@@ -25,17 +25,20 @@ export interface Profile {
   game?: GameSettings;
   use_local_jvm: boolean;
   jvm?: JvmSettings;
-  use_local_dev: boolean;
-  dev?: DevSettings;
 }
 
 export interface ProfileUpdate {
   id: string;
   name: string;
   version: string;
+  use_local_game: boolean;
+  game?: GameSettings;
+  use_local_jvm: boolean;
+  jvm?: JvmSettings;
 }
 
 export interface GameSettings {
+  use_custom: boolean;
   width: number;
   height: number;
 }
@@ -43,7 +46,6 @@ export interface GameSettings {
 export interface JvmSettings {
   args: string[];
   env_vars: { [key: string]: string };
-  mem_min: number;
   mem_max: number;
 }
 

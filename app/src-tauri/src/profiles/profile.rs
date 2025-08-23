@@ -78,12 +78,10 @@ impl Profile {
       loader,
       loader_version,
       downloaded: false,
-      use_local_dev: false,
       use_local_game: false,
       use_local_jvm: false,
       game: None,
       jvm: None,
-      dev: None,
     };
 
     fs::create_dir_all(&path).await?;

@@ -34,18 +34,15 @@
 
           src = ./.;
 
-          npmDeps = pkgs.fetchNpmDeps {
-            #npmRoot = src;
-            inherit src;
-            #package = pkgs.lib.importJSON ./app/package.json;
-            hash = "sha256-IqjSZ23klD9R3y38P/nNQk9Faer+lacO1VbDMYnDZWk=";
+          npmDeps = pkgs.importNpmLock {
+            npmRoot = src;
           };
 
           nativeBuildInputs = with pkgs; [
             cargo-tauri.hook
             nodejs
             pkg-config
-            npmHooks.npmConfigHook
+            importNpmLock.npmConfigHook
             npmHooks.npmInstallHook
             cargo-tauri.hook
             wrapGAppsHook4

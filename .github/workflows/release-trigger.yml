@@ -26,6 +26,8 @@ jobs:
           echo "Bumping version to $NEW_VERSION"
           jq ".version = \"$NEW_VERSION\"" "$JSON_FILE" > $JSON_FILE.temp && mv $JSON_FILE.temp "$JSON_FILE"
           cat "$JSON_FILE"
+          # replace flake.nix version (version = "x.y.z";) with sed
+          sed -i "s/version = \".*\"/version = \"$NEW_VERSION\"/" flake.nix
 
       - name: Create PR
         uses: peter-evans/create-pull-request@v7

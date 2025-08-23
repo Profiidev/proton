@@ -1,4 +1,9 @@
-use std::{collections::HashSet, ffi::OsString, path::PathBuf, process::Stdio};
+use std::{
+  collections::{HashMap, HashSet},
+  ffi::OsString,
+  path::PathBuf,
+  process::Stdio,
+};
 
 use anyhow::Result;
 use log::debug;
@@ -6,6 +11,7 @@ use tokio::process::{Child, Command};
 
 use crate::{
   CLIENT_ID, path,
+  profiles::config::{GameSettings, JvmSettings},
   utils::file::read_parse_file,
   versions::{
     check_feature,
@@ -39,7 +45,8 @@ pub struct LaunchArgs {
   pub working_sub_dir: String,
   pub quick_play: Option<QuickPlay>,
   pub loader: Option<Box<dyn LoaderVersion>>,
-  pub custom_window_size: Option<(u32, u32)>,
+  pub game_settings: GameSettings,
+  pub jvm_settings: JvmSettings,
 }
 
 pub enum QuickPlay {
@@ -69,14 +76,6 @@ impl LaunchArgs {
     }
 
     let mc_path = MCPath::new(&self.data_dir);
-
-    let arg = if let Some((width, height)) = self.custom_window_size {
-      arg
-        .replace("${resolution_width}", &width.to_string())
-        .replace("${resolution_height}", &height.to_string())
-    } else {
-      arg.to_string()
-    };
 
     arg
       .replace("${clientid}", CLIENT_ID)
@@ -122,6 +121,11 @@ impl LaunchArgs {
       )
       .replace("${classpath_separator}", SEPARATOR)
       .replace("${user_properties}", "{}")
+      .replace("${resolution_width}", &self.game_settings.width.to_string())
+      .replace(
+        "${resolution_height}",
+        &self.game_settings.height.to_string(),
+      )
   }
 
   async fn classpath(
@@ -155,6 +159,7 @@ pub async fn launch_minecraft_version(args: &LaunchArgs) -> Result<Child> {
 
   let mut jvm_args = jvm_args(args, &version, &classpath);
   let mut game_args = game_args(args, &version, &classpath);
+  let mut env_vars = HashMap::new();
 
   if let Some(loader) = &args.loader {
     debug!("Adding loader arguments to JVM args");
@@ -176,6 +181,11 @@ pub async fn launch_minecraft_version(args: &LaunchArgs) -> Result<Child> {
     }
   }
 
+  // custom jvm settings
+  jvm_args.push(format!("-Xmx{}M", args.jvm_settings.mem_max));
+  jvm_args.extend(args.jvm_settings.args.clone());
+  env_vars.extend(args.jvm_settings.env_vars.clone());
+
   let main_class = if let Some(loader) = &args.loader {
     loader.main_class(&version_path).await?
   } else {
@@ -194,6 +204,7 @@ pub async fn launch_minecraft_version(args: &LaunchArgs) -> Result<Child> {
     .stdout(Stdio::piped())
     .stderr(Stdio::piped())
     .current_dir(game_path)
+    .envs(env_vars)
     .args(jvm_args)
     .arg(main_class)
     .args(game_args);
@@ -224,7 +235,7 @@ fn game_args(args: &LaunchArgs, version: &Version, classpath: &str) -> Vec<Strin
 
   let mut features = Features {
     has_quick_plays_support: Some(true),
-    has_custom_resolution: Some(args.custom_window_size.is_some()),
+    has_custom_resolution: Some(args.game_settings.use_custom),
     ..Default::default()
   };
 
