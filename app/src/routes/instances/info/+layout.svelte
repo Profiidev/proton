@@ -36,7 +36,7 @@
   <div class="flex h-full flex-col">
     <div class="mt-2 ml-2 flex">
       <ProfileIcon
-        id={instance.id}
+        id={instance.profile_id}
         class="size-24 border-2"
         classFallback="size-20"
       />
@@ -46,7 +46,7 @@
           <Button
             variant="outline"
             onclick={() =>
-              goto(`/profiles/info/quick_play?id=${instance.profile_id}`)}
+              goto(`/profiles/info/instances?id=${instance.profile_id}`)}
             class="inline-flex cursor-pointer text-xl"
           >
             {instance.profile_name}

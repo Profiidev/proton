@@ -58,14 +58,16 @@
     />
   {/if}
   <div class="ml-2 flex min-w-0 flex-1 flex-col justify-start gap-2">
-    <p class="flex items-center gap-1 truncate text-start text-sm">
+    <div class="flex items-center gap-1">
       {#if innerIcon.textIcon}
         <innerIcon.textIcon />
       {/if}
-      {quick_play
-        ? quick_play.name + ' (' + item.name + ')'
-        : item.name || 'unknown'}
-    </p>
+      <p class="truncate text-sm">
+        {quick_play
+          ? quick_play.name + ' (' + item.name + ')'
+          : item.name || 'unknown'}
+      </p>
+    </div>
     <p class="text-muted-foreground truncate text-start text-sm">
       {item.loader + ' ' + item.version || 'unknown'}
     </p>
