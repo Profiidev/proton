@@ -2,7 +2,6 @@
   import { Tabs } from 'positron-components/components/ui';
   import { getProfile } from '../store.svelte';
   import { goto } from '$app/navigation';
-  import { onMount } from 'svelte';
   import { page } from '$app/state';
 
   let { children } = $props();
@@ -10,7 +9,7 @@
   let profile = $derived(getProfile());
   let value = $state('general');
 
-  onMount(() => {
+  $effect(() => {
     let route = page.url.pathname;
     if (route.includes('/settings/general')) {
       value = 'general';
@@ -20,15 +19,6 @@
       value = 'java';
     } else {
       value = 'general';
-    }
-  });
-
-  $effect(() => {
-    if (
-      page.url.pathname.includes('/settings') &&
-      !page.url.pathname.includes(value)
-    ) {
-      goto(`/profiles/info/settings/${value}?id=${profile?.id}`);
     }
   });
 </script>
