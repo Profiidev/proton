@@ -18,18 +18,20 @@
     level: string;
     location: string;
     message: string;
+    subLocation?: string;
   }
 
   const parseLine = (line: string): LogEntry => {
     //format: [timestamp] [level] message
-    const match = line.match(/^\[(.+?)\] \[(.+?)\/(.+?)\]: (.+)$/);
+    const match = line.match(/^\[(.+?)\] \[(.+?)\/(.+?)\]( \[(.+?)\])?: (.+)$/);
     if (match) {
-      const [, time, location, level, message] = match;
+      const [, time, location, level, , subLocation, message] = match;
       return {
         time,
         level,
         message,
-        location
+        location,
+        subLocation
       };
     }
     return {
@@ -55,6 +57,7 @@
     new Fuse(parsedLogs, {
       keys: [
         { name: 'location', weight: 0.5 },
+        { name: 'subLocation', weight: 0.5 },
         { name: 'message', weight: 1 }
       ],
       useExtendedSearch: true,
@@ -129,7 +132,11 @@
           <p>
             <span class="text-muted-foreground">{log.time}</span>
             <span class={levelColors[log.level]}>{log.level}</span>
-            <span class="text-muted-foreground">{log.location}</span>
+            <span class="text-muted-foreground"
+              >{log.location}{log.subLocation
+                ? ` (${log.subLocation})`
+                : ''}</span
+            >
             <span>: {log.message}</span>
           </p>
         {/each}
