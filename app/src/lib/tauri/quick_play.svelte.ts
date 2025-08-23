@@ -39,3 +39,15 @@ export const profile_quick_play_remove = async (
     return parseError(e);
   }
 };
+
+export const profile_quick_play_icon = async (
+  profile: string,
+  quickPlay: QuickPlayInfo
+): Promise<string | undefined> => {
+  try {
+    return await invoke('profile_quick_play_icon', {
+      profile,
+      quickPlay
+    });
+  } catch (e) {}
+};

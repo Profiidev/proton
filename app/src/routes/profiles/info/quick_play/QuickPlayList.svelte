@@ -1,9 +1,11 @@
 <script lang="ts">
   import {
+    profile_quick_play_icon,
     profile_quick_play_remove,
     type QuickPlayInfo
   } from '$lib/tauri/quick_play.svelte';
   import {
+    Avatar,
     Button,
     Dialog,
     Separator,
@@ -11,7 +13,7 @@
   } from 'positron-components/components/ui';
   import { getProfile } from '../store.svelte';
   import { DateTime } from 'positron-components/util';
-  import { Play, Star, Trash } from '@lucide/svelte';
+  import { Box, Play, Star, Trash } from '@lucide/svelte';
   import { account_active } from '$lib/tauri/account.svelte';
   import { profile_launch } from '$lib/tauri/profile.svelte';
   import { profile_favorites_set } from '$lib/tauri/home.svelte';
@@ -36,9 +38,23 @@
   {#if list && list.length > 0}
     {#each list as item}
       <Button variant="outline" class="h-fit w-full p-2">
-        <div class="ml-2 flex flex-col items-start">
-          <p class="text-base">{item.name}</p>
-          <p class="text-muted-foreground">{item.id}</p>
+        <Avatar.Root class="size-12 rounded-md">
+          {#await profile_quick_play_icon(profile!.id, item)}
+            <div class="flex size-full items-center justify-center">
+              <Box class="size-10" />
+            </div>
+          {:then icon}
+            <Avatar.Image
+              class="object-cover"
+              src={`data:image/png;base64, ${icon}`}
+            />
+          {/await}
+        </Avatar.Root>
+        <div class="ml-2 flex w-32 flex-col items-start">
+          <p class="w-full truncate text-left text-base">{item.name}</p>
+          <p class="text-muted-foreground w-full truncate text-left">
+            {item.id}
+          </p>
         </div>
         <Separator orientation="vertical" class="mx-1 h-8!" />
         <p class="text-muted-foreground">
