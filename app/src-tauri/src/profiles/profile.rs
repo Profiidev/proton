@@ -194,7 +194,13 @@ impl Profile {
   ) -> Result<String> {
     match quick_play.r#type {
       QuickPlayType::Singleplayer => {
-        let icon_path = path!(data_dir, self.relative_to_data(), &quick_play.id, ICON_FILE);
+        let icon_path = path!(
+          data_dir,
+          self.relative_to_data(),
+          SAVES_DIR,
+          &quick_play.id,
+          ICON_FILE
+        );
 
         if icon_path.exists() {
           let icon = fs::read(icon_path).await?;
