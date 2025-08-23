@@ -51,7 +51,7 @@ pub async fn profile_quick_play_icon(
   state: State<'_, Mutex<ProfileStore>>,
   profile: &str,
   quick_play: QuickPlayInfo,
-) -> Result<String> {
+) -> Result<Option<String>> {
   trace!("Command profile_quick_play_icon called with profile {profile} quick_play {quick_play:?}");
   let store = state.lock().await;
 

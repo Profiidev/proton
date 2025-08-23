@@ -45,8 +45,7 @@
             );
           }}
           item={favorite.profile}
-          text={favorite.quick_play &&
-            favorite.quick_play.name + ' (' + favorite.profile.name + ')'}
+          quick_play={favorite.quick_play}
           textIcon={favorite.quick_play ? FastForward : undefined}
         />
       {/each}
@@ -81,8 +80,7 @@
             );
           }}
           item={item.profile}
-          text={item.quick_play &&
-            item.quick_play.name + ' (' + item.profile.name + ')'}
+          quick_play={item.quick_play}
           textIcon={item.quick_play ? FastForward : undefined}
         />
       {/each}

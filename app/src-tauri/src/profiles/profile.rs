@@ -191,7 +191,7 @@ impl Profile {
     &self,
     data_dir: &PathBuf,
     quick_play: &QuickPlayInfo,
-  ) -> Result<String> {
+  ) -> Result<Option<String>> {
     match quick_play.r#type {
       QuickPlayType::Singleplayer => {
         let icon_path = path!(
@@ -204,7 +204,7 @@ impl Profile {
 
         if icon_path.exists() {
           let icon = fs::read(icon_path).await?;
-          return Ok(BASE64_STANDARD.encode(icon));
+          return Ok(Some(BASE64_STANDARD.encode(icon)));
         }
       }
       QuickPlayType::Multiplayer => {
@@ -220,8 +220,10 @@ impl Profile {
           && duration < Duration::hours(1)
         {
           debug!("Using cached server icon for {}", quick_play.id);
-          let icon = fs::read(icon_path).await?;
-          return Ok(BASE64_STANDARD.encode(icon));
+          let icon = fs::read(&icon_path).await?;
+          if icon != DEFAULT_ICON {
+            return Ok(Some(BASE64_STANDARD.encode(icon)));
+          }
         }
 
         debug!("Fetching server icon for {}", quick_play.id);
@@ -232,18 +234,20 @@ impl Profile {
         {
           let icon = bytes.to_vec();
           std::fs::write(&icon_path, &icon)?;
-          return Ok(BASE64_STANDARD.encode(icon));
+          if icon != DEFAULT_ICON {
+            return Ok(Some(BASE64_STANDARD.encode(icon)));
+          }
         }
       }
       _ => (),
     }
 
     debug!(
-      "Using default icon for {} type {:?}",
+      "No icon found for {} type {:?}",
       quick_play.id, quick_play.r#type
     );
 
-    Ok(BASE64_STANDARD.encode(DEFAULT_ICON))
+    Ok(None)
   }
 }
 

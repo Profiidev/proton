@@ -1,11 +1,9 @@
 <script lang="ts">
   import {
-    profile_quick_play_icon,
     profile_quick_play_remove,
     type QuickPlayInfo
   } from '$lib/tauri/quick_play.svelte';
   import {
-    Avatar,
     Button,
     Dialog,
     Separator,
@@ -13,10 +11,11 @@
   } from 'positron-components/components/ui';
   import { getProfile } from '../store.svelte';
   import { DateTime } from 'positron-components/util';
-  import { Box, Play, Star, Trash } from '@lucide/svelte';
+  import { Play, Star, Trash } from '@lucide/svelte';
   import { account_active } from '$lib/tauri/account.svelte';
   import { profile_launch } from '$lib/tauri/profile.svelte';
   import { profile_favorites_set } from '$lib/tauri/home.svelte';
+  import QuickPlayIcon from '$lib/components/profile/QuickPlayIcon.svelte';
 
   interface Props {
     list: QuickPlayInfo[] | undefined;
@@ -38,19 +37,8 @@
   {#if list && list.length > 0}
     {#each list as item}
       <Button variant="outline" class="h-fit w-full p-2">
-        <Avatar.Root class="size-12 rounded-md">
-          {#await profile_quick_play_icon(profile!.id, item)}
-            <div class="flex size-full items-center justify-center">
-              <Box class="size-10" />
-            </div>
-          {:then icon}
-            <Avatar.Image
-              class="object-cover"
-              src={`data:image/png;base64, ${icon}`}
-            />
-          {/await}
-        </Avatar.Root>
-        <div class="ml-2 flex w-32 flex-col items-start">
+        <QuickPlayIcon profileId={profile!.id} quickPlay={item} />
+        <div class="ml-1 flex w-32 flex-col items-start">
           <p class="w-full truncate text-left text-base">{item.name}</p>
           <p class="text-muted-foreground w-full truncate text-left">
             {item.id}
