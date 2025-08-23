@@ -15,6 +15,7 @@
   import { account_active } from '$lib/tauri/account.svelte';
   import { profile_launch } from '$lib/tauri/profile.svelte';
   import { profile_favorites_set } from '$lib/tauri/home.svelte';
+  import QuickPlayIcon from '$lib/components/profile/QuickPlayIcon.svelte';
 
   interface Props {
     list: QuickPlayInfo[] | undefined;
@@ -36,9 +37,12 @@
   {#if list && list.length > 0}
     {#each list as item}
       <Button variant="outline" class="h-fit w-full p-2">
-        <div class="ml-2 flex flex-col items-start">
-          <p class="text-base">{item.name}</p>
-          <p class="text-muted-foreground">{item.id}</p>
+        <QuickPlayIcon profileId={profile!.id} quickPlay={item} />
+        <div class="ml-1 flex w-32 flex-col items-start">
+          <p class="w-full truncate text-left text-base">{item.name}</p>
+          <p class="text-muted-foreground w-full truncate text-left">
+            {item.id}
+          </p>
         </div>
         <Separator orientation="vertical" class="mx-1 h-8!" />
         <p class="text-muted-foreground">

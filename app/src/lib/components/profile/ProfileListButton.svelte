@@ -6,6 +6,8 @@
   import type { Component } from 'svelte';
   import ProfileIcon from './ProfileIcon.svelte';
   import { CirclePlay } from '@lucide/svelte';
+  import type { QuickPlayInfo } from '$lib/tauri/quick_play.svelte';
+  import QuickPlayIcon from './QuickPlayIcon.svelte';
 
   interface Props {
     onclick: () => void;
@@ -18,16 +20,25 @@
       loader: string;
       version?: string;
     };
-    text?: string;
+    quick_play?: QuickPlayInfo;
     textIcon?: Component;
   }
 
-  let { onclick, onclickInner, item, text, innerVariant, ...restProps }: Props =
-    $props();
+  let {
+    onclick,
+    onclickInner,
+    item,
+    quick_play,
+    innerVariant,
+    ...restProps
+  }: Props = $props();
+
   let innerIcon = $derived({
     icon: restProps.innerIcon || CirclePlay,
     textIcon: restProps.textIcon
   });
+
+  let quickPlayIconExists = $state(false);
 </script>
 
 <Button
@@ -35,14 +46,28 @@
   class="group relative flex h-16 w-full max-w-86 cursor-pointer flex-row justify-start p-2"
   {onclick}
 >
-  <ProfileIcon id={item.id} />
+  {#if !quickPlayIconExists}
+    <ProfileIcon id={item.id} />
+  {/if}
+  {#if quick_play}
+    <QuickPlayIcon
+      profileId={item.id}
+      quickPlay={quick_play}
+      bind:iconExists={quickPlayIconExists}
+      noFallback
+    />
+  {/if}
   <div class="ml-2 flex min-w-0 flex-1 flex-col justify-start gap-2">
-    <p class="flex items-center gap-1 truncate text-start text-sm">
+    <div class="flex items-center gap-1">
       {#if innerIcon.textIcon}
         <innerIcon.textIcon />
       {/if}
-      {text ? text : item.name || 'unknown'}
-    </p>
+      <p class="truncate text-sm">
+        {quick_play
+          ? quick_play.name + ' (' + item.name + ')'
+          : item.name || 'unknown'}
+      </p>
+    </div>
     <p class="text-muted-foreground truncate text-start text-sm">
       {item.loader + ' ' + item.version || 'unknown'}
     </p>

@@ -137,6 +137,7 @@
             }}
             item={{
               ...instance,
+              id: instance.profile_id,
               name: instance.profile_name
             }}
             innerIcon={CircleStop}
