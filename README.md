@@ -42,13 +42,13 @@ A modern, fast, and feature-rich Minecraft launcher built with Tauri, Rust, and 
 
 ### Windows
 
-1. Download the latest `-setup.exe` installer from the [Releases](https://github.com/ProfiiDev/proton/releases/latest) page
+1. Download the latest `*-setup.exe` installer from the [Releases](https://github.com/ProfiiDev/proton/releases/latest) page
 2. Run the installer and follow the setup wizard
 3. Launch Proton from the Start Menu or desktop shortcut
 
 ### macOS
 
-1. Download the `.dmg` file from the [Releases](https://github.com/ProfiiDev/proton/releases/latest) page
+1. Download the `*.dmg` file from the [Releases](https://github.com/ProfiiDev/proton/releases/latest) page
 2. Open the DMG and drag Proton to your Applications folder
 3. Launch from Applications (you may need to allow the app in System Preferences > Security)
 
@@ -56,9 +56,9 @@ A modern, fast, and feature-rich Minecraft launcher built with Tauri, Rust, and 
 
 #### AppImage (Universal)
 
-1. Download the `.AppImage` from the [Releases](https://github.com/ProfiiDev/proton/releases/latest) page
-2. Make it executable: `chmod +x proton.AppImage`
-3. Run: `./proton.AppImage`
+1. Download the `*.AppImage` from the [Releases](https://github.com/ProfiiDev/proton/releases/latest) page
+2. Make it executable: `chmod +x *.AppImage`
+3. Run: `./*.AppImage`
 
 #### Debian/Ubuntu (.deb)
 
@@ -68,7 +68,7 @@ sudo dpkg -i proton_*.deb
 sudo apt-get install -f  # Fix any dependency issues
 ```
 
-### NixOS
+#### NixOS
 
 Proton includes full Nix Flake support for NixOS users:
 
