@@ -18,11 +18,7 @@
     previewSrc?: string;
   }
 
-  let {
-    formData: form,
-    key,
-    ...restProps
-  }: HTMLInputAttributes & Props = $props();
+  let { formData: form, key, ...restProps }: Props = $props();
 
   const { form: formData } = $derived(form);
 
