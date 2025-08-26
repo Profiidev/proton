@@ -2,7 +2,6 @@
   import { Upload } from '@lucide/svelte';
   import { cn } from 'positron-components/utils';
   import { Avatar, Input, Label } from 'positron-components/components/ui';
-  import type { HTMLInputAttributes } from 'svelte/elements';
   import type { Component } from 'svelte';
 
   interface Props {
@@ -22,9 +21,8 @@
     disabled,
     previewSrc,
     labelComp,
-    fileChange,
-    ...restProps
-  }: Props & HTMLInputAttributes = $props();
+    fileChange
+  }: Props = $props();
 
   let files = $state<FileList | undefined>();
   let src = $state('');
@@ -68,7 +66,6 @@
   </Avatar.Root>
 </label>
 <Input
-  {...restProps}
   id={key}
   type="file"
   bind:files

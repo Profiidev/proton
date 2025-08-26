@@ -4,7 +4,7 @@ import { z } from 'zod';
 export const profileCreateSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   version: z.array(z.string()).min(1, 'Version is required'),
-  loader: z.array(z.nativeEnum(LoaderType)).min(1, 'Loader is required'),
+  loader: z.array(z.enum(LoaderType)).min(1, 'Loader is required'),
   icon: z
     .instanceof(File, {
       message: 'Icon must be a file'
