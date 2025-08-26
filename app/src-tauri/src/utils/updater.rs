@@ -38,7 +38,6 @@ pub fn update_data(handle: &AppHandle, r#type: UpdateType) {
 pub fn default_client() -> Client {
   Client::builder()
     .connect_timeout(Duration::from_secs(10))
-    .timeout(Duration::from_secs(10))
     .build()
     .unwrap()
 }
