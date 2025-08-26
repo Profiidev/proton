@@ -28,7 +28,7 @@
     "skinview3d": "^3.4.1",
     "svelte-sonner": "^1.0.5",
     "sveltekit-superforms": "^2.27.1",
-    "zod": "4.1.1"
+    "zod": "4.0.10"
   },
   "devDependencies": {
     "@sveltejs/adapter-static": "^3.0.9",
