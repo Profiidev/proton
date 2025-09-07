@@ -31,34 +31,49 @@ let
     ## narrator
     flite
   ];
+
+  otherLibs = with pkgs; [
+    openssl
+    at-spi2-atk
+    atkmm
+    cairo
+    gdk-pixbuf
+    glib
+    gtk3
+    harfbuzz
+    librsvg
+    libsoup_3
+    pango
+    webkitgtk_4_1
+    wayland
+    libxkbcommon
+  ];
 in
 {
   packages =
     with pkgs;
     [
       pkg-config
-      openssl
-      systemd
-      at-spi2-atk
-      atkmm
-      cairo
-      gdk-pixbuf
-      glib
-      gtk3
-      harfbuzz
-      librsvg
-      libsoup_3
-      pango
-      webkitgtk_4_1
-      nodejs_22
-      wrapGAppsHook4
-      wayland
-      libxkbcommon
     ]
-    ++ mcLibs;
+    ++ mcLibs
+    ++ otherLibs;
+
+  languages = {
+    rust = {
+      enable = true;
+      channel = "stable";
+    };
+
+    javascript = {
+      enable = true;
+      npm = {
+        enable = true;
+      };
+    };
+  };
 
   env = {
     XDG_DATA_DIRS = "${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}:${pkgs.gtk3}/share/gsettings-schemas/${pkgs.gtk3.name}:$XDG_DATA_DIRS";
-    LD_LIBRARY_PATH = "${pkgs.wayland}/lib:${pkgs.libxkbcommon}/lib:${lib.makeLibraryPath mcLibs}:$LD_LIBRARY_PATH";
+    LD_LIBRARY_PATH = "${lib.makeLibraryPath mcLibs}:$LD_LIBRARY_PATH";
   };
 }
