@@ -5,7 +5,7 @@ use chrono::{DateTime, Duration, Utc};
 use log::debug;
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager, Url, UserAttentionType, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, Url, WebviewWindowBuilder};
 use thiserror::Error;
 use tokio::time::sleep;
 
@@ -253,7 +253,7 @@ pub async fn get_ms_token(client: &Client, handle: &AppHandle) -> Result<MsToken
     .center()
     .build()?;
 
-  window.request_user_attention(Some(UserAttentionType::Critical))?;
+  window.set_focus()?;
 
   while (Utc::now() - start) < Duration::minutes(10) {
     if window.title().is_err() {
@@ -267,6 +267,10 @@ pub async fn get_ms_token(client: &Client, handle: &AppHandle) -> Result<MsToken
       let code = url.query_pairs().find(|(key, _)| key == "code");
 
       window.close()?;
+      handle
+        .get_webview_window("main")
+        .ok_or(AuthError::Closed)?
+        .set_focus()?;
 
       let code = code.ok_or(AuthError::NoCode)?.1.to_string();
 

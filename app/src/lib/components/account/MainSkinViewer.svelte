@@ -102,6 +102,8 @@
             }
           }
         });
+      } else {
+        mainViewer.loadCape(null);
       }
     }
   });

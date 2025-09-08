@@ -51,7 +51,7 @@
     },
     {
       href: `/profiles/info/logs?id=${profile?.id}`,
-      title: 'Logs'
+      title: 'Old Logs'
     },
     {
       href: `/profiles/info/settings?id=${profile?.id}`,

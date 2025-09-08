@@ -12,11 +12,6 @@
   import AccountImage from './AccountImage.svelte';
   import { goto } from '$app/navigation';
 
-  interface Props {
-    collapsed: boolean;
-  }
-  let { collapsed }: Props = $props();
-
   let accounts: Accounts | undefined = $derived(account_list.value);
   let active: string | undefined = $derived(account_active.value);
   let open = $state(false);
@@ -29,8 +24,7 @@
     {#if active && accounts && accounts[active]}
       {@render account({
         info: accounts[active],
-        onclick: () => {},
-        collapsed
+        onclick: () => {}
       })}
     {:else}
       <Button
@@ -40,9 +34,7 @@
         <div class="flex size-10 min-w-10 items-center justify-center">
           <CircleHelp />
         </div>
-        {#if !collapsed}
-          <p class="truncate text-start text-sm">No account active</p>
-        {/if}
+        <p class="truncate text-start text-sm">No account active</p>
       </Button>
     {/if}
   </Popover.Trigger>
@@ -88,8 +80,7 @@
 
 {#snippet account({
   info,
-  onclick,
-  collapsed = false
+  onclick
 }: {
   info: ProfileInfo;
   onclick: () => void;
@@ -102,13 +93,11 @@
     {onclick}
   >
     <AccountImage {skin_url} />
-    {#if !collapsed}
-      <div class="flex min-w-0 flex-1 flex-col justify-start">
-        <p class="truncate text-start text-sm">{info.name}</p>
-        <p class="text-muted-foreground truncate text-start text-sm">
-          {info.id}
-        </p>
-      </div>
-    {/if}
+    <div class="flex min-w-0 flex-1 flex-col justify-start">
+      <p class="truncate text-start text-sm">{info.name}</p>
+      <p class="text-muted-foreground truncate text-start text-sm">
+        {info.id}
+      </p>
+    </div>
   </Button>
 {/snippet}

@@ -7,6 +7,7 @@
     account_get_cape,
     account_get_skin,
     account_list,
+    REMOVE_CAPE,
     State
   } from '$lib/tauri/account.svelte';
   import { is_offline } from '$lib/tauri/offline.svelte';
@@ -62,9 +63,7 @@
             <div class="grid w-full grid-cols-[repeat(auto-fill,9rem)] gap-3">
               {#each account[1].capes as cape}
                 {#await Promise.all( [account_get_cape(cape.url), account_get_skin(selected_skin.url)] )}
-                  <div class="flex h-55 w-37 items-center justify-center">
-                    <LoaderCircle class="size-10 animate-spin" />
-                  </div>
+                  {@render loader()}
                 {:then [cape_data, skin_data]}
                   {#if cape_data && skin_data}
                     <MiniSkinViewer
@@ -77,12 +76,26 @@
                       delete_disabled={true}
                     />
                   {:else}
-                    <div class="flex h-55 w-37 items-center justify-center">
-                      <LoaderCircle class="size-10 animate-spin" />
-                    </div>
+                    {@render loader()}
                   {/if}
                 {/await}
               {/each}
+              {#await account_get_skin(selected_skin.url)}
+                {@render loader()}
+              {:then skin_data}
+                {#if skin_data}
+                  <MiniSkinViewer
+                    id={REMOVE_CAPE}
+                    skin={skin_data.data}
+                    selected={!selected_cape}
+                    change_fn={change}
+                    flipped={true}
+                    delete_disabled={true}
+                  />
+                {:else}
+                  {@render loader()}
+                {/if}
+              {/await}
             </div>
           </ScrollArea.ScrollArea>
         </div>
@@ -94,3 +107,9 @@
     </div>
   </div>
 </div>
+
+{#snippet loader()}
+  <div class="flex h-55 w-37 items-center justify-center">
+    <LoaderCircle class="size-10 animate-spin" />
+  </div>
+{/snippet}

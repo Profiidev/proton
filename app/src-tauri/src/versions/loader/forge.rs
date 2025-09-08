@@ -13,6 +13,8 @@ use serde::{Deserialize, Serialize};
 use tauri::Url;
 use tokio::{fs, process::Command};
 
+#[cfg(all(not(debug_assertions), target_os = "windows"))]
+use crate::versions::DETACHED_PROCESS;
 use crate::{
   path,
   utils::file::{download_file_no_hash_force, read_parse_file, read_parse_xml_file},
@@ -436,6 +438,10 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
           .arg(classpath)
           .arg(&main_class)
           .args(&args);
+
+        #[cfg(all(not(debug_assertions), target_os = "windows"))]
+        Command::creation_flags(&mut command, DETACHED_PROCESS);
+
         debug!("Running processor command: {command:?}");
 
         let command = command.spawn()?;
