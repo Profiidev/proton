@@ -92,7 +92,7 @@
   <div class="flex w-full flex-grow-1">
     <Sidebar />
     <Separator orientation="vertical" />
-    <main class="h-full flex-grow-1 min-h-0 p-2">
+    <main class="h-full min-h-0 flex-grow-1 p-2">
       {@render children()}
     </main>
   </div>

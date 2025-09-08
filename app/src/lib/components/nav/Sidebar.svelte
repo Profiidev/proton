@@ -36,7 +36,7 @@
   });
 </script>
 
-<div class="flex h-full flex-col p-2 w-54 gap-1">
+<div class="flex h-full w-54 flex-col gap-1 p-2">
   {#each btns as btn}
     {@const isActive = page.url.pathname.startsWith(btn.url)}
     <Button
