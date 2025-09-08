@@ -22,6 +22,8 @@ use crate::{
   },
 };
 
+#[cfg(all(not(debug_assertions), target_os = "windows"))]
+use super::DETACHED_PROCESS;
 use super::{
   SEPARATOR, check_rule,
   meta::{
@@ -29,8 +31,6 @@ use super::{
     minecraft::{Argument, Version},
   },
 };
-#[cfg(all(not(debug_assertions), target_os = "windows"))]
-use super::DETACHED_PROCESS;
 
 pub struct LaunchArgs {
   pub launcher_version: String,
