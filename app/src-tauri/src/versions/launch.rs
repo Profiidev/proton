@@ -29,9 +29,8 @@ use super::{
     minecraft::{Argument, Version},
   },
 };
-
 #[cfg(all(not(debug_assertions), target_os = "windows"))]
-const DETACHED_PROCESS: u32 = 0x00000008;
+use super::DETACHED_PROCESS;
 
 pub struct LaunchArgs {
   pub launcher_version: String,

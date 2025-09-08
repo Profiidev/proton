@@ -26,6 +26,8 @@ const ARCH: Option<Arch> = None;
 const SEPARATOR: &str = ":";
 #[cfg(target_family = "windows")]
 const SEPARATOR: &str = ";";
+#[cfg(all(not(debug_assertions), target_os = "windows"))]
+const DETACHED_PROCESS: u32 = 0x00000008;
 
 fn check_rule(rule: &Rule) -> bool {
   let Rule { action, os, .. } = rule;
