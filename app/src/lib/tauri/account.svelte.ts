@@ -2,7 +2,7 @@ import { create_data_state, UpdateType } from '$lib/data_state.svelte';
 import { invoke } from '@tauri-apps/api/core';
 import { RequestError } from 'positron-components/backend';
 
-export const REMOVE_CAPE = "REMOVE_CAPE";
+export const REMOVE_CAPE = 'REMOVE_CAPE';
 
 export type Accounts = { [key: string]: ProfileInfo | null };
 
