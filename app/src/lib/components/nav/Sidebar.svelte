@@ -7,12 +7,6 @@
   import { crossfade } from 'svelte/transition';
   import { cubicInOut } from 'svelte/easing';
 
-  interface Props {
-    collapsed: boolean;
-  }
-
-  let { collapsed }: Props = $props();
-
   const btns = [
     {
       title: 'Home',
@@ -42,7 +36,7 @@
   });
 </script>
 
-<div class="flex h-full flex-col p-2">
+<div class="flex h-full flex-col p-2 w-54 gap-1">
   {#each btns as btn}
     {@const isActive = page.url.pathname.startsWith(btn.url)}
     <Button
@@ -62,11 +56,9 @@
       {/if}
       <div class="relative flex w-full items-center gap-2">
         <btn.icon class="size-full max-w-8" />
-        {#if !collapsed}
-          <p class="truncate">{btn.title}</p>
-        {/if}
+        <p class="truncate">{btn.title}</p>
       </div>
     </Button>
   {/each}
-  <AccountSelector {collapsed} />
+  <AccountSelector />
 </div>
