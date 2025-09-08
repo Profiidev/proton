@@ -21,6 +21,7 @@ use super::{
 };
 
 const CAPE_CHANGE_URL: &str = "https://api.minecraftservices.com/minecraft/profile/capes/active";
+const REMOVE_CAPE: &str = "REMOVE_CAPE";
 
 pub struct AccountStore {
   accounts: HashMap<String, Option<AccountInfo>>,
@@ -198,9 +199,13 @@ impl AccountStore {
     self.refresh_auth(account).await?;
 
     if let Some(Some(account)) = self.accounts.get_mut(account) {
-      let res = self
-        .client
-        .put(CAPE_CHANGE_URL)
+      let req = if id == REMOVE_CAPE {
+        self.client.delete(CAPE_CHANGE_URL)
+      } else {
+        self.client.put(CAPE_CHANGE_URL)
+      };
+
+      let res = req
         .bearer_auth(&account.auth.mc_token)
         .json(&CapeChangeReq {
           cape_id: id.to_string(),
