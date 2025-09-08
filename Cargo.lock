@@ -59,12 +59,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "android-tzdata"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e999941b234f3131b00bc13c22d06e8c5ff726d1b6318ac7eb276997bbb4fef0"
-
-[[package]]
 name = "android_log-sys"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -788,17 +782,16 @@ checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
 name = "chrono"
-version = "0.4.41"
+version = "0.4.42"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c469d952047f47f91b68d1cba3f10d63c11d73e4636f24f08daf0278abf01c4d"
+checksum = "145052bdd345b87320e369255277e3fb5152762ad123a901ef5c262dd38fe8d2"
 dependencies = [
- "android-tzdata",
  "iana-time-zone",
  "js-sys",
  "num-traits",
  "serde",
  "wasm-bindgen",
- "windows-link",
+ "windows-link 0.2.0",
 ]
 
 [[package]]
@@ -2451,9 +2444,9 @@ dependencies = [
 
 [[package]]
 name = "image"
-version = "0.25.7"
+version = "0.25.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c6a3ce16143778e24df6f95365f12ed105425b22abefd289dd88a64bab59605"
+checksum = "529feb3e6769d234375c4cf1ee2ce713682b8e76538cb13f9fc23e1400a591e7"
 dependencies = [
  "bytemuck",
  "byteorder-lite",
@@ -2897,9 +2890,9 @@ dependencies = [
 
 [[package]]
 name = "log"
-version = "0.4.27"
+version = "0.4.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13dc2df351e3202783a1fe0d44375f7295ffb4049267b0f3018346dc122a1d94"
+checksum = "34080505efa8e45a4b816c349525ebe327ceaa8559756f0356cba97ef3bf7432"
 dependencies = [
  "value-bag",
 ]
@@ -5598,9 +5591,9 @@ checksum = "61c41af27dd6d1e27b1b16b489db798443478cef1f06a660c96db617ba5de3b1"
 
 [[package]]
 name = "tauri"
-version = "2.8.4"
+version = "2.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d545ccf7b60dcd44e07c6fb5aeb09140966f0aabd5d2aa14a6821df7bc99348"
+checksum = "d4d1d3b3dc4c101ac989fd7db77e045cc6d91a25349cd410455cb5c57d510c1c"
 dependencies = [
  "anyhow",
  "bytes",
@@ -5650,9 +5643,9 @@ dependencies = [
 
 [[package]]
 name = "tauri-build"
-version = "2.4.0"
+version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "67945dbaf8920dbe3a1e56721a419a0c3d085254ab24cff5b9ad55e2b0016e0b"
+checksum = "9c432ccc9ff661803dab74c6cd78de11026a578a9307610bbc39d3c55be7943f"
 dependencies = [
  "anyhow",
  "cargo_toml",
@@ -5730,9 +5723,9 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-log"
-version = "2.6.0"
+version = "2.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a59139183e0907cec1499dddee4e085f5a801dc659efa0848ee224f461371426"
+checksum = "61c1438bc7662acd16d508c919b3c087efd63669a4c75625dff829b1c75975ec"
 dependencies = [
  "android_logger",
  "byte-unit",
@@ -5784,9 +5777,9 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-single-instance"
-version = "2.3.3"
+version = "2.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "236043404a4d1502ed7cce11a8ec88ea1e85597eec9887b4701bb10b66b13b6e"
+checksum = "fb9cac815bf11c4a80fb498666bcdad66d65b89e3ae24669e47806febb76389c"
 dependencies = [
  "serde",
  "serde_json",
@@ -6589,9 +6582,9 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 
 [[package]]
 name = "uuid"
-version = "1.18.0"
+version = "1.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f33196643e165781c20a5ead5582283a7dacbb87855d867fbc2df3f81eddc1be"
+checksum = "2f87b8aa10b915a06587d0dec516c282ff295b475d94abf425d62b57710070a2"
 dependencies = [
  "getrandom 0.3.2",
  "js-sys",
@@ -6972,7 +6965,7 @@ dependencies = [
  "windows-collections",
  "windows-core 0.61.0",
  "windows-future",
- "windows-link",
+ "windows-link 0.1.1",
  "windows-numerics",
 ]
 
@@ -7002,7 +6995,7 @@ checksum = "4763c1de310c86d75a878046489e2e5ba02c649d185f21c67d4cf8a56d098980"
 dependencies = [
  "windows-implement",
  "windows-interface",
- "windows-link",
+ "windows-link 0.1.1",
  "windows-result",
  "windows-strings 0.4.0",
 ]
@@ -7014,7 +7007,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a1d6bbefcb7b60acd19828e1bc965da6fcf18a7e39490c5f8be71e54a19ba32"
 dependencies = [
  "windows-core 0.61.0",
- "windows-link",
+ "windows-link 0.1.1",
 ]
 
 [[package]]
@@ -7046,13 +7039,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "76840935b766e1b0a05c0066835fb9ec80071d4c09a16f6bd5f7e655e3c14c38"
 
 [[package]]
+name = "windows-link"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "45e46c0661abb7180e7b9c281db115305d49ca1709ab8242adf09666d2173c65"
+
+[[package]]
 name = "windows-numerics"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9150af68066c4c5c07ddc0ce30421554771e528bde427614c61038bc2c92c2b1"
 dependencies = [
  "windows-core 0.61.0",
- "windows-link",
+ "windows-link 0.1.1",
 ]
 
 [[package]]
@@ -7072,7 +7071,7 @@ version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c64fd11a4fd95df68efcfee5f44a294fe71b8bc6a91993e2791938abcc712252"
 dependencies = [
- "windows-link",
+ "windows-link 0.1.1",
 ]
 
 [[package]]
@@ -7081,7 +7080,7 @@ version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "87fa48cc5d406560701792be122a10132491cff9d0aeb23583cc2dcafc847319"
 dependencies = [
- "windows-link",
+ "windows-link 0.1.1",
 ]
 
 [[package]]
@@ -7090,7 +7089,7 @@ version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a2ba9642430ee452d5a7aa78d72907ebe8cfda358e8cb7918a2050581322f97"
 dependencies = [
- "windows-link",
+ "windows-link 0.1.1",
 ]
 
 [[package]]
@@ -7206,7 +7205,7 @@ version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e04a5c6627e310a23ad2358483286c7df260c964eb2d003d8efd6d0f4e79265c"
 dependencies = [
- "windows-link",
+ "windows-link 0.1.1",
 ]
 
 [[package]]
