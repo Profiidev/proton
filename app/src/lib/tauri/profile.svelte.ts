@@ -203,7 +203,14 @@ const launch_repair = async (
     check_toasts.set(
       id,
       toast.loading('Checking/Downloading version manifests', {
-        duration: TOAST_DURATION
+        duration: TOAST_DURATION,
+        cancel: {
+          label: 'Cancel',
+          onClick: async () => {
+            await profile_cancel_download(id);
+            toast.warning('Check/Download canceled');
+          }
+        }
       })
     );
     check_message.set(id, message);
@@ -219,6 +226,12 @@ const launch_repair = async (
 
     toast.error(err);
   }
+};
+
+export const profile_cancel_download = async (id: number) => {
+  try {
+    await invoke('profile_cancel_download', { id });
+  } catch (e) {}
 };
 
 const size_format = (size: [number, number]): [string, string] => {

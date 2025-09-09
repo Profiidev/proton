@@ -1,11 +1,14 @@
-use std::{sync::Arc, time::Instant};
+use std::{collections::HashMap, sync::Arc, time::Instant};
 
 use anyhow::Result;
 use log::info;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, Url};
-use tokio::join;
+use tokio::{
+  join, select,
+  sync::{Mutex, Notify},
+};
 
 use crate::{
   settings::SettingsExt,
@@ -41,6 +44,7 @@ pub struct McVersionStore {
   java_manifest: JavaVersions,
   handle: AppHandle,
   client: Arc<Client>,
+  cancel_notify: Arc<Mutex<HashMap<usize, Arc<Notify>>>>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -79,6 +83,7 @@ impl McVersionStore {
       java_manifest: java_manifest?,
       handle,
       client: Arc::new(client),
+      cancel_notify: Arc::new(Mutex::new(HashMap::new())),
     })
   }
 
@@ -125,8 +130,13 @@ impl McVersionStore {
     loader: LoaderType,
     loader_version: Option<String>,
   ) -> Result<()> {
+    let notify = Arc::new(Notify::new());
+    let mut notifies = self.cancel_notify.lock().await;
+    notifies.insert(id, notify.clone());
+    drop(notifies);
+
     let start = Instant::now();
-    info!("Checking minecraft version {version}");
+    info!("Checking/Downloading minecraft version {version} with download id {id}");
     let data_dir = self.handle.path().app_data_dir()?;
 
     let mc = self
@@ -145,24 +155,40 @@ impl McVersionStore {
 
     let loader_version = loader_version.and_then(|v| loader.loader_version(version.to_string(), v));
 
-    check_download_version(
-      mc,
-      java,
-      &data_dir,
-      &self.client,
-      &self.handle,
-      id,
-      loader_version,
-    )
-    .await?;
+    select! {
+      result = check_download_version(
+        mc,
+        java,
+        &data_dir,
+        &self.client,
+        &self.handle,
+        id,
+        loader_version,
+      ) => {
+        result?;
+        info!(
+          "Finished checking/downloading minecraft version {version} with download id {id} in {:?}",
+          start.elapsed()
+        );
+      },
+      _ = notify.notified() => {
+        info!("Check/Download for minecraft version {version} with id {id} was canceled");
+      }
+    };
 
-    info!(
-      "Finished checking minecraft version {} in {:?}",
-      id,
-      start.elapsed()
-    );
+    let mut notifies = self.cancel_notify.lock().await;
+    notifies.remove(&id);
+    drop(notifies);
 
     Ok(())
+  }
+
+  pub async fn cancel_check_or_download(&self, id: usize) {
+    let notifies = self.cancel_notify.lock().await;
+    if let Some(notify) = notifies.get(&id) {
+      notify.notify_waiters();
+    }
+    drop(notifies);
   }
 
   pub async fn check_meta(&self, version: &str, id: usize) -> Result<bool> {

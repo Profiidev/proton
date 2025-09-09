@@ -252,3 +252,13 @@ pub async fn profile_repair(
 
   Ok(())
 }
+
+#[tauri::command]
+pub async fn profile_cancel_download(
+  state: State<'_, Mutex<McVersionStore>>,
+  id: usize,
+) -> Result<()> {
+  let store = state.lock().await;
+  store.cancel_check_or_download(id).await;
+  Ok(())
+}
