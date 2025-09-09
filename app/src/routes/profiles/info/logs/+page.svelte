@@ -30,28 +30,25 @@
   );
   let logs_list = $derived(logs_list_updater?.value);
   let logs_list_select = $derived(
-    (() => {
-      let list = [];
+    logs_list
+      ?.reduce((a: { label: string; value: string }[], run) => {
+        let label = DateTime.fromISO(run)
+          .setLocale('de')
+          .toLocaleString(DateTime.DATETIME_SHORT);
 
-      if (logs_list) {
-        for (const run of logs_list) {
-          let label = DateTime.fromISO(run)
-            .setLocale('de')
-            .toLocaleString(DateTime.DATETIME_SHORT);
+        let count: number = a.filter(
+          (item) => item.label.trim() === label
+        ).length;
 
-          let count: number = list.filter(
-            (item) => item.label.trim() === label
-          ).length;
+        a.push({
+          label: label + ' '.repeat(count),
+          value: run
+        });
 
-          list.push({
-            label: label + ' '.repeat(count),
-            value: run
-          });
-        }
-      }
-
-      return list.sort((a, b) => compareDateTimes(a.label, b.label)).reverse();
-    })()
+        return a;
+      }, [])
+      .toSorted((a, b) => compareDateTimes(a.label, b.label))
+      .reverse() ?? []
   );
   let logs = $state<string[]>([]);
 

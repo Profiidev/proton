@@ -129,7 +129,7 @@ impl McVersionStore {
     id: usize,
     loader: LoaderType,
     loader_version: Option<String>,
-  ) -> Result<()> {
+  ) -> Result<bool> {
     let notify = Arc::new(Notify::new());
     let mut notifies = self.cancel_notify.lock().await;
     notifies.insert(id, notify.clone());
@@ -155,6 +155,7 @@ impl McVersionStore {
 
     let loader_version = loader_version.and_then(|v| loader.loader_version(version.to_string(), v));
 
+    let mut download_finished = false;
     select! {
       result = check_download_version(
         mc,
@@ -170,6 +171,7 @@ impl McVersionStore {
           "Finished checking/downloading minecraft version {version} with download id {id} in {:?}",
           start.elapsed()
         );
+        download_finished = true;
       },
       _ = notify.notified() => {
         info!("Check/Download for minecraft version {version} with id {id} was canceled");
@@ -180,7 +182,7 @@ impl McVersionStore {
     notifies.remove(&id);
     drop(notifies);
 
-    Ok(())
+    Ok(download_finished)
   }
 
   pub async fn cancel_check_or_download(&self, id: usize) {
