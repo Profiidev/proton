@@ -7,8 +7,9 @@ use tauri::Url;
 
 use crate::{
   path,
-  utils::file::{
-    download_and_parse_file_no_hash_force, download_file_no_hash_force, read_parse_file,
+  utils::{
+    download::{download_and_parse_file_no_hash_force, download_file_no_hash_force},
+    file::read_parse_file,
   },
   versions::{
     loader::{

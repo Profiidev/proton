@@ -17,7 +17,10 @@ use tokio::{fs, process::Command};
 use crate::versions::DETACHED_PROCESS;
 use crate::{
   path,
-  utils::file::{download_file_no_hash_force, read_parse_file, read_parse_xml_file},
+  utils::{
+    download::download_file_no_hash_force,
+    file::{read_parse_file, read_parse_xml_file},
+  },
   versions::{
     SEPARATOR,
     loader::{

@@ -7,7 +7,10 @@ use tauri::Url;
 use tokio::fs;
 
 use crate::{
-  utils::file::{download_file_no_hash_force, file_hash},
+  utils::{
+    download::{DownloadFileSizeFuture, download_file_size},
+    file::file_hash,
+  },
   versions::{
     loader::{CheckFuture, DownloadFuture},
     maven::MavenArtifact,
@@ -26,10 +29,9 @@ pub fn download_maven_future(
   Box::pin(async move {
     let local_name = name.clone();
     let mc = mc_path.clone();
-    let download = Box::pin(async move {
-      download_maven(&base_url, &mc, &local_name, &client, url).await?;
-      anyhow::Ok(())
-    }) as DownloadFuture;
+    let download =
+      Box::pin(async move { download_maven(&base_url, &mc, &local_name, &client, url).await })
+        as DownloadFuture;
 
     let maven = MavenArtifact::new(&name)?;
     let path = maven.full_path(&mc_path);
@@ -45,18 +47,17 @@ pub fn download_maven_future(
   }) as CheckFuture
 }
 
-pub async fn download_maven(
+async fn download_maven(
   base_url: &str,
   mc_path: &MCPath,
   name: &str,
   client: &Client,
   url: Option<Url>,
-) -> Result<()> {
+) -> Result<(usize, DownloadFileSizeFuture)> {
   let maven = MavenArtifact::new(name)?;
   let loader_path = maven.full_path(mc_path);
   let loader_url = url.unwrap_or_else(|| maven.url(base_url).unwrap());
-  download_file_no_hash_force(client, &loader_path, loader_url).await?;
-  Ok(())
+  download_file_size(client, loader_path, loader_url).await
 }
 
 #[allow(clippy::ptr_arg)]

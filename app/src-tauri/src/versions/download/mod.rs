@@ -1,4 +1,11 @@
-use std::{future::Future, path::PathBuf};
+use std::{
+  future::Future,
+  path::PathBuf,
+  sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+  },
+};
 
 use anyhow::Result;
 use log::debug;
@@ -49,42 +56,12 @@ pub async fn check_download_version(
   let mc_path = MCPath::new(data_dir);
   let version_path = MCVersionPath::new(data_dir, &mc.id);
 
-  emit_download_check_status(handle, DownloadCheckStatus::VersionManifestCheck, update_id);
-  let version_fut = check_version_manifest(mc, &version_path, client).await?;
-  if !version_fut.is_data() {
-    emit_download_check_status(
-      handle,
-      DownloadCheckStatus::VersionManifestDownload,
-      update_id,
-    );
-  }
-  let version = version_fut.resolve().await?;
+  let version = check_version_manifest(mc, &version_path, client, handle, update_id).await?;
   let java_path = JavaVersionPath::new(data_dir, version.java_version.component, mc.id.clone());
+  let assets = check_assets_manifest(&version, &mc_path, client, handle, update_id).await?;
+  let files = check_java_manifest(&version, java, &java_path, client, handle, update_id).await?;
 
-  emit_download_check_status(handle, DownloadCheckStatus::AssetsManifestCheck, update_id);
-  let assets_fut = check_assets_manifest(&version, &mc_path, client).await?;
-  if !assets_fut.is_data() {
-    emit_download_check_status(
-      handle,
-      DownloadCheckStatus::AssetsManifestDownload,
-      update_id,
-    );
-  }
-  let assets = assets_fut.resolve().await?;
-
-  emit_download_check_status(handle, DownloadCheckStatus::JavaManifestCheck, update_id);
-  let java_fut = check_java_manifest(&version, java, &java_path, client).await?;
-  if !java_fut.is_data() {
-    emit_download_check_status(handle, DownloadCheckStatus::JavaManifestDownload, update_id);
-  }
-  let files = java_fut.resolve().await?;
-
-  emit_download_check_status(handle, DownloadCheckStatus::ClientCheck, update_id);
-  let client_fut = check_client(&version, &version_path, client).await?;
-  if let Some(client_fut) = client_fut {
-    emit_download_check_status(handle, DownloadCheckStatus::ClientDownload, update_id);
-    client_fut.await?;
-  }
+  check_client(&version, &version_path, client, handle, update_id).await?;
 
   check_download_version_assets(&assets, &mc_path, client, handle, update_id).await?;
   check_download_java_files(&files, client, &java_path, handle, update_id).await?;
@@ -111,11 +88,25 @@ pub async fn check_download_version(
     .await?;
     debug!("Completed all checks for mod loader files");
 
-    download_pool(
-      futures,
+    emit_download_check_status(
       handle,
+      DownloadCheckStatus::ModLoaderFilesDownloadInfo,
+      update_id,
+    );
+    let mut total = 0;
+    let mut downloads = Vec::with_capacity(futures.len());
+    for fut in futures {
+      let (size, fut) = fut.await?;
+      total += size;
+      downloads.push(fut);
+    }
+
+    download_pool(
+      downloads,
+      handle.clone(),
       update_id,
       DownloadCheckStatus::ModLoaderFilesDownload,
+      total,
     )
     .await?;
     debug!("Completed all downloads for mod loader files");
@@ -154,7 +145,7 @@ where
   let pool = FuturePool::new(futures);
 
   let res = pool
-    .run(None, |done, total| {
+    .run_cb(None, |done, total| {
       emit_download_check_status(handle, status(done, total), update_id)
     })
     .await;
@@ -169,26 +160,41 @@ where
   Ok(futures)
 }
 
-async fn download_pool<S, F, O>(
-  futures: Vec<F>,
-  handle: &AppHandle,
+async fn download_pool<S, F, Fut>(
+  funcs: Vec<F>,
+  handle: AppHandle,
   update_id: usize,
   status: S,
+  total_size: usize,
 ) -> Result<()>
 where
-  S: Fn(usize, usize) -> DownloadCheckStatus,
-  F: Future<Output = Result<O>> + Send + 'static,
-  O: Send + 'static,
+  S: Fn(usize, usize) -> DownloadCheckStatus + Clone + Send + 'static,
+  F: FnOnce(Box<dyn Fn(usize) + Send + 'static>) -> Fut,
+  Fut: Future<Output = Result<()>> + Send + 'static,
 {
+  emit_download_check_status(&handle, status(0, total_size), update_id);
+  let done = Arc::new(AtomicUsize::new(0));
+
+  let cb = {
+    let status = status.clone();
+    let handle = handle.clone();
+
+    Box::new(move |chunk| {
+      done.fetch_add(chunk, Ordering::SeqCst);
+      let done = done.load(Ordering::SeqCst);
+      emit_download_check_status(&handle, status(done, total_size), update_id)
+    })
+  };
+
+  let mut futures = Vec::with_capacity(funcs.len());
+  for func in funcs {
+    futures.push(func(cb.clone()));
+  }
+
   let pool = FuturePool::new(futures);
 
-  let res = pool
-    .run(None, |done, total| {
-      emit_download_check_status(handle, status(done, total), update_id)
-    })
-    .await;
-
-  for result in res {
+  let results = pool.run(None).await;
+  for result in results {
     result??;
   }
 

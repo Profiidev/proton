@@ -15,7 +15,9 @@ export type VersionCheckStatus =
   | 'JavaManifestCheck'
   | 'JavaManifestDownload'
   | 'ClientCheck'
-  | 'ClientDownload'
+  | {
+      ClientDownload: [number, number];
+    }
   | {
       AssetsCheck: [number, number];
     }
@@ -42,6 +44,7 @@ export type VersionCheckStatus =
     }
   | 'ModLoaderMeta'
   | { ModLoaderFilesCheck: [number, number] }
+  | 'ModLoaderFilesDownloadInfo'
   | { ModLoaderFilesDownload: [number, number] }
   | 'ModLoaderPreprocess'
   | 'ModLoaderPreprocessDone'

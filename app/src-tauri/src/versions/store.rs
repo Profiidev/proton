@@ -10,7 +10,8 @@ use tokio::join;
 use crate::{
   settings::SettingsExt,
   utils::{
-    file::{download_and_parse_file_no_hash, download_and_parse_file_no_hash_force, file_hash},
+    download::{download_and_parse_file_no_hash, download_and_parse_file_no_hash_force},
+    file::file_hash,
     updater::{UpdateType, default_client, update_data},
   },
   versions::{

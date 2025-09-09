@@ -7,7 +7,7 @@ use tauri::AppHandle;
 
 use crate::{
   path,
-  utils::file::{download_file, file_hash},
+  utils::{download::download_file, file::file_hash},
   versions::{
     download::{check_pool, download_pool},
     event::DownloadCheckStatus,
@@ -27,21 +27,23 @@ pub async fn check_download_version_assets(
 ) -> Result<()> {
   debug!("Collecting checks for assets");
   let mut futures = Vec::new();
+  let mut total_size = 0;
 
   for asset in assets.objects.values() {
     let prefix_hash = &asset.hash[0..2];
     let hash = asset.hash.clone();
     let path = path!(mc_path.assets_objects_path(), prefix_hash, &hash);
     let url = format!("{MC_RESOURCES_URL}/{prefix_hash}/{hash}").parse()?;
+    total_size += asset.size;
 
     let client = client.clone();
     //futures.push(async move { download_file(&client, &path, url, &hash).await });
     futures.push(async move {
       debug!("Checking asset file {}", path.display());
       if !file_hash(&hash, &path).await? {
-        return Ok(Some(async move {
+        return Ok(Some(async move |cb| {
           debug!("Downloading asset file {}", path.display());
-          download_file(&client, &path, url, &hash).await?;
+          download_file(&client, &path, url, &hash, cb).await?;
           anyhow::Ok(())
         }));
       }
@@ -57,9 +59,10 @@ pub async fn check_download_version_assets(
   let now = Instant::now();
   download_pool(
     futures,
-    handle,
+    handle.clone(),
     update_id,
     DownloadCheckStatus::AssetsDownload,
+    total_size,
   )
   .await?;
   debug!("Completed all downloads for assets in {:?}", now.elapsed());

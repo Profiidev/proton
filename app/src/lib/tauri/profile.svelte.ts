@@ -10,6 +10,7 @@ import { listen } from '@tauri-apps/api/event';
 import { browser } from '$app/environment';
 import { toast } from 'positron-components/components/ui';
 import type { QuickPlayInfo } from './quick_play.svelte';
+import { b_to_mb } from '$lib/util.svelte';
 
 export interface Profile {
   id: string;
@@ -220,6 +221,16 @@ const launch_repair = async (
   }
 };
 
+const size_format = (size: [number, number]): [string, string] => {
+  let [current, total] = size;
+  return [b_to_mb(current).toFixed(1), b_to_mb(total).toFixed(1)];
+};
+
+const percentage_format = (size: [number, number]): string => {
+  let [current, total] = size;
+  return ((current / total) * 100).toFixed(1);
+};
+
 const get_message = (event: VersionCheckStatus): string | undefined => {
   if (typeof event === 'string') {
     switch (event) {
@@ -237,10 +248,10 @@ const get_message = (event: VersionCheckStatus): string | undefined => {
         return 'Downloading java manifest';
       case 'ClientCheck':
         return 'Checking client jar';
-      case 'ClientDownload':
-        return 'Downloading client jar';
       case 'ModLoaderMeta':
-        return 'Downloading ModLoader Version Meta';
+        return 'Downloading ModLoader version meta';
+      case 'ModLoaderFilesDownloadInfo':
+        return 'Downloading ModLoader file information';
       case 'ModLoaderPreprocess':
         return 'Running preprocessing of ModLoader';
       case 'ModLoaderPreprocessDone':
@@ -248,36 +259,39 @@ const get_message = (event: VersionCheckStatus): string | undefined => {
       case 'Done':
         return undefined; // No message for done
     }
+  } else if ('ClientDownload' in event) {
+    let [done, total] = size_format(event.ClientDownload);
+    return `Downloaded ${percentage_format(event.ClientDownload)}% of client (${done}MiB/${total}MiB)`;
   } else if ('AssetsCheck' in event) {
     let [done, total] = event.AssetsCheck;
-    return `Checked ${((done / total) * 100).toFixed(1)}% of assets (${done}/${total})`;
+    return `Checked ${percentage_format(event.AssetsCheck)}% of assets (${done}/${total})`;
   } else if ('AssetsDownload' in event) {
-    let [done, total] = event.AssetsDownload;
-    return `Downloaded ${((done / total) * 100).toFixed(1)}% of assets (${done}/${total})`;
+    let [done, total] = size_format(event.AssetsDownload);
+    return `Downloaded ${percentage_format(event.AssetsDownload)}% of assets (${done}MiB/${total}MiB)`;
   } else if ('JavaCheck' in event) {
     let [done, total] = event.JavaCheck;
-    return `Checked ${((done / total) * 100).toFixed(1)}% of java files (${done}/${total})`;
+    return `Checked ${percentage_format(event.JavaCheck)}% of java files (${done}/${total})`;
   } else if ('JavaDownload' in event) {
-    let [done, total] = event.JavaDownload;
-    return `Downloaded ${((done / total) * 100).toFixed(1)}% of java files (${done}/${total})`;
+    let [done, total] = size_format(event.JavaDownload);
+    return `Downloaded ${percentage_format(event.JavaDownload)}% of java files (${done}MiB/${total}MiB)`;
   } else if ('NativeLibraryCheck' in event) {
     let [done, total] = event.NativeLibraryCheck;
-    return `Checked ${((done / total) * 100).toFixed(1)}% of native libraries (${done}/${total})`;
+    return `Checked ${percentage_format(event.NativeLibraryCheck)}% of native libraries (${done}/${total})`;
   } else if ('NativeLibraryDownload' in event) {
-    let [done, total] = event.NativeLibraryDownload;
-    return `Downloaded ${((done / total) * 100).toFixed(1)}% of native libraries (${done}/${total})`;
+    let [done, total] = size_format(event.NativeLibraryDownload);
+    return `Downloaded ${percentage_format(event.NativeLibraryDownload)}% of native libraries (${done}MiB/${total}MiB)`;
   } else if ('LibraryCheck' in event) {
     let [done, total] = event.LibraryCheck;
-    return `Checked ${((done / total) * 100).toFixed(1)}% of libraries (${done}/${total})`;
+    return `Checked ${percentage_format(event.LibraryCheck)}% of libraries (${done}/${total})`;
   } else if ('LibraryDownload' in event) {
-    let [done, total] = event.LibraryDownload;
-    return `Downloaded ${((done / total) * 100).toFixed(1)}% of libraries (${done}/${total})`;
+    let [done, total] = size_format(event.LibraryDownload);
+    return `Downloaded ${percentage_format(event.LibraryDownload)}% of libraries (${done}MiB/${total}MiB)`;
   } else if ('ModLoaderFilesCheck' in event) {
     let [done, total] = event.ModLoaderFilesCheck;
-    return `Checked ${((done / total) * 100).toFixed(1)}% of mod loader files (${done}/${total})`;
+    return `Checked ${percentage_format(event.ModLoaderFilesCheck)}% of mod loader files (${done}/${total})`;
   } else if ('ModLoaderFilesDownload' in event) {
-    let [done, total] = event.ModLoaderFilesDownload;
-    return `Downloaded ${((done / total) * 100).toFixed(1)}% of mod loader files (${done}/${total})`;
+    let [done, total] = size_format(event.ModLoaderFilesDownload);
+    return `Downloaded ${percentage_format(event.ModLoaderFilesDownload)}% of mod loader files (${done}MiB/${total}MiB)`;
   }
 };
 
