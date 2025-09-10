@@ -11,9 +11,9 @@ import { browser } from '$app/environment';
 import { toast } from 'positron-components/components/ui';
 import type { QuickPlayInfo } from './quick_play.svelte';
 import DownloadNotificationCancel from '$lib/components/profile/DownloadNotificationCancel.svelte';
-import type { ToastOptions } from 'svelte-sonner';
 import type { ComponentProps } from 'svelte';
 import DownloadNotification from '$lib/components/profile/DownloadNotification.svelte';
+import { b_to_mb, debounce } from '$lib/util.svelte';
 
 export interface Profile {
   id: string;
@@ -244,7 +244,7 @@ const message_props = (
     text,
     total,
     value,
-    unit: mib ? 'MiB' : undefined
+    convert: mib ? (value) => b_to_mb(value).toFixed(1) + 'MiB' : undefined
   };
 };
 

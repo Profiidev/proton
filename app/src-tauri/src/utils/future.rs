@@ -1,7 +1,15 @@
-use std::future::Future;
+use std::time::{Duration, Instant};
 
 use anyhow::Result;
-use tokio::task::JoinSet;
+use tauri::async_runtime::{JoinHandle, spawn};
+use tokio::{
+  select,
+  sync::mpsc::{self, Sender},
+  task::JoinSet,
+  time::sleep,
+};
+
+use crate::utils::log::ResultLogExt;
 
 pub const MAX_PARALLEL_DEFAULT: usize = 20;
 
@@ -54,5 +62,66 @@ where
     }
 
     results
+  }
+}
+
+pub struct UpdateLimiter<T: Send + Sync + 'static> {
+  _task: JoinHandle<()>,
+  sender: Sender<T>,
+}
+
+impl<T: Send + Sync + 'static> UpdateLimiter<T> {
+  pub fn new<F: Fn(T) + Send + 'static>(delay: Duration, f: F) -> Self {
+    let (sender, mut receiver) = mpsc::channel(100);
+
+    let task = spawn(async move {
+      let mut data = None;
+      let mut last_update = Instant::now();
+
+      loop {
+        let elapsed = last_update.elapsed();
+        let remaining = if elapsed >= delay {
+          // also try to trigger a update here
+          // so when the updates over the channel are faster than the sleep timer resolution
+          // a update gets triggered in any case
+          if let Some(data_val) = data {
+            f(data_val);
+            data = None;
+            last_update = Instant::now();
+          }
+          delay
+        } else {
+          delay - elapsed
+        };
+
+        select! {
+          new_data = receiver.recv() => if new_data.is_some() {
+            data = new_data;
+          } else {
+            // one last update before ending the update limiter
+            if let Some(data) = data {
+              f(data);
+            }
+            break;
+          },
+          _ = sleep(remaining) => {
+            if let Some(data_val) = data {
+              f(data_val);
+              data = None;
+              last_update = Instant::now();
+            }
+          },
+        };
+      }
+    });
+
+    Self {
+      sender,
+      _task: task,
+    }
+  }
+
+  pub fn call(&self, data: T) -> Result<()> {
+    Ok(self.sender.try_send(data).log()?)
   }
 }

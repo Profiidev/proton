@@ -32,7 +32,7 @@ use crate::{
   offline::{MANIFEST_REFRESH_ERROR, OfflineState, is_offline, try_reconnect},
   settings::MaxMem,
   utils::{log::ResultLogExt, updater::default_client},
-  versions::{loader::LoaderType, paths::MCVersionPath},
+  versions::{event::UpdateLimiterStore, loader::LoaderType, paths::MCVersionPath},
 };
 
 mod account;
@@ -132,6 +132,7 @@ pub fn run() {
       app.manage(Mutex::new(AccountStore::new(app.handle().clone())?));
       app.manage(Mutex::new(ProfileStore::new(app.handle().clone())?));
       app.manage(Mutex::new(OfflineState::new(app.handle().clone())));
+      app.manage(std::sync::Mutex::new(UpdateLimiterStore::default()));
 
       app.manage(Mutex::new(tauri::async_runtime::block_on(
         McVersionStore::new(app.handle().clone()),
