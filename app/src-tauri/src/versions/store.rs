@@ -87,30 +87,39 @@ impl McVersionStore {
     })
   }
 
-  pub async fn refresh_manifests(&mut self) -> Result<()> {
-    let data_dir = self.handle.path().app_data_dir()?;
+  pub async fn download_manifests(
+    handle: &AppHandle,
+    client: &Client,
+  ) -> Result<(Manifest, JavaVersions)> {
+    let data_dir = handle.path().app_data_dir()?;
     let mc_manifest_path = MCPath::new(&data_dir).mc_manifest();
     let java_manifest_path =
       JavaVersionPath::new(&data_dir, Component::Unknown, String::new()).java_manifest();
 
     let (mc_manifest, java_manifest) = join!(
       download_and_parse_file_no_hash_force(
-        &self.client,
+        client,
         &mc_manifest_path,
         MC_VERSION_MANIFEST_URL
           .parse()
           .expect("Failed to parse mc version url")
       ),
       download_and_parse_file_no_hash_force(
-        &self.client,
+        client,
         &java_manifest_path,
         JAVA_VERSION_MANIFEST_URL
           .parse()
           .expect("Failed to parse java version url")
       )
     );
-    let (mc_manifest, java_manifest) = (mc_manifest?, java_manifest?);
+    Ok((mc_manifest?, java_manifest?))
+  }
 
+  pub fn update_manifests(
+    &mut self,
+    mc_manifest: Manifest,
+    java_manifest: JavaVersions,
+  ) -> Result<()> {
     let update = self.mc_manifest != mc_manifest || self.java_manifest != java_manifest;
 
     self.mc_manifest = mc_manifest;

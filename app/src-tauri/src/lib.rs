@@ -131,8 +131,8 @@ pub fn run() {
       app.manage(Mutex::new(SkinStore::new(app.handle().clone())?));
       app.manage(Mutex::new(AccountStore::new(app.handle().clone())?));
       app.manage(Mutex::new(ProfileStore::new(app.handle().clone())?));
-      app.manage(Mutex::new(OfflineState::new(app.handle().clone())));
       app.manage(std::sync::Mutex::new(UpdateLimiterStore::default()));
+      app.manage(OfflineState::new(app.handle().clone()));
 
       app.manage(Mutex::new(tauri::async_runtime::block_on(
         McVersionStore::new(app.handle().clone()),
@@ -164,28 +164,28 @@ pub fn run() {
 }
 
 async fn async_online_check(handle: &AppHandle) -> Result<()> {
-  let offline_state = handle.state::<Mutex<OfflineState>>();
-  let mut state = offline_state.lock().await;
+  let state = handle.state::<OfflineState>();
   if !state.check_online_state().await {
     return Err(anyhow::anyhow!("Offline state detected"));
   }
-  drop(state);
 
   async_setup_refresh(handle).await?;
 
-  let mut state = offline_state.lock().await;
   state.state_init();
 
   Ok(())
 }
 
 async fn async_setup_refresh(handle: &AppHandle) -> Result<()> {
+  let client = default_client();
+  // download first to not lock the store while downloading the actual files
+  let (mc_manifest, java_manifest) = McVersionStore::download_manifests(handle, &client).await?;
+
   let version_state = handle.state::<Mutex<McVersionStore>>();
   let mut version_store = version_state.lock().await;
-  version_store.refresh_manifests().await?;
+  version_store.update_manifests(mc_manifest, java_manifest)?;
   drop(version_store);
 
-  let client = default_client();
   for loader in LoaderType::mod_loaders() {
     let data_dir = handle.path().app_data_dir()?;
     let version_path = MCVersionPath::new(&data_dir, "");
