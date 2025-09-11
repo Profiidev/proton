@@ -21,7 +21,7 @@
 
 <Tooltip.Provider>
   <Tooltip.Root>
-    <Tooltip.Trigger>
+    <Tooltip.Trigger class="ml-auto">
       <Button
         variant="destructive"
         size="icon"

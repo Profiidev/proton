@@ -244,7 +244,9 @@ const message_props = (
     text,
     total,
     value,
-    convert: mib ? (value) => b_to_mb(value).toFixed(1) + 'MiB' : undefined
+    convert: mib
+      ? (value: number) => b_to_mb(value).toFixed(1) + 'MiB'
+      : undefined
   };
 };
 

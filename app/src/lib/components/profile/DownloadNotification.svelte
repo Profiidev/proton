@@ -19,9 +19,13 @@
 </script>
 
 <div class="w-69">
-  <p>{text}</p>
-  <p class="whitespace-nowrap">
-    {percentage.toFixed(1)}% ({convert(value)} / {convert(total)})
-  </p>
-  <Progress min={0} max={100} value={percentage} class="mr-2" />
+  <div class="flex flex-wrap">
+    <p class="flex-none whitespace-nowrap">
+      {text}
+    </p>
+    <p class="ml-auto flex-none whitespace-nowrap">
+      {percentage.toFixed(1)}% ({convert(value)} / {convert(total)})
+    </p>
+  </div>
+  <Progress min={0} max={100} value={percentage} class="mt-1" />
 </div>
