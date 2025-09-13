@@ -28,7 +28,7 @@ pub struct Settings {
   #[serde(default)]
   system_max_mem: u64,
   sidebar_width: Option<f32>,
-  url: Option<Url>,
+  pub url: Option<Url>,
   #[serde(default)]
   pub minecraft: MinecraftSettings,
 }

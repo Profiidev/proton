@@ -13,14 +13,14 @@ use account::{
   store::AccountStore,
 };
 use profiles::commands::{
-  instance_list, instance_logs, instance_stop, profile_clear_logs, profile_create,
-  profile_favorites_list, profile_favorites_set, profile_get_icon, profile_history_list,
-  profile_launch, profile_list, profile_logs, profile_open_path, profile_quick_play_icon,
-  profile_quick_play_list, profile_quick_play_remove, profile_remove, profile_repair,
-  profile_runs_list, profile_update, profile_update_icon,
+  instance_list, instance_logs, instance_stop, profile_cancel_download, profile_clear_logs,
+  profile_create, profile_favorites_list, profile_favorites_set, profile_get_icon,
+  profile_history_list, profile_launch, profile_list, profile_logs, profile_open_path,
+  profile_quick_play_icon, profile_quick_play_list, profile_quick_play_remove, profile_remove,
+  profile_repair, profile_runs_list, profile_update, profile_update_icon,
 };
 use settings::{settings_get, settings_set};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Manager, webview::PageLoadEvent};
 use tauri_plugin_log::{RotationStrategy, Target, TargetKind, TimezoneStrategy};
 use tokio::sync::Mutex;
 use versions::{
@@ -30,9 +30,9 @@ use versions::{
 
 use crate::{
   offline::{MANIFEST_REFRESH_ERROR, OfflineState, is_offline, try_reconnect},
-  settings::MaxMem,
+  settings::{MaxMem, SettingsExt},
   utils::{log::ResultLogExt, updater::default_client},
-  versions::{loader::LoaderType, paths::MCVersionPath},
+  versions::{event::UpdateLimiterStore, loader::LoaderType, paths::MCVersionPath},
 };
 
 mod account;
@@ -103,6 +103,7 @@ pub fn run() {
       profile_list,
       profile_launch,
       profile_repair,
+      profile_cancel_download,
       profile_runs_list,
       profile_clear_logs,
       profile_logs,
@@ -130,7 +131,8 @@ pub fn run() {
       app.manage(Mutex::new(SkinStore::new(app.handle().clone())?));
       app.manage(Mutex::new(AccountStore::new(app.handle().clone())?));
       app.manage(Mutex::new(ProfileStore::new(app.handle().clone())?));
-      app.manage(Mutex::new(OfflineState::new(app.handle().clone())));
+      app.manage(std::sync::Mutex::new(UpdateLimiterStore::default()));
+      app.manage(OfflineState::new(app.handle().clone()));
 
       app.manage(Mutex::new(tauri::async_runtime::block_on(
         McVersionStore::new(app.handle().clone()),
@@ -147,33 +149,43 @@ pub fn run() {
 
       Ok(())
     })
+    .on_page_load(|view, payload| {
+      if payload.event() == PageLoadEvent::Started
+        && let Ok(current_url) = view.url()
+        && let Ok(settings) = view.app_handle().app_settings()
+        && let Some(url) = settings.url
+        && url != current_url
+      {
+        let _ = view.navigate(url);
+      }
+    })
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
 }
 
 async fn async_online_check(handle: &AppHandle) -> Result<()> {
-  let offline_state = handle.state::<Mutex<OfflineState>>();
-  let mut state = offline_state.lock().await;
+  let state = handle.state::<OfflineState>();
   if !state.check_online_state().await {
     return Err(anyhow::anyhow!("Offline state detected"));
   }
-  drop(state);
 
   async_setup_refresh(handle).await?;
 
-  let mut state = offline_state.lock().await;
   state.state_init();
 
   Ok(())
 }
 
 async fn async_setup_refresh(handle: &AppHandle) -> Result<()> {
+  let client = default_client();
+  // download first to not lock the store while downloading the actual files
+  let (mc_manifest, java_manifest) = McVersionStore::download_manifests(handle, &client).await?;
+
   let version_state = handle.state::<Mutex<McVersionStore>>();
   let mut version_store = version_state.lock().await;
-  version_store.refresh_manifests().await?;
+  version_store.update_manifests(mc_manifest, java_manifest)?;
   drop(version_store);
 
-  let client = default_client();
   for loader in LoaderType::mod_loaders() {
     let data_dir = handle.path().app_data_dir()?;
     let version_path = MCVersionPath::new(&data_dir, "");

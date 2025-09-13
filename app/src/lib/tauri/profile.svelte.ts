@@ -10,6 +10,10 @@ import { listen } from '@tauri-apps/api/event';
 import { browser } from '$app/environment';
 import { toast } from 'positron-components/components/ui';
 import type { QuickPlayInfo } from './quick_play.svelte';
+import DownloadNotificationCancel from '$lib/components/profile/DownloadNotificationCancel.svelte';
+import type { ComponentProps } from 'svelte';
+import DownloadNotification from '$lib/components/profile/DownloadNotification.svelte';
+import { b_to_mb, debounce } from '$lib/util.svelte';
 
 export interface Profile {
   id: string;
@@ -188,8 +192,11 @@ export const profile_repair = async (profile: string, name: string) => {
   );
 };
 
-let check_toasts = new Map<number, string | number>();
 let check_message = new Map<number, string>();
+const cancel = (id: number) => (internal: any, props: any) => {
+  return DownloadNotificationCancel(internal, { ...props, id });
+};
+
 const launch_repair = async (
   profile: string,
   cmd: string,
@@ -199,12 +206,11 @@ const launch_repair = async (
 ) => {
   let id = Math.round(Math.random() * 1000000);
   try {
-    check_toasts.set(
+    toast.loading('Checking/Downloading version manifests', {
       id,
-      toast.loading('Checking/Downloading version manifests', {
-        duration: TOAST_DURATION
-      })
-    );
+      duration: TOAST_DURATION,
+      cancel: cancel(id)
+    });
     check_message.set(id, message);
     await invoke(cmd, {
       profile,
@@ -212,15 +218,42 @@ const launch_repair = async (
       quickPlay
     });
   } catch (e: any) {
-    toast.dismiss(check_toasts.get(id));
     check_message.delete(id);
-    check_toasts.delete(id);
 
-    toast.error(err);
+    toast.error(err, {
+      id,
+      duration: undefined,
+      cancel: undefined
+    });
   }
 };
 
-const get_message = (event: VersionCheckStatus): string | undefined => {
+export const profile_cancel_download = async (id: number) => {
+  try {
+    await invoke('profile_cancel_download', { id });
+  } catch (e) {}
+};
+
+const message_props = (
+  info: [number, number],
+  text: string,
+  mib: boolean
+): ComponentProps<typeof DownloadNotification> => {
+  let [value, total] = info;
+  return {
+    text,
+    total,
+    value,
+    convert: mib ? (value: number) => b_to_mb(value) : undefined,
+    round: mib ? (value: number) => value.toFixed(1) : undefined,
+    unit: mib ? 'MiB' : undefined,
+    change: mib
+  };
+};
+
+const get_message = (
+  event: VersionCheckStatus
+): ComponentProps<typeof DownloadNotification> | string | undefined => {
   if (typeof event === 'string') {
     switch (event) {
       case 'VersionManifestCheck':
@@ -237,10 +270,10 @@ const get_message = (event: VersionCheckStatus): string | undefined => {
         return 'Downloading java manifest';
       case 'ClientCheck':
         return 'Checking client jar';
-      case 'ClientDownload':
-        return 'Downloading client jar';
       case 'ModLoaderMeta':
-        return 'Downloading ModLoader Version Meta';
+        return 'Downloading ModLoader version meta';
+      case 'ModLoaderFilesDownloadInfo':
+        return 'Downloading ModLoader file information';
       case 'ModLoaderPreprocess':
         return 'Running preprocessing of ModLoader';
       case 'ModLoaderPreprocessDone':
@@ -248,61 +281,77 @@ const get_message = (event: VersionCheckStatus): string | undefined => {
       case 'Done':
         return undefined; // No message for done
     }
+  } else if ('ClientDownload' in event) {
+    return message_props(event.ClientDownload, 'Downloading client', true);
   } else if ('AssetsCheck' in event) {
-    let [done, total] = event.AssetsCheck;
-    return `Checked ${((done / total) * 100).toFixed(1)}% of assets (${done}/${total})`;
+    return message_props(event.AssetsCheck, 'Checking assets', false);
   } else if ('AssetsDownload' in event) {
-    let [done, total] = event.AssetsDownload;
-    return `Downloaded ${((done / total) * 100).toFixed(1)}% of assets (${done}/${total})`;
+    return message_props(event.AssetsDownload, 'Downloading assets', true);
   } else if ('JavaCheck' in event) {
-    let [done, total] = event.JavaCheck;
-    return `Checked ${((done / total) * 100).toFixed(1)}% of java files (${done}/${total})`;
+    return message_props(event.JavaCheck, 'Checking java files', false);
   } else if ('JavaDownload' in event) {
-    let [done, total] = event.JavaDownload;
-    return `Downloaded ${((done / total) * 100).toFixed(1)}% of java files (${done}/${total})`;
+    return message_props(event.JavaDownload, 'Downloading java files', true);
   } else if ('NativeLibraryCheck' in event) {
-    let [done, total] = event.NativeLibraryCheck;
-    return `Checked ${((done / total) * 100).toFixed(1)}% of native libraries (${done}/${total})`;
+    return message_props(
+      event.NativeLibraryCheck,
+      'Checking native libraries',
+      false
+    );
   } else if ('NativeLibraryDownload' in event) {
-    let [done, total] = event.NativeLibraryDownload;
-    return `Downloaded ${((done / total) * 100).toFixed(1)}% of native libraries (${done}/${total})`;
+    return message_props(
+      event.NativeLibraryDownload,
+      'Downloading native libraries',
+      true
+    );
   } else if ('LibraryCheck' in event) {
-    let [done, total] = event.LibraryCheck;
-    return `Checked ${((done / total) * 100).toFixed(1)}% of libraries (${done}/${total})`;
+    return message_props(event.LibraryCheck, 'Checking libraries', false);
   } else if ('LibraryDownload' in event) {
-    let [done, total] = event.LibraryDownload;
-    return `Downloaded ${((done / total) * 100).toFixed(1)}% of libraries (${done}/${total})`;
+    return message_props(event.LibraryDownload, 'Downloading libraries', true);
   } else if ('ModLoaderFilesCheck' in event) {
-    let [done, total] = event.ModLoaderFilesCheck;
-    return `Checked ${((done / total) * 100).toFixed(1)}% of mod loader files (${done}/${total})`;
+    return message_props(
+      event.ModLoaderFilesCheck,
+      'Checking mod loader files',
+      false
+    );
   } else if ('ModLoaderFilesDownload' in event) {
-    let [done, total] = event.ModLoaderFilesDownload;
-    return `Downloaded ${((done / total) * 100).toFixed(1)}% of mod loader files (${done}/${total})`;
+    return message_props(
+      event.ModLoaderFilesDownload,
+      'Downloading mod loader files',
+      true
+    );
   }
 };
 
 if (browser) {
   listen(VERSION_CHECK_STATUS_EVENT, (e) => {
     let event = e.payload as VersionCheckData;
-    let id = check_toasts.get(event.id);
+    let id = event.id;
     if (id === undefined) return;
 
     let message = get_message(event.data);
-    if (message) {
-      check_toasts.set(
-        event.id,
-        toast.loading(message, {
-          id,
-          duration: TOAST_DURATION
-        })
-      );
-    } else {
-      toast.dismiss(id);
-      check_toasts.delete(event.id);
 
-      let message = check_message.get(event.id);
-      check_message.delete(event.id);
-      toast.success(message ?? '');
+    if (toast.getActiveToasts().find((t) => t.id === id)?.type !== 'loading') {
+      // Only update loading toasts
+      return;
+    }
+
+    if (typeof message === 'object') {
+      toast.loading(DownloadNotification, {
+        id,
+        componentProps: message
+      });
+    } else if (message) {
+      toast.loading(message, {
+        id
+      });
+    } else {
+      let message = check_message.get(id);
+      check_message.delete(id);
+      toast.success(message ?? '', {
+        id,
+        duration: undefined,
+        cancel: undefined
+      });
     }
   });
 }

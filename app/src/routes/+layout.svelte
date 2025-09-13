@@ -73,14 +73,6 @@
     page.url;
     urlDebounce();
   });
-
-  let init = false;
-  $effect(() => {
-    if (!init && settings) {
-      init = true;
-      goto(settings.url || '/');
-    }
-  });
 </script>
 
 <ModeWatcher />

@@ -5,11 +5,9 @@ use std::{
 
 use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
-use log::debug;
-use reqwest::Client;
 use serde::{Serialize, de::DeserializeOwned};
 use sha1::{Digest, Sha1};
-use tauri::{Url, async_runtime::spawn_blocking};
+use tauri::async_runtime::spawn_blocking;
 use thiserror::Error;
 use tokio::fs::{self, File};
 
@@ -17,68 +15,6 @@ use tokio::fs::{self, File};
 pub enum FileError {
   #[error("HashMismatch")]
   HashMismatch,
-}
-
-pub async fn download_file_no_hash_force(
-  client: &Client,
-  path: &PathBuf,
-  url: Url,
-) -> Result<Vec<u8>> {
-  debug!("Downloading file: {}", url.as_str());
-  let bytes = client
-    .get(url)
-    .send()
-    .await?
-    .error_for_status()?
-    .bytes()
-    .await?;
-
-  if let Some(parent) = path.parent() {
-    fs::create_dir_all(parent).await?;
-  }
-  fs::write(path, &bytes).await?;
-
-  Ok(bytes.to_vec())
-}
-
-pub async fn download_file_no_hash(client: &Client, path: &PathBuf, url: Url) -> Result<Vec<u8>> {
-  if File::open(path).await.is_ok() {
-    return Ok(fs::read(path).await?);
-  }
-
-  debug!("Downloading file: {}", url.as_str());
-  let bytes = client
-    .get(url)
-    .send()
-    .await?
-    .error_for_status()?
-    .bytes()
-    .await?;
-
-  if let Some(parent) = path.parent() {
-    fs::create_dir_all(parent).await?;
-  }
-  fs::write(path, &bytes).await?;
-
-  Ok(bytes.to_vec())
-}
-
-pub async fn download_and_parse_file_no_hash_force<R: DeserializeOwned>(
-  client: &Client,
-  path: &PathBuf,
-  url: Url,
-) -> Result<R> {
-  let data = download_file_no_hash_force(client, path, url).await?;
-  Ok(serde_json::from_slice(&data)?)
-}
-
-pub async fn download_and_parse_file_no_hash<R: DeserializeOwned>(
-  client: &Client,
-  path: &PathBuf,
-  url: Url,
-) -> Result<R> {
-  let data = download_file_no_hash(client, path, url).await?;
-  Ok(serde_json::from_slice(&data)?)
 }
 
 pub async fn file_hash(hash: &str, path: &PathBuf) -> Result<bool> {
@@ -131,41 +67,6 @@ pub async fn create_or_open_file(path: &PathBuf) -> Result<File> {
     fs::create_dir_all(parent).await?;
   }
   Ok(File::create(path).await?)
-}
-
-pub async fn download_file(
-  client: &Client,
-  path: &PathBuf,
-  url: Url,
-  hash: &str,
-) -> Result<Vec<u8>> {
-  let bytes = client
-    .get(url)
-    .send()
-    .await?
-    .error_for_status()?
-    .bytes()
-    .await?;
-  if !hash_bytes(hash, &bytes)? {
-    return Err(FileError::HashMismatch.into());
-  }
-
-  if let Some(parent) = path.parent() {
-    fs::create_dir_all(parent).await?;
-  }
-  fs::write(path, &bytes).await?;
-
-  Ok(bytes.to_vec())
-}
-
-pub async fn download_and_parse_file<R: DeserializeOwned>(
-  client: &Client,
-  path: &PathBuf,
-  url: Url,
-  hash: &str,
-) -> Result<R> {
-  let data = download_file(client, path, url, hash).await?;
-  Ok(serde_json::from_slice(&data)?)
 }
 
 pub async fn last_modified_ago(path: &PathBuf) -> Result<Option<Duration>> {

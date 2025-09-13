@@ -1,16 +1,19 @@
-use std::{future::Future, path::PathBuf, time::Instant};
+use std::{path::PathBuf, time::Instant};
 
 use anyhow::Result;
 use async_zip::tokio::read::fs::ZipFileReader;
 use log::debug;
 use reqwest::Client;
-use tauri::{AppHandle, Url};
+use tauri::AppHandle;
 use tokio::io;
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 
 use crate::{
   path,
-  utils::file::{create_or_open_file, download_file, file_hash},
+  utils::{
+    download::download_file,
+    file::{create_or_open_file, file_hash},
+  },
   versions::{
     check_rule,
     download::{check_pool, download_pool},
@@ -62,9 +65,25 @@ pub async fn check_download_version_java_libraries(
       let client = client.clone();
       let url = library_download.url.clone();
       let hash = library_download.sha1.clone();
+      let size = library_download.size;
 
       futures_1.push(async move {
-        check_download_native_library(java_lib_path, client, path, url, hash).await
+        debug!("Checking native java library {}", path.display());
+        if !file_hash(&hash, &path).await? {
+          return Ok(Some((
+            async move |cb| {
+              debug!("Downloading native java library {}", path.display());
+              download_file(&client, &path, url, &hash, cb).await?;
+
+              unzip_native_library(java_lib_path, path).await?;
+              anyhow::Ok(())
+            },
+            size,
+          )));
+        }
+
+        unzip_native_library(java_lib_path, path).await?;
+        Ok(None)
       });
     }
 
@@ -81,15 +100,19 @@ pub async fn check_download_version_java_libraries(
       let client = client.clone();
       let url = library_download.url.clone();
       let hash = library_download.sha1.clone();
+      let size = library_download.size;
 
       futures_2.push(async move {
         debug!("Checking java library {}", path.display());
         if !file_hash(&hash, &path).await? {
-          return Ok(Some(async move {
-            debug!("Downloading java library {}", path.display());
-            download_file(&client, &path, url, &hash).await?;
-            anyhow::Ok(())
-          }));
+          return Ok(Some((
+            async move |cb| {
+              debug!("Downloading java library {}", path.display());
+              download_file(&client, &path, url, &hash, cb).await?;
+              anyhow::Ok(())
+            },
+            size,
+          )));
         }
         anyhow::Ok(None)
       });
@@ -114,7 +137,7 @@ pub async fn check_download_version_java_libraries(
   let now = Instant::now();
   download_pool(
     futures,
-    handle,
+    handle.clone(),
     update_id,
     DownloadCheckStatus::NativeLibraryDownload,
   )
@@ -138,7 +161,7 @@ pub async fn check_download_version_java_libraries(
   let now = Instant::now();
   download_pool(
     futures,
-    handle,
+    handle.clone(),
     update_id,
     DownloadCheckStatus::LibraryDownload,
   )
@@ -149,28 +172,6 @@ pub async fn check_download_version_java_libraries(
   );
 
   Ok(libs)
-}
-
-async fn check_download_native_library(
-  java_lib_path: PathBuf,
-  client: Client,
-  path: PathBuf,
-  url: Url,
-  hash: String,
-) -> Result<Option<impl Future<Output = Result<()>> + Send>> {
-  debug!("Checking native java library {}", path.display());
-  if !file_hash(&hash, &path).await? {
-    return Ok(Some(async move {
-      debug!("Downloading native java library {}", path.display());
-      download_file(&client, &path, url, &hash).await?;
-
-      unzip_native_library(java_lib_path, path).await?;
-      anyhow::Ok(())
-    }));
-  }
-
-  unzip_native_library(java_lib_path, path).await?;
-  Ok(None)
 }
 
 async fn unzip_native_library(java_lib_path: PathBuf, path: PathBuf) -> Result<()> {

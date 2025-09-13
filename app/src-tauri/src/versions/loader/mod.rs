@@ -4,20 +4,24 @@ use anyhow::Result;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
-use crate::versions::{
-  loader::{
-    fabric::{FabricLikeLoader, FabricLikeLoaderVersion},
-    forge::{ForgeLikeLoader, ForgeLikeLoaderVersion},
+use crate::{
+  utils::download::DownloadFileSizeFuture,
+  versions::{
+    loader::{
+      fabric::{FabricLikeLoader, FabricLikeLoaderVersion},
+      forge::{ForgeLikeLoader, ForgeLikeLoaderVersion},
+    },
+    maven::MavenArtifact,
+    paths::{MCPath, MCVersionPath},
   },
-  maven::MavenArtifact,
-  paths::{MCPath, MCVersionPath},
 };
 
 pub mod fabric;
 pub mod forge;
 mod util;
 
-type DownloadFuture = Pin<Box<dyn Future<Output = Result<()>> + Send + 'static>>;
+type DownloadFuture =
+  Pin<Box<dyn Future<Output = Result<(DownloadFileSizeFuture, usize)>> + Send + 'static>>;
 type CheckFuture = Pin<Box<dyn Future<Output = Result<Option<DownloadFuture>>> + Send + 'static>>;
 
 pub struct ClasspathEntry {

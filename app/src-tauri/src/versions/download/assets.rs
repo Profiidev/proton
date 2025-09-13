@@ -7,7 +7,7 @@ use tauri::AppHandle;
 
 use crate::{
   path,
-  utils::file::{download_file, file_hash},
+  utils::{download::download_file, file::file_hash},
   versions::{
     download::{check_pool, download_pool},
     event::DownloadCheckStatus,
@@ -33,17 +33,21 @@ pub async fn check_download_version_assets(
     let hash = asset.hash.clone();
     let path = path!(mc_path.assets_objects_path(), prefix_hash, &hash);
     let url = format!("{MC_RESOURCES_URL}/{prefix_hash}/{hash}").parse()?;
+    let size = asset.size;
 
     let client = client.clone();
     //futures.push(async move { download_file(&client, &path, url, &hash).await });
     futures.push(async move {
       debug!("Checking asset file {}", path.display());
       if !file_hash(&hash, &path).await? {
-        return Ok(Some(async move {
-          debug!("Downloading asset file {}", path.display());
-          download_file(&client, &path, url, &hash).await?;
-          anyhow::Ok(())
-        }));
+        return Ok(Some((
+          async move |cb| {
+            debug!("Downloading asset file {}", path.display());
+            download_file(&client, &path, url, &hash, cb).await?;
+            anyhow::Ok(())
+          },
+          size,
+        )));
       }
       anyhow::Ok(None)
     });
@@ -57,7 +61,7 @@ pub async fn check_download_version_assets(
   let now = Instant::now();
   download_pool(
     futures,
-    handle,
+    handle.clone(),
     update_id,
     DownloadCheckStatus::AssetsDownload,
   )

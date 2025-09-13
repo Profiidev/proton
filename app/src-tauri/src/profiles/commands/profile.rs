@@ -168,7 +168,7 @@ pub async fn profile_launch(
   drop(store);
 
   if !profile.downloaded {
-    mc_store
+    if !mc_store
       .check_or_download(
         &profile.version,
         id,
@@ -177,10 +177,13 @@ pub async fn profile_launch(
       )
       .await
       .check_online_state(mc_store.handle())
-      .await?;
+      .await?
+    {
+      return Ok(());
+    }
     profile.downloaded = true;
-  } else if !mc_store.check_meta(&profile.version, id).await.log()? {
-    mc_store
+  } else if !mc_store.check_meta(&profile.version, id).await.log()?
+    && !mc_store
       .check_or_download(
         &profile.version,
         id,
@@ -189,7 +192,9 @@ pub async fn profile_launch(
       )
       .await
       .check_online_state(mc_store.handle())
-      .await?;
+      .await?
+  {
+    return Ok(());
   }
 
   profile.last_played = Some(Utc::now());
@@ -236,7 +241,7 @@ pub async fn profile_repair(
   drop(store);
 
   // check online state if err because this requires internet and can indicate offline state
-  mc_store
+  if !mc_store
     .check_or_download(
       &profile.version,
       id,
@@ -245,10 +250,23 @@ pub async fn profile_repair(
     )
     .await
     .check_online_state(&handle)
-    .await?;
+    .await?
+  {
+    return Ok(());
+  }
 
   profile.downloaded = true;
   profile.update(&data_dir).await.log()?;
 
+  Ok(())
+}
+
+#[tauri::command]
+pub async fn profile_cancel_download(
+  state: State<'_, Mutex<McVersionStore>>,
+  id: usize,
+) -> Result<()> {
+  let store = state.lock().await;
+  store.cancel_check_or_download(id).await;
   Ok(())
 }

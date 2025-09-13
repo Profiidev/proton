@@ -49,6 +49,7 @@ async_zip = { version = "0.0.18", features = [
 ] }
 tokio-util = { version = "0.7.16", features = ["compat"] }
 sysinfo = "0.37.0"
+futures-util = "0.3.31"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance = "2.3.4"

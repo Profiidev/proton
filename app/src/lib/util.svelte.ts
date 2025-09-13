@@ -21,6 +21,10 @@ export const rem_to_px = (rem: number) => {
   return rem * rootFontSize;
 };
 
+export const b_to_mb = (bytes: number) => {
+  return bytes / 1024 / 1024;
+};
+
 export const debounce = <T extends (...args: any[]) => void>(
   func: T,
   delay: number
