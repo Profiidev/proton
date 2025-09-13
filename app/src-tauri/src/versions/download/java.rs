@@ -26,7 +26,6 @@ pub async fn check_download_java_files(
 ) -> Result<()> {
   debug!("Collecting checks for java");
   let mut futures = Vec::new();
-  let mut total_size = 0;
 
   for (path, file) in &files.files {
     let path = path!(java_path.base_path(), path);
@@ -45,19 +44,22 @@ pub async fn check_download_java_files(
         let hash = download.sha1.clone();
         #[cfg(target_family = "unix")]
         let executable = *executable;
-        total_size += download.size;
+        let size = download.size;
 
         futures.push(async move {
           debug!("Checking java file {}", path.display());
           if !file_hash(&hash, &path).await? {
-            return Ok(Some(async move |cb| {
-              debug!("Downloading java file {}", path.display());
-              download_file(&client, &path, url, &hash, cb).await?;
+            return Ok(Some((
+              async move |cb| {
+                debug!("Downloading java file {}", path.display());
+                download_file(&client, &path, url, &hash, cb).await?;
 
-              #[cfg(target_family = "unix")]
-              set_permissions(&path, executable).await?;
-              anyhow::Ok(())
-            }));
+                #[cfg(target_family = "unix")]
+                set_permissions(&path, executable).await?;
+                anyhow::Ok(())
+              },
+              size,
+            )));
           }
 
           #[cfg(target_family = "unix")]
@@ -80,7 +82,6 @@ pub async fn check_download_java_files(
     handle.clone(),
     update_id,
     DownloadCheckStatus::JavaDownload,
-    total_size,
   )
   .await?;
   debug!("Completed all downloads for java in {:?}", now.elapsed());

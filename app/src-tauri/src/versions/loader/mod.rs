@@ -21,7 +21,7 @@ pub mod forge;
 mod util;
 
 type DownloadFuture =
-  Pin<Box<dyn Future<Output = Result<(usize, DownloadFileSizeFuture)>> + Send + 'static>>;
+  Pin<Box<dyn Future<Output = Result<(DownloadFileSizeFuture, usize)>> + Send + 'static>>;
 type CheckFuture = Pin<Box<dyn Future<Output = Result<Option<DownloadFuture>>> + Send + 'static>>;
 
 pub struct ClasspathEntry {

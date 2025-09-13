@@ -124,12 +124,11 @@ pub async fn download_file_size(
   client: &Client,
   path: PathBuf,
   url: Url,
-) -> Result<(usize, DownloadFileSizeFuture)> {
+) -> Result<(DownloadFileSizeFuture, usize)> {
   let res = client.get(url).send().await?.error_for_status()?;
   let size = res.content_length().unwrap_or_default() as usize;
 
   Ok((
-    size,
     Box::new(move |progress| {
       Box::pin(async move {
         let mut stream = res.bytes_stream();
@@ -149,5 +148,6 @@ pub async fn download_file_size(
         Ok(())
       })
     }),
+    size,
   ))
 }

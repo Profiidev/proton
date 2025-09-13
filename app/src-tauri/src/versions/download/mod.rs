@@ -93,12 +93,9 @@ pub async fn check_download_version(
       DownloadCheckStatus::ModLoaderFilesDownloadInfo,
       update_id,
     );
-    let mut total = 0;
     let mut downloads = Vec::with_capacity(futures.len());
     for fut in futures {
-      let (size, fut) = fut.await?;
-      total += size;
-      downloads.push(fut);
+      downloads.push(fut.await?);
     }
 
     download_pool(
@@ -106,7 +103,6 @@ pub async fn check_download_version(
       handle.clone(),
       update_id,
       DownloadCheckStatus::ModLoaderFilesDownload,
-      total,
     )
     .await?;
     debug!("Completed all downloads for mod loader files");
@@ -161,19 +157,18 @@ where
 }
 
 async fn download_pool<S, F, Fut>(
-  funcs: Vec<F>,
+  funcs: Vec<(F, usize)>,
   handle: AppHandle,
   update_id: usize,
   status: S,
-  total_size: usize,
 ) -> Result<()>
 where
   S: Fn(usize, usize) -> DownloadCheckStatus + Clone + Send + 'static,
   F: FnOnce(Box<dyn Fn(usize) + Send + 'static>) -> Fut,
   Fut: Future<Output = Result<()>> + Send + 'static,
 {
-  emit_download_check_status(&handle, status(0, total_size), update_id);
   let done = Arc::new(AtomicUsize::new(0));
+  let total_size: usize = funcs.iter().map(|(_, size)| *size).sum();
 
   let cb = {
     let status = status.clone();
@@ -187,12 +182,13 @@ where
   };
 
   let mut futures = Vec::with_capacity(funcs.len());
-  for func in funcs {
+  for (func, _) in funcs {
     futures.push(func(cb.clone()));
   }
 
-  let pool = FuturePool::new(futures);
+  emit_download_check_status(&handle, status(0, total_size), update_id);
 
+  let pool = FuturePool::new(futures);
   let results = pool.run(None).await;
   for result in results {
     result??;

@@ -53,7 +53,7 @@ async fn download_maven(
   name: &str,
   client: &Client,
   url: Option<Url>,
-) -> Result<(usize, DownloadFileSizeFuture)> {
+) -> Result<(DownloadFileSizeFuture, usize)> {
   let maven = MavenArtifact::new(name)?;
   let loader_path = maven.full_path(mc_path);
   let loader_url = url.unwrap_or_else(|| maven.url(base_url).unwrap());

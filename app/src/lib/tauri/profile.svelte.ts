@@ -244,9 +244,10 @@ const message_props = (
     text,
     total,
     value,
-    convert: mib
-      ? (value: number) => b_to_mb(value).toFixed(1) + 'MiB'
-      : undefined
+    convert: mib ? (value: number) => b_to_mb(value) : undefined,
+    round: mib ? (value: number) => value.toFixed(1) : undefined,
+    unit: mib ? 'MiB' : undefined,
+    change: mib
   };
 };
 
@@ -328,6 +329,12 @@ if (browser) {
     if (id === undefined) return;
 
     let message = get_message(event.data);
+
+    if (toast.getActiveToasts().find((t) => t.id === id)?.type !== 'loading') {
+      // Only update loading toasts
+      return;
+    }
+
     if (typeof message === 'object') {
       toast.loading(DownloadNotification, {
         id,
