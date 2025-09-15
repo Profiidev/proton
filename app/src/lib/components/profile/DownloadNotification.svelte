@@ -27,10 +27,13 @@
   let last_diffs = $state<number[]>([]);
   let last_updates = $state<number[]>([]);
   let change_value = $derived(
-    last_diffs.reduce((a, b) => a + b, 0) /
-      (last_updates.length > 1
-        ? (last_updates[last_updates.length - 1] - last_updates[0]) / 1000
-        : 1)
+    Math.max(
+      last_diffs.reduce((a, b) => a + b, 0) /
+        (last_updates.length > 1
+          ? (last_updates[last_updates.length - 1] - last_updates[0]) / 1000
+          : 1),
+      0
+    )
   );
   let last_value = 0;
 
@@ -42,7 +45,7 @@
         last_value = value;
         last_diffs.push(convert(diff));
         last_updates.push(Date.now());
-        if (last_diffs.length > 5) {
+        if (last_diffs.length > 10) {
           last_diffs.shift();
           last_updates.shift();
         }
