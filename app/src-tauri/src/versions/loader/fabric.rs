@@ -289,7 +289,6 @@ enum FabricLauncherMeta {
   V2(FabricLauncherMetaV2),
 }
 
-
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct FabricLauncherMetaV1 {
