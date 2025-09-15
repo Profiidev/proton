@@ -1,4 +1,6 @@
-use std::{path::PathBuf, time::Instant};
+#[cfg(target_family = "unix")]
+use std::path::PathBuf;
+use std::time::Instant;
 
 use anyhow::Result;
 use log::debug;

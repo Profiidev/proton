@@ -282,34 +282,13 @@ struct MavenLib {
   maven: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(untagged)]
 enum FabricLauncherMeta {
   V1(FabricLauncherMetaV1),
   V2(FabricLauncherMetaV2),
 }
 
-impl<'de> Deserialize<'de> for FabricLauncherMeta {
-  fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-  where
-    D: serde::Deserializer<'de>,
-  {
-    use serde::__private::de::{Content, ContentRefDeserializer};
-
-    let content = Content::deserialize(deserializer)?;
-    match FabricLauncherMetaV1::deserialize(ContentRefDeserializer::<D::Error>::new(&content)) {
-      Ok(v1) => Ok(FabricLauncherMeta::V1(v1)),
-      Err(_) => {
-        match FabricLauncherMetaV2::deserialize(ContentRefDeserializer::<D::Error>::new(&content)) {
-          Ok(v2) => Ok(FabricLauncherMeta::V2(v2)),
-          Err(e) => Err(serde::de::Error::custom(format!(
-            "Failed to deserialize FabricLauncherMeta: {e}"
-          ))),
-        }
-      }
-    }
-  }
-}
 
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
