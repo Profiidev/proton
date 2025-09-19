@@ -9,7 +9,6 @@
 
   outputs =
     {
-      self,
       nixpkgs,
       flake-utils,
       rust-overlay,
@@ -21,11 +20,6 @@
           inherit system;
           overlays = [ rust-overlay.overlays.default ];
         };
-        jdks = with pkgs; [
-          jdk8
-          jdk17
-          jdk21
-        ];
       in
       {
         packages.default = pkgs.rustPlatform.buildRustPackage rec {
@@ -109,7 +103,6 @@
 
           postInstall = ''
             gappsWrapperArgs+=(
-              --prefix PATH : ${pkgs.lib.makeSearchPath "bin/java" jdks}
               ${pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
                 --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.xorg.xrandr ]}
                 --set LD_LIBRARY_PATH ${runtimeDependencies}

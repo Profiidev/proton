@@ -156,6 +156,10 @@ pub fn run() {
         && let Some(url) = settings.url
         && url != current_url
       {
+        #[cfg(debug_assertions)]
+        if url.scheme() == "tauri" {
+          return;
+        }
         let _ = view.navigate(url);
       }
     })

@@ -3,8 +3,7 @@ use std::{collections::HashMap, sync::Arc, time::Instant};
 use anyhow::Result;
 use log::info;
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager, Url};
+use tauri::{AppHandle, Manager};
 use tokio::{
   join, select,
   sync::{Mutex, Notify},
@@ -45,12 +44,6 @@ pub struct McVersionStore {
   handle: AppHandle,
   client: Arc<Client>,
   cancel_notify: Arc<Mutex<HashMap<usize, Arc<Notify>>>>,
-}
-
-#[derive(Serialize, Deserialize)]
-struct IndexInfo {
-  id: String,
-  url: Url,
 }
 
 impl McVersionStore {
