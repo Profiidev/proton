@@ -21,6 +21,7 @@
     is_offline,
     listen_manifest_refresh_error
   } from '$lib/tauri/offline.svelte';
+  import { webviewWindow } from '@tauri-apps/api';
   let { children } = $props();
 
   setMode('dark');
@@ -30,6 +31,7 @@
   let offline = $derived(is_offline.value);
 
   onMount(async () => {
+    await webviewWindow.getCurrentWebviewWindow().show();
     instance_crash_unsub = await listen_instance_crash();
     manifest_refresh_error_unsub = await listen_manifest_refresh_error();
 
