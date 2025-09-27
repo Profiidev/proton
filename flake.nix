@@ -1,18 +1,30 @@
 {
   description = "Proton";
 
+  nixConfig = {
+    extra-substituters = [
+      "https://profidev.cachix.org"
+    ];
+
+    extra-trusted-public-keys = [
+      "profidev.cachix.org-1:xdwadal2vlCD50JtDTy8NwjOJvkOtjdjy1y91ElU9GE="
+    ];
+  };
+
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     rust-overlay.url = "github:oxalica/rust-overlay";
+    nix-filter.url = "github:numtide/nix-filter";
   };
 
   outputs =
     {
-      self,
       nixpkgs,
       flake-utils,
       rust-overlay,
+      nix-filter,
+      ...
     }:
     flake-utils.lib.eachDefaultSystem (
       system:
@@ -27,7 +39,23 @@
           pname = "proton";
           version = "0.2.4";
 
-          src = ./.;
+          src = nix-filter {
+            root = ./.;
+            include = [
+              "package.json"
+              "package-lock.json"
+              "Cargo.toml"
+              "Cargo.lock"
+              "app/src"
+              "app/src-tauri"
+              "app/static"
+              "app/package.json"
+              "app/svelte.config.js"
+              "app/tsconfig.json"
+              "app/vite.config.js"
+              "backend/Cargo.toml"
+            ];
+          };
 
           npmDeps = pkgs.importNpmLock {
             npmRoot = src;
