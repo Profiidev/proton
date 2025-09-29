@@ -24,7 +24,7 @@
     "@tauri-apps/plugin-window-state": "^2.4.0",
     "fuse.js": "^7.1.0",
     "mode-watcher": "^1.1.0",
-    "positron-components": "^1.5.5",
+    "positron-components": "^1.7.0",
     "skinview3d": "^3.4.1",
     "svelte-sonner": "^1.0.5",
     "sveltekit-superforms": "^2.27.1",
@@ -44,10 +44,10 @@
     "vite": "^7.1.7"
   },
   "optionalDependencies": {
-    "@rollup/rollup-darwin-arm64": "^4.52.0",
-    "@rollup/rollup-darwin-x64": "^4.52.0",
-    "@rollup/rollup-linux-x64-gnu": "^4.52.0",
-    "@rollup/rollup-win32-x64-msvc": "^4.52.0",
+    "@rollup/rollup-darwin-arm64": "^4.52.3",
+    "@rollup/rollup-darwin-x64": "^4.52.3",
+    "@rollup/rollup-linux-x64-gnu": "^4.52.3",
+    "@rollup/rollup-win32-x64-msvc": "^4.52.3",
     "@tauri-apps/cli-darwin-arm64": "^2.7.1",
     "@tauri-apps/cli-darwin-x64": "^2.7.1",
     "@tauri-apps/cli-linux-x64-gnu": "^2.7.1",

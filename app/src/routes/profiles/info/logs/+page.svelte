@@ -76,7 +76,7 @@
   />
   <DropdownMenu.Root>
     <DropdownMenu.Trigger>
-      {#snippet child({ props })}
+      {#snippet child({ props }: { props: Record<string, any> })}
         <Button variant="outline" size="icon" {...props} class="cursor-pointer">
           <Menu />
         </Button>
