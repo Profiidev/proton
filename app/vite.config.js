@@ -6,6 +6,7 @@ import { sveltekit } from '@sveltejs/kit/vite';
 const host = process.env.TAURI_DEV_HOST;
 
 // https://vitejs.dev/config/
+// @ts-ignore
 export default defineConfig(async () => ({
   plugins: [tailwindcss(), sveltekit()],
 
