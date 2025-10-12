@@ -37,7 +37,7 @@
       {
         packages.default = pkgs.rustPlatform.buildRustPackage rec {
           pname = "proton";
-          version = "0.2.6";
+          version = "0.2.7";
 
           src = nix-filter {
             root = ./.;
