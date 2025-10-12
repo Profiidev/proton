@@ -136,6 +136,7 @@
                 --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.xorg.xrandr ]}
                 --set LD_LIBRARY_PATH ${runtimeDependencies}
                 --set XDG_DATA_DIRS ${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}:${pkgs.gtk3}/share/gsettings-schemas/${pkgs.gtk3.name}:$XDG_DATA_DIRS
+                --set GIO_MODULE_DIR ${pkgs.glib-networking}/lib/gio/modules/
               ''}
             )
 

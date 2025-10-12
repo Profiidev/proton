@@ -150,7 +150,8 @@ pub fn run() {
       Ok(())
     })
     .on_page_load(|view, payload| {
-      if payload.event() == PageLoadEvent::Started
+      if view.label() == "main"
+        && payload.event() == PageLoadEvent::Started
         && let Ok(current_url) = view.url()
         && let Ok(settings) = view.app_handle().app_settings()
         && let Some(url) = settings.url
