@@ -31,7 +31,7 @@
   let offline = $derived(is_offline.value);
 
   onMount(async () => {
-    await webviewWindow.getCurrentWebviewWindow().show();
+    webviewWindow.getCurrentWebviewWindow().show();
     instance_crash_unsub = await listen_instance_crash();
     manifest_refresh_error_unsub = await listen_manifest_refresh_error();
 
