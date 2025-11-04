@@ -124,11 +124,6 @@
       : []
   );
 
-  const profileCreate = {
-    form: data.profileCreate,
-    schema: profileCreateSchema
-  };
-
   const createProfile = async (form: FormType<any>) => {
     form.data.version = form.data.version[0];
     form.data.loader = form.data.loader[0];
@@ -150,7 +145,7 @@
     <Input
       placeholder="Search profiles..."
       bind:value={text_filter}
-      class="flex-grow-1"
+      class="grow"
       type="search"
     />
     <Multiselect
@@ -173,7 +168,8 @@
       trigger={{
         size: 'icon'
       }}
-      form={profileCreate}
+      form={data.profileCreate}
+      schema={profileCreateSchema}
       onsubmit={createProfile}
       bind:open={createOpen}
       bind:this={createDialog as any}
@@ -217,9 +213,9 @@
     </FormDialog>
   </div>
   {#if filtered_profiles && filtered_profiles.length > 0}
-    <ScrollArea.ScrollArea class="mt-2 min-h-0 flex-grow-1">
+    <ScrollArea.ScrollArea class="mt-2 min-h-0 grow">
       <div
-        class="grid size-full auto-rows-min grid-cols-[repeat(auto-fill,_minmax(14rem,_1fr))] gap-2"
+        class="grid size-full auto-rows-min grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-2"
       >
         {#each filtered_profiles as profile}
           <ProfileListButton
