@@ -15,7 +15,7 @@ jobs:
       - name: Checkout code
         with:
           token: ${{ secrets.PERSONAL_TOKEN }}
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Update version
         id: update_version
@@ -30,7 +30,7 @@ jobs:
           sed -i "s/version = \".*\"/version = \"$NEW_VERSION\"/" flake.nix
 
       - name: Create PR
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.PERSONAL_TOKEN }}
           commit-message: 'Updated version to ${{ github.event.inputs.version }}'
