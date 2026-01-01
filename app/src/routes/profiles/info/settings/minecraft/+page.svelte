@@ -8,7 +8,7 @@
   import { getProfile } from '../../store.svelte';
   import SwitchTooltip from '$lib/components/form/SwitchTooltip.svelte';
   import { toast } from 'svelte-sonner';
-  import { Separator } from 'positron-components/components/ui';
+  import { Separator } from 'positron-components/components/ui/separator';
   import GameSettings from '$lib/components/settings/GameSettings.svelte';
 
   let profile = $derived(getProfile());

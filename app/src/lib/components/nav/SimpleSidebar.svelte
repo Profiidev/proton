@@ -3,7 +3,7 @@
   import { crossfade } from 'svelte/transition';
   import { cubicInOut } from 'svelte/easing';
   import { cn } from 'positron-components/utils';
-  import { Button } from 'positron-components/components/ui';
+  import { Button } from 'positron-components/components/ui/button';
 
   interface Props {
     class: string | undefined;

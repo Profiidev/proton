@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { Input, ScrollArea } from 'positron-components/components/ui';
-  import { Multiselect } from 'positron-components/components/table';
+  import { Input } from 'positron-components/components/ui/input';
+  import { ScrollArea } from 'positron-components/components/ui/scroll-area';
+  import Multiselect from 'positron-components/components/table/multiselect.svelte';
   import Fuse from 'fuse.js';
   import { cn } from 'positron-components/utils';
   import type { Snippet } from 'svelte';
@@ -110,7 +111,7 @@
     <Input
       placeholder="Search logs..."
       bind:value={text_filter}
-      class="flex-grow-1"
+      class="grow"
       type="search"
     />
     <Multiselect
@@ -125,9 +126,9 @@
     />
     {@render children?.()}
   </div>
-  <div class="min-h-0 w-full flex-grow-1 rounded-lg border-2 p-2">
+  <div class="min-h-0 w-full grow rounded-lg border-2 p-2">
     {#if parsedLogs && filteredLogs.length > 0}
-      <ScrollArea.ScrollArea class="size-full" bind:ref={scrollAreaParent}>
+      <ScrollArea class="size-full" bind:ref={scrollAreaParent}>
         {#each filteredLogs as log}
           <p>
             <span class="text-muted-foreground">{log.time}</span>
@@ -140,7 +141,7 @@
             <span>: {log.message}</span>
           </p>
         {/each}
-      </ScrollArea.ScrollArea>
+      </ScrollArea>
     {:else}
       <p class="text-muted-foreground">
         No logs found for the current filter settings

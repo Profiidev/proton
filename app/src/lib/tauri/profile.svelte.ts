@@ -8,7 +8,7 @@ import {
 } from './events.svelte';
 import { listen } from '@tauri-apps/api/event';
 import { browser } from '$app/environment';
-import { toast } from 'positron-components/components/ui';
+import { toast } from 'positron-components/components/util/general';
 import type { QuickPlayInfo } from './quick_play.svelte';
 import DownloadNotificationCancel from '$lib/components/profile/DownloadNotificationCancel.svelte';
 import type { ComponentProps } from 'svelte';

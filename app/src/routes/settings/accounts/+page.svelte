@@ -16,12 +16,10 @@
   } from '$lib/tauri/events.svelte';
   import { listen, type Event } from '@tauri-apps/api/event';
   import { LoaderCircle, Plus, Trash } from '@lucide/svelte';
-  import {
-    toast,
-    Badge,
-    Button,
-    Separator
-  } from 'positron-components/components/ui';
+  import { toast } from 'positron-components/components/util/general';
+  import { Button } from 'positron-components/components/ui/button';
+  import { Separator } from 'positron-components/components/ui/separator';
+  import { Badge } from 'positron-components/components/ui/badge';
   import { is_offline } from '$lib/tauri/offline.svelte';
 
   let accounts: Accounts | undefined = $derived(account_list.value);

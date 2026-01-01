@@ -1,11 +1,11 @@
 <script lang="ts">
   import { setMode } from 'mode-watcher';
+  import { Separator } from 'positron-components/components/ui/separator';
+  import { Toaster } from 'positron-components/components/ui/sonner';
   import {
     ModeWatcher,
-    Separator,
-    toast,
-    Toaster
-  } from 'positron-components/components/ui';
+    toast
+  } from 'positron-components/components/util/general';
   import '../app.css';
   import Header from '$lib/components/nav/Header.svelte';
   import Sidebar from '$lib/components/nav/Sidebar.svelte';
@@ -22,6 +22,7 @@
     listen_manifest_refresh_error
   } from '$lib/tauri/offline.svelte';
   import { webviewWindow } from '@tauri-apps/api';
+
   let { children } = $props();
 
   setMode('dark');
@@ -83,10 +84,10 @@
 <div class="flex h-full flex-col">
   <Header />
   <Separator />
-  <div class="flex w-full flex-grow-1">
+  <div class="flex w-full grow">
     <Sidebar />
     <Separator orientation="vertical" />
-    <main class="h-full min-h-0 flex-grow-1 p-2">
+    <main class="h-full min-h-0 grow p-2">
       {@render children()}
     </main>
   </div>

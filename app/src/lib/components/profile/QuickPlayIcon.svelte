@@ -5,7 +5,7 @@
   } from '$lib/tauri/quick_play.svelte';
   import { Box } from '@lucide/svelte';
   import { cn } from 'positron-components/utils';
-  import { Avatar } from 'positron-components/components/ui';
+  import * as Avatar from 'positron-components/components/ui/avatar';
 
   interface Props {
     profileId: string;

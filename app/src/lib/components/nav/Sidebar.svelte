@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Button } from 'positron-components/components/ui';
+  import { Button } from 'positron-components/components/ui/button';
   import AccountSelector from '../account/AccountSelector.svelte';
   import { Gamepad2, Home, LibraryBig, Settings } from '@lucide/svelte';
   import { page } from '$app/state';

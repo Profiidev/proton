@@ -12,13 +12,11 @@
   import { is_offline } from '$lib/tauri/offline.svelte';
   import { file_to_bytes } from '$lib/util.svelte';
   import { LoaderCircle, Plus } from '@lucide/svelte';
-  import {
-    Button,
-    Input,
-    ScrollArea,
-    Separator,
-    toast
-  } from 'positron-components/components/ui';
+  import { Button } from 'positron-components/components/ui/button';
+  import { Input } from 'positron-components/components/ui/input';
+  import { ScrollArea } from 'positron-components/components/ui/scroll-area';
+  import { Separator } from 'positron-components/components/ui/separator';
+  import { toast } from 'positron-components/components/util/general';
 
   let offline = $derived(is_offline.value);
   let skins = $derived(account_list_skins.value);
@@ -100,7 +98,7 @@
       </div>
       {#if skins && skins.length > 0}
         <div class="min-h-0 flex-1">
-          <ScrollArea.ScrollArea class="h-full">
+          <ScrollArea class="h-full">
             <div class="grid w-full grid-cols-[repeat(auto-fill,9rem)] gap-3">
               {#each skins as skin}
                 <MiniSkinViewer
@@ -111,7 +109,7 @@
                 />
               {/each}
             </div>
-          </ScrollArea.ScrollArea>
+          </ScrollArea>
         </div>
       {:else}
         <div class="flex flex-1 items-center justify-center">

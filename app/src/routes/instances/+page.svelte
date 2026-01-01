@@ -1,13 +1,14 @@
 <script lang="ts">
   import { vanilla_version_list } from '$lib/tauri/versions.svelte';
-  import { Input, ScrollArea } from 'positron-components/components/ui';
+  import { Input } from 'positron-components/components/ui/input';
+  import { ScrollArea } from 'positron-components/components/ui/scroll-area';
   import { CircleStop } from '@lucide/svelte';
   import {
     instance_list,
     instance_stop,
     type InstanceInfo
   } from '$lib/tauri/instance.svelte';
-  import { Multiselect } from 'positron-components/components/table';
+  import Multiselect from 'positron-components/components/table/multiselect.svelte';
   import Fuse from 'fuse.js';
   import { goto } from '$app/navigation';
   import { compareDateTimes } from '$lib/util.svelte';
@@ -98,7 +99,7 @@
     <Input
       placeholder="Search instances..."
       bind:value={text_filter}
-      class="flex-grow-1"
+      class="grow"
       type="search"
     />
     <Multiselect
@@ -124,9 +125,9 @@
     />
   </div>
   {#if filtered_instances && filtered_instances.length > 0}
-    <ScrollArea.ScrollArea class="mt-2 min-h-0 flex-grow-1">
+    <ScrollArea class="mt-2 min-h-0 grow">
       <div
-        class="grid size-full auto-rows-min grid-cols-[repeat(auto-fill,_minmax(14rem,_1fr))] gap-2"
+        class="grid size-full auto-rows-min grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-2"
       >
         {#each filtered_instances as instance}
           <ProfileListButton
@@ -145,7 +146,7 @@
           />
         {/each}
       </div>
-    </ScrollArea.ScrollArea>
+    </ScrollArea>
   {:else}
     <p class="text-muted-foreground mt-2 text-center">
       No instances found. Adjust your filters or launch a profile to create one.

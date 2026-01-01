@@ -1,11 +1,10 @@
 <script lang="ts" generics="S extends FormRecord = FormRecord">
-  import { Form } from 'positron-components/components/ui';
-  import type { HTMLInputAttributes } from 'svelte/elements';
+  import * as Form from 'positron-components/components/ui/form';
   import {
     type FormPath,
     type FormRecord,
     type SuperForm
-  } from 'positron-components/components/form';
+  } from 'positron-components/components/form/types';
   import { get } from 'svelte/store';
   import ImageInput from './ImageInput.svelte';
 
