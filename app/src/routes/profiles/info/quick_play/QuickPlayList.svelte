@@ -3,14 +3,12 @@
     profile_quick_play_remove,
     type QuickPlayInfo
   } from '$lib/tauri/quick_play.svelte';
-  import {
-    Button,
-    Dialog,
-    Separator,
-    Tabs
-  } from 'positron-components/components/ui';
+  import { Button } from 'positron-components/components/ui/button';
+  import { Separator } from 'positron-components/components/ui/separator';
+  import * as Dialog from 'positron-components/components/ui/dialog';
+  import * as Tabs from 'positron-components/components/ui/tabs';
   import { getProfile } from '../store.svelte';
-  import { DateTime } from 'positron-components/util';
+  import { DateTime } from 'positron-components/util/time.svelte';
   import { Play, Star, Trash } from '@lucide/svelte';
   import { account_active } from '$lib/tauri/account.svelte';
   import { profile_launch } from '$lib/tauri/profile.svelte';

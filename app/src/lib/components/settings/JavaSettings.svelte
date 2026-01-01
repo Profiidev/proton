@@ -1,12 +1,10 @@
 <script lang="ts">
   import { toast } from 'svelte-sonner';
-  import {
-    Button,
-    Input,
-    Label,
-    ScrollArea,
-    Slider
-  } from 'positron-components/components/ui';
+  import { Button } from 'positron-components/components/ui/button';
+  import { ScrollArea } from 'positron-components/components/ui/scroll-area';
+  import { Slider } from 'positron-components/components/ui/slider';
+  import { Label } from 'positron-components/components/ui/label';
+  import { Input } from 'positron-components/components/ui/input';
   import type { JvmSettings } from '$lib/tauri/profile.svelte';
   import { Plus, Trash } from '@lucide/svelte';
   import { cn } from 'positron-components/utils';
@@ -44,7 +42,7 @@
   };
 </script>
 
-<div class="mr-4 mb-4 flex min-h-0 flex-grow-1 flex-col gap-4">
+<div class="mr-4 mb-4 flex min-h-0 grow flex-col gap-4">
   {#if settings}
     <div class="flex items-center gap-2">
       <Label
@@ -121,7 +119,7 @@
     {#if Object.keys(settings.env_vars).length === 0}
       <p class="text-muted-foreground text-sm">No environment variables set</p>
     {:else}
-      <ScrollArea.ScrollArea class="min-h-0">
+      <ScrollArea class="min-h-0">
         <div class="flex flex-col gap-2">
           {#each Object.entries(settings.env_vars).sort( ([keyA], [keyB]) => keyA.localeCompare(keyB) ) as [key, value]}
             <div class="flex items-center gap-2">
@@ -180,7 +178,7 @@
             </div>
           {/each}
         </div>
-      </ScrollArea.ScrollArea>
+      </ScrollArea>
     {/if}
     <div class="flex items-center gap-2">
       <Input

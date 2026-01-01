@@ -7,14 +7,13 @@
     profile_logs,
     profile_clear_logs
   } from '$lib/tauri/logs.svelte';
-  import { DateTime } from 'positron-components/util';
-  import { Multiselect } from 'positron-components/components/table';
+  import { DateTime } from 'positron-components/util/time.svelte';
+  import Multiselect from 'positron-components/components/table/multiselect.svelte';
   import { compareDateTimes } from '$lib/util.svelte';
-  import {
-    Button,
-    Dialog,
-    DropdownMenu
-  } from 'positron-components/components/ui';
+  import { Button } from 'positron-components/components/ui/button';
+  import * as Dialog from 'positron-components/components/ui/dialog';
+  // @ts-ignore
+  import * as DropdownMenu from 'positron-components/components/ui/dropdown-menu';
   import { Menu, Trash } from '@lucide/svelte';
 
   let profile = $derived(getProfile());

@@ -6,39 +6,31 @@
     profile_list,
     ProfileError
   } from '$lib/tauri/profile.svelte';
-  import {
-    FormDialog,
-    FormInput,
-    type FormType
-  } from 'positron-components/components/form';
-  import type { PageServerData } from './$types';
+  import FormDialog from 'positron-components/components/form/form-dialog.svelte';
+  import FormInput from 'positron-components/components/form/form-input.svelte';
   import { profileCreateSchema } from './schema.svelte';
   import {
     vanilla_version_list,
     version_list
   } from '$lib/tauri/versions.svelte';
-  import { Input, ScrollArea } from 'positron-components/components/ui';
+  import { Input } from 'positron-components/components/ui/input';
+  import { ScrollArea } from 'positron-components/components/ui/scroll-area';
   import { Plus } from '@lucide/svelte';
   import FormImage from '../../lib/components/form/FormImage.svelte';
   import { compareProfiles, file_to_bytes } from '$lib/util.svelte';
-  import { Multiselect } from 'positron-components/components/table';
+  import Multiselect from 'positron-components/components/table/multiselect.svelte';
   import Fuse from 'fuse.js';
   import { goto } from '$app/navigation';
   import { account_active } from '$lib/tauri/account.svelte';
   import ProfileListButton from '$lib/components/profile/ProfileListButton.svelte';
   import FormSelectUpdate from '$lib/components/form/FormSelectUpdate.svelte';
-
-  interface Props {
-    data: PageServerData;
-  }
-
-  let { data }: Props = $props();
+  import type { FormValue } from 'positron-components/components/form/types';
 
   let version_filter = $state<string[]>([]);
   let loader_filter = $state<string[]>([]);
   let text_filter = $state('');
   let createOpen = $state(false);
-  let createDialog = $state<FormDialog>();
+  let createDialog = $state<FormDialog<typeof profileCreateSchema>>();
   let currentLoader = $state<[LoaderType]>([LoaderType.Vanilla]);
   let currentVersion = $state<[string]>();
   let new_version_list = $state<string[]>();
@@ -69,6 +61,7 @@
   $effect(() => {
     if (createOpen) {
       createDialog?.setValue({
+        name: '',
         loader: [LoaderType.Vanilla],
         version: vanilla_versions?.length ? [vanilla_versions[0].value] : []
       });
@@ -124,14 +117,15 @@
       : []
   );
 
-  const createProfile = async (form: FormType<any>) => {
-    form.data.version = form.data.version[0];
-    form.data.loader = form.data.loader[0];
-    if (form.data.icon) {
-      form.data.icon = await file_to_bytes(form.data.icon);
+  const createProfile = async (form: FormValue<typeof profileCreateSchema>) => {
+    let data: any = { ...form };
+    data.version = form.version[0];
+    data.loader = form.loader[0];
+    if (form.icon) {
+      data.icon = await file_to_bytes(form.icon);
     }
 
-    let res = await profile_create(form.data);
+    let res = await profile_create(data);
     if (res === ProfileError.InvalidImage) {
       return { field: 'icon', error: 'Invalid image' };
     } else if (res === ProfileError.Other) {
@@ -168,7 +162,6 @@
       trigger={{
         size: 'icon'
       }}
-      form={data.profileCreate}
       schema={profileCreateSchema}
       onsubmit={createProfile}
       bind:open={createOpen}
@@ -213,7 +206,7 @@
     </FormDialog>
   </div>
   {#if filtered_profiles && filtered_profiles.length > 0}
-    <ScrollArea.ScrollArea class="mt-2 min-h-0 grow">
+    <ScrollArea class="mt-2 min-h-0 grow">
       <div
         class="grid size-full auto-rows-min grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-2"
       >
@@ -227,7 +220,7 @@
           />
         {/each}
       </div>
-    </ScrollArea.ScrollArea>
+    </ScrollArea>
   {:else}
     <p class="text-muted-foreground mt-2 text-center">
       No profiles found. Adjust your filters or create a new profile.

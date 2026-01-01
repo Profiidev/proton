@@ -1,6 +1,8 @@
 <script lang="ts">
   import { cn } from 'positron-components/utils';
-  import { Label, Switch, Tooltip } from 'positron-components/components/ui';
+  import { Label } from 'positron-components/components/ui/label';
+  import { Switch } from 'positron-components/components/ui/switch';
+  import * as Tooltip from 'positron-components/components/ui/tooltip';
 
   interface Props {
     id: string;

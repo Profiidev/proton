@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Tabs } from 'positron-components/components/ui';
+  import * as Tabs from 'positron-components/components/ui/tabs';
   import { getProfile } from '../store.svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';

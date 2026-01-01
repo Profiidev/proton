@@ -1,9 +1,9 @@
 <script lang="ts" generics="T, S extends FormRecord = FormRecord">
   import {
     type FormRecord,
-    FormSelect,
     type SuperForm
-  } from 'positron-components/components/form';
+  } from 'positron-components/components/form/types';
+  import FormSelect from 'positron-components/components/form/form-select.svelte';
   import type { ComponentProps } from 'svelte';
   import { get } from 'svelte/store';
 

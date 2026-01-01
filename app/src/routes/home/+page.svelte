@@ -10,7 +10,7 @@
   import { profile_launch } from '$lib/tauri/profile.svelte';
   import { compareProfiles } from '$lib/util.svelte';
   import { FastForward } from '@lucide/svelte';
-  import { Separator } from 'positron-components/components/ui';
+  import { Separator } from 'positron-components/components/ui/separator';
 
   let favorites = $derived(profile_favorites_list.value);
   let sorted_favorites = $derived(
@@ -28,7 +28,7 @@
   <Separator class="my-2" />
   {#if sorted_favorites.length > 0}
     <div
-      class="grid h-auto w-full auto-rows-min grid-cols-[repeat(auto-fill,_minmax(14rem,_1fr))] gap-2"
+      class="grid h-auto w-full auto-rows-min grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-2"
     >
       {#each sorted_favorites as favorite}
         <ProfileListButton
@@ -63,7 +63,7 @@
   <Separator class="my-2" />
   {#if sorted_history.length > 0}
     <div
-      class="grid h-auto w-full auto-rows-min grid-cols-[repeat(auto-fill,_minmax(14rem,_1fr))] gap-2"
+      class="grid h-auto w-full auto-rows-min grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-2"
     >
       {#each sorted_history as item}
         <ProfileListButton

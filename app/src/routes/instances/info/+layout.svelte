@@ -1,11 +1,12 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { SimpleSidebar, Button } from 'positron-components/components';
+  import { Button } from 'positron-components/components/ui/button';
+  import SimpleSidebar from 'positron-components/components/nav/simple-sidebar.svelte';
   import { ExternalLink, StopCircle } from '@lucide/svelte';
   import ProfileIcon from '$lib/components/profile/ProfileIcon.svelte';
   import { instance_list, instance_stop } from '$lib/tauri/instance.svelte.js';
   import { setInstance } from './store.svelte.js';
-  import { DateTime } from 'positron-components/util';
+  import { DateTime } from 'positron-components/util/time.svelte';
   import DestroyDialog from '$lib/components/form/DestroyDialog.svelte';
 
   let { data, children } = $props();
@@ -74,12 +75,12 @@
         </Button>
       </div>
     </div>
-    <div class="mt-2 flex min-h-0 flex-grow-1 flex-col gap-2 lg:flex-row">
+    <div class="mt-2 flex min-h-0 grow flex-col gap-2 lg:flex-row">
       <aside class="lg:w-52 lg:max-w-32 lg:min-w-32">
         <SimpleSidebar {items} class="" />
       </aside>
       <div
-        class="flex min-h-0 flex-grow-1 space-y-8 lg:h-full lg:space-y-0 lg:space-x-12"
+        class="flex min-h-0 grow space-y-8 lg:h-full lg:space-y-0 lg:space-x-12"
       >
         {@render children()}
       </div>

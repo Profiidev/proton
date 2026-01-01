@@ -8,7 +8,8 @@
     type ProfileInfo
   } from '$lib/tauri/account.svelte';
   import { CircleHelp, ExternalLink } from '@lucide/svelte';
-  import { Popover, Button } from 'positron-components/components/ui';
+  import { Button } from 'positron-components/components/ui/button';
+  import * as Popover from 'positron-components/components/ui/popover';
   import AccountImage from './AccountImage.svelte';
   import { goto } from '$app/navigation';
 

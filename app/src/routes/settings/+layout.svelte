@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { SimpleSidebar } from 'positron-components/components';
+  import SimpleSidebar from 'positron-components/components/nav/simple-sidebar.svelte';
 
   let { children } = $props();
 

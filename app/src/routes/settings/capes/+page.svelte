@@ -12,11 +12,9 @@
   } from '$lib/tauri/account.svelte';
   import { is_offline } from '$lib/tauri/offline.svelte';
   import { LoaderCircle } from '@lucide/svelte';
-  import {
-    ScrollArea,
-    Separator,
-    toast
-  } from 'positron-components/components/ui';
+  import { Separator } from 'positron-components/components/ui/separator';
+  import { toast } from 'positron-components/components/util/general';
+  import { ScrollArea } from 'positron-components/components/ui/scroll-area';
 
   let offline = $derived(is_offline.value);
   let accounts = $derived(account_list.value);
@@ -59,7 +57,7 @@
       <p class="my-2 w-full text-center">Library</p>
       {#if account && account[1] && account[1].capes.length > 0 && selected_skin}
         <div class="min-h-0 flex-1">
-          <ScrollArea.ScrollArea class="h-full">
+          <ScrollArea class="h-full">
             <div class="grid w-full grid-cols-[repeat(auto-fill,9rem)] gap-3">
               {#each account[1].capes as cape}
                 {#await Promise.all( [account_get_cape(cape.url), account_get_skin(selected_skin.url)] )}
@@ -97,7 +95,7 @@
                 {/if}
               {/await}
             </div>
-          </ScrollArea.ScrollArea>
+          </ScrollArea>
         </div>
       {:else}
         <div class="flex flex-1 items-center justify-center">
