@@ -62,12 +62,13 @@
           };
 
           nativeBuildInputs = with pkgs; [
+            cacert
             cargo-tauri.hook
             nodejs
             pkg-config
             importNpmLock.npmConfigHook
             npmHooks.npmInstallHook
-            cargo-tauri.hook
+            glib
             wrapGAppsHook4
           ];
 
@@ -117,6 +118,8 @@
           buildInputs = with pkgs; [
             webkitgtk_4_1
             openssl
+            glib-networking
+            gsettings-desktop-schemas
           ];
 
           cargoLock = {
@@ -135,17 +138,12 @@
               ${pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
                 --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.xorg.xrandr ]}
                 --set LD_LIBRARY_PATH ${runtimeDependencies}
-                --set XDG_DATA_DIRS ${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}:${pkgs.gtk3}/share/gsettings-schemas/${pkgs.gtk3.name}:$XDG_DATA_DIRS
-                --set GIO_MODULE_DIR ${pkgs.glib-networking}/lib/gio/modules/
               ''}
             )
 
+            glibPostInstallHook
+            gappsWrapperArgsHook
             wrapGAppsHook
-          '';
-
-          fixupPhase = ''
-            substituteInPlace "$out/share/applications/proton.desktop" \
-              --replace-fail "Exec=proton" "Exec=env WEBKIT_DISABLE_DMABUF_RENDERER=1 proton"
           '';
         };
       }

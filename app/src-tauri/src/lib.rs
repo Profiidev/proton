@@ -161,6 +161,10 @@ pub fn run() {
         if url.scheme() == "tauri" {
           return;
         }
+        #[cfg(not(debug_assertions))]
+        if url.scheme() != "http" && url.scheme() != "https" {
+          return;
+        }
         let _ = view.navigate(url);
       }
     })
