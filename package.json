@@ -6,7 +6,7 @@
     "build": "cd app && npm run build"
   },
   "devDependencies": {
-    "prettier": "^3.7.4",
+    "prettier": "^3.8.1",
     "prettier-plugin-tailwindcss": "^0.7.2",
     "prettier-plugin-svelte": "^3.4.1"
   }
