@@ -14,14 +14,14 @@ let
 
     ## glfw
     libGL
-    xorg.libX11
-    xorg.libXcursor
-    xorg.libXext
-    xorg.libXrandr
-    xorg.libXxf86vm
-    xorg.libXrender
-    xorg.libXtst
-    xorg.libXi
+    libx11
+    libxcursor
+    libxext
+    libxrandr
+    libxxf86vm
+    libxrender
+    libxtst
+    libxi
     freetype
 
     udev # oshi
