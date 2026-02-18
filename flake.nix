@@ -80,14 +80,14 @@
 
                 # glfw
                 libGL
-                xorg.libX11
-                xorg.libXcursor
-                xorg.libXext
-                xorg.libXrandr
-                xorg.libXxf86vm
-                xorg.libXrender
-                xorg.libXtst
-                xorg.libXi
+                libx11
+                libxcursor
+                libxext
+                libxrandr
+                libxxf86vm
+                libxrender
+                libxtst
+                libxi
                 freetype
 
                 # lwjgl
@@ -136,7 +136,7 @@
           postInstall = ''
             gappsWrapperArgs+=(
               ${pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
-                --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.xorg.xrandr ]}
+                --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.xrandr ]}
                 --set LD_LIBRARY_PATH ${runtimeDependencies}
               ''}
             )
