@@ -28,7 +28,7 @@
 
   let files = $state<FileList | undefined>();
   let src = $state('');
-  let LabelComp = labelComp ?? Label;
+  let LabelComp = $derived(labelComp ?? Label);
 
   $effect(() => {
     if (files && files.length > 0) {
