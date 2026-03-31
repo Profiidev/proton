@@ -10,10 +10,10 @@ thiserror = "2.0.18"
 serde = { version = "1.0.228", features = ["derive"] }
 rocket = { version = "0.5.1", features = ["json"] }
 rocket_cors = "0.6.0"
-openssl = { version = "0.10.75", features = ["vendored"] }
+openssl = { version = "0.10.76", features = ["vendored"] }
 dotenv = "0.15.0"
 fern = "0.7.1"
-env_logger = "0.11.9"
+env_logger = "0.11.10"
 
 [[bin]]
 name = "proton-backend"
