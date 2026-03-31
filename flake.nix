@@ -46,9 +46,9 @@
               "package-lock.json"
               "Cargo.toml"
               "Cargo.lock"
-              "app/src"
-              "app/src-tauri"
-              "app/static"
+              (nix-filter.lib.inDirectory "app/src")
+              (nix-filter.lib.inDirectory "app/src-tauri")
+              (nix-filter.lib.inDirectory "app/static")
               "app/package.json"
               "app/svelte.config.js"
               "app/tsconfig.json"

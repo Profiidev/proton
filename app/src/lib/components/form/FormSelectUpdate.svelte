@@ -24,6 +24,7 @@
     ...props
   }: Props & FormSelectProps = $props();
 
+  // svelte-ignore state_referenced_locally
   formData.form.subscribe((form) => {
     val = form[props.key];
   });

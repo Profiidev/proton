@@ -1,5 +1,5 @@
 use std::{
-  io::Write,
+  io::Read,
   path::{Path, PathBuf},
 };
 
@@ -24,7 +24,14 @@ pub async fn file_hash(hash: &str, path: &PathBuf) -> Result<bool> {
   let mut file = file.into_std().await;
   let found_hash = spawn_blocking(move || {
     let mut hasher = Sha1::new();
-    std::io::copy(&mut file, &mut hasher)?;
+    let mut buffer = [0; 8192];
+    loop {
+      let bytes_read = file.read(&mut buffer)?;
+      if bytes_read == 0 {
+        break;
+      }
+      hasher.update(&buffer[..bytes_read]);
+    }
     Ok::<_, std::io::Error>(hex::encode(hasher.finalize()))
   })
   .await??;
@@ -33,14 +40,14 @@ pub async fn file_hash(hash: &str, path: &PathBuf) -> Result<bool> {
 
 pub fn hash_bytes(hash: &str, bytes: &[u8]) -> Result<bool> {
   let mut hasher = Sha1::new();
-  hasher.write_all(bytes)?;
+  hasher.update(bytes);
   let found_hash = hex::encode(hasher.finalize());
   Ok(hash == found_hash)
 }
 
 pub fn bytes_hash(bytes: &[u8]) -> Result<String> {
   let mut hasher = Sha1::new();
-  hasher.write_all(bytes)?;
+  hasher.update(bytes);
   let found_hash = hex::encode(hasher.finalize());
   Ok(found_hash)
 }

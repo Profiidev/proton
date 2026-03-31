@@ -29,6 +29,7 @@
   };
 </script>
 
+{/* @ts-ignore */ null}
 <Form.Field {form} name={key} class="gap-1/2 grid">
   <Form.Control>
     {#snippet children()}
