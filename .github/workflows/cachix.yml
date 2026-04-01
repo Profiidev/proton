@@ -19,7 +19,7 @@ jobs:
       - uses: cachix/install-nix-action@v31
       - name: Install Hibernation CLI
         uses: profiidev/hibernation@v0
-        #if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request'
         with:
           url: ${{ secrets.HIBERNATION_URL }}
           token: ${{ secrets.HIBERNATION_TOKEN }}
@@ -29,5 +29,5 @@ jobs:
         run: nix build . -Lv --print-out-paths --accept-flake-config
 
       - name: Cache results
-        #if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request'
         run: hibernation push projects $(readlink result)
