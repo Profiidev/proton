@@ -61,6 +61,10 @@
             npmRoot = src;
           };
 
+          preBuild = ''
+            patchShebangs app/node_modules
+          '';
+
           nativeBuildInputs = with pkgs; [
             cacert
             cargo-tauri.hook
