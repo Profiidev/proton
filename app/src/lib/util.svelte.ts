@@ -46,7 +46,8 @@ export const debounce = <T extends (...args: any[]) => void>(
     if (timeout) {
       clearTimeout(timeout);
     }
-    timeout = setTimeout(later, delay);
+    // oxlint-disable-next-line no-unsafe-type-assertion
+    timeout = setTimeout(later, delay) as unknown as number;
   };
 
   // oxlint-disable-next-line no-unsafe-type-assertion
