@@ -10,9 +10,12 @@ jobs:
       checks: write
       contents: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3
+        id: app-token
         with:
-          token: ${{ secrets.PERSONAL_TOKEN }}
+          client-id: ${{ secrets.COMMIT_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.COMMIT_BOT_PRIVATE_KEY }}
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy,rustfmt
@@ -36,7 +39,7 @@ jobs:
           cd app && npm run sync
 
       - name: Run linters
-        uses: profiidev/rust-lint-action@v3
+        uses: profiidev/rust-lint-action@v4
         with:
           rustfmt: true
           clippy: true
@@ -47,6 +50,9 @@ jobs:
           svelte_args: "--ignore target"
           tsc: true
           tsc_dir: app
+          oxlint: true
+          git_sign_commits: true
+          github_token: ${{ steps.app-token.outputs.token }}
 
   flake:
     name: Check flake
@@ -56,8 +62,6 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v6
-        with:
-          token: ${{ secrets.PERSONAL_TOKEN }}
       - uses: cachix/install-nix-action@v31
         with:
           nix_path: nixpkgs=channel:nixos-unstable
