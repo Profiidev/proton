@@ -52,8 +52,7 @@ export interface CapeData {
 }
 
 const account_list_ = async (): Promise<
-  | Record<string, ProfileInfo | null>
-  | undefined
+  Record<string, ProfileInfo | null> | undefined
 > => {
   try {
     return await invoke('account_list');
