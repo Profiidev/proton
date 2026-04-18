@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { Button } from 'positron-components/components/ui/button';
-  import * as Dialog from 'positron-components/components/ui/dialog';
+  import { Button } from '@profidev/pleiades/components/ui/button';
+  import * as Dialog from '@profidev/pleiades/components/ui/dialog';
 
   interface Props {
     open: boolean;

@@ -1,4 +1,4 @@
-import { DateTime } from 'positron-components/util/time.svelte';
+import { DateTime } from '@profidev/pleiades/util/time.svelte';
 import type { Profile } from './tauri/profile.svelte';
 
 export const file_to_bytes = (file: File) => {

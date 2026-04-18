@@ -4,13 +4,13 @@
     instance_stop,
     type InstanceInfo
   } from '$lib/tauri/instance.svelte';
-  import { Button } from 'positron-components/components/ui/button';
-  import { Separator } from 'positron-components/components/ui/separator';
+  import { Button } from '@profidev/pleiades/components/ui/button';
+  import { Separator } from '@profidev/pleiades/components/ui/separator';
   import { getProfile } from '../store.svelte';
   import { CircleStop } from '@lucide/svelte';
   import { compareDateTimes } from '$lib/util.svelte';
   import { goto } from '$app/navigation';
-  import { DateTime } from 'positron-components/util/time.svelte';
+  import { DateTime } from '@profidev/pleiades/util/time.svelte';
   import DestroyDialog from '$lib/components/form/DestroyDialog.svelte';
 
   let profile = $derived(getProfile());

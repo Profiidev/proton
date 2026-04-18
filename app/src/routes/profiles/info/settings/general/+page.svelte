@@ -7,15 +7,15 @@
     ProfileError,
     type Profile
   } from '$lib/tauri/profile.svelte';
-  import Multiselect from 'positron-components/components/table/multiselect.svelte';
+  import Multiselect from '@profidev/pleiades/components/table/multiselect.svelte';
   import { getProfile } from '../../store.svelte';
   import { toast } from 'svelte-sonner';
   import {
     loader_version_list,
     version_list
   } from '$lib/tauri/versions.svelte';
-  import { Input } from 'positron-components/components/ui/input';
-  import { Label } from 'positron-components/components/ui/label';
+  import { Input } from '@profidev/pleiades/components/ui/input';
+  import { Label } from '@profidev/pleiades/components/ui/label';
   import ImageInput from '$lib/components/form/ImageInput.svelte';
 
   let profile = $derived(getProfile());

@@ -12,9 +12,9 @@
   } from '$lib/tauri/account.svelte';
   import { is_offline } from '$lib/tauri/offline.svelte';
   import { LoaderCircle } from '@lucide/svelte';
-  import { Separator } from 'positron-components/components/ui/separator';
-  import { toast } from 'positron-components/components/util/general';
-  import { ScrollArea } from 'positron-components/components/ui/scroll-area';
+  import { Separator } from '@profidev/pleiades/components/ui/separator';
+  import { toast } from '@profidev/pleiades/components/util/general';
+  import { ScrollArea } from '@profidev/pleiades/components/ui/scroll-area';
 
   let offline = $derived(is_offline.value);
   let accounts = $derived(account_list.value);

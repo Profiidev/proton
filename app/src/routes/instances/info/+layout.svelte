@@ -1,12 +1,12 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { Button } from 'positron-components/components/ui/button';
-  import SimpleSidebar from 'positron-components/components/nav/simple-sidebar.svelte';
+  import { Button } from '@profidev/pleiades/components/ui/button';
+  import SimpleSidebar from '@profidev/pleiades/components/nav/simple-sidebar.svelte';
   import { ExternalLink, StopCircle } from '@lucide/svelte';
   import ProfileIcon from '$lib/components/profile/ProfileIcon.svelte';
   import { instance_list, instance_stop } from '$lib/tauri/instance.svelte.js';
   import { setInstance } from './store.svelte.js';
-  import { DateTime } from 'positron-components/util/time.svelte';
+  import { DateTime } from '@profidev/pleiades/util/time.svelte';
   import DestroyDialog from '$lib/components/form/DestroyDialog.svelte';
 
   let { data, children } = $props();

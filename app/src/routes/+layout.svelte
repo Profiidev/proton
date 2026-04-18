@@ -1,11 +1,11 @@
 <script lang="ts">
   import { setMode } from 'mode-watcher';
-  import { Separator } from 'positron-components/components/ui/separator';
-  import { Toaster } from 'positron-components/components/ui/sonner';
+  import { Separator } from '@profidev/pleiades/components/ui/separator';
+  import { Toaster } from '@profidev/pleiades/components/ui/sonner';
   import {
     ModeWatcher,
     toast
-  } from 'positron-components/components/util/general';
+  } from '@profidev/pleiades/components/util/general';
   import '../app.css';
   import Header from '$lib/components/nav/Header.svelte';
   import Sidebar from '$lib/components/nav/Sidebar.svelte';

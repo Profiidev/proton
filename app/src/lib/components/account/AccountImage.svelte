@@ -1,8 +1,8 @@
 <script lang="ts">
   import { account_get_skin } from '$lib/tauri/account.svelte';
   import { CircleHelp } from '@lucide/svelte';
-  import { Skeleton } from 'positron-components/components/ui/skeleton';
-  import * as Tooltip from 'positron-components/components/ui/tooltip';
+  import { Skeleton } from '@profidev/pleiades/components/ui/skeleton';
+  import * as Tooltip from '@profidev/pleiades/components/ui/tooltip';
 
   interface Props {
     skin_url?: string;

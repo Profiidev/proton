@@ -1,10 +1,10 @@
 <script lang="ts" generics="S extends FormRecord = FormRecord">
-  import * as Form from 'positron-components/components/ui/form';
+  import * as Form from '@profidev/pleiades/components/ui/form';
   import {
     type FormPath,
     type FormRecord,
     type SuperForm
-  } from 'positron-components/components/form/types';
+  } from '@profidev/pleiades/components/form/types';
   import { get } from 'svelte/store';
   import ImageInput from './ImageInput.svelte';
 

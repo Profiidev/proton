@@ -1,8 +1,8 @@
 <script lang="ts">
   import { profile_get_icon } from '$lib/tauri/profile.svelte';
   import { Box } from '@lucide/svelte';
-  import { cn } from 'positron-components/utils';
-  import * as Avatar from 'positron-components/components/ui/avatar';
+  import { cn } from '@profidev/pleiades/utils';
+  import * as Avatar from '@profidev/pleiades/components/ui/avatar';
   import { create_data_state, UpdateType } from '$lib/data_state.svelte';
 
   interface Props {

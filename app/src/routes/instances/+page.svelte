@@ -1,14 +1,14 @@
 <script lang="ts">
   import { vanilla_version_list } from '$lib/tauri/versions.svelte';
-  import { Input } from 'positron-components/components/ui/input';
-  import { ScrollArea } from 'positron-components/components/ui/scroll-area';
+  import { Input } from '@profidev/pleiades/components/ui/input';
+  import { ScrollArea } from '@profidev/pleiades/components/ui/scroll-area';
   import { CircleStop } from '@lucide/svelte';
   import {
     instance_list,
     instance_stop,
     type InstanceInfo
   } from '$lib/tauri/instance.svelte';
-  import Multiselect from 'positron-components/components/table/multiselect.svelte';
+  import Multiselect from '@profidev/pleiades/components/table/multiselect.svelte';
   import Fuse from 'fuse.js';
   import { goto } from '$app/navigation';
   import { compareDateTimes } from '$lib/util.svelte';

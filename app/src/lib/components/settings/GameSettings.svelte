@@ -1,8 +1,8 @@
 <script lang="ts">
   import SwitchTooltip from '$lib/components/form/SwitchTooltip.svelte';
-  import { Input } from 'positron-components/components/ui/input';
-  import { Label } from 'positron-components/components/ui/label';
-  import { cn } from 'positron-components/utils';
+  import { Input } from '@profidev/pleiades/components/ui/input';
+  import { Label } from '@profidev/pleiades/components/ui/label';
+  import { cn } from '@profidev/pleiades/utils';
   import type { GameSettings } from '$lib/tauri/profile.svelte';
 
   interface Props {

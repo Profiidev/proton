@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { Button } from 'positron-components/components/ui/button';
+  import { Button } from '@profidev/pleiades/components/ui/button';
   import AccountSelector from '../account/AccountSelector.svelte';
   import { Gamepad2, Home, LibraryBig, Settings } from '@lucide/svelte';
   import { page } from '$app/state';
-  import { cn } from 'positron-components/utils';
+  import { cn } from '@profidev/pleiades/utils';
   import { crossfade } from 'svelte/transition';
   import { cubicInOut } from 'svelte/easing';
 

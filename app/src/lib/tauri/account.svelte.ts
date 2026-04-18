@@ -1,6 +1,6 @@
 import { create_data_state, UpdateType } from '$lib/data_state.svelte';
 import { invoke } from '@tauri-apps/api/core';
-import { RequestError } from 'positron-components/backend';
+import { RequestError } from '@profidev/pleiades/backend';
 
 export const REMOVE_CAPE = 'REMOVE_CAPE';
 

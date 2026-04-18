@@ -1,13 +1,13 @@
 <script lang="ts">
   import { toast } from 'svelte-sonner';
-  import { Button } from 'positron-components/components/ui/button';
-  import { ScrollArea } from 'positron-components/components/ui/scroll-area';
-  import { Slider } from 'positron-components/components/ui/slider';
-  import { Label } from 'positron-components/components/ui/label';
-  import { Input } from 'positron-components/components/ui/input';
+  import { Button } from '@profidev/pleiades/components/ui/button';
+  import { ScrollArea } from '@profidev/pleiades/components/ui/scroll-area';
+  import { Slider } from '@profidev/pleiades/components/ui/slider';
+  import { Label } from '@profidev/pleiades/components/ui/label';
+  import { Input } from '@profidev/pleiades/components/ui/input';
   import type { JvmSettings } from '$lib/tauri/profile.svelte';
   import { Plus, Trash } from '@lucide/svelte';
-  import { cn } from 'positron-components/utils';
+  import { cn } from '@profidev/pleiades/utils';
 
   interface Props {
     settings?: JvmSettings;
