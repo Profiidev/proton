@@ -6,7 +6,9 @@ export const profile_runs_list = async (profile: string) => {
     return await invoke<string[]>('profile_runs_list', {
       profile
     });
-  } catch (e: any) {}
+  } catch {
+    return undefined;
+  }
 };
 
 export const profile_clear_logs = async (profile: string) => {
@@ -14,9 +16,10 @@ export const profile_clear_logs = async (profile: string) => {
     await invoke('profile_clear_logs', {
       profile
     });
-  } catch (e: any) {
-    return parseError(e);
+  } catch (error: any) {
+    return parseError(error);
   }
+  return undefined;
 };
 
 export const profile_logs = async (
@@ -28,5 +31,7 @@ export const profile_logs = async (
       profile,
       timestamp
     });
-  } catch (e: any) {}
+  } catch {
+    return undefined;
+  }
 };

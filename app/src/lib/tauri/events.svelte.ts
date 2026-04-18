@@ -50,14 +50,14 @@ export type VersionCheckStatus =
   | 'ModLoaderPreprocessDone'
   | 'Done';
 
-export type VersionCheckData = {
+export interface VersionCheckData {
   data: VersionCheckStatus;
   id: number;
-};
+}
 
 export const VERSION_CHECK_STATUS_EVENT = 'version-check-status';
 export const INSTANCE_CRASH_EVENT = 'instance-crash';
 export const MANIFEST_REFRESH_ERROR_EVENT = 'manifest-refresh-error';
 
 //10 minutes
-export const TOAST_DURATION = 600000;
+export const TOAST_DURATION = 600_000;

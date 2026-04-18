@@ -1,10 +1,10 @@
-import { create_data_state, UpdateType } from '$lib/data_state.svelte';
+import { UpdateType, create_data_state } from '$lib/data_state.svelte';
 import { invoke } from '@tauri-apps/api/core';
 import { RequestError } from '@profidev/pleiades/backend';
 import type { GameSettings, JvmSettings } from './profile.svelte';
 
 export interface Settings {
-  system_max_mem?: number; // in MB
+  system_max_mem?: number; // In MB
   sidebar_width?: number;
   url?: URL;
   minecraft: MinecraftSettings;
@@ -19,7 +19,9 @@ export interface MinecraftSettings {
 const settings_get_ = async (): Promise<Settings | undefined> => {
   try {
     return await invoke('settings_get');
-  } catch (e) {}
+  } catch {
+    return undefined;
+  }
 };
 export const settings_get = create_data_state(
   settings_get_,
@@ -29,7 +31,8 @@ export const settings_get = create_data_state(
 export const settings_set = async (settings: Settings) => {
   try {
     await invoke('settings_set', { settings });
-  } catch (e) {
+    return undefined;
+  } catch {
     return RequestError.Other;
   }
 };
