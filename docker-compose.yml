@@ -1,6 +1,6 @@
 services:
   backend:
-    image: ghcr.io/profiidev/images/rust-musl-watch:main
+    image: ghcr.io/profiidev/images/rust-musl-watch:main@sha256:e65645871b5e1c970f7417189d9b0747dc8d0ad7bf7844ce8f394e2be64e1598
     volumes:
       - ./backend:/app
     networks:
@@ -10,7 +10,7 @@ services:
     command: ['cargo', 'watch', '-x', 'run']
 
   nginx:
-    image: nginx:latest
+    image: nginx:latest@sha256:7f0adca1fc6c29c8dc49a2e90037a10ba20dc266baaed0988e9fb4d0d8b85ba0
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf
     ports:
