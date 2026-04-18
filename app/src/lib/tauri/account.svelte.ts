@@ -1,10 +1,10 @@
-import { create_data_state, UpdateType } from '$lib/data_state.svelte';
+import { UpdateType, create_data_state } from '$lib/data-state.svelte';
 import { invoke } from '@tauri-apps/api/core';
-import { RequestError } from 'positron-components/backend';
+import { RequestError } from '@profidev/pleiades/backend';
 
 export const REMOVE_CAPE = 'REMOVE_CAPE';
 
-export type Accounts = { [key: string]: ProfileInfo | null };
+export type Accounts = Record<string, ProfileInfo | null>;
 
 export interface ProfileInfo {
   id: string;
@@ -52,14 +52,13 @@ export interface CapeData {
 }
 
 const account_list_ = async (): Promise<
-  | {
-      [key: string]: ProfileInfo | null;
-    }
-  | undefined
+  Record<string, ProfileInfo | null> | undefined
 > => {
   try {
     return await invoke('account_list');
-  } catch (e) {}
+  } catch {
+    return undefined;
+  }
 };
 
 export const account_list = create_data_state(
@@ -70,31 +69,36 @@ export const account_list = create_data_state(
 export const account_refresh = async () => {
   try {
     await invoke('account_refresh');
-  } catch (e) {
+  } catch {
     return RequestError.Other;
   }
+  return undefined;
 };
 
 export const account_refresh_one = async (id: string) => {
   try {
     await invoke('account_refresh_one', { id });
-  } catch (e) {
+  } catch {
     return RequestError.Other;
   }
+  return undefined;
 };
 
 export const account_login = async () => {
   try {
     await invoke('account_login');
-  } catch (e) {
+  } catch {
     return RequestError.Other;
   }
+  return undefined;
 };
 
 const account_get_active = async (): Promise<undefined | string> => {
   try {
     return await invoke('account_get_active');
-  } catch (e) {}
+  } catch {
+    return undefined;
+  }
 };
 
 export const account_active = create_data_state(
@@ -105,17 +109,19 @@ export const account_active = create_data_state(
 export const account_set_active = async (id: string) => {
   try {
     await invoke('account_set_active', { id });
-  } catch (e) {
+  } catch {
     return RequestError.Other;
   }
+  return undefined;
 };
 
 export const account_remove = async (id: string) => {
   try {
     await invoke('account_remove', { id });
-  } catch (e) {
+  } catch {
     return RequestError.Other;
   }
+  return undefined;
 };
 
 export const account_get_skin = async (
@@ -123,7 +129,9 @@ export const account_get_skin = async (
 ): Promise<undefined | SkinData> => {
   try {
     return await invoke('account_get_skin', { url });
-  } catch (e) {}
+  } catch {
+    return undefined;
+  }
 };
 
 export const account_get_cape = async (
@@ -131,29 +139,35 @@ export const account_get_cape = async (
 ): Promise<undefined | CapeData> => {
   try {
     return await invoke('account_get_cape', { url });
-  } catch (e) {}
+  } catch {
+    return undefined;
+  }
 };
 
 export const account_add_skin = async (skin: Uint8Array) => {
   try {
     await invoke('account_add_skin', { skin });
-  } catch (e) {
+  } catch {
     return RequestError.Other;
   }
+  return undefined;
 };
 
 export const account_remove_skin = async (id: string) => {
   try {
     await invoke('account_remove_skin', { id });
-  } catch (e) {
+  } catch {
     return RequestError.Other;
   }
+  return undefined;
 };
 
 const account_list_skins_ = async (): Promise<SkinData[] | undefined> => {
   try {
     return await invoke('account_list_skins');
-  } catch (e) {}
+  } catch {
+    return undefined;
+  }
 };
 export const account_list_skins = create_data_state(
   account_list_skins_,
@@ -163,15 +177,17 @@ export const account_list_skins = create_data_state(
 export const account_change_skin = async (id: string) => {
   try {
     await invoke('account_change_skin', { id });
-  } catch (e) {
+  } catch {
     return RequestError.Other;
   }
+  return undefined;
 };
 
 export const account_change_cape = async (id: string) => {
   try {
     await invoke('account_change_cape', { id });
-  } catch (e) {
+  } catch {
     return RequestError.Other;
   }
+  return undefined;
 };

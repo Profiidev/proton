@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { Badge } from 'positron-components/components/ui/badge';
-  import * as Breadcrumb from 'positron-components/components/ui/breadcrumb';
-  import { Button } from 'positron-components/components/ui/button';
-  import { Separator } from 'positron-components/components/ui/separator';
-  import { toast } from 'positron-components/components/util/general';
+  import { Badge } from '@profidev/pleiades/components/ui/badge';
+  import * as Breadcrumb from '@profidev/pleiades/components/ui/breadcrumb';
+  import { Button } from '@profidev/pleiades/components/ui/button';
+  import { Separator } from '@profidev/pleiades/components/ui/separator';
+  import { toast } from '@profidev/pleiades/components/util/general';
   import { Minus, Square, X } from '@lucide/svelte';
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import { page } from '$app/state';

@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { cn } from 'positron-components/utils';
-  import { Label } from 'positron-components/components/ui/label';
-  import { Switch } from 'positron-components/components/ui/switch';
-  import * as Tooltip from 'positron-components/components/ui/tooltip';
+  import { cn } from '@profidev/pleiades/utils';
+  import { Label } from '@profidev/pleiades/components/ui/label';
+  import { Switch } from '@profidev/pleiades/components/ui/switch';
+  import * as Tooltip from '@profidev/pleiades/components/ui/tooltip';
 
   interface Props {
     id: string;

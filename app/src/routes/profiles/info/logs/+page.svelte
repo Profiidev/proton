@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { create_data_state, UpdateType } from '$lib/data_state.svelte';
+  import { create_data_state, UpdateType } from '$lib/data-state.svelte';
   import { getProfile } from '../store.svelte';
   import LogWindow from '$lib/components/LogWindow.svelte';
   import {
@@ -7,13 +7,13 @@
     profile_logs,
     profile_clear_logs
   } from '$lib/tauri/logs.svelte';
-  import { DateTime } from 'positron-components/util/time.svelte';
-  import Multiselect from 'positron-components/components/table/multiselect.svelte';
+  import { DateTime } from '@profidev/pleiades/util/time.svelte';
+  import Multiselect from '@profidev/pleiades/components/table/multiselect.svelte';
   import { compareDateTimes } from '$lib/util.svelte';
-  import { Button } from 'positron-components/components/ui/button';
-  import * as Dialog from 'positron-components/components/ui/dialog';
+  import { Button } from '@profidev/pleiades/components/ui/button';
+  import * as Dialog from '@profidev/pleiades/components/ui/dialog';
   // @ts-ignore
-  import * as DropdownMenu from 'positron-components/components/ui/dropdown-menu';
+  import * as DropdownMenu from '@profidev/pleiades/components/ui/dropdown-menu';
   import { Menu, Trash } from '@lucide/svelte';
 
   let profile = $derived(getProfile());

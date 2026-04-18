@@ -2,8 +2,8 @@
   import { page } from '$app/state';
   import { crossfade } from 'svelte/transition';
   import { cubicInOut } from 'svelte/easing';
-  import { cn } from 'positron-components/utils';
-  import { Button } from 'positron-components/components/ui/button';
+  import { cn } from '@profidev/pleiades/utils';
+  import { Button } from '@profidev/pleiades/components/ui/button';
 
   interface Props {
     class: string | undefined;

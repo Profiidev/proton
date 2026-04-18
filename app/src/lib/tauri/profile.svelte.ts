@@ -1,4 +1,4 @@
-import { create_data_state, UpdateType } from '$lib/data_state.svelte';
+import { UpdateType, create_data_state } from '$lib/data-state.svelte';
 import { invoke } from '@tauri-apps/api/core';
 import {
   TOAST_DURATION,
@@ -8,12 +8,12 @@ import {
 } from './events.svelte';
 import { listen } from '@tauri-apps/api/event';
 import { browser } from '$app/environment';
-import { toast } from 'positron-components/components/util/general';
-import type { QuickPlayInfo } from './quick_play.svelte';
+import { toast } from '@profidev/pleiades/components/util/general';
+import type { QuickPlayInfo } from './quick-play.svelte';
 import DownloadNotificationCancel from '$lib/components/profile/DownloadNotificationCancel.svelte';
 import type { ComponentProps } from 'svelte';
 import DownloadNotification from '$lib/components/profile/DownloadNotification.svelte';
-import { b_to_mb, debounce } from '$lib/util.svelte';
+import { b_to_mb } from '$lib/util.svelte';
 
 export interface Profile {
   id: string;
@@ -49,7 +49,7 @@ export interface GameSettings {
 
 export interface JvmSettings {
   args: string[];
-  env_vars: { [key: string]: string };
+  env_vars: Record<string, string>;
   mem_max: number;
 }
 
@@ -68,9 +68,9 @@ export enum LoaderType {
 
 export const ModdedLoaderType = {
   Fabric: LoaderType.Fabric,
-  Quilt: LoaderType.Quilt,
   Forge: LoaderType.Forge,
-  NeoForge: LoaderType.NeoForge
+  NeoForge: LoaderType.NeoForge,
+  Quilt: LoaderType.Quilt
 } as const;
 
 export enum ProfileError {
@@ -80,7 +80,9 @@ export enum ProfileError {
 }
 
 export const parseError = (e: string) => {
+  // oxlint-disable-next-line no-unsafe-type-assertion
   if (Object.values(ProfileError).includes(e as ProfileError)) {
+    // oxlint-disable-next-line no-unsafe-type-assertion
     return e as ProfileError;
   } else {
     return ProfileError.Other;
@@ -96,9 +98,10 @@ export const profile_create = async (data: {
 }) => {
   try {
     await invoke('profile_create', data);
-  } catch (e: any) {
-    return parseError(e);
+  } catch (error: any) {
+    return parseError(error);
   }
+  return undefined;
 };
 
 export const profile_update = async (profile: ProfileUpdate) => {
@@ -106,9 +109,10 @@ export const profile_update = async (profile: ProfileUpdate) => {
     await invoke('profile_update', {
       profile
     });
-  } catch (e: any) {
-    return parseError(e);
+  } catch (error: any) {
+    return parseError(error);
   }
+  return undefined;
 };
 
 export const profile_get_icon = async (profile: string) => {
@@ -116,7 +120,9 @@ export const profile_get_icon = async (profile: string) => {
     return await invoke<string | undefined>('profile_get_icon', {
       profile
     });
-  } catch (e: any) {}
+  } catch {
+    return undefined;
+  }
 };
 
 export const profile_open_path = async (profile: string) => {
@@ -124,9 +130,10 @@ export const profile_open_path = async (profile: string) => {
     await invoke<string>('profile_open_path', {
       profile
     });
-  } catch (e: any) {
-    return parseError(e);
+  } catch (error: any) {
+    return parseError(error);
   }
+  return undefined;
 };
 
 export const profile_update_icon = async (
@@ -135,12 +142,13 @@ export const profile_update_icon = async (
 ) => {
   try {
     await invoke('profile_update_icon', {
-      profile,
-      icon
+      icon,
+      profile
     });
-  } catch (e: any) {
-    return parseError(e);
+  } catch (error: any) {
+    return parseError(error);
   }
+  return undefined;
 };
 
 export const profile_remove = async (profile: string) => {
@@ -148,15 +156,18 @@ export const profile_remove = async (profile: string) => {
     await invoke('profile_remove', {
       profile
     });
-  } catch (e: any) {
-    return parseError(e);
+  } catch (error: any) {
+    return parseError(error);
   }
+  return undefined;
 };
 
 const profile_list_ = async (): Promise<Profile[] | undefined> => {
   try {
     return await invoke('profile_list');
-  } catch (e) {}
+  } catch {
+    return undefined;
+  }
 };
 export const profile_list = create_data_state(
   profile_list_,
@@ -174,7 +185,7 @@ export const profile_launch = async (
     return;
   }
 
-  launch_repair(
+  const _ = launch_repair(
     profile,
     'profile_launch',
     `Launching profile ${name}`,
@@ -184,7 +195,7 @@ export const profile_launch = async (
 };
 
 export const profile_repair = async (profile: string, name: string) => {
-  launch_repair(
+  const _ = launch_repair(
     profile,
     'profile_repair',
     `Repair of profile ${name} complete`,
@@ -192,10 +203,10 @@ export const profile_repair = async (profile: string, name: string) => {
   );
 };
 
-let check_message = new Map<number, string>();
-const cancel = (id: number) => (internal: any, props: any) => {
-  return DownloadNotificationCancel(internal, { ...props, id });
-};
+const check_message = new Map<number, string>();
+// oxlint-disable new-cap
+const cancel = (id: number) => (internal: any, props: any) =>
+  DownloadNotificationCancel(internal, { ...props, id });
 
 const launch_repair = async (
   profile: string,
@@ -204,26 +215,26 @@ const launch_repair = async (
   err: string,
   quickPlay?: QuickPlayInfo
 ) => {
-  let id = Math.round(Math.random() * 1000000);
+  const id = Math.round(Math.random() * 1_000_000);
   try {
     toast.loading('Checking/Downloading version manifests', {
-      id,
+      cancel: cancel(id),
       duration: TOAST_DURATION,
-      cancel: cancel(id)
+      id
     });
     check_message.set(id, message);
     await invoke(cmd, {
-      profile,
       id,
+      profile,
       quickPlay
     });
-  } catch (e: any) {
+  } catch {
     check_message.delete(id);
 
     toast.error(err, {
-      id,
+      cancel: undefined,
       duration: undefined,
-      cancel: undefined
+      id
     });
   }
 };
@@ -231,7 +242,10 @@ const launch_repair = async (
 export const profile_cancel_download = async (id: number) => {
   try {
     await invoke('profile_cancel_download', { id });
-  } catch (e) {}
+  } catch {
+    // Empty
+  }
+  return undefined;
 };
 
 const message_props = (
@@ -239,47 +253,63 @@ const message_props = (
   text: string,
   mib: boolean
 ): ComponentProps<typeof DownloadNotification> => {
-  let [value, total] = info;
+  const [val, total] = info;
   return {
-    text,
-    total,
-    value,
+    change: mib,
     convert: mib ? (value: number) => b_to_mb(value) : undefined,
     round: mib ? (value: number) => value.toFixed(1) : undefined,
+    text,
+    total,
     unit: mib ? 'MiB' : undefined,
-    change: mib
+    value: val
   };
 };
 
+// oxlint-disable-next-line complexity
 const get_message = (
   event: VersionCheckStatus
 ): ComponentProps<typeof DownloadNotification> | string | undefined => {
   if (typeof event === 'string') {
     switch (event) {
-      case 'VersionManifestCheck':
+      case 'VersionManifestCheck': {
         return 'Checking version manifest';
-      case 'VersionManifestDownload':
+      }
+      case 'VersionManifestDownload': {
         return 'Downloading version manifest';
-      case 'AssetsManifestCheck':
+      }
+      case 'AssetsManifestCheck': {
         return 'Checking assets manifest';
-      case 'AssetsManifestDownload':
+      }
+      case 'AssetsManifestDownload': {
         return 'Downloading assets manifest';
-      case 'JavaManifestCheck':
+      }
+      case 'JavaManifestCheck': {
         return 'Checking java manifest';
-      case 'JavaManifestDownload':
+      }
+      case 'JavaManifestDownload': {
         return 'Downloading java manifest';
-      case 'ClientCheck':
+      }
+      case 'ClientCheck': {
         return 'Checking client jar';
-      case 'ModLoaderMeta':
+      }
+      case 'ModLoaderMeta': {
         return 'Downloading ModLoader version meta';
-      case 'ModLoaderFilesDownloadInfo':
+      }
+      case 'ModLoaderFilesDownloadInfo': {
         return 'Downloading ModLoader file information';
-      case 'ModLoaderPreprocess':
+      }
+      case 'ModLoaderPreprocess': {
         return 'Running preprocessing of ModLoader';
-      case 'ModLoaderPreprocessDone':
+      }
+      case 'ModLoaderPreprocessDone': {
         return 'Preprocessing of ModLoader done';
-      case 'Done':
-        return undefined; // No message for done
+      }
+      case 'Done': {
+        return undefined;
+      } // No message for done
+      default: {
+        break;
+      }
     }
   } else if ('ClientDownload' in event) {
     return message_props(event.ClientDownload, 'Downloading client', true);
@@ -320,15 +350,20 @@ const get_message = (
       true
     );
   }
+
+  return undefined;
 };
 
 if (browser) {
-  listen(VERSION_CHECK_STATUS_EVENT, (e) => {
-    let event = e.payload as VersionCheckData;
-    let id = event.id;
-    if (id === undefined) return;
+  const _ = listen(VERSION_CHECK_STATUS_EVENT, (e) => {
+    // oxlint-disable-next-line no-unsafe-type-assertion
+    const event = e.payload as VersionCheckData;
+    const { id } = event;
+    if (id === undefined) {
+      return;
+    }
 
-    let message = get_message(event.data);
+    const message = get_message(event.data);
 
     if (toast.getActiveToasts().find((t) => t.id === id)?.type !== 'loading') {
       // Only update loading toasts
@@ -337,20 +372,20 @@ if (browser) {
 
     if (typeof message === 'object') {
       toast.loading(DownloadNotification, {
-        id,
-        componentProps: message
+        componentProps: message,
+        id
       });
     } else if (message) {
       toast.loading(message, {
         id
       });
     } else {
-      let message = check_message.get(id);
+      const message_ = check_message.get(id);
       check_message.delete(id);
-      toast.success(message ?? '', {
-        id,
+      toast.success(message_ ?? '', {
+        cancel: undefined,
         duration: undefined,
-        cancel: undefined
+        id
       });
     }
   });

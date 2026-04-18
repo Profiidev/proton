@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { parseError, type ProfileError } from './profile.svelte';
+import { type ProfileError, parseError } from './profile.svelte';
 
 export enum QuickPlayType {
   Singleplayer = 'singleplayer',
@@ -23,20 +23,23 @@ export const profile_quick_play_list = async (
     return await invoke('profile_quick_play_list', {
       profile
     });
-  } catch (e: any) {}
+  } catch {
+    return undefined;
+  }
 };
 
 export const profile_quick_play_remove = async (
   profile: string,
   quickPlay: QuickPlayInfo
-): Promise<void | ProfileError> => {
+): Promise<undefined | ProfileError> => {
   try {
     await invoke('profile_quick_play_remove', {
       profile,
       quickPlay
     });
-  } catch (e: any) {
-    return parseError(e);
+    return undefined;
+  } catch (error: any) {
+    return parseError(error);
   }
 };
 
@@ -49,5 +52,7 @@ export const profile_quick_play_icon = async (
       profile,
       quickPlay
     });
-  } catch (e) {}
+  } catch {
+    return undefined;
+  }
 };

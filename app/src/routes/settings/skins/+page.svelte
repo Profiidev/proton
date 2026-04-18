@@ -12,11 +12,11 @@
   import { is_offline } from '$lib/tauri/offline.svelte';
   import { file_to_bytes } from '$lib/util.svelte';
   import { LoaderCircle, Plus } from '@lucide/svelte';
-  import { Button } from 'positron-components/components/ui/button';
-  import { Input } from 'positron-components/components/ui/input';
-  import { ScrollArea } from 'positron-components/components/ui/scroll-area';
-  import { Separator } from 'positron-components/components/ui/separator';
-  import { toast } from 'positron-components/components/util/general';
+  import { Button } from '@profidev/pleiades/components/ui/button';
+  import { Input } from '@profidev/pleiades/components/ui/input';
+  import { ScrollArea } from '@profidev/pleiades/components/ui/scroll-area';
+  import { Separator } from '@profidev/pleiades/components/ui/separator';
+  import { toast } from '@profidev/pleiades/components/util/general';
 
   let offline = $derived(is_offline.value);
   let skins = $derived(account_list_skins.value);

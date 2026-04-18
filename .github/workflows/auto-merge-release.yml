@@ -7,13 +7,18 @@ on:
 
 jobs:
   merge:
-    if: ${{ github.event.label.name == 'release-version' && github.event.pull_request.user.login == 'Profiidev' }}
+    if: ${{ github.event.label.name == 'release-version' && github.event.pull_request.user.login == 'profidev-commit-bot[bot]' }}
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3
+        id: app-token
+        with:
+          client-id: ${{ secrets.COMMIT_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.COMMIT_BOT_PRIVATE_KEY }}
       - name: Checkout code
         uses: actions/checkout@v6
       - name: Enable auto-merge for PR
         run: gh pr merge ${{ github.event.pull_request.number }} --auto --squash
         env:
-          GITHUB_TOKEN: ${{ secrets.PERSONAL_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}

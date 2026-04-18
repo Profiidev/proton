@@ -6,25 +6,25 @@
     profile_list,
     ProfileError
   } from '$lib/tauri/profile.svelte';
-  import FormDialog from 'positron-components/components/form/form-dialog.svelte';
-  import FormInput from 'positron-components/components/form/form-input.svelte';
+  import FormDialog from '@profidev/pleiades/components/form/form-dialog.svelte';
+  import FormInput from '@profidev/pleiades/components/form/form-input.svelte';
   import { profileCreateSchema } from './schema.svelte';
   import {
     vanilla_version_list,
     version_list
   } from '$lib/tauri/versions.svelte';
-  import { Input } from 'positron-components/components/ui/input';
-  import { ScrollArea } from 'positron-components/components/ui/scroll-area';
+  import { Input } from '@profidev/pleiades/components/ui/input';
+  import { ScrollArea } from '@profidev/pleiades/components/ui/scroll-area';
   import { Plus } from '@lucide/svelte';
   import FormImage from '../../lib/components/form/FormImage.svelte';
   import { compareProfiles, file_to_bytes } from '$lib/util.svelte';
-  import Multiselect from 'positron-components/components/table/multiselect.svelte';
+  import Multiselect from '@profidev/pleiades/components/table/multiselect.svelte';
   import Fuse from 'fuse.js';
   import { goto } from '$app/navigation';
   import { account_active } from '$lib/tauri/account.svelte';
   import ProfileListButton from '$lib/components/profile/ProfileListButton.svelte';
   import FormSelectUpdate from '$lib/components/form/FormSelectUpdate.svelte';
-  import type { FormValue } from 'positron-components/components/form/types';
+  import type { FormValue } from '@profidev/pleiades/components/form/types';
 
   let version_filter = $state<string[]>([]);
   let loader_filter = $state<string[]>([]);

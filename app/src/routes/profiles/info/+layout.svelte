@@ -7,14 +7,14 @@
     profile_remove,
     profile_repair
   } from '$lib/tauri/profile.svelte.js';
-  import { toast } from 'positron-components/components/util/general';
-  import { Button } from 'positron-components/components/ui/button';
+  import { toast } from '@profidev/pleiades/components/util/general';
+  import { Button } from '@profidev/pleiades/components/ui/button';
   // @ts-ignore
-  import * as DropdownMenu from 'positron-components/components/ui/dropdown-menu';
+  import * as DropdownMenu from '@profidev/pleiades/components/ui/dropdown-menu';
   import { setProfile } from './store.svelte.js';
   import { FolderOpen, Menu, Play, Star, Trash, Wrench } from '@lucide/svelte';
   import ProfileIcon from '$lib/components/profile/ProfileIcon.svelte';
-  import { DateTime } from 'positron-components/util/time.svelte';
+  import { DateTime } from '@profidev/pleiades/util/time.svelte';
   import { account_active } from '$lib/tauri/account.svelte.js';
   import { profile_favorites_set } from '$lib/tauri/home.svelte.js';
   import DestroyDialog from '$lib/components/form/DestroyDialog.svelte';

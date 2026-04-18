@@ -2,8 +2,8 @@
   import {
     type FormRecord,
     type SuperForm
-  } from 'positron-components/components/form/types';
-  import FormSelect from 'positron-components/components/form/form-select.svelte';
+  } from '@profidev/pleiades/components/form/types';
+  import FormSelect from '@profidev/pleiades/components/form/form-select.svelte';
   import type { ComponentProps } from 'svelte';
   import { get } from 'svelte/store';
 

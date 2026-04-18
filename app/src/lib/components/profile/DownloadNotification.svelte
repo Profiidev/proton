@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Progress } from 'positron-components/components/ui/progress';
+  import { Progress } from '@profidev/pleiades/components/ui/progress';
   import { untrack } from 'svelte';
 
   interface Props {

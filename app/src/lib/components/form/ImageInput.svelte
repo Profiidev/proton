@@ -1,9 +1,9 @@
 <script lang="ts">
   import { Upload } from '@lucide/svelte';
-  import { cn } from 'positron-components/utils';
-  import { Input } from 'positron-components/components/ui/input';
-  import * as Avatar from 'positron-components/components/ui/avatar';
-  import { Label } from 'positron-components/components/ui/label';
+  import { cn } from '@profidev/pleiades/utils';
+  import { Input } from '@profidev/pleiades/components/ui/input';
+  import * as Avatar from '@profidev/pleiades/components/ui/avatar';
+  import { Label } from '@profidev/pleiades/components/ui/label';
   import type { Component } from 'svelte';
 
   interface Props {

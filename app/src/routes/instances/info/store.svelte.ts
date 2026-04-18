@@ -6,6 +6,4 @@ export const setInstance = (i: InstanceInfo) => {
   instance = i;
 };
 
-export const getInstance = () => {
-  return instance;
-};
+export const getInstance = () => instance;

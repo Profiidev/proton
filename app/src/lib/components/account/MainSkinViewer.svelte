@@ -7,8 +7,8 @@
     State
   } from '$lib/tauri/account.svelte';
   import { LoaderCircle } from '@lucide/svelte';
-  import { Label } from 'positron-components/components/ui/label';
-  import * as Select from 'positron-components/components/ui/select';
+  import { Label } from '@profidev/pleiades/components/ui/label';
+  import * as Select from '@profidev/pleiades/components/ui/select';
   import {
     IdleAnimation,
     type PlayerAnimation,

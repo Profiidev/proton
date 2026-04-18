@@ -1,9 +1,9 @@
 <script lang="ts">
   import { profile_cancel_download } from '$lib/tauri/profile.svelte';
   import { X } from '@lucide/svelte';
-  import { Button } from 'positron-components/components/ui/button';
-  import * as Tooltip from 'positron-components/components/ui/tooltip';
-  import { toast } from 'positron-components/components/util/general';
+  import { Button } from '@profidev/pleiades/components/ui/button';
+  import * as Tooltip from '@profidev/pleiades/components/ui/tooltip';
+  import { toast } from '@profidev/pleiades/components/util/general';
 
   interface Props {
     id: number;

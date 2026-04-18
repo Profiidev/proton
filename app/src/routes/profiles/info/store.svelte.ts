@@ -6,6 +6,4 @@ export const setProfile = (p: Profile) => {
   profile = p;
 };
 
-export const getProfile = () => {
-  return profile;
-};
+export const getProfile = () => profile;

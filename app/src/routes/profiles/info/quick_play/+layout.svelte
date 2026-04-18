@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as Tabs from 'positron-components/components/ui/tabs';
+  import * as Tabs from '@profidev/pleiades/components/ui/tabs';
   import { quick_play_updater } from './store.svelte';
   import { getProfile } from '../store.svelte';
   import { goto } from '$app/navigation';

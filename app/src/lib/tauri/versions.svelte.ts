@@ -1,4 +1,4 @@
-import { create_data_state, UpdateType } from '$lib/data_state.svelte';
+import { UpdateType, create_data_state } from '$lib/data-state.svelte';
 import { invoke } from '@tauri-apps/api/core';
 import { LoaderType } from './profile.svelte';
 
@@ -9,10 +9,12 @@ export const version_list = async (
     return await invoke('version_list', {
       loader
     });
-  } catch (e) {}
+  } catch {
+    return undefined;
+  }
 };
 export const vanilla_version_list = create_data_state(
-  () => version_list(LoaderType.Vanilla),
+  async () => version_list(LoaderType.Vanilla),
   UpdateType.Versions
 );
 
@@ -25,5 +27,7 @@ export const loader_version_list = async (
       loader,
       mcVersion
     });
-  } catch (e) {}
+  } catch {
+    return undefined;
+  }
 };

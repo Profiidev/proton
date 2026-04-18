@@ -3,40 +3,41 @@ import { listen } from '@tauri-apps/api/event';
 import { tick } from 'svelte';
 
 export enum UpdateType {
-  //accounts
+  //Accounts
   Accounts = 'Accounts',
   AccountActive = 'AccountActive',
   AccountSkins = 'AccountSkins',
-  //versions
+  //Versions
   Versions = 'Versions',
-  //profiles
+  //Profiles
   Profiles = 'Profiles',
   ProfileLogs = 'ProfileLogs',
   ProfileQuickPlay = 'ProfileQuickPlay',
-  //instances
+  //Instances
   Instances = 'Instances',
   InstanceLogs = 'InstanceLogs',
-  //settings
+  //Settings
   Settings = 'Settings',
-  //offline
+  //Offline
   Offline = 'Offline'
 }
 
-let updater_cbs = new Map<UpdateType, Map<string, () => void>>();
+const updater_cbs = new Map<UpdateType, Map<string, () => void>>();
 const UPDATE_EVENT = 'data-update';
 
 if (browser) {
-  listen(UPDATE_EVENT, (e) => {
-    Array.from(
-      updater_cbs.get(e.payload as UpdateType)?.values() || []
-    ).forEach((cb) => cb());
+  const _ = listen(UPDATE_EVENT, (e) => {
+    // oxlint-disable-next-line no-unsafe-type-assertion
+    for (const cb of updater_cbs.get(e.payload as UpdateType)?.values() || []) {
+      cb();
+    }
   });
 }
 
 export const register_cb = (type: UpdateType, cb: () => void) => {
-  let uuid = crypto.randomUUID().toString();
+  const uuid = crypto.randomUUID();
 
-  let existing = updater_cbs.get(type) || new Map();
+  const existing = updater_cbs.get(type) || new Map();
   existing.set(uuid, cb);
   updater_cbs.set(type, existing);
 
@@ -44,7 +45,7 @@ export const register_cb = (type: UpdateType, cb: () => void) => {
 };
 
 export const unregister_cb = (uuid: string, type: UpdateType) => {
-  let type_cbs = updater_cbs.get(type);
+  const type_cbs = updater_cbs.get(type);
   type_cbs?.delete(uuid);
 };
 
@@ -55,9 +56,12 @@ export const create_data_state = <T>(
   let value: T | undefined = $state();
 
   let subscribers = 0;
-  let uuid: string;
+  let uuid = '';
 
   return {
+    update: async () => {
+      const _ = update().then((v) => (value = v));
+    },
     get value() {
       if ($effect.tracking()) {
         $effect(() => {
@@ -65,13 +69,15 @@ export const create_data_state = <T>(
             uuid = register_cb(type, async () => {
               value = await update();
             });
-            update().then((v) => (value = v));
+            const _ = update().then((v) => (value = v));
           }
 
+          // oxlint-disable-next-line no-plusplus
           subscribers++;
 
           return () => {
-            tick().then(() => {
+            const _ = tick().then(() => {
+              // oxlint-disable-next-line no-plusplus
               subscribers--;
               if (subscribers === 0) {
                 unregister_cb(uuid, type);
@@ -82,9 +88,6 @@ export const create_data_state = <T>(
       }
 
       return value;
-    },
-    update: async () => {
-      update().then((v) => (value = v));
     }
   };
 };

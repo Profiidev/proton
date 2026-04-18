@@ -10,7 +10,7 @@
   import { profile_launch } from '$lib/tauri/profile.svelte';
   import { compareProfiles } from '$lib/util.svelte';
   import { FastForward } from '@lucide/svelte';
-  import { Separator } from 'positron-components/components/ui/separator';
+  import { Separator } from '@profidev/pleiades/components/ui/separator';
 
   let favorites = $derived(profile_favorites_list.value);
   let sorted_favorites = $derived(

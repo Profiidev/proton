@@ -1,7 +1,7 @@
-import { create_data_state, UpdateType } from '$lib/data_state.svelte';
+import { UpdateType, create_data_state } from '$lib/data-state.svelte';
 import { invoke } from '@tauri-apps/api/core';
-import { parseError, type Profile, type ProfileError } from './profile.svelte';
-import type { QuickPlayInfo } from './quick_play.svelte';
+import { type Profile, type ProfileError, parseError } from './profile.svelte';
+import type { QuickPlayInfo } from './quick-play.svelte';
 
 export interface PlayHistoryFavorite {
   profile: Profile;
@@ -13,7 +13,9 @@ const profile_history_list_ = async (): Promise<
 > => {
   try {
     return await invoke('profile_history_list');
-  } catch (e: any) {}
+  } catch {
+    return undefined;
+  }
 };
 export const profile_history_list = create_data_state(
   profile_history_list_,
@@ -25,7 +27,9 @@ const profile_favorites_list_ = async (): Promise<
 > => {
   try {
     return await invoke('profile_favorites_list');
-  } catch (e: any) {}
+  } catch {
+    return undefined;
+  }
 };
 export const profile_favorites_list = create_data_state(
   profile_favorites_list_,
@@ -36,14 +40,15 @@ export const profile_favorites_set = async (
   profile: string,
   favorite: boolean,
   quickPlay?: QuickPlayInfo
-): Promise<void | ProfileError> => {
+): Promise<undefined | ProfileError> => {
   try {
     await invoke('profile_favorites_set', {
-      profile,
       favorite,
+      profile,
       quickPlay
     });
-  } catch (e: any) {
-    return parseError(e);
+  } catch (error: any) {
+    return parseError(error);
   }
+  return undefined;
 };

@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { Input } from 'positron-components/components/ui/input';
-  import { ScrollArea } from 'positron-components/components/ui/scroll-area';
-  import Multiselect from 'positron-components/components/table/multiselect.svelte';
+  import { Input } from '@profidev/pleiades/components/ui/input';
+  import { ScrollArea } from '@profidev/pleiades/components/ui/scroll-area';
+  import Multiselect from '@profidev/pleiades/components/table/multiselect.svelte';
   import Fuse from 'fuse.js';
-  import { cn } from 'positron-components/utils';
+  import { cn } from '@profidev/pleiades/utils';
   import type { Snippet } from 'svelte';
 
   interface Props {
