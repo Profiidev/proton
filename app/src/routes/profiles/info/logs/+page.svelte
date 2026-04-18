@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { create_data_state, UpdateType } from '$lib/data_state.svelte';
+  import { create_data_state, UpdateType } from '$lib/data-state.svelte';
   import { getProfile } from '../store.svelte';
   import LogWindow from '$lib/components/LogWindow.svelte';
   import {

@@ -2,7 +2,7 @@
   import {
     profile_quick_play_remove,
     type QuickPlayInfo
-  } from '$lib/tauri/quick_play.svelte';
+  } from '$lib/tauri/quick-play.svelte';
   import { Button } from '@profidev/pleiades/components/ui/button';
   import { Separator } from '@profidev/pleiades/components/ui/separator';
   import * as Dialog from '@profidev/pleiades/components/ui/dialog';

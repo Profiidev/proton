@@ -3,7 +3,7 @@
   import { Box } from '@lucide/svelte';
   import { cn } from '@profidev/pleiades/utils';
   import * as Avatar from '@profidev/pleiades/components/ui/avatar';
-  import { create_data_state, UpdateType } from '$lib/data_state.svelte';
+  import { create_data_state, UpdateType } from '$lib/data-state.svelte';
 
   interface Props {
     id: string;

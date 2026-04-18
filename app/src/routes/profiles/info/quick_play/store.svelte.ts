@@ -1,10 +1,10 @@
-import { UpdateType, create_data_state } from '$lib/data_state.svelte';
+import { UpdateType, create_data_state } from '$lib/data-state.svelte';
 import type { Profile } from '$lib/tauri/profile.svelte';
 import {
   type QuickPlayInfo,
   QuickPlayType,
   profile_quick_play_list
-} from '$lib/tauri/quick_play.svelte';
+} from '$lib/tauri/quick-play.svelte';
 import { compareDateTimes } from '$lib/util.svelte';
 
 let singleplayer = $state<QuickPlayInfo[] | undefined>();

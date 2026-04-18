@@ -1,4 +1,4 @@
-import { UpdateType, create_data_state } from '$lib/data_state.svelte';
+import { UpdateType, create_data_state } from '$lib/data-state.svelte';
 import { invoke } from '@tauri-apps/api/core';
 import {
   TOAST_DURATION,
@@ -9,7 +9,7 @@ import {
 import { listen } from '@tauri-apps/api/event';
 import { browser } from '$app/environment';
 import { toast } from '@profidev/pleiades/components/util/general';
-import type { QuickPlayInfo } from './quick_play.svelte';
+import type { QuickPlayInfo } from './quick-play.svelte';
 import DownloadNotificationCancel from '$lib/components/profile/DownloadNotificationCancel.svelte';
 import type { ComponentProps } from 'svelte';
 import DownloadNotification from '$lib/components/profile/DownloadNotification.svelte';

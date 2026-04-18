@@ -1,4 +1,4 @@
-import { UpdateType, create_data_state } from '$lib/data_state.svelte';
+import { UpdateType, create_data_state } from '$lib/data-state.svelte';
 import { invoke } from '@tauri-apps/api/core';
 import { RequestError } from '@profidev/pleiades/backend';
 import type { GameSettings, JvmSettings } from './profile.svelte';

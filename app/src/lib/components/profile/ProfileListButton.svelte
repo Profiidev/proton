@@ -6,7 +6,7 @@
   import type { Component } from 'svelte';
   import ProfileIcon from './ProfileIcon.svelte';
   import { CirclePlay } from '@lucide/svelte';
-  import type { QuickPlayInfo } from '$lib/tauri/quick_play.svelte';
+  import type { QuickPlayInfo } from '$lib/tauri/quick-play.svelte';
   import QuickPlayIcon from './QuickPlayIcon.svelte';
 
   interface Props {

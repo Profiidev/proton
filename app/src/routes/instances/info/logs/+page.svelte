@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { create_data_state, UpdateType } from '$lib/data_state.svelte';
+  import { create_data_state, UpdateType } from '$lib/data-state.svelte';
   import { instance_logs } from '$lib/tauri/instance.svelte';
   import { getInstance } from '../store.svelte';
   import LogWindow from '$lib/components/LogWindow.svelte';

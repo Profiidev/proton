@@ -1,7 +1,7 @@
-import { UpdateType, create_data_state } from '$lib/data_state.svelte';
+import { UpdateType, create_data_state } from '$lib/data-state.svelte';
 import { invoke } from '@tauri-apps/api/core';
 import { type Profile, type ProfileError, parseError } from './profile.svelte';
-import type { QuickPlayInfo } from './quick_play.svelte';
+import type { QuickPlayInfo } from './quick-play.svelte';
 
 export interface PlayHistoryFavorite {
   profile: Profile;

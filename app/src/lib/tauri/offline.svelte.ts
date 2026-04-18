@@ -1,4 +1,4 @@
-import { UpdateType, create_data_state } from '$lib/data_state.svelte';
+import { UpdateType, create_data_state } from '$lib/data-state.svelte';
 import { invoke } from '@tauri-apps/api/core';
 import { MANIFEST_REFRESH_ERROR_EVENT } from './events.svelte';
 import { toast } from 'svelte-sonner';

@@ -2,7 +2,7 @@
   import {
     profile_quick_play_icon,
     type QuickPlayInfo
-  } from '$lib/tauri/quick_play.svelte';
+  } from '$lib/tauri/quick-play.svelte';
   import { Box } from '@lucide/svelte';
   import { cn } from '@profidev/pleiades/utils';
   import * as Avatar from '@profidev/pleiades/components/ui/avatar';
