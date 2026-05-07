@@ -11,7 +11,7 @@ use tokio::time::sleep;
 
 use crate::CLIENT_ID;
 
-const REDIRECT_URI: &str = "https://proton.profidev.io/backend";
+const REDIRECT_URI: &str = "http://localhost:51701";
 
 const SCOPE: &str = "XboxLive.signin offline_access";
 const AUTH_WINDOW_LABEL: &str = "ms_auth";

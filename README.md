@@ -148,7 +148,6 @@ proton/
 │   ├── src/               # Svelte components and pages for app UI
 │   ├── src-tauri/         # Tauri Rust backend
 │   └── static/            # Static assets
-├── backend/               # Optional standalone backend
 ├── .github/workflows/     # CI/CD workflows
 └── devenv.nix            # Development environment config
 ```
