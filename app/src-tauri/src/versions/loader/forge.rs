@@ -38,9 +38,9 @@ use crate::{
 const INDEX_BASE_URL_FORGE: &str =
   "https://files.minecraftforge.net/net/minecraftforge/forge/maven-metadata.json";
 const INDEX_BASE_URL_NEOFORGE: &str =
-  "https://maven.neoforged.net/net/neoforged/neoforge/maven-metadata.xml";
+  "https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml";
 const INSTALLER_URL_FORGE: &str = "https://maven.minecraftforge.net/net/minecraftforge/forge/{loader_version}/forge-{loader_version}-installer.jar";
-const INSTALLER_URL_NEOFORGE: &str = "https://maven.neoforged.net/net/neoforged/neoforge/{loader_version}/neoforge-{loader_version}-installer.jar";
+const INSTALLER_URL_NEOFORGE: &str = "https://maven.neoforged.net/releases/net/neoforged/neoforge/{loader_version}/neoforge-{loader_version}-installer.jar";
 const MAVEN_BASE_URL_FORGE: &str = "https://maven.minecraftforge.net";
 const MAVEN_BASE_URL_NEOFORGE: &str = "https://maven.neoforged.net";
 const INDEX_FILE_NAME_FORGE: &str = "forge";
