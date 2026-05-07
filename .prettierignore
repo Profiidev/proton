@@ -3,5 +3,4 @@ frontend/build/
 node_modules/
 .svelte-kit/
 target/
-/backend/
 .github/

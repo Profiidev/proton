@@ -53,7 +53,6 @@
               "app/svelte.config.js"
               "app/tsconfig.json"
               "app/vite.config.js"
-              "backend/Cargo.toml"
             ];
           };
 
@@ -132,10 +131,6 @@
 
           # Compile fails due to perl missing
           doCheck = false;
-          cargoTestFlags = [
-            "--package"
-            "proton-backend"
-          ];
 
           postInstall = ''
             gappsWrapperArgs+=(
