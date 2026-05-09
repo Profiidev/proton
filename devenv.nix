@@ -47,6 +47,8 @@ let
     webkitgtk_4_1
     wayland
     libxkbcommon
+    glib-networking
+    gsettings-desktop-schemas
   ];
 in
 {
@@ -73,6 +75,8 @@ in
   };
 
   env = {
+    XDG_DATA_DIRS = "${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}:$XDG_DATA_DIRS";
+    GIO_MODULE_DIR = "${pkgs.glib-networking}/lib/gio/modules";
     LD_LIBRARY_PATH = "${lib.makeLibraryPath mcLibs}:$LD_LIBRARY_PATH";
   };
 }

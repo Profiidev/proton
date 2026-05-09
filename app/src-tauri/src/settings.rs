@@ -8,7 +8,7 @@ use crate::{
   utils::updater::{UpdateType, update_data},
 };
 
-const SETTINGS_KEY: &str = "settings";
+pub const SETTINGS_KEY: &str = "settings";
 
 pub struct MaxMem {
   max_mem: u64,

@@ -137,6 +137,7 @@
               ${pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
                 --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.xrandr ]}
                 --set LD_LIBRARY_PATH ${runtimeDependencies}
+                --set __NV_DISABLE_EXPLICIT_SYNC 1
               ''}
             )
 
