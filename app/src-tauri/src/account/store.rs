@@ -169,6 +169,10 @@ impl AccountStore {
     let auth = ms_mc_login(&self.client, &self.handle).await?;
     let profile = get_profile_info(&self.client, &auth.mc_token).await?;
 
+    if self.active.is_empty() {
+      self.active = profile.id.clone();
+    }
+
     self
       .accounts
       .insert(profile.id.clone(), Some(AccountInfo { auth, profile }));

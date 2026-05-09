@@ -20,7 +20,7 @@ use profiles::commands::{
   profile_repair, profile_runs_list, profile_update, profile_update_icon,
 };
 use settings::{settings_get, settings_set};
-use tauri::{AppHandle, Emitter, Manager, webview::PageLoadEvent};
+use tauri::{AppHandle, Emitter, Manager, Url, webview::PageLoadEvent};
 use tauri_plugin_log::{RotationStrategy, Target, TargetKind, TimezoneStrategy};
 use tokio::sync::Mutex;
 use versions::{
@@ -30,7 +30,7 @@ use versions::{
 
 use crate::{
   offline::{MANIFEST_REFRESH_ERROR, OfflineState, is_offline, try_reconnect},
-  settings::{MaxMem, SettingsExt},
+  settings::{MaxMem, SETTINGS_KEY, SettingsExt},
   utils::{log::ResultLogExt, updater::default_client},
   versions::{event::UpdateLimiterStore, loader::LoaderType, paths::MCVersionPath},
 };
@@ -153,16 +153,30 @@ pub fn run() {
       if view.label() == "main"
         && payload.event() == PageLoadEvent::Started
         && let Ok(current_url) = view.url()
-        && let Ok(settings) = view.app_handle().app_settings()
+        && let Ok(mut settings) = view.app_handle().app_settings()
         && let Some(url) = settings.url
         && url != current_url
       {
         #[cfg(debug_assertions)]
         if url.scheme() == "tauri" {
+          let url = Url::parse("http://localhost:1420").unwrap();
+          settings.url = Some(url.clone());
+          let _ = view.navigate(url);
+
+          if let Ok(store) = view.app_handle().app_store() {
+            let _ = store.set(SETTINGS_KEY, &settings);
+          }
           return;
         }
         #[cfg(not(debug_assertions))]
-        if url.scheme() != "http" && url.scheme() != "https" {
+        if url.scheme() == "http" || url.scheme() == "https" {
+          let url = Url::parse("tauri://localhost").unwrap();
+          settings.url = Some(url.clone());
+          let _ = view.navigate(url);
+
+          if let Ok(store) = view.app_handle().app_store() {
+            let _ = store.set(SETTINGS_KEY, &settings);
+          }
           return;
         }
         let _ = view.navigate(url);

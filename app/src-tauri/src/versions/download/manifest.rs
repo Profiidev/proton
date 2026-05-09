@@ -91,6 +91,7 @@ pub async fn check_java_manifest(
     Component::JavaRuntimeAlpha => &version.java_runtime_alpha,
     Component::JavaRuntimeBeta => &version.java_runtime_beta,
     Component::JavaRuntimeDelta => &version.java_runtime_delta,
+    Component::JavaRuntimeEpsilon => &version.java_runtime_epsilon,
     Component::JavaRuntimeGamma => &version.java_runtime_gamma,
     Component::JavaRuntimeGammaSnapshot => &version.java_runtime_gamma_snapshot,
     Component::JreLegacy => &version.jre_legacy,

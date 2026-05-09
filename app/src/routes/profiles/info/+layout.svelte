@@ -124,10 +124,10 @@
               </Button>
             {/snippet}
           </DropdownMenu.Trigger>
-          <DropdownMenu.Content>
+          <DropdownMenu.Content class="w-auto">
             <DropdownMenu.Item
               onclick={() => profile_open_path(profile.id)}
-              class="cursor-pointer"
+              class="cursor-pointer text-nowrap"
             >
               <FolderOpen />
               Open Directory</DropdownMenu.Item
@@ -142,14 +142,14 @@
                 }
                 profile_repair(profile.id, profile.name);
               }}
-              class="cursor-pointer"
+              class="cursor-pointer text-nowrap"
             >
               <Wrench />
               Repair Profile
             </DropdownMenu.Item>
             <DropdownMenu.Item
               variant="destructive"
-              class="cursor-pointer"
+              class="cursor-pointer text-nowrap"
               onclick={() => (deleteOpen = true)}
             >
               <Trash />
