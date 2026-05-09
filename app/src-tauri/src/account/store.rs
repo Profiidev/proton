@@ -173,6 +173,10 @@ impl AccountStore {
       .accounts
       .insert(profile.id.clone(), Some(AccountInfo { auth, profile }));
 
+    if self.active.is_empty() {
+      self.active = profile.id.clone();
+    }
+
     self.save()?;
 
     update_data(&self.handle, UpdateType::Accounts);
