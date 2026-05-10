@@ -169,7 +169,9 @@ impl AccountStore {
     let auth = ms_mc_login(&self.client, &self.handle).await?;
     let profile = get_profile_info(&self.client, &auth.mc_token).await?;
 
+    let mut active_changed = false;
     if self.active.is_empty() {
+      active_changed = true;
       self.active = profile.id.clone();
     }
 
@@ -180,6 +182,9 @@ impl AccountStore {
     self.save()?;
 
     update_data(&self.handle, UpdateType::Accounts);
+    if active_changed {
+      update_data(&self.handle, UpdateType::AccountActive);
+    }
     Ok(())
   }
 

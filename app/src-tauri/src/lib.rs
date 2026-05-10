@@ -170,7 +170,7 @@ pub fn run() {
         }
         #[cfg(not(debug_assertions))]
         if url.scheme() == "http" || url.scheme() == "https" {
-          let url = Url::parse("tauri://localhost").unwrap();
+          let url = Url::parse("tauri://localhost/home").unwrap();
           settings.url = Some(url.clone());
           let _ = view.navigate(url);
 
