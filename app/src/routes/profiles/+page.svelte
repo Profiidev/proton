@@ -127,7 +127,7 @@
 
     let res = await profile_create(data);
     if (res === ProfileError.InvalidImage) {
-      return { field: 'icon', error: 'Invalid image' };
+      return { field: 'icon', error: 'Invalid image' } as const;
     } else if (res === ProfileError.Other) {
       return { error: 'Failed to create profile' };
     }
