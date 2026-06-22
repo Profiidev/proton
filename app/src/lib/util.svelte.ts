@@ -1,5 +1,5 @@
-import { DateTime as D } from "@profidev/pleiades/util/time.svelte";
-import type { Profile } from "./tauri/profile.svelte";
+import { DateTime as D } from '@profidev/pleiades/util/time.svelte';
+import type { Profile } from './tauri/profile.svelte';
 
 export const file_to_bytes = async (file: File) =>
   new Promise<Uint8Array>((resolve) => {
@@ -17,16 +17,24 @@ export const file_to_bytes = async (file: File) =>
   });
 
 export const rem_to_px = (rem: number) => {
-  const rootFontSize = Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
+  const rootFontSize = Number.parseFloat(
+    getComputedStyle(document.documentElement).fontSize
+  );
   return rem * rootFontSize;
 };
 
 export const b_to_mb = (bytes: number) => bytes / 1024 / 1024;
 
-export const debounce = <T extends (...args: any[]) => void>(func: T, delay: number) => {
+export const debounce = <T extends (...args: any[]) => void>(
+  func: T,
+  delay: number
+) => {
   let timeout: number | undefined = undefined;
 
-  const debounced = function debounced(this: ThisParameterType<T>, ...args: Parameters<T>) {
+  const debounced = function debounced(
+    this: ThisParameterType<T>,
+    ...args: Parameters<T>
+  ) {
     // oxlint-disable-next-line no-this-alias
     const context = this;
 
@@ -47,7 +55,9 @@ export const debounce = <T extends (...args: any[]) => void>(func: T, delay: num
 };
 
 export const compareDateTimes = (a: string, b: string) =>
-  (D.DateTime?.fromISO(a).diff(D.DateTime?.fromISO(b)).milliseconds ?? 0) > 0 ? -1 : 1;
+  (D.DateTime?.fromISO(a).diff(D.DateTime?.fromISO(b)).milliseconds ?? 0) > 0
+    ? -1
+    : 1;
 
 export const compareProfiles = (a: Profile, b: Profile) => {
   if (!a.last_played && !b.last_played) {
