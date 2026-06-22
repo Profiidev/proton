@@ -6,7 +6,7 @@
   import ProfileIcon from '$lib/components/profile/ProfileIcon.svelte';
   import { instance_list, instance_stop } from '$lib/tauri/instance.svelte.js';
   import { setInstance } from './store.svelte.js';
-  import { DateTime } from '@profidev/pleiades/util/time.svelte';
+  import { DateTime as D } from '@profidev/pleiades/util/time.svelte';
   import DestroyDialog from '$lib/components/form/DestroyDialog.svelte';
 
   let { data, children } = $props();
@@ -59,9 +59,9 @@
           {instance.version}
         </p>
         <p class="text-muted-foreground whitespace-nowrap">
-          Launched at: {DateTime.fromISO(instance.launched_at)
+          Launched at: {D.DateTime?.fromISO(instance.launched_at)
             .setLocale('de')
-            .toLocaleString(DateTime.DATETIME_SHORT)}
+            .toLocaleString(D.DateTime.DATETIME_SHORT)}
         </p>
       </div>
       <div class="mr-2 ml-auto flex items-center gap-2">

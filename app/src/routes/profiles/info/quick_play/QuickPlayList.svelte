@@ -8,7 +8,7 @@
   import * as Dialog from '@profidev/pleiades/components/ui/dialog';
   import * as Tabs from '@profidev/pleiades/components/ui/tabs';
   import { getProfile } from '../store.svelte';
-  import { DateTime } from '@profidev/pleiades/util/time.svelte';
+  import { DateTime as D } from '@profidev/pleiades/util/time.svelte';
   import { Play, Star, Trash } from '@lucide/svelte';
   import { account_active } from '$lib/tauri/account.svelte';
   import { profile_launch } from '$lib/tauri/profile.svelte';
@@ -44,9 +44,9 @@
         </div>
         <Separator orientation="vertical" class="mx-1 h-8!" />
         <p class="text-muted-foreground">
-          Last played at {DateTime.fromISO(item.lastPlayedTime)
+          Last played at {D.DateTime?.fromISO(item.lastPlayedTime)
             .setLocale('de')
-            .toLocaleString(DateTime.DATETIME_SHORT)}
+            .toLocaleString(D.DateTime.DATETIME_SHORT)}
         </p>
         <Button
           class="ml-auto cursor-pointer"

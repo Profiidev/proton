@@ -14,7 +14,7 @@
   import { setProfile } from './store.svelte.js';
   import { FolderOpen, Menu, Play, Star, Trash, Wrench } from '@lucide/svelte';
   import ProfileIcon from '$lib/components/profile/ProfileIcon.svelte';
-  import { DateTime } from '@profidev/pleiades/util/time.svelte';
+  import { DateTime as D } from '@profidev/pleiades/util/time.svelte';
   import { account_active } from '$lib/tauri/account.svelte.js';
   import { profile_favorites_set } from '$lib/tauri/home.svelte.js';
   import DestroyDialog from '$lib/components/form/DestroyDialog.svelte';
@@ -75,15 +75,15 @@
         </p>
         <div class="flex flex-wrap">
           <p class="text-muted-foreground mr-4 whitespace-nowrap">
-            Created at: {DateTime.fromISO(profile.created_at)
+            Created at: {D.DateTime?.fromISO(profile.created_at)
               .setLocale('de')
-              .toLocaleString(DateTime.DATETIME_SHORT)}
+              .toLocaleString(D.DateTime.DATETIME_SHORT)}
           </p>
           <p class="text-muted-foreground whitespace-nowrap">
             Last Played: {profile.last_played
-              ? DateTime.fromISO(profile.last_played)
+              ? D.DateTime?.fromISO(profile.last_played)
                   .setLocale('de')
-                  .toLocaleString(DateTime.DATETIME_SHORT)
+                  .toLocaleString(D.DateTime.DATETIME_SHORT)
               : 'Never'}
           </p>
         </div>
