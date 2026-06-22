@@ -120,7 +120,7 @@
     });
   };
 
-  const update_icon = async (file?: File) => {
+  const update_icon = async (file: File | undefined) => {
     if (!profile || !file) return;
     let bytes = new Uint8Array(await file.arrayBuffer());
 

@@ -21,7 +21,7 @@
 
   const { form: formData } = $derived(form);
 
-  const fileChange = (file?: File) => {
+  const fileChange = (file: File | undefined) => {
     let store = get(formData);
     // @ts-ignore
     store[key] = file;
