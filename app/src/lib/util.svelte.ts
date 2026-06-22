@@ -1,4 +1,4 @@
-import { DateTime } from '@profidev/pleiades/util/time.svelte';
+import { DateTime as D } from '@profidev/pleiades/util/time.svelte';
 import type { Profile } from './tauri/profile.svelte';
 
 export const file_to_bytes = async (file: File) =>
@@ -55,7 +55,9 @@ export const debounce = <T extends (...args: any[]) => void>(
 };
 
 export const compareDateTimes = (a: string, b: string) =>
-  DateTime.fromISO(a).diff(DateTime.fromISO(b)).milliseconds > 0 ? -1 : 1;
+  (D.DateTime?.fromISO(a).diff(D.DateTime?.fromISO(b)).milliseconds ?? 0) > 0
+    ? -1
+    : 1;
 
 export const compareProfiles = (a: Profile, b: Profile) => {
   if (!a.last_played && !b.last_played) {

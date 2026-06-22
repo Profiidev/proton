@@ -10,7 +10,7 @@
   import { CircleStop } from '@lucide/svelte';
   import { compareDateTimes } from '$lib/util.svelte';
   import { goto } from '$app/navigation';
-  import { DateTime } from '@profidev/pleiades/util/time.svelte';
+  import { DateTime as D } from '@profidev/pleiades/util/time.svelte';
   import DestroyDialog from '$lib/components/form/DestroyDialog.svelte';
 
   let profile = $derived(getProfile());
@@ -35,9 +35,9 @@
       <p class="ml-2 text-base">Instance {index + 1}</p>
       <Separator orientation="vertical" class="mx-1 h-8!" />
       <p class="text-muted-foreground">
-        Launched at {DateTime.fromISO(instance.launched_at)
+        Launched at {D.DateTime?.fromISO(instance.launched_at)
           .setLocale('de')
-          .toLocaleString(DateTime.DATETIME_SHORT)}
+          .toLocaleString(D.DateTime.DATETIME_SHORT)}
       </p>
       <Button
         variant="destructive"

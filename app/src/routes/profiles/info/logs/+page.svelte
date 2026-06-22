@@ -7,7 +7,7 @@
     profile_logs,
     profile_clear_logs
   } from '$lib/tauri/logs.svelte';
-  import { DateTime } from '@profidev/pleiades/util/time.svelte';
+  import { DateTime as D } from '@profidev/pleiades/util/time.svelte';
   import Multiselect from '@profidev/pleiades/components/table/multiselect.svelte';
   import { compareDateTimes } from '$lib/util.svelte';
   import { Button } from '@profidev/pleiades/components/ui/button';
@@ -31,9 +31,9 @@
   let logs_list_select = $derived(
     logs_list
       ?.reduce((a: { label: string; value: string }[], run) => {
-        let label = DateTime.fromISO(run)
+        let label = D.DateTime?.fromISO(run)
           .setLocale('de')
-          .toLocaleString(DateTime.DATETIME_SHORT);
+          .toLocaleString(D.DateTime.DATETIME_SHORT);
 
         let count: number = a.filter(
           (item) => item.label.trim() === label
