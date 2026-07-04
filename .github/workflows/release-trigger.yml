@@ -22,9 +22,11 @@ jobs:
 
       - name: Update version
         id: update_version
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
         run: |
           JSON_FILE="app/src-tauri/tauri.conf.json"
-          RAW_TAG=${{ github.event.inputs.version }}
+          RAW_TAG=$INPUT_VERSION
           NEW_VERSION="${RAW_TAG#v}"
           echo "Bumping version to $NEW_VERSION"
           jq ".version = \"$NEW_VERSION\"" "$JSON_FILE" > $JSON_FILE.temp && mv $JSON_FILE.temp "$JSON_FILE"
