@@ -20,10 +20,13 @@ jobs:
         with:
           components: clippy,rustfmt
 
+      - name: refresh apt index (ubuntu only)
+        run: sudo apt-get update
+
       - uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # latest
         with:
           packages: libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-          version: 1.0
+          version: 1.2
 
       - name: Cache cargo and rust files
         id: rust_cache
