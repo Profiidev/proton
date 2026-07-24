@@ -245,7 +245,7 @@ pub async fn get_ms_token(client: &Client, handle: &AppHandle) -> Result<MsToken
     ],
   )?);
 
-  debug!("Opening Login Window with url: {}", &url);
+  debug!("Opening Login Window with url: {}", url);
   let window = WebviewWindowBuilder::new(handle, AUTH_WINDOW_LABEL, url)
     .zoom_hotkeys_enabled(false)
     .title("Sign into Proton")
@@ -280,7 +280,7 @@ pub async fn get_ms_token(client: &Client, handle: &AppHandle) -> Result<MsToken
         ("redirect_uri", REDIRECT_URI),
         ("grant_type", "authorization_code"),
       ]);
-      debug!("Retrieving ms token with code: {}", &code);
+      debug!("Retrieving ms token with code: {}", code);
 
       let res = req.send().await?.error_for_status()?;
       debug!("Got response with code: {}", res.status());

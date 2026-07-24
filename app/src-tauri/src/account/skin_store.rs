@@ -47,7 +47,7 @@ pub struct Skin {
 
 impl SkinInfo {
   fn load_skin(self, handle: &AppHandle) -> Result<Skin> {
-    debug!("Loading skin data: {}", &self.id);
+    debug!("Loading skin data: {}", self.id);
     let data_dir = path!(handle.path().app_data_dir()?, SkinStore::SKIN_FOLDER);
 
     let data_path = path!(&data_dir, format!("{}.png", &self.id));
@@ -80,7 +80,7 @@ pub struct Cape {
 
 impl CapeInfo {
   fn load_cape(self, handle: &AppHandle) -> Result<Cape> {
-    debug!("Loading cape data: {}", &self.id);
+    debug!("Loading cape data: {}", self.id);
     let data_path = path!(
       handle.path().app_data_dir()?,
       SkinStore::SKIN_FOLDER,
@@ -123,7 +123,7 @@ impl SkinStore {
     let head = cursor.into_inner();
 
     let id = bytes_hash(skin)?;
-    debug!("Saving skin with id: {}", &id);
+    debug!("Saving skin with id: {}", id);
 
     let data_dir = path!(self.handle.path().app_data_dir()?, Self::SKIN_FOLDER);
     fs::create_dir_all(&data_dir).await?;
@@ -151,7 +151,7 @@ impl SkinStore {
 
   fn add_cape(&mut self, url: Url, cape: &[u8]) -> Result<Cape> {
     let id = bytes_hash(cape)?;
-    debug!("Saving cape with id: {}", &id);
+    debug!("Saving cape with id: {}", id);
 
     let mut data_path = path!(&self.handle.path().app_data_dir()?, Self::SKIN_FOLDER);
     std::fs::create_dir_all(&data_path)?;
@@ -180,7 +180,7 @@ impl SkinStore {
     if let Some(skin) = self.skins.iter().find(|s| s.url.as_ref() == Some(&url)) {
       skin.clone().load_skin(&self.handle)
     } else {
-      debug!("Skin with url {} not found. downloading", &url);
+      debug!("Skin with url {} not found. downloading", url);
       let skin = self
         .client
         .get(url.clone())
@@ -197,7 +197,7 @@ impl SkinStore {
     if let Some(skin) = self.capes.iter().find(|c| c.url == url) {
       skin.clone().load_cape(&self.handle)
     } else {
-      debug!("Cape with url {} not found. downloading", &url);
+      debug!("Cape with url {} not found. downloading", url);
       let cape = self
         .client
         .get(url.clone())
@@ -220,7 +220,7 @@ impl SkinStore {
 
   pub fn remove_skin(&mut self, id: &str) -> Result<()> {
     let data_dir = path!(&self.handle.path().app_data_dir()?, Self::SKIN_FOLDER);
-    debug!("Deleting skin with id: {}", &id);
+    debug!("Deleting skin with id: {}", id);
 
     let data_path = path!(&data_dir, format!("{}.png", id));
     //ignore result to prevent inconsistent saved data

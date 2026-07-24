@@ -33,7 +33,7 @@ pub async fn profile_create(
 ) -> Result<()> {
   trace!(
     "Command profile_create called with name {} version {} loader {:?}",
-    &name, &version, &loader,
+    name, version, loader,
   );
   let mut store = state.lock().await;
 
@@ -51,7 +51,7 @@ pub async fn profile_update(
   state: State<'_, Mutex<ProfileStore>>,
   profile: ProfileUpdate,
 ) -> Result<()> {
-  trace!("Command profile_update called with profile {:?}", &profile);
+  trace!("Command profile_update called with profile {:?}", profile);
   let store = state.lock().await;
 
   let mut current_profile = store.profile(&profile.id).await.log()?;
