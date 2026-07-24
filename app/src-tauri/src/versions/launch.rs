@@ -143,7 +143,7 @@ impl LaunchArgs {
 pub async fn launch_minecraft_version(args: &LaunchArgs) -> Result<Child> {
   debug!(
     "Collecting args to start minecraft version: {}",
-    &args.version
+    args.version
   );
   let version_path = MCVersionPath::new(&args.data_dir, &args.version);
   let version: Version = read_parse_file(&version_path.version_manifest()).await?;

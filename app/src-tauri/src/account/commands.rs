@@ -85,14 +85,14 @@ pub async fn account_set_active(state: State<'_, Mutex<AccountStore>>, id: &str)
 
 #[tauri::command]
 pub async fn account_get_skin(state: State<'_, Mutex<SkinStore>>, url: Url) -> Result<Skin> {
-  trace!("Command account_get_skin called with url {}", &url);
+  trace!("Command account_get_skin called with url {}", url);
   let mut store = state.lock().await;
   Ok(store.get_skin_by_url(url).await.log()?)
 }
 
 #[tauri::command]
 pub async fn account_get_cape(state: State<'_, Mutex<SkinStore>>, url: Url) -> Result<Cape> {
-  trace!("Command account_get_cape called with url {}", &url);
+  trace!("Command account_get_cape called with url {}", url);
   let mut store = state.lock().await;
   Ok(store.get_cape_by_url(url).await.log()?)
 }

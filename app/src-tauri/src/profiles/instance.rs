@@ -119,7 +119,7 @@ impl Instance {
           }
           else => break
         };
-        debug!("Profile: {}, id: {}, {}", profile_, id_, &line);
+        debug!("Profile: {}, id: {}, {}", profile_, id_, line);
         lines_.lock().await.push(line);
         update_data(&handle, UpdateType::InstanceLogs);
       }
