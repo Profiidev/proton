@@ -8,7 +8,7 @@ export interface PlayHistoryFavorite {
   quick_play?: QuickPlayInfo;
 }
 
-const profile_history_list_ = async (): Promise<
+const profile_history_list_call = async (): Promise<
   PlayHistoryFavorite[] | undefined
 > => {
   try {
@@ -18,11 +18,11 @@ const profile_history_list_ = async (): Promise<
   }
 };
 export const profile_history_list = create_data_state(
-  profile_history_list_,
+  profile_history_list_call,
   UpdateType.Profiles
 );
 
-const profile_favorites_list_ = async (): Promise<
+const profile_favorites_list_call = async (): Promise<
   PlayHistoryFavorite[] | undefined
 > => {
   try {
@@ -32,7 +32,7 @@ const profile_favorites_list_ = async (): Promise<
   }
 };
 export const profile_favorites_list = create_data_state(
-  profile_favorites_list_,
+  profile_favorites_list_call,
   UpdateType.Profiles
 );
 

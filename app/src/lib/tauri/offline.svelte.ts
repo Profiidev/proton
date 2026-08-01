@@ -5,14 +5,14 @@ import { toast } from 'svelte-sonner';
 import { browser } from '$app/environment';
 import { listen } from '@tauri-apps/api/event';
 
-const is_offline_ = async () => {
+const is_offline_call = async () => {
   try {
     return await invoke<boolean>('is_offline');
   } catch {
     return undefined;
   }
 };
-export const is_offline = create_data_state(is_offline_, UpdateType.Offline);
+export const is_offline = create_data_state(is_offline_call, UpdateType.Offline);
 
 export const try_reconnect = async () => {
   try {

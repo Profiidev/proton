@@ -162,7 +162,7 @@ export const profile_remove = async (profile: string) => {
   return undefined;
 };
 
-const profile_list_ = async (): Promise<Profile[] | undefined> => {
+const profile_list_call = async (): Promise<Profile[] | undefined> => {
   try {
     return await invoke('profile_list');
   } catch {
@@ -170,7 +170,7 @@ const profile_list_ = async (): Promise<Profile[] | undefined> => {
   }
 };
 export const profile_list = create_data_state(
-  profile_list_,
+  profile_list_call,
   UpdateType.Profiles
 );
 
@@ -380,9 +380,9 @@ if (browser) {
         id
       });
     } else {
-      const message_ = check_message.get(id);
+      const message_content= check_message.get(id);
       check_message.delete(id);
-      toast.success(message_ ?? '', {
+      toast.success(message_content ?? '', {
         cancel: undefined,
         duration: undefined,
         id
