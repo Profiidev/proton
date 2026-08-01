@@ -380,7 +380,7 @@ if (browser) {
         id
       });
     } else {
-      const message_content= check_message.get(id);
+      const message_content = check_message.get(id);
       check_message.delete(id);
       toast.success(message_content ?? '', {
         cancel: undefined,

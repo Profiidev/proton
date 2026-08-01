@@ -12,7 +12,10 @@ const is_offline_call = async () => {
     return undefined;
   }
 };
-export const is_offline = create_data_state(is_offline_call, UpdateType.Offline);
+export const is_offline = create_data_state(
+  is_offline_call,
+  UpdateType.Offline
+);
 
 export const try_reconnect = async () => {
   try {
