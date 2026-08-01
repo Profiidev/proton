@@ -143,7 +143,7 @@
 
             glibPostInstallHook
             gappsWrapperArgsHook
-            wrapGAppsHook
+            wrapGApp "$out/bin/proton"
           '';
         };
       }
