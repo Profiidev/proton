@@ -51,7 +51,7 @@ export interface CapeData {
   url: string;
 }
 
-const account_list_ = async (): Promise<
+const account_list_call = async (): Promise<
   Record<string, ProfileInfo | null> | undefined
 > => {
   try {
@@ -62,7 +62,7 @@ const account_list_ = async (): Promise<
 };
 
 export const account_list = create_data_state(
-  account_list_,
+  account_list_call,
   UpdateType.Accounts
 );
 
@@ -162,7 +162,7 @@ export const account_remove_skin = async (id: string) => {
   return undefined;
 };
 
-const account_list_skins_ = async (): Promise<SkinData[] | undefined> => {
+const account_list_skins_call = async (): Promise<SkinData[] | undefined> => {
   try {
     return await invoke('account_list_skins');
   } catch {
@@ -170,7 +170,7 @@ const account_list_skins_ = async (): Promise<SkinData[] | undefined> => {
   }
 };
 export const account_list_skins = create_data_state(
-  account_list_skins_,
+  account_list_skins_call,
   UpdateType.AccountSkins
 );
 

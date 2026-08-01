@@ -16,7 +16,7 @@ export interface MinecraftSettings {
   jvm_settings: JvmSettings;
 }
 
-const settings_get_ = async (): Promise<Settings | undefined> => {
+const settings_get_call = async (): Promise<Settings | undefined> => {
   try {
     return await invoke('settings_get');
   } catch {
@@ -24,7 +24,7 @@ const settings_get_ = async (): Promise<Settings | undefined> => {
   }
 };
 export const settings_get = create_data_state(
-  settings_get_,
+  settings_get_call,
   UpdateType.Settings
 );
 

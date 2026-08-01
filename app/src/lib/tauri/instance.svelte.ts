@@ -16,7 +16,7 @@ export interface InstanceInfo {
   loader_version?: string;
 }
 
-const instance_list_ = async (): Promise<InstanceInfo[] | undefined> => {
+const instance_list_call = async (): Promise<InstanceInfo[] | undefined> => {
   try {
     return await invoke('instance_list');
   } catch {
@@ -24,7 +24,7 @@ const instance_list_ = async (): Promise<InstanceInfo[] | undefined> => {
   }
 };
 export const instance_list = create_data_state(
-  instance_list_,
+  instance_list_call,
   UpdateType.Instances
 );
 
