@@ -203,41 +203,40 @@ export const profile_repair = async (profile: string, name: string) => {
   );
 };
 
-const check_message = new Map<number, string>();
-// oxlint-disable new-cap
-const cancel = (id: number) => (internal: any, props: any) =>
-  DownloadNotificationCancel(internal, { ...props, id });
+const check_message = new Map<number, string>(),
+  // oxlint-disable new-cap
+  cancel = (id: number) => (internal: any, props: any) =>
+    DownloadNotificationCancel(internal, { ...props, id }),
+  launch_repair = async (
+    profile: string,
+    cmd: string,
+    message: string,
+    err: string,
+    quickPlay?: QuickPlayInfo
+  ) => {
+    const id = Math.round(Math.random() * 1_000_000);
+    try {
+      toast.loading('Checking/Downloading version manifests', {
+        cancel: cancel(id),
+        duration: TOAST_DURATION,
+        id
+      });
+      check_message.set(id, message);
+      await invoke(cmd, {
+        id,
+        profile,
+        quickPlay
+      });
+    } catch {
+      check_message.delete(id);
 
-const launch_repair = async (
-  profile: string,
-  cmd: string,
-  message: string,
-  err: string,
-  quickPlay?: QuickPlayInfo
-) => {
-  const id = Math.round(Math.random() * 1_000_000);
-  try {
-    toast.loading('Checking/Downloading version manifests', {
-      cancel: cancel(id),
-      duration: TOAST_DURATION,
-      id
-    });
-    check_message.set(id, message);
-    await invoke(cmd, {
-      id,
-      profile,
-      quickPlay
-    });
-  } catch {
-    check_message.delete(id);
-
-    toast.error(err, {
-      cancel: undefined,
-      duration: undefined,
-      id
-    });
-  }
-};
+      toast.error(err, {
+        cancel: undefined,
+        duration: undefined,
+        id
+      });
+    }
+  };
 
 export const profile_cancel_download = async (id: number) => {
   try {
@@ -249,116 +248,119 @@ export const profile_cancel_download = async (id: number) => {
 };
 
 const message_props = (
-  info: [number, number],
-  text: string,
-  mib: boolean
-): ComponentProps<typeof DownloadNotification> => {
-  const [val, total] = info;
-  return {
-    change: mib,
-    convert: mib ? (value: number) => b_to_mb(value) : undefined,
-    round: mib ? (value: number) => value.toFixed(1) : undefined,
-    text,
-    total,
-    unit: mib ? 'MiB' : undefined,
-    value: val
-  };
-};
-
-// oxlint-disable-next-line complexity
-const get_message = (
-  event: VersionCheckStatus
-): ComponentProps<typeof DownloadNotification> | string | undefined => {
-  if (typeof event === 'string') {
-    switch (event) {
-      case 'VersionManifestCheck': {
-        return 'Checking version manifest';
+    info: [number, number],
+    text: string,
+    mib: boolean
+  ): ComponentProps<typeof DownloadNotification> => {
+    const [val, total] = info;
+    return {
+      change: mib,
+      convert: mib ? (value: number) => b_to_mb(value) : undefined,
+      round: mib ? (value: number) => value.toFixed(1) : undefined,
+      text,
+      total,
+      unit: mib ? 'MiB' : undefined,
+      value: val
+    };
+  },
+  // oxlint-disable-next-line complexity
+  get_message = (
+    event: VersionCheckStatus
+  ): ComponentProps<typeof DownloadNotification> | string | undefined => {
+    if (typeof event === 'string') {
+      switch (event) {
+        case 'VersionManifestCheck': {
+          return 'Checking version manifest';
+        }
+        case 'VersionManifestDownload': {
+          return 'Downloading version manifest';
+        }
+        case 'AssetsManifestCheck': {
+          return 'Checking assets manifest';
+        }
+        case 'AssetsManifestDownload': {
+          return 'Downloading assets manifest';
+        }
+        case 'JavaManifestCheck': {
+          return 'Checking java manifest';
+        }
+        case 'JavaManifestDownload': {
+          return 'Downloading java manifest';
+        }
+        case 'ClientCheck': {
+          return 'Checking client jar';
+        }
+        case 'ModLoaderMeta': {
+          return 'Downloading ModLoader version meta';
+        }
+        case 'ModLoaderFilesDownloadInfo': {
+          return 'Downloading ModLoader file information';
+        }
+        case 'ModLoaderPreprocess': {
+          return 'Running preprocessing of ModLoader';
+        }
+        case 'ModLoaderPreprocessDone': {
+          return 'Preprocessing of ModLoader done';
+        }
+        case 'Done': {
+          return undefined;
+        } // No message for done
+        default: {
+          break;
+        }
       }
-      case 'VersionManifestDownload': {
-        return 'Downloading version manifest';
-      }
-      case 'AssetsManifestCheck': {
-        return 'Checking assets manifest';
-      }
-      case 'AssetsManifestDownload': {
-        return 'Downloading assets manifest';
-      }
-      case 'JavaManifestCheck': {
-        return 'Checking java manifest';
-      }
-      case 'JavaManifestDownload': {
-        return 'Downloading java manifest';
-      }
-      case 'ClientCheck': {
-        return 'Checking client jar';
-      }
-      case 'ModLoaderMeta': {
-        return 'Downloading ModLoader version meta';
-      }
-      case 'ModLoaderFilesDownloadInfo': {
-        return 'Downloading ModLoader file information';
-      }
-      case 'ModLoaderPreprocess': {
-        return 'Running preprocessing of ModLoader';
-      }
-      case 'ModLoaderPreprocessDone': {
-        return 'Preprocessing of ModLoader done';
-      }
-      case 'Done': {
-        return undefined;
-      } // No message for done
-      default: {
-        break;
-      }
+    } else if ('ClientDownload' in event) {
+      return message_props(event.ClientDownload, 'Downloading client', true);
+    } else if ('AssetsCheck' in event) {
+      return message_props(event.AssetsCheck, 'Checking assets', false);
+    } else if ('AssetsDownload' in event) {
+      return message_props(event.AssetsDownload, 'Downloading assets', true);
+    } else if ('JavaCheck' in event) {
+      return message_props(event.JavaCheck, 'Checking java files', false);
+    } else if ('JavaDownload' in event) {
+      return message_props(event.JavaDownload, 'Downloading java files', true);
+    } else if ('NativeLibraryCheck' in event) {
+      return message_props(
+        event.NativeLibraryCheck,
+        'Checking native libraries',
+        false
+      );
+    } else if ('NativeLibraryDownload' in event) {
+      return message_props(
+        event.NativeLibraryDownload,
+        'Downloading native libraries',
+        true
+      );
+    } else if ('LibraryCheck' in event) {
+      return message_props(event.LibraryCheck, 'Checking libraries', false);
+    } else if ('LibraryDownload' in event) {
+      return message_props(
+        event.LibraryDownload,
+        'Downloading libraries',
+        true
+      );
+    } else if ('ModLoaderFilesCheck' in event) {
+      return message_props(
+        event.ModLoaderFilesCheck,
+        'Checking mod loader files',
+        false
+      );
+    } else if ('ModLoaderFilesDownload' in event) {
+      return message_props(
+        event.ModLoaderFilesDownload,
+        'Downloading mod loader files',
+        true
+      );
     }
-  } else if ('ClientDownload' in event) {
-    return message_props(event.ClientDownload, 'Downloading client', true);
-  } else if ('AssetsCheck' in event) {
-    return message_props(event.AssetsCheck, 'Checking assets', false);
-  } else if ('AssetsDownload' in event) {
-    return message_props(event.AssetsDownload, 'Downloading assets', true);
-  } else if ('JavaCheck' in event) {
-    return message_props(event.JavaCheck, 'Checking java files', false);
-  } else if ('JavaDownload' in event) {
-    return message_props(event.JavaDownload, 'Downloading java files', true);
-  } else if ('NativeLibraryCheck' in event) {
-    return message_props(
-      event.NativeLibraryCheck,
-      'Checking native libraries',
-      false
-    );
-  } else if ('NativeLibraryDownload' in event) {
-    return message_props(
-      event.NativeLibraryDownload,
-      'Downloading native libraries',
-      true
-    );
-  } else if ('LibraryCheck' in event) {
-    return message_props(event.LibraryCheck, 'Checking libraries', false);
-  } else if ('LibraryDownload' in event) {
-    return message_props(event.LibraryDownload, 'Downloading libraries', true);
-  } else if ('ModLoaderFilesCheck' in event) {
-    return message_props(
-      event.ModLoaderFilesCheck,
-      'Checking mod loader files',
-      false
-    );
-  } else if ('ModLoaderFilesDownload' in event) {
-    return message_props(
-      event.ModLoaderFilesDownload,
-      'Downloading mod loader files',
-      true
-    );
-  }
 
-  return undefined;
-};
+    return undefined;
+  };
 
 if (browser) {
   const _ = listen(VERSION_CHECK_STATUS_EVENT, (e) => {
     // oxlint-disable-next-line no-unsafe-type-assertion
-    const event = e.payload as VersionCheckData;
-    const { id } = event;
+    const event = e.payload as VersionCheckData,
+      { id } = event;
     if (id === undefined) {
       return;
     }

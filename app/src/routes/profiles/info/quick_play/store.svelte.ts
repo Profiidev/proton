@@ -7,9 +7,9 @@ import {
 } from '$lib/tauri/quick-play.svelte';
 import { compareDateTimes } from '$lib/util.svelte';
 
-let singleplayer = $state<QuickPlayInfo[] | undefined>();
-let multiplayer = $state<QuickPlayInfo[] | undefined>();
-let realms = $state<QuickPlayInfo[] | undefined>();
+let singleplayer = $state<QuickPlayInfo[] | undefined>(),
+  multiplayer = $state<QuickPlayInfo[] | undefined>(),
+  realms = $state<QuickPlayInfo[] | undefined>();
 
 export const quick_play_updater = (profile?: Profile) =>
   profile &&
