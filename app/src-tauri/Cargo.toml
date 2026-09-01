@@ -44,7 +44,7 @@ tauri-plugin-process = "2.3.1"
 notify = "8.2.0"
 async-trait = "0.1.89"
 serde-xml-rs = "0.8.2"
-async_zip = { version = "0.0.18", features = [
+async_zip = { version = "0.0.19", features = [
   "chrono",
   "tokio-fs",
   "deflate",
