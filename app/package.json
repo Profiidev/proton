@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@lucide/svelte": "^1.7.0",
-    "@profidev/pleiades": "^1.7.1",
+    "@profidev/pleiades": "^1.12.1",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-log": "^2.8.0",
     "@tauri-apps/plugin-opener": "^2.5.3",
