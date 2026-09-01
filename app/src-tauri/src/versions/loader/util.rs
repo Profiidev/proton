@@ -1,10 +1,14 @@
 use std::path::Path;
 
 use anyhow::Result;
-use async_zip::tokio::read::fs::ZipFileReader;
+use async_zip::base::read1::seek::ZipArchiveReader;
 use reqwest::Client;
 use tauri::Url;
-use tokio::fs;
+use tokio::{
+  fs,
+  io::{AsyncReadExt, BufReader},
+};
+use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 
 use crate::{
   utils::{
@@ -83,26 +87,16 @@ pub fn compare_mc_versions(a: &String, b: &String) -> std::cmp::Ordering {
 }
 
 pub async fn extract_file_from_zip(zip_path: &Path, file_name: &str) -> Result<Vec<u8>> {
-  let zip = ZipFileReader::new(zip_path).await?;
-  let mut data = None;
+  let file = fs::File::open(zip_path).await?;
+  let mut zip = ZipArchiveReader::open(BufReader::new(file).compat()).await?;
 
-  for i in 0..zip.file().entries().len() {
-    let mut reader = zip.reader_with_entry(i).await?;
-    let entry = reader.entry();
+  let Some(index) = zip.find(file_name.as_bytes())?.next() else {
+    return Err(anyhow::anyhow!("File '{}' not found in zip", file_name));
+  };
 
-    if entry.filename().as_str().unwrap_or_default() == file_name {
-      let mut bytes = Vec::new();
-      reader.read_to_end_checked(&mut bytes).await?;
-      data = Some(bytes);
-      break;
-    }
-  }
-
-  if let Some(bytes) = data {
-    Ok(bytes)
-  } else {
-    Err(anyhow::anyhow!("File '{}' not found in zip", file_name))
-  }
+  let mut bytes = Vec::new();
+  zip.file(index).await?.compat().read_to_end(&mut bytes).await?;
+  Ok(bytes)
 }
 
 pub async fn extract_and_save_file_from_zip(
@@ -131,4 +125,31 @@ pub async fn main_class_from_jar(jar_path: &Path) -> Result<String> {
     }
   }
   main_class.ok_or_else(|| anyhow::anyhow!("Main-Class not found"))
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use async_zip::{Compression, ZipEntryBuilder, base::write::ZipFileWriter};
+  use tokio_util::compat::TokioAsyncWriteCompatExt;
+
+  #[tokio::test]
+  async fn extract_file_from_zip_round_trips() {
+    let dir = std::env::temp_dir().join(format!("proton-zip-test-{}", std::process::id()));
+    fs::create_dir_all(&dir).await.unwrap();
+    let zip_path = dir.join("t.zip");
+
+    let out = fs::File::create(&zip_path).await.unwrap();
+    let mut writer = ZipFileWriter::new(out.compat_write());
+    for (name, body) in [("a.txt", b"hello".as_slice()), ("b/c.txt", b"world")] {
+      let entry = ZipEntryBuilder::new(name.into(), Compression::Stored);
+      writer.write_entry_whole(entry, body).await.unwrap();
+    }
+    writer.close().await.unwrap();
+
+    assert_eq!(extract_file_from_zip(&zip_path, "b/c.txt").await.unwrap(), b"world");
+    assert!(extract_file_from_zip(&zip_path, "missing").await.is_err());
+
+    fs::remove_dir_all(&dir).await.unwrap();
+  }
 }

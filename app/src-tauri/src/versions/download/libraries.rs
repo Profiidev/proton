@@ -1,12 +1,15 @@
 use std::{path::PathBuf, time::Instant};
 
 use anyhow::Result;
-use async_zip::tokio::read::fs::ZipFileReader;
+use async_zip::base::read1::seek::ZipArchiveReader;
 use log::debug;
 use reqwest::Client;
 use tauri::AppHandle;
-use tokio::io;
-use tokio_util::compat::FuturesAsyncReadCompatExt;
+use tokio::{
+  fs,
+  io::{self, BufReader},
+};
+use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 
 use crate::{
   path,
@@ -175,19 +178,26 @@ pub async fn check_download_version_java_libraries(
 }
 
 async fn unzip_native_library(java_lib_path: PathBuf, path: PathBuf) -> Result<()> {
-  let zip = ZipFileReader::new(path).await?;
-  for i in 0..zip.file().entries().len() {
-    let reader = zip.reader_with_entry(i).await?;
-    let entry = reader.entry();
+  let file = fs::File::open(&path).await?;
+  let mut zip = ZipArchiveReader::open(BufReader::new(file).compat()).await?;
 
-    let name = entry.filename().as_str().unwrap_or_default();
-    if !(name.ends_with(".so") || name.ends_with(".dll") || name.ends_with(".dylib")) {
-      continue;
-    }
-    let path = path!(&java_lib_path, name);
-    debug!("Extracting file {}", path.display());
-    let mut file = create_or_open_file(&path).await?;
-    io::copy(&mut reader.compat(), &mut file).await?;
+  let libs: Vec<(usize, String)> = zip
+    .cdrs()
+    .iter()
+    .enumerate()
+    .filter_map(|(i, cdr)| {
+      let name = cdr.insecure_file_name.as_str()?;
+      (name.ends_with(".so") || name.ends_with(".dll") || name.ends_with(".dylib"))
+        .then(|| (i, name.to_string()))
+    })
+    .collect();
+
+  for (i, name) in libs {
+    let out_path = path!(&java_lib_path, &name);
+    debug!("Extracting file {}", out_path.display());
+    let mut out = create_or_open_file(&out_path).await?;
+    let mut reader = zip.file(i).await?.compat();
+    io::copy(&mut reader, &mut out).await?;
   }
 
   Ok(())
