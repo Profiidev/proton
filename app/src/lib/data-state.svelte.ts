@@ -22,8 +22,8 @@ export enum UpdateType {
   Offline = 'Offline'
 }
 
-const updater_cbs = new Map<UpdateType, Map<string, () => void>>();
-const UPDATE_EVENT = 'data-update';
+const updater_cbs = new Map<UpdateType, Map<string, () => void>>(),
+  UPDATE_EVENT = 'data-update';
 
 if (browser) {
   const _ = listen(UPDATE_EVENT, (e) => {
@@ -35,9 +35,8 @@ if (browser) {
 }
 
 export const register_cb = (type: UpdateType, cb: () => void) => {
-  const uuid = crypto.randomUUID();
-
-  const existing = updater_cbs.get(type) || new Map();
+  const uuid = crypto.randomUUID(),
+    existing = updater_cbs.get(type) || new Map();
   existing.set(uuid, cb);
   updater_cbs.set(type, existing);
 
@@ -53,10 +52,9 @@ export const create_data_state = <T>(
   update: () => Promise<T | undefined>,
   type: UpdateType
 ) => {
-  let value: T | undefined = $state();
-
-  let subscribers = 0;
-  let uuid = '';
+  let value: T | undefined = $state(),
+    subscribers = 0,
+    uuid = '';
 
   return {
     update: async () => {

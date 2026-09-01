@@ -36,12 +36,11 @@ export const debounce = <T extends (...args: any[]) => void>(
     ...args: Parameters<T>
   ) {
     // oxlint-disable-next-line no-this-alias
-    const context = this;
-
-    const later = () => {
-      timeout = undefined;
-      func.apply(context, args);
-    };
+    const context = this,
+      later = () => {
+        timeout = undefined;
+        func.apply(context, args);
+      };
 
     if (timeout) {
       clearTimeout(timeout);

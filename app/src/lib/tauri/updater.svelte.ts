@@ -26,8 +26,8 @@ export const update = async () => {
   try {
     const updateData = await check();
     if (updateData) {
-      let downloaded = 0;
-      let contentLength = 0;
+      let downloaded = 0,
+        contentLength = 0;
       // Alternatively we could also call update.download() and update.install() separately
       await updateData.downloadAndInstall((event) => {
         switch (event.event) {
