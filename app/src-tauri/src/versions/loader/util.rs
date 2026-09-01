@@ -95,7 +95,12 @@ pub async fn extract_file_from_zip(zip_path: &Path, file_name: &str) -> Result<V
   };
 
   let mut bytes = Vec::new();
-  zip.file(index).await?.compat().read_to_end(&mut bytes).await?;
+  zip
+    .file(index)
+    .await?
+    .compat()
+    .read_to_end(&mut bytes)
+    .await?;
   Ok(bytes)
 }
 
@@ -147,7 +152,10 @@ mod tests {
     }
     writer.close().await.unwrap();
 
-    assert_eq!(extract_file_from_zip(&zip_path, "b/c.txt").await.unwrap(), b"world");
+    assert_eq!(
+      extract_file_from_zip(&zip_path, "b/c.txt").await.unwrap(),
+      b"world"
+    );
     assert!(extract_file_from_zip(&zip_path, "missing").await.is_err());
 
     fs::remove_dir_all(&dir).await.unwrap();
