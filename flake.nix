@@ -14,17 +14,12 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
-    rust-overlay.url = "github:oxalica/rust-overlay";
-    rust-overlay.inputs.nixpkgs.follows = "nixpkgs";
-    nix-filter.url = "github:numtide/nix-filter";
   };
 
   outputs =
     {
       nixpkgs,
       flake-utils,
-      rust-overlay,
-      nix-filter,
       ...
     }:
     flake-utils.lib.eachDefaultSystem (
@@ -32,7 +27,6 @@
       let
         pkgs = import nixpkgs {
           inherit system;
-          overlays = [ rust-overlay.overlays.default ];
         };
       in
       {
@@ -40,30 +34,16 @@
           pname = "proton";
           version = "0.2.13";
 
-          src = nix-filter {
-            root = ./.;
-            include = [
-              "package.json"
-              "package-lock.json"
-              "Cargo.toml"
-              "Cargo.lock"
-              (nix-filter.lib.inDirectory "app/src")
-              (nix-filter.lib.inDirectory "app/src-tauri")
-              (nix-filter.lib.inDirectory "app/static")
-              "app/package.json"
-              "app/svelte.config.js"
-              "app/tsconfig.json"
-              "app/vite.config.js"
-            ];
-          };
+          src = ./.;
+
+          cargoBuildFlags = [
+            "-p"
+            "proton"
+          ];
 
           npmDeps = pkgs.importNpmLock {
             npmRoot = src;
           };
-
-          preBuild = ''
-            patchShebangs app/node_modules
-          '';
 
           nativeBuildInputs = with pkgs; [
             cacert
@@ -133,18 +113,11 @@
           # Compile fails due to perl missing
           doCheck = false;
 
-          postInstall = ''
+          preFixup = pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
             gappsWrapperArgs+=(
-              ${pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
-                --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.xrandr ]}
-                --set LD_LIBRARY_PATH ${runtimeDependencies}
-                --set __NV_DISABLE_EXPLICIT_SYNC 1
-              ''}
+              --set LD_LIBRARY_PATH ${runtimeDependencies}
+              --set __NV_DISABLE_EXPLICIT_SYNC 1
             )
-
-            glibPostInstallHook
-            gappsWrapperArgsHook
-            wrapGApp "$out/bin/proton"
           '';
         };
       }
