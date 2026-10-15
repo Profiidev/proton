@@ -12,6 +12,7 @@
     LoaderCircle,
     TriangleAlert
   } from '@lucide/svelte';
+  import { toast } from '@profidev/pleiades/components/util/general';
   import ProjectIcon from './ProjectIcon.svelte';
   import ManualDownloads from './ManualDownloads.svelte';
   import { plural } from '$lib/profiles';
@@ -20,6 +21,7 @@
   import { profile_launch } from '$lib/tauri/profile.svelte';
   import {
     ContentError,
+    content_adopt_file,
     content_versions,
     modpack_install,
     modpack_plan,
@@ -108,12 +110,25 @@
 
   const gb = (mb: number) => `${(mb / 1024).toFixed(1)} GB`;
 
+  let found = $state<Record<string, string>>({});
+  let manual_done = $derived(
+    current?.manual.every((f) => f.fileId in found) ?? false
+  );
+
   const install = async () => {
     if (!current) return;
     const profile_name = name.trim();
     open = false;
     const id = await modpack_install(current, profile_name);
-    if (id && start) {
+    if (!id) return;
+    // Restricted files come from the download folders
+    for (const file of current.manual) {
+      if (await content_adopt_file(id, file, found[file.fileId])) {
+        toast.error(`Failed to add ${file.fileName} to ${profile_name}`);
+        return;
+      }
+    }
+    if (start) {
       await profile_launch(id, profile_name, account_active.value);
     }
   };
@@ -229,11 +244,10 @@
         </Alert.Title>
         <Alert.Description class="flex flex-col gap-2">
           <span>
-            CurseForge only allows these from its website. Download them, then
-            add them in the profile's Content tab by dropping them in or with
-            Add file.
+            CurseForge only allows these from its website. Download each one, it
+            is picked up automatically.
           </span>
-          <ManualDownloads files={current.manual} />
+          <ManualDownloads files={current.manual} bind:found />
         </Alert.Description>
       </Alert.Root>
     {/if}
@@ -245,7 +259,10 @@
 
     <Dialog.Footer>
       <Button variant="outline" onclick={() => (open = false)}>Cancel</Button>
-      <Button disabled={!current || name.trim() === ''} onclick={install}>
+      <Button
+        disabled={!current || name.trim() === '' || !manual_done}
+        onclick={install}
+      >
         Create profile and install
       </Button>
     </Dialog.Footer>

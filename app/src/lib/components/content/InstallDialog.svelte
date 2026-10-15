@@ -3,6 +3,7 @@
   import * as RadioGroup from '@profidev/pleiades/components/ui/radio-group';
   import * as Alert from '@profidev/pleiades/components/ui/alert';
   import { Button } from '@profidev/pleiades/components/ui/button';
+  import { Input } from '@profidev/pleiades/components/ui/input';
   import { Label } from '@profidev/pleiades/components/ui/label';
   import { toast } from '@profidev/pleiades/components/util/general';
   import { cn } from '@profidev/pleiades/utils';
@@ -15,6 +16,7 @@
   import { profile_list } from '$lib/tauri/profile.svelte';
   import {
     ContentError,
+    content_adopt_file,
     content_install,
     content_plan_install,
     content_versions,
@@ -40,6 +42,13 @@
       const compat = profile_compat(profile, project.kind, project);
       return { compat, note: profile_note(profile, compat), profile };
     })
+  );
+
+  let query = $state('');
+  let shown = $derived(
+    tiles.filter((t) =>
+      t.profile.name.toLowerCase().includes(query.trim().toLowerCase())
+    )
   );
 
   // Picked by the user, else the target, else the first compatible profile
@@ -76,14 +85,13 @@
 
   let plan = $state<InstallPlan>();
   let plan_error = $state<ContentError>();
-  let adopted = $state<string[]>([]);
+  let found = $state<Record<string, string>>({});
 
   $effect(() => {
     const id = profile?.id;
     const version_id = version?.id;
     plan = undefined;
     plan_error = undefined;
-    adopted = [];
     if (!id || !version_id) return;
     let stale = false;
     void content_plan_install(id, [
@@ -105,17 +113,23 @@
     plan?.items.filter((i) => i.reason === 'dependency') ?? []
   );
   let manual_done = $derived(
-    plan?.manual.every((f) => adopted.includes(f.fileId)) ?? false
+    plan?.manual.every((f) => f.fileId in found) ?? false
   );
   let can_install = $derived(
     plan !== undefined && plan.conflicts.length === 0 && manual_done
   );
 
-  const install = () => {
+  const install = async () => {
     if (!plan || !profile) return;
     open = false;
     content_target.id = profile.id;
-    // Restricted files were added by hand already
+    // Restricted files come from the download folders
+    for (const file of plan.manual) {
+      if (await content_adopt_file(profile.id, file, found[file.fileId])) {
+        toast.error(`Failed to add ${file.fileName} to ${profile.name}`);
+        return;
+      }
+    }
     const rest = { ...plan, manual: [] };
     if (rest.items.length === 0) {
       toast.success(`Installed ${project.name} in ${profile.name}`);
@@ -138,12 +152,13 @@
       </Dialog.Description>
     </Dialog.Header>
 
+    <Input placeholder="Search profiles" bind:value={query} />
     <RadioGroup.Root
       bind:value={() => profile?.id ?? '', (id) => (chosen = id)}
       aria-label="Profile"
-      class="gap-2"
+      class="max-h-72 shrink-0 gap-2 overflow-y-auto"
     >
-      {#each tiles as { profile: p, compat, note } (p.id)}
+      {#each shown as { profile: p, compat, note } (p.id)}
         <label
           class={cn(
             'border-input bg-input/30 hover:bg-input/60 flex items-center gap-3 rounded-lg border px-3 py-2.5',
@@ -158,7 +173,9 @@
           </span>
         </label>
       {:else}
-        <p class="text-muted-foreground text-sm">No profiles yet.</p>
+        <p class="text-muted-foreground text-sm">
+          {tiles.length === 0 ? 'No profiles yet.' : 'No matching profiles.'}
+        </p>
       {/each}
     </RadioGroup.Root>
 
@@ -244,13 +261,9 @@
         <div class="flex flex-col gap-1.5">
           <span class="text-sm">
             CurseForge only allows these files to be downloaded from its
-            website. Download them, then select each file.
+            website. Download each one, it is picked up automatically.
           </span>
-          <ManualDownloads
-            files={plan.manual}
-            profile={profile.id}
-            bind:adopted
-          />
+          <ManualDownloads files={plan.manual} bind:found />
         </div>
       {/if}
     {/if}

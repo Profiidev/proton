@@ -11,7 +11,7 @@ use tokio::sync::{Mutex, Notify};
 use crate::{
   content::{
     ContentError,
-    install::{Progress, adopt_file, check_plan, execute_install, plan_install},
+    install::{Progress, adopt_file, check_plan, execute_install, find_manual, plan_install},
     model::{
       Category, ContentKind, InstallPlan, Installed, ManualFile, PackPlan, PackSource, PickRef,
       ProjectDetail, SearchQuery, SearchResult, Source, UpdateInfo, VersionInfo,
@@ -280,6 +280,15 @@ pub async fn content_adopt_file(
   let kind = adopt_file(&dir, &file, &path).await.log()?;
   store::scan(&providers, &dir, kind).await.log()?;
   Ok(())
+}
+
+#[tauri::command]
+pub async fn content_find_manual(
+  handle: AppHandle,
+  files: Vec<ManualFile>,
+) -> Result<HashMap<String, PathBuf>> {
+  let dirs = handle.app_settings()?.download_dirs(&handle);
+  Ok(find_manual(dirs, files).await)
 }
 
 #[tauri::command]

@@ -480,7 +480,7 @@ async fn resolve_curseforge(
             file_name: file.file_name.clone(),
             sha1: file.sha1.clone(),
             size: file.size,
-            download_url: format!("{project_url}/files/{}", version.id),
+            download_url: format!("{project_url}/download/{}", version.id),
             project_url,
           },
         ))

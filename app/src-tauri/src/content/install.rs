@@ -174,7 +174,7 @@ pub async fn plan_install<'p>(
           sha1: file.sha1.clone(),
           size: file.size,
           project_url: project.url.clone(),
-          download_url: format!("{}/files/{}", project.url, version.id),
+          download_url: format!("{}/download/{}", project.url, version.id),
         });
         continue;
       }
@@ -604,7 +604,7 @@ fn add_dependents(entries: &mut [Entry], plan: &InstallPlan) {
   }
 }
 
-/// Copies a manually downloaded file into place after checking its sha1, the scan identifies it
+/// Moves a manually downloaded file into place after checking its sha1, the scan identifies it
 pub async fn adopt_file(dir: &Path, file: &ManualFile, path: &Path) -> Result<ContentKind> {
   let name = safe_name(&file.file_name)?.to_string();
   let source = path.to_path_buf();
@@ -615,7 +615,53 @@ pub async fn adopt_file(dir: &Path, file: &ManualFile, path: &Path) -> Result<Co
   }
   let kind = store::detect_kind(path).await?;
   store::place(dir, kind, &name, path).await?;
+  // leaves the download folder clean, a file already inside the profile is the placed one
+  if !fs::canonicalize(path)
+    .await?
+    .starts_with(fs::canonicalize(dir).await?)
+    && let Err(e) = fs::remove_file(path).await
+  {
+    log::warn!("Failed to remove {path:?} after adopting it: {e}");
+  }
   Ok(kind)
+}
+
+/// Looks through the top level of `dirs` for manually downloaded files, matched by sha1 so
+/// renamed duplicates like `mod (1).jar` count too. Returns file id -> path.
+pub async fn find_manual(dirs: Vec<PathBuf>, files: Vec<ManualFile>) -> HashMap<String, PathBuf> {
+  spawn_blocking(move || {
+    let mut found = HashMap::new();
+    for entry in dirs
+      .iter()
+      .filter_map(|d| std::fs::read_dir(d).ok())
+      .flatten()
+      .flatten()
+    {
+      let Ok(meta) = entry.metadata() else {
+        continue;
+      };
+      let name = entry.file_name();
+      // only hash files that could match, browsers write partial downloads under other names
+      let candidates: Vec<_> = files
+        .iter()
+        .filter(|f| !found.contains_key(&f.file_id))
+        .filter(|f| f.size == meta.len() || name.to_str() == Some(&f.file_name))
+        .collect();
+      if !meta.is_file() || candidates.is_empty() {
+        continue;
+      }
+      let Ok(Ok(sha1)) = std::fs::read(entry.path()).map(|b| crate::utils::file::bytes_hash(&b))
+      else {
+        continue;
+      };
+      for file in candidates.into_iter().filter(|f| f.sha1 == sha1) {
+        found.insert(file.file_id.clone(), entry.path());
+      }
+    }
+    found
+  })
+  .await
+  .unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -913,6 +959,38 @@ mod tests {
   }
 
   #[tokio::test]
+  async fn finds_manual_downloads_by_hash() {
+    let dir = temp_dir("find-manual");
+    std::fs::write(dir.join("a (1).jar"), b"aaa").unwrap();
+    std::fs::write(dir.join("b.jar"), b"not b").unwrap();
+    let file = |id: &str, bytes: &[u8]| ManualFile {
+      source: Source::CurseForge,
+      project_id: id.into(),
+      file_id: id.into(),
+      file_name: format!("{id}.jar"),
+      sha1: crate::utils::file::bytes_hash(bytes).unwrap(),
+      size: bytes.len() as u64,
+      project_url: String::new(),
+      download_url: String::new(),
+    };
+    let found = find_manual(
+      vec![dir.clone(), dir.join("missing")],
+      vec![file("a", b"aaa"), file("b", b"bbb")],
+    )
+    .await;
+    assert_eq!(found.len(), 1);
+    assert_eq!(found["a"], dir.join("a (1).jar"));
+
+    let profile = temp_dir("adopt-manual");
+    let downloaded = dir.join("a (1).jar");
+    std::fs::write(&downloaded, b"aaa").unwrap();
+    adopt_file(&profile, &file("a", b"aaa"), &downloaded)
+      .await
+      .unwrap();
+    assert!(!downloaded.exists());
+  }
+
+  #[tokio::test]
   async fn restricted_files_are_manual() {
     let mut v = version("a", "a1", "fabric", &[]);
     v.files[0].url = None;
@@ -924,7 +1002,7 @@ mod tests {
     assert!(plan.items.is_empty());
     assert_eq!(
       plan.manual[0].download_url,
-      "https://example.com/a/files/a1"
+      "https://example.com/a/download/a1"
     );
   }
 

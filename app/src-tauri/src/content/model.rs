@@ -220,7 +220,7 @@ pub struct ManualFile {
   pub sha1: String,
   pub size: u64,
   pub project_url: String,
-  /// Web page to open
+  /// Browser link that starts the download of this exact file
   pub download_url: String,
 }
 

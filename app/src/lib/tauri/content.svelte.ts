@@ -360,6 +360,10 @@ export const content_adopt_file = async (
   path: string
 ) => call('content_adopt_file', { file, path, profile });
 
+/** File id -> path for the manual files found in the download folders */
+export const content_find_manual = async (files: ManualFile[]) =>
+  get_or_error<Record<string, string>>('content_find_manual', { files });
+
 export const content_check_updates = async (profile?: string) =>
   get_or_error<Updates>('content_check_updates', { profile });
 

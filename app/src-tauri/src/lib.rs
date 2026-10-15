@@ -3,10 +3,10 @@ use chrono::Local;
 use content::{
   commands::{
     content_add_file, content_adopt_file, content_categories, content_check_updates,
-    content_install, content_installed, content_plan_install, content_project, content_remove,
-    content_search, content_set_active_shader, content_set_enabled, content_set_order,
-    content_sources, content_update, content_updates, content_versions, modpack_install,
-    modpack_plan, profile_duplicate, profile_export_mrpack,
+    content_find_manual, content_install, content_installed, content_plan_install, content_project,
+    content_remove, content_search, content_set_active_shader, content_set_enabled,
+    content_set_order, content_sources, content_update, content_updates, content_versions,
+    modpack_install, modpack_plan, profile_duplicate, profile_export_mrpack,
   },
   provider::Providers,
   updates::{UpdatesCache, run_loop},
@@ -168,6 +168,7 @@ pub fn run() {
       content_remove,
       content_add_file,
       content_adopt_file,
+      content_find_manual,
       content_updates,
       content_check_updates,
       content_update,
