@@ -129,6 +129,27 @@
   html {
     @apply font-sans;
   }
+  :is(
+    a[href],
+    button:not(:disabled),
+    [role='button'],
+    [role='tab'],
+    [role='switch'],
+    [role='checkbox'],
+    [role='combobox'],
+    select,
+    summary,
+    label,
+    [data-slot='button'],
+    [data-slot='tabs-trigger'],
+    [data-slot='switch'],
+    [data-slot='checkbox'],
+    [data-slot='slider'],
+    [data-slot='slider-thumb'],
+    [data-slot='toggle-group-item']
+  ):not(:disabled, [aria-disabled='true'], [data-disabled]) {
+    cursor: pointer;
+  }
 }
 
 /* :active bubbles to ancestors, so stop outer buttons moving when a nested one is pressed */
