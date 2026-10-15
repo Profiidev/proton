@@ -22,6 +22,7 @@ export interface Profile {
   last_played?: string;
   last_played_non_quick_play?: string;
   favorite: boolean;
+  quick_play?: QuickPlayInfo[];
   version: string;
   loader: LoaderType;
   loader_version?: string;
@@ -171,6 +172,21 @@ const profile_list_call = async (): Promise<Profile[] | undefined> => {
 };
 export const profile_list = create_data_state(
   profile_list_call,
+  UpdateType.Profiles
+);
+
+const profile_mods_count_call = async (): Promise<
+  Record<string, number> | undefined
+> => {
+  try {
+    return await invoke('profile_mods_count');
+  } catch {
+    return undefined;
+  }
+};
+/** Number of mod jars per profile id */
+export const profile_mods_count = create_data_state(
+  profile_mods_count_call,
   UpdateType.Profiles
 );
 

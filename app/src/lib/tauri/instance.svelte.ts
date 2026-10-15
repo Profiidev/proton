@@ -14,6 +14,11 @@ export interface InstanceInfo {
   version: string;
   loader: LoaderType;
   loader_version?: string;
+  /** Player name of the account the instance was launched with */
+  account_name?: string;
+  account_id?: string;
+  /** Resident memory of the game process in bytes, missing if it can not be read */
+  memory_used?: number;
 }
 
 const instance_list_call = async (): Promise<InstanceInfo[] | undefined> => {
@@ -49,6 +54,18 @@ export const instance_stop = async (
   } catch {
     return undefined;
   }
+};
+
+/** Stops every running instance, or only those of `profile` when given */
+export const instance_stop_all = async (
+  profile?: string
+): Promise<undefined> => {
+  try {
+    await invoke('instance_stop_all', { profile });
+  } catch {
+    // Empty
+  }
+  return undefined;
 };
 
 interface InstanceCrash {

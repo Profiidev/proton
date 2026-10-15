@@ -56,3 +56,19 @@ export const profile_quick_play_icon = async (
     return undefined;
   }
 };
+
+export interface ServerStatus {
+  online: boolean;
+  players_online: number;
+  players_max: number;
+}
+
+export const quick_play_server_status = async (
+  address: string
+): Promise<ServerStatus | undefined> => {
+  try {
+    return await invoke('quick_play_server_status', { address });
+  } catch {
+    return undefined;
+  }
+};
