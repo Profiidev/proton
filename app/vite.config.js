@@ -28,5 +28,8 @@ export default defineConfig(async () => ({
       // 3. tell vite to ignore watching `src-tauri`
       ignored: ['**/src-tauri/**']
     }
+  },
+  test: {
+    include: ['src/tests/unit/**/*.{test,spec}.{js,ts}']
   }
 }));
