@@ -1,151 +1,68 @@
 <script lang="ts">
-  import { Input } from '@profidev/pleiades/components/ui/input';
-  import { ScrollArea } from '@profidev/pleiades/components/ui/scroll-area';
-  import Multiselect from '@profidev/pleiades/components/table/multiselect.svelte';
-  import Fuse from 'fuse.js';
   import { cn } from '@profidev/pleiades/utils';
-  import type { Snippet } from 'svelte';
+  import { LEVEL_COLORS, type LogEntry } from './logs';
 
   interface Props {
-    logs: string[] | undefined;
+    lines: LogEntry[];
+    /** Show the source column, otherwise the source prefixes the message */
+    source?: boolean;
+    /** Keep scrolled to the newest line, turns off when scrolling up */
+    follow?: boolean;
     class?: string;
-    children?: Snippet;
   }
 
-  let { logs, class: className, children }: Props = $props();
+  let {
+    lines,
+    source = false,
+    follow = $bindable(true),
+    class: className
+  }: Props = $props();
 
-  interface LogEntry {
-    time: string;
-    level: string;
-    location: string;
-    message: string;
-    subLocation?: string;
-  }
-
-  const parseLine = (line: string): LogEntry => {
-    //format: [timestamp] [level] message
-    const match = line.match(/^\[(.+?)\] \[(.+?)\/(.+?)\]( \[(.+?)\])?: (.+)$/);
-    if (match) {
-      const [, time, location, level, , subLocation, message] = match;
-      return {
-        time,
-        level,
-        message,
-        location,
-        subLocation
-      };
-    }
-    return {
-      time: '',
-      level: '',
-      location: '',
-      message: line
-    };
-  };
-
-  const levelColors: Record<string, string> = {
-    INFO: 'text-green-500',
-    WARN: 'text-yellow-500',
-    ERROR: 'text-red-500',
-    DEBUG: 'text-blue-500'
-  };
-
-  let text_filter = $state('');
-  let level_filter = $state<string[]>([]);
-  let parsedLogs = $derived(logs?.map(parseLine) ?? []);
-
-  let logsFuse = $derived(
-    new Fuse(parsedLogs, {
-      keys: [
-        { name: 'location', weight: 0.5 },
-        { name: 'subLocation', weight: 0.5 },
-        { name: 'message', weight: 1 }
-      ],
-      useExtendedSearch: true,
-      threshold: 0.4
-    })
-  );
-
-  let filteredLogs = $derived(
-    (text_filter
-      ? logsFuse.search(text_filter).map((result) => result.item)
-      : parsedLogs
-    ).filter((log) =>
-      level_filter.length > 0 ? level_filter.includes(log.level) : true
-    )
-  );
-
-  let auto_scroll = $state(true);
-  let scrollAreaParent = $state<HTMLElement | null>(null);
-  let scrollArea = $derived(
-    scrollAreaParent?.querySelector('[data-slot="scroll-area-viewport"]')
-  );
+  let el = $state<HTMLElement>();
 
   $effect(() => {
-    filteredLogs;
-    if (auto_scroll && scrollArea) {
-      scrollArea.scrollTop = scrollArea.scrollHeight;
+    lines;
+    if (follow && el) {
+      el.scrollTop = el.scrollHeight;
     }
-  });
-
-  let listenerAdded = false;
-  $effect(() => {
-    if (!scrollArea || listenerAdded) return;
-
-    listenerAdded = true;
-    scrollArea.addEventListener('scroll', (e: Event) => {
-      const target = e.target as HTMLElement;
-      if (target) {
-        if (target.scrollHeight - target.scrollTop <= target.clientHeight + 1) {
-          auto_scroll = true;
-        } else {
-          auto_scroll = false;
-        }
-      }
-    });
   });
 </script>
 
-<div class={cn('flex h-full w-full flex-col gap-2', className)}>
-  <div class="flex gap-2">
-    <Input
-      placeholder="Search logs..."
-      bind:value={text_filter}
-      class="grow"
-      type="search"
-    />
-    <Multiselect
-      data={Object.keys(levelColors).map((level) => ({
-        label: level.charAt(0) + level.slice(1).toLowerCase(),
-        value: level
-      }))}
-      label="Level"
-      bind:selected={level_filter}
-      buttonPrefix="Filter"
-      class="w-35"
-    />
-    {@render children?.()}
-  </div>
-  <div class="min-h-0 w-full grow rounded-lg border-2 p-2">
-    {#if parsedLogs && filteredLogs.length > 0}
-      <ScrollArea class="size-full" bind:ref={scrollAreaParent}>
-        {#each filteredLogs as log}
-          <p>
-            <span class="text-muted-foreground">{log.time}</span>
-            <span class={levelColors[log.level]}>{log.level}</span>
-            <span class="text-muted-foreground"
-              >{log.location}{log.subLocation
-                ? ` (${log.subLocation})`
-                : ''}</span
-            >
-            <span>: {log.message}</span>
-          </p>
-        {/each}
-      </ScrollArea>
+<div
+  bind:this={el}
+  onscroll={() => {
+    if (el) follow = el.scrollHeight - el.scrollTop <= el.clientHeight + 1;
+  }}
+  class={cn(
+    'ring-foreground/10 min-h-[420px] overflow-auto rounded-xl bg-[color-mix(in_oklab,var(--background)_60%,black)] px-3.5 py-3 font-mono text-[12.5px] leading-5 ring-1',
+    className
+  )}
+>
+  {#each lines as line, i (i)}
+    {#if line.continuation}
+      <div class="w-max whitespace-pre">{line.message}</div>
     {:else}
-      <p class="text-muted-foreground">
-        No logs found for the current filter settings
-      </p>
+      <div class="flex w-max gap-2.5 whitespace-nowrap">
+        <span class="text-muted-foreground">{line.time}</span>
+        <span
+          class={cn('w-[42px] shrink-0 font-medium', LEVEL_COLORS[line.level])}
+          >{line.level}</span
+        >
+        {#if source}
+          <span class="text-muted-foreground"
+            >{line.location}{line.subLocation
+              ? ` (${line.subLocation})`
+              : ''}</span
+          >
+          <span>{line.message}</span>
+        {:else}
+          <span>{line.location ? `${line.location}: ` : ''}{line.message}</span>
+        {/if}
+      </div>
     {/if}
-  </div>
+  {:else}
+    <p class="text-muted-foreground font-sans text-sm">
+      No logs found for the current filter settings
+    </p>
+  {/each}
 </div>
