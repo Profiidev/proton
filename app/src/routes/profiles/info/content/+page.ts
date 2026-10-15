@@ -1,0 +1,7 @@
+import { redirect } from '@sveltejs/kit';
+import type { PageLoad } from './$types';
+
+export const load: PageLoad = ({ url }) => {
+  const id = url.searchParams.get('id');
+  redirect(302, `/profiles/info/content/mods?id=${id}`);
+};
