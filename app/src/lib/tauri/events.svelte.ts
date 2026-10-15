@@ -48,6 +48,10 @@ export type VersionCheckStatus =
   | { ModLoaderFilesDownload: [number, number] }
   | 'ModLoaderPreprocess'
   | 'ModLoaderPreprocessDone'
+  | 'ContentResolve'
+  | { ContentDownload: [number, number] }
+  | { ContentFiles: [number, number] }
+  | { ModpackOverrides: [number, number] }
   | 'Done';
 
 export interface VersionCheckData {

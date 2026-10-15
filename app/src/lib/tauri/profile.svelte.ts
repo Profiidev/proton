@@ -2,6 +2,7 @@ import { UpdateType, create_data_state } from '$lib/data-state.svelte';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from '@profidev/pleiades/components/util/general';
 import type { QuickPlayInfo } from './quick-play.svelte';
+import type { Source } from './content.svelte';
 import { download_finish, download_start } from './downloads.svelte';
 
 export interface Profile {
@@ -19,6 +20,8 @@ export interface Profile {
   game?: GameSettings;
   use_local_jvm: boolean;
   jvm?: JvmSettings;
+  /** Set when the profile was installed from a modpack */
+  modpack?: { source: Source; projectId: string; versionId: string };
 }
 
 export interface ProfileUpdate {
@@ -190,51 +193,55 @@ export const profile_launch = async (
     return;
   }
 
-  const _ = launch_repair(
-    profile,
+  const _ = run_job(
     'profile_launch',
+    { profile, quickPlay },
     `${name}: launch`,
     `Launching profile ${name}`,
-    `Failed to launch profile ${name}`,
-    quickPlay
+    `Failed to launch profile ${name}`
   );
 };
 
 export const profile_repair = async (profile: string, name: string) => {
-  const _ = launch_repair(
-    profile,
+  const _ = run_job(
     'profile_repair',
+    { profile },
     `${name}: repair`,
     `Repair of profile ${name} complete`,
     `Failed to repair profile ${name}`
   );
 };
 
-const launch_repair = async (
-  profile: string,
+// Job ids key the backend cancel registry, so they never repeat while the app runs
+let next_job_id = Date.now();
+
+/**
+ * Runs a job command shown in the downloads panel, the backend gets a fresh
+ * `id`. Resolves to the command result, undefined on failure or cancel.
+ */
+export const run_job = async <T = void>(
   cmd: string,
+  args: Record<string, unknown>,
   title: string,
-  message: string,
-  err: string,
-  quickPlay?: QuickPlayInfo
-) => {
-  const id = Math.round(Math.random() * 1_000_000);
+  ok_message: string,
+  err_message: string
+): Promise<T | undefined> => {
+  const id = next_job_id;
+  next_job_id += 1;
   download_start(id, title);
+  let result: T | undefined = undefined;
   try {
-    await invoke(cmd, {
-      id,
-      profile,
-      quickPlay
-    });
+    result = await invoke<T>(cmd, { ...args, id });
   } catch {
     download_finish(id, false);
-    toast.error(err);
-    return;
+    toast.error(err_message);
+    return undefined;
   }
   // The backend returns without error when the download was canceled
   if (download_finish(id, true) === 'canceled') {
     toast.warning('Check/Download canceled');
-  } else {
-    toast.success(message);
+    return undefined;
   }
+  toast.success(ok_message);
+  return result;
 };
