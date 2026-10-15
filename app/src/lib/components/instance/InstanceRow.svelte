@@ -46,7 +46,7 @@
     <span class="text-muted-foreground text-xs">{subtitle}</span>
   </div>
   {#if memory}
-    <div class="flex w-45 flex-col gap-1.5 mr-1">
+    <div class="mr-1 flex w-45 flex-col gap-1.5">
       <div class="flex items-center justify-between gap-3 text-xs">
         <span class="text-muted-foreground">Memory</span>
         <span>{memory.label}</span>
