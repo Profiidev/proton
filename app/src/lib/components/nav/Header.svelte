@@ -9,6 +9,7 @@
   import { page } from '$app/state';
   import { profile_list } from '$lib/tauri/profile.svelte';
   import { is_offline, try_reconnect } from '$lib/tauri/offline.svelte';
+  import DownloadsPanel from './DownloadsPanel.svelte';
 
   let items: { label: string; href: string }[] = $state([]);
   let profiles = $derived(profile_list.value);
@@ -92,16 +93,19 @@
       {/each}
     </Breadcrumb.List>
   </Breadcrumb.Root>
+  <div class="mr-2 ml-auto">
+    <DownloadsPanel />
+  </div>
   {#if offline}
     <Badge
-      class="ml-auto cursor-pointer rounded-full"
+      class="cursor-pointer rounded-full"
       variant="destructive"
       onclick={reconnect}>Offline</Badge
     >
     <Separator orientation="vertical" class="mr-2 ml-4" />
   {/if}
   <Button
-    class={`size-8 cursor-pointer rounded-full ${offline ? '' : 'ml-auto'}`}
+    class="size-8 cursor-pointer rounded-full"
     size="icon"
     variant="ghost"
     onclick={minimize}
