@@ -560,6 +560,29 @@ pub async fn plan(providers: &Providers, cache: &Path, source: PackSource) -> Re
   })
 }
 
+/// Downloads the pack icon for the new profile, best effort, `None` when missing or not an image
+pub async fn icon(providers: &Providers, plan: &PackPlan) -> Option<Vec<u8>> {
+  let url = Url::parse(plan.icon_url.as_deref()?).ok()?;
+  if url.scheme() != "https" {
+    return None;
+  }
+  let source = match plan.source {
+    PackSource::Remote { source, .. } => source,
+    PackSource::Path { .. } => Source::Modrinth,
+  };
+  let res = providers
+    .download_client(source)
+    .get(url)
+    .send()
+    .await
+    .ok()?
+    .error_for_status()
+    .ok()?;
+  let bytes = res.bytes().await.ok()?;
+  image::load_from_memory(&bytes).ok()?;
+  Some(bytes.to_vec())
+}
+
 /// (kind, file name without `.disabled`) for a path inside a content folder
 fn content_file(rel: &str) -> Option<(ContentKind, String)> {
   let (dir, name) = rel.split_once('/')?;

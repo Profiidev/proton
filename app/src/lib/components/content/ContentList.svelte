@@ -192,7 +192,7 @@
   };
 </script>
 
-<div class="flex min-w-0 flex-col gap-3">
+<div class="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
   <div class="flex flex-wrap items-center gap-2">
     <div class="relative flex-[1_1_220px]">
       <Search
@@ -286,23 +286,14 @@
     <RadioGroup.Root
       value={active}
       onValueChange={set_shader}
-      class="bg-card/50 flex flex-col gap-0 overflow-hidden rounded-xl border"
+      class="bg-card/50 flex min-h-0 flex-col gap-0 overflow-hidden rounded-xl border"
     >
       {@render list()}
-      <div class="flex min-h-14 items-center gap-3 px-3 py-2.5">
-        <span class="size-4 shrink-0"></span>
-        <span
-          class="flex size-10 shrink-0 items-center justify-center rounded-md border border-dashed"
-        ></span>
-        <span class="flex-1 font-medium">None (shaders off)</span>
-        <span class="flex w-32 justify-end">
-          <RadioGroup.Item value="" aria-label="Turn shaders off" />
-        </span>
-        <span class="size-7 shrink-0"></span>
-      </div>
     </RadioGroup.Root>
   {:else}
-    <div class="bg-card/50 flex flex-col overflow-hidden rounded-xl border">
+    <div
+      class="bg-card/50 flex min-h-0 flex-col overflow-hidden rounded-xl border"
+    >
       {@render list()}
     </div>
   {/if}
@@ -311,7 +302,7 @@
 </div>
 
 {#snippet list()}
-  <div class="bg-muted/40 flex h-9 items-center gap-3 border-b px-3">
+  <div class="bg-muted/40 flex h-9 shrink-0 items-center gap-3 border-b px-3">
     {#if kind === 'resourcepack'}
       <span class="size-4 shrink-0"></span>
     {/if}
@@ -336,144 +327,159 @@
     </span>
     <span class="size-7 shrink-0"></span>
   </div>
-  {#each visible as row (row.fileName)}
-    {@const next = updates.get(row.fileName)}
-    <div
-      role="listitem"
-      class={cn(
-        'hover:bg-accent/40 flex min-h-14 items-center gap-3 border-b px-3 py-2.5 last:border-0',
-        dragging === row.fileName && 'opacity-50'
-      )}
-      ondragover={(e) => {
-        if (dragging && row.enabled) {
+  <div role="list" class="min-h-0 overflow-y-auto">
+    {#each visible as row (row.fileName)}
+      {@const next = updates.get(row.fileName)}
+      <div
+        role="listitem"
+        class={cn(
+          'hover:bg-accent/40 flex min-h-14 items-center gap-3 border-b px-3 py-2.5 last:border-0',
+          dragging === row.fileName && 'opacity-50'
+        )}
+        ondragover={(e) => {
+          if (dragging && row.enabled) {
+            e.preventDefault();
+          }
+        }}
+        ondrop={(e) => {
           e.preventDefault();
-        }
-      }}
-      ondrop={(e) => {
-        e.preventDefault();
-        void drop_on(row);
-      }}
-    >
-      {#if kind === 'resourcepack'}
-        {#if row.enabled}
-          <span
-            role="button"
-            tabindex="-1"
-            aria-label="Drag to reorder"
-            draggable="true"
-            class="text-muted-foreground cursor-grab"
-            ondragstart={(e) => {
-              dragging = row.fileName;
-              e.dataTransfer?.setData('text/plain', row.fileName);
-            }}
-            ondragend={() => (dragging = undefined)}
-          >
-            <GripVertical class="size-4" />
-          </span>
-        {:else}
-          <span class="size-4 shrink-0"></span>
-        {/if}
-      {/if}
-      <Checkbox
-        aria-label={`Select ${row.name ?? row.fileName}`}
-        checked={selected.includes(row.fileName)}
-        onCheckedChange={(on) => select(row.fileName, on)}
-      />
-      <ProjectIcon url={row.iconUrl} name={row.name ?? row.fileName} />
-      <div class="flex min-w-0 flex-1 flex-col">
-        <span class="flex min-w-0 items-center gap-2">
-          <span class="truncate font-medium">{row.name ?? row.fileName}</span>
-          {#if row.dependencyOf.length > 0}
-            {@render chip('Dependency')}
+          void drop_on(row);
+        }}
+      >
+        {#if kind === 'resourcepack'}
+          {#if row.enabled}
+            <span
+              role="button"
+              tabindex="-1"
+              aria-label="Drag to reorder"
+              draggable="true"
+              class="text-muted-foreground cursor-grab"
+              ondragstart={(e) => {
+                dragging = row.fileName;
+                e.dataTransfer?.setData('text/plain', row.fileName);
+              }}
+              ondragend={() => (dragging = undefined)}
+            >
+              <GripVertical class="size-4" />
+            </span>
+          {:else}
+            <span class="size-4 shrink-0"></span>
           {/if}
-          {#if row.fromPack}
-            {@render chip('From pack')}
+        {/if}
+        <Checkbox
+          aria-label={`Select ${row.name ?? row.fileName}`}
+          checked={selected.includes(row.fileName)}
+          onCheckedChange={(on) => select(row.fileName, on)}
+        />
+        <ProjectIcon url={row.iconUrl} name={row.name ?? row.fileName} />
+        <div class="flex min-w-0 flex-1 flex-col">
+          <span class="flex min-w-0 items-center gap-2">
+            <span class="truncate font-medium">{row.name ?? row.fileName}</span>
+            {#if row.dependencyOf.length > 0}
+              {@render chip('Dependency')}
+            {/if}
+            {#if row.fromPack}
+              {@render chip('From pack')}
+            {/if}
+          </span>
+          <span class="text-muted-foreground truncate text-xs">
+            {row.fileName}
+          </span>
+        </div>
+        <span class="flex w-36 flex-col text-xs leading-4 max-md:hidden">
+          <span class="truncate">{row.versionNumber ?? '-'}</span>
+          {#if next}
+            <span class="truncate text-yellow-500">
+              Update: {next.latest.versionNumber}
+            </span>
           {/if}
         </span>
-        <span class="text-muted-foreground truncate text-xs">
-          {row.fileName}
+        <span class="w-26 max-md:hidden">
+          {@render chip(row.source ? SOURCE_LABEL[row.source] : 'Manual')}
         </span>
-      </div>
-      <span class="flex w-36 flex-col text-xs leading-4 max-md:hidden">
-        <span class="truncate">{row.versionNumber ?? '-'}</span>
-        {#if next}
-          <span class="truncate text-yellow-500">
-            Update: {next.latest.versionNumber}
-          </span>
-        {/if}
-      </span>
-      <span class="w-26 max-md:hidden">
-        {@render chip(row.source ? SOURCE_LABEL[row.source] : 'Manual')}
-      </span>
-      <span class="flex w-32 items-center justify-end gap-2">
-        {#if next}
-          <Button
-            size="xs"
-            variant="outline"
-            onclick={() => update([row.fileName])}
-          >
-            Update
-          </Button>
-        {/if}
-        {#if toggles}
-          <Switch
-            aria-label={`Enable ${row.name ?? row.fileName}`}
-            checked={row.enabled}
-            onCheckedChange={(on) => set_enabled([row], on)}
-          />
-        {:else}
-          <RadioGroup.Item
-            value={row.fileName}
-            aria-label={`Use ${row.name ?? row.fileName}`}
-          />
-        {/if}
-      </span>
-      <DropdownMenu.Root>
-        <DropdownMenu.Trigger>
-          {#snippet child({ props }: { props: Record<string, any> })}
+        <span class="flex w-32 items-center justify-end gap-2">
+          {#if next}
             <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="More actions"
-              {...props}
+              size="xs"
+              variant="outline"
+              onclick={() => update([row.fileName])}
             >
-              <Ellipsis />
+              Update
             </Button>
-          {/snippet}
-        </DropdownMenu.Trigger>
-        <DropdownMenu.Content align="end">
-          {#if row.projectId && row.source}
-            <DropdownMenu.Item
-              onclick={() =>
-                goto(
-                  `/discover/project?kind=${kind}&source=${row.source}&id=${row.projectId}`
-                )}
-            >
-              <ExternalLink />
-              Open project page
-            </DropdownMenu.Item>
           {/if}
-          <DropdownMenu.Item onclick={() => profile_open_path(profile.id)}>
-            <FolderOpen />
-            Show in folder
-          </DropdownMenu.Item>
-          <DropdownMenu.Item
-            variant="destructive"
-            onclick={() => ask_remove([row])}
-          >
-            <Trash />
-            Remove
-          </DropdownMenu.Item>
-        </DropdownMenu.Content>
-      </DropdownMenu.Root>
-    </div>
-  {:else}
-    <p class="text-muted-foreground px-3 py-6 text-center text-sm">
-      {rows.length === 0
-        ? `No ${word}s installed yet`
-        : `No ${word}s match the filters`}
-    </p>
-  {/each}
+          {#if toggles}
+            <Switch
+              aria-label={`Enable ${row.name ?? row.fileName}`}
+              checked={row.enabled}
+              onCheckedChange={(on) => set_enabled([row], on)}
+            />
+          {:else}
+            <RadioGroup.Item
+              value={row.fileName}
+              aria-label={`Use ${row.name ?? row.fileName}`}
+            />
+          {/if}
+        </span>
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger>
+            {#snippet child({ props }: { props: Record<string, any> })}
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="More actions"
+                {...props}
+              >
+                <Ellipsis />
+              </Button>
+            {/snippet}
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Content align="end">
+            {#if row.projectId && row.source}
+              <DropdownMenu.Item
+                onclick={() =>
+                  goto(
+                    `/discover/project?kind=${kind}&source=${row.source}&id=${row.projectId}`
+                  )}
+              >
+                <ExternalLink />
+                Open project page
+              </DropdownMenu.Item>
+            {/if}
+            <DropdownMenu.Item onclick={() => profile_open_path(profile.id)}>
+              <FolderOpen />
+              Show in folder
+            </DropdownMenu.Item>
+            <DropdownMenu.Item
+              variant="destructive"
+              onclick={() => ask_remove([row])}
+            >
+              <Trash />
+              Remove
+            </DropdownMenu.Item>
+          </DropdownMenu.Content>
+        </DropdownMenu.Root>
+      </div>
+    {:else}
+      <p class="text-muted-foreground px-3 py-6 text-center text-sm">
+        {rows.length === 0
+          ? `No ${word}s installed yet`
+          : `No ${word}s match the filters`}
+      </p>
+    {/each}
+    {#if kind === 'shader'}
+      <div class="flex min-h-14 items-center gap-3 px-3 py-2.5">
+        <span class="size-4 shrink-0"></span>
+        <span
+          class="flex size-10 shrink-0 items-center justify-center rounded-md border border-dashed"
+        ></span>
+        <span class="flex-1 font-medium">None (shaders off)</span>
+        <span class="flex w-32 justify-end">
+          <RadioGroup.Item value="" aria-label="Turn shaders off" />
+        </span>
+        <span class="size-7 shrink-0"></span>
+      </div>
+    {/if}
+  </div>
 {/snippet}
 
 {#snippet chip(label: string)}

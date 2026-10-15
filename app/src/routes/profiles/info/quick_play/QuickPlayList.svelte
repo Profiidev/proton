@@ -54,7 +54,7 @@
           <QuickPlayIcon
             profileId={profile!.id}
             quickPlay={item}
-            class={cn('size-10', singleplayer && 'rounded-full')}
+            class="size-10"
           />
           <div class="flex min-w-0 flex-1 flex-col">
             <span class="truncate font-medium">{item.name}</span>

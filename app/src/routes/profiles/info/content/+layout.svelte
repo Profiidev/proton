@@ -24,7 +24,7 @@
   );
 </script>
 
-<div class="flex w-full min-w-0 flex-col gap-3">
+<div class="flex min-h-0 w-full min-w-0 flex-col gap-3">
   <Tabs.Root {value}>
     <Tabs.List>
       {#each tabs as tab (tab.kind)}

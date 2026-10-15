@@ -441,13 +441,14 @@ pub async fn modpack_install(
     .await
     .check_online_state(&handle)
     .await?;
+  let icon = modpack::icon(&providers, &plan).await;
 
   let profile = profiles
     .lock()
     .await
     .create_profile(
       name,
-      None,
+      icon.as_deref(),
       plan.minecraft.clone(),
       plan.loader,
       plan.loader_version.clone(),

@@ -87,7 +87,7 @@
 
   let current = $derived(plan ?? remote);
   let name = $derived(current?.name ?? project?.name ?? '');
-  let start = $state(true);
+  let start = $state(false);
 
   let max_mem = $derived(settings_get.value?.system_max_mem);
   let memory_ok = $derived(

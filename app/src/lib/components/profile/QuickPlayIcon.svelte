@@ -33,7 +33,9 @@
 </script>
 
 {#snippet fallback()}
-  <div class="bg-muted flex size-full items-center justify-center">
+  <div
+    class="bg-muted flex size-full items-center justify-center rounded-[inherit]"
+  >
     {#if quickPlay.type === QuickPlayType.Singleplayer}
       <Globe class="size-5" />
     {:else}

@@ -186,7 +186,7 @@
   let dialog_open = $state(false);
 </script>
 
-<div class="flex flex-col gap-4 px-5 pt-4 pb-6">
+<div class="flex h-full min-h-0 flex-col gap-4 px-5 pt-4">
   <div class="flex shrink-0 flex-wrap items-center gap-3">
     <div class="flex-[1_1_240px]">
       <h1 class="text-xl font-semibold tracking-tight">{title}</h1>
@@ -228,10 +228,10 @@
     </Select.Root>
   </div>
 
-  <div class="flex flex-wrap items-start gap-5">
+  <div class="flex min-h-0 flex-1 items-start gap-5">
     <aside
       aria-label="Filters"
-      class="bg-card ring-foreground/10 flex flex-[0_0_232px] flex-col gap-4.5 rounded-xl p-4 text-sm ring-1"
+      class="bg-card ring-foreground/10 mb-6 flex max-h-[calc(100%-1.5rem)] flex-[0_0_232px] flex-col gap-4.5 overflow-y-auto rounded-xl p-4 text-sm ring-1 ring-inset"
     >
       {#if can_filter_compatible}
         <Label class="flex items-start justify-between gap-3">
@@ -313,7 +313,9 @@
       {/if}
     </aside>
 
-    <section class="flex min-w-0 flex-[999_1_480px] flex-col gap-2.5">
+    <section
+      class="-mx-1 -mt-1 flex min-w-0 flex-1 flex-col gap-2.5 self-stretch overflow-y-auto px-1 pt-1 pb-6 *:shrink-0"
+    >
       {#if kind === 'shader' && target}
         <Alert.Root>
           {#if shader_ready(installed_mods?.value ?? [])}
