@@ -13,6 +13,8 @@ export interface Download {
   total?: number;
   /** Stage counts bytes (shown in MiB, has a speed) */
   bytes: boolean;
+  /** Counted thing of a count stage, e.g. `files` */
+  unit?: string;
   /** Smoothed bytes/s of the current byte stage */
   speed?: number;
   /** Time of the last byte-stage value, for speed deltas */
@@ -24,12 +26,14 @@ interface Stage {
   stage: string;
   progress?: [number, number];
   bytes?: boolean;
+  unit?: string;
 }
 
 const SIMPLE_STAGES: Record<string, string> = {
   AssetsManifestCheck: 'Checking assets manifest',
   AssetsManifestDownload: 'Downloading assets manifest',
   ClientCheck: 'Checking client jar',
+  ContentResolve: 'Resolving content',
   Done: 'Starting',
   JavaManifestCheck: 'Checking java manifest',
   JavaManifestDownload: 'Downloading java manifest',
@@ -45,14 +49,21 @@ const PROGRESS_STAGES: Record<string, string> = {
   AssetsCheck: 'Checking assets',
   AssetsDownload: 'Downloading assets',
   ClientDownload: 'Downloading client',
+  ContentDownload: 'Downloading content',
+  ContentFiles: 'Installing content',
   JavaCheck: 'Checking java files',
   JavaDownload: 'Downloading java files',
   LibraryCheck: 'Checking libraries',
   LibraryDownload: 'Downloading libraries',
   ModLoaderFilesCheck: 'Checking mod loader files',
   ModLoaderFilesDownload: 'Downloading mod loader files',
+  ModpackOverrides: 'Applying modpack overrides',
   NativeLibraryCheck: 'Checking native libraries',
   NativeLibraryDownload: 'Downloading native libraries'
+};
+
+const UNITS: Record<string, string> = {
+  ContentFiles: 'files'
 };
 
 export const parse_stage = (status: VersionCheckStatus): Stage | undefined => {
@@ -65,7 +76,12 @@ export const parse_stage = (status: VersionCheckStatus): Stage | undefined => {
   if (stage === undefined) {
     return undefined;
   }
-  return { bytes: key.endsWith('Download'), progress, stage };
+  return {
+    bytes: key.endsWith('Download'),
+    progress,
+    stage,
+    ...(UNITS[key] ? { unit: UNITS[key] } : {})
+  };
 };
 
 export const new_download = (
@@ -101,6 +117,7 @@ export const apply_status = (
     speed: undefined,
     stage: parsed.stage,
     total,
+    unit: parsed.unit,
     updated_at: bytes ? now : undefined,
     value
   };
@@ -168,7 +185,9 @@ export const detail = (download: Download) => {
   }
   const amount = download.bytes
     ? `${mib(value)} of ${mib(total)} MiB`
-    : `${value.toLocaleString('en-US')} of ${total.toLocaleString('en-US')}`;
+    : `${value.toLocaleString('en-US')} of ${total.toLocaleString('en-US')}${
+        download.unit ? ` ${download.unit}` : ''
+      }`;
   return `${stage} · ${amount}`;
 };
 

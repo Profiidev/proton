@@ -37,6 +37,12 @@ pub enum DownloadCheckStatus {
   ModLoaderFilesDownload(usize, usize),
   ModLoaderPreprocess,
   ModLoaderPreprocessDone,
+  ContentResolve,
+  /// bytes
+  ContentDownload(usize, usize),
+  /// file counts
+  ContentFiles(usize, usize),
+  ModpackOverrides(usize, usize),
   Done,
 }
 
@@ -59,7 +65,7 @@ pub fn emit_download_check_status(handle: &AppHandle, data: DownloadCheckStatus,
   });
 
   let done = data == DownloadCheckStatus::Done;
-  let _ = func.call(data);
+  func.call(data);
 
   if done {
     debounce_state.debounce.remove(&id);

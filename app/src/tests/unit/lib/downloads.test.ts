@@ -16,6 +16,8 @@ import {
 
 const MiB = 1024 * 1024;
 const base = () => new_download(1, 'Survival: launch', 0);
+const detail_at = (status: Parameters<typeof apply_status>[1]) =>
+  detail(apply_status(base(), status, 0));
 
 describe('parse_stage', () => {
   it('maps simple stages', () => {
@@ -117,6 +119,26 @@ describe('labels', () => {
       'Checking assets · 2,904 of 3,580'
     );
     expect(detail({ ...base(), status: 'done' })).toBe('');
+  });
+
+  it('detail for content stages', () => {
+    expect(detail_at('ContentResolve')).toBe('Resolving content');
+    expect(detail_at({ ContentDownload: [41 * MiB, 96 * MiB] })).toBe(
+      'Downloading content · 41 of 96 MiB'
+    );
+    expect(detail_at({ ContentFiles: [41, 96] })).toBe(
+      'Installing content · 41 of 96 files'
+    );
+    expect(detail_at({ ModpackOverrides: [3, 10] })).toBe(
+      'Applying modpack overrides · 3 of 10'
+    );
+  });
+
+  it('drops the unit when the stage changes', () => {
+    let d = apply_status(base(), { ContentFiles: [1, 2] }, 0);
+    expect(d.unit).toBe('files');
+    d = apply_status(d, { ModpackOverrides: [1, 2] }, 0);
+    expect(d.unit).toBeUndefined();
   });
 
   it('speed_label only for running byte stages', () => {

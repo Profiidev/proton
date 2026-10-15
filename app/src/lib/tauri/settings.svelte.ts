@@ -9,6 +9,8 @@ export interface Settings {
   url?: URL;
   auto_update?: boolean;
   hide_window_controls?: boolean;
+  /** Folders checked for manual downloads */
+  download_dirs?: string[];
   minecraft: MinecraftSettings;
 }
 

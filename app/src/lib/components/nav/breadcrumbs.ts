@@ -1,3 +1,6 @@
+import { KIND_ROUTE } from '$lib/content';
+import type { ContentKind } from '$lib/tauri/content.svelte';
+
 export interface Crumb {
   label: string;
   href: string;
@@ -5,7 +8,7 @@ export interface Crumb {
 
 const title = (part: string) =>
   part
-    .split('_')
+    .split(/[_-]/)
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
 
@@ -17,10 +20,24 @@ export const breadcrumbs = (
   pathname: string,
   search: string,
   profiles: { id: string; name: string }[] = [],
-  instances: { id: string; profile_name: string }[] = []
+  instances: { id: string; profile_name: string }[] = [],
+  projects: Record<string, string> = {}
 ): Crumb[] => {
   const parts = pathname.split('/').filter(Boolean);
-  const id = new URLSearchParams(search).get('id');
+  const params = new URLSearchParams(search);
+  const id = params.get('id');
+  if (parts[0] === 'discover' && parts[1] === 'project') {
+    // oxlint-disable-next-line no-unsafe-type-assertion
+    const kind = KIND_ROUTE[params.get('kind') as ContentKind];
+    return [
+      { href: '/discover', label: 'Discover' },
+      ...(kind ? [{ href: `/discover/${kind}`, label: title(kind) }] : []),
+      {
+        href: pathname + search,
+        label: (id && projects[id]) || 'Project'
+      }
+    ];
+  }
   return parts.map((part, i) => {
     let label = title(part);
     if (part === 'info' && i === 1) {

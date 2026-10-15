@@ -156,3 +156,56 @@
 [data-slot='button']:has(:is(button, a, [role='button']):active) {
   translate: none;
 }
+
+/* Project descriptions, sanitized HTML from the backend */
+.prose-content {
+  @apply text-sm leading-relaxed break-words;
+  & > * + * {
+    @apply mt-3;
+  }
+  & :is(h1, h2, h3, h4) {
+    @apply mt-5 font-semibold;
+  }
+  & h1 {
+    @apply text-lg;
+  }
+  & h2 {
+    @apply text-base;
+  }
+  & a {
+    @apply text-primary underline underline-offset-2;
+  }
+  & :is(ul, ol) {
+    @apply pl-5;
+  }
+  & ul {
+    @apply list-disc;
+  }
+  & ol {
+    @apply list-decimal;
+  }
+  & img {
+    @apply inline max-w-full rounded-md;
+  }
+  & :is(code, pre) {
+    @apply bg-muted rounded-sm font-mono text-xs;
+  }
+  & code {
+    @apply px-1 py-0.5;
+  }
+  & pre {
+    @apply overflow-x-auto p-3;
+  }
+  & blockquote {
+    @apply text-muted-foreground border-l-2 pl-3;
+  }
+  & hr {
+    @apply border-border;
+  }
+  & table {
+    @apply block overflow-x-auto;
+  }
+  & :is(th, td) {
+    @apply border px-2 py-1;
+  }
+}

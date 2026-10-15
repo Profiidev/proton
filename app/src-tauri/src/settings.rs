@@ -1,6 +1,8 @@
+use std::path::PathBuf;
+
 use serde::{Deserialize, Serialize};
 use sysinfo::System;
-use tauri::{AppHandle, Result, State, Url};
+use tauri::{AppHandle, Manager, Result, State, Url};
 
 use crate::{
   profiles::config::{GameSettings, JvmSettings},
@@ -15,6 +17,11 @@ pub struct MaxMem {
 }
 
 impl MaxMem {
+  /// Leaves 2 GB for the OS, the same rule the memory sliders explain
+  pub fn fits(&self, mb: u64) -> bool {
+    mb + 2048 <= self.max_mem
+  }
+
   pub fn new() -> Self {
     let system = System::new_all();
     let bytes = system.total_memory();
@@ -35,6 +42,18 @@ pub struct Settings {
   pub hide_window_controls: bool,
   #[serde(default)]
   pub minecraft: MinecraftSettings,
+  /// Folders checked for manual downloads, `None` means the system Downloads folder
+  #[serde(default)]
+  pub download_dirs: Option<Vec<PathBuf>>,
+}
+
+impl Settings {
+  pub fn download_dirs(&self, handle: &AppHandle) -> Vec<PathBuf> {
+    self
+      .download_dirs
+      .clone()
+      .unwrap_or_else(|| handle.path().download_dir().into_iter().collect())
+  }
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -61,6 +80,7 @@ pub async fn settings_get(app_handle: AppHandle, state: State<'_, MaxMem>) -> Re
   let store = app_handle.app_store()?;
   let mut settings: Settings = store.get_or_default(SETTINGS_KEY)?;
   settings.system_max_mem = state.max_mem;
+  settings.download_dirs = Some(settings.download_dirs(&app_handle));
   Ok(settings)
 }
 

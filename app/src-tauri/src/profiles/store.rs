@@ -86,7 +86,7 @@ impl ProfileStore {
     version: String,
     loader: LoaderType,
     loader_version: Option<String>,
-  ) -> Result<()> {
+  ) -> Result<String> {
     let (id, info) = Profile::create(
       &self.data_dir,
       &self.handle,
@@ -97,10 +97,24 @@ impl ProfileStore {
       loader_version,
     )
     .await?;
-    self.profiles.insert(id, info);
+    self.profiles.insert(id.clone(), info);
     self.save()?;
 
-    Ok(())
+    Ok(id)
+  }
+
+  /// Registers a profile whose directory was written at `profile.relative_to_data()`
+  pub fn insert_profile(&mut self, profile: &Profile) -> Result<()> {
+    let path = profile.relative_to_data();
+    let watcher = watch_profile(
+      path!(&self.data_dir, &path),
+      profile.id.clone(),
+      self.handle.clone(),
+    )?;
+    self
+      .profiles
+      .insert(profile.id.clone(), ProfileInfo { path, watcher });
+    self.save()
   }
 
   pub fn get_profile_path(&self, profile: &str) -> Result<PathBuf> {
@@ -289,6 +303,11 @@ impl ProfileStore {
     }
 
     res
+  }
+
+  pub async fn is_running(&self, profile: &str) -> bool {
+    let instances = self.instances.lock().await;
+    instances.get(profile).is_some_and(|i| !i.is_empty())
   }
 
   pub fn mods_dirs(&self) -> Vec<(String, PathBuf)> {

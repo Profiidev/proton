@@ -92,6 +92,7 @@ impl Profile {
       use_local_jvm: false,
       game: None,
       jvm: None,
+      modpack: None,
     };
 
     fs::create_dir_all(&path).await?;

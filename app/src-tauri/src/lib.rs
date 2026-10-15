@@ -1,5 +1,16 @@
 use anyhow::Result;
 use chrono::Local;
+use content::{
+  commands::{
+    content_add_file, content_adopt_file, content_categories, content_check_updates,
+    content_find_manual, content_install, content_installed, content_plan_install, content_project,
+    content_remove, content_search, content_set_active_shader, content_set_enabled,
+    content_set_order, content_sources, content_update, content_updates, content_versions,
+    modpack_install, modpack_plan, profile_duplicate, profile_export_mrpack,
+  },
+  provider::Providers,
+  updates::{UpdatesCache, run_loop},
+};
 use profiles::store::ProfileStore;
 use store::TauriAppStoreExt;
 
@@ -37,6 +48,7 @@ use crate::{
 };
 
 mod account;
+mod content;
 mod offline;
 mod profiles;
 mod settings;
@@ -87,6 +99,7 @@ pub fn run() {
     }))
     .plugin(tauri_plugin_store::Builder::new().build())
     .plugin(tauri_plugin_opener::init())
+    .plugin(tauri_plugin_dialog::init())
     .invoke_handler(tauri::generate_handler![
       //accounts
       account_login,
@@ -140,6 +153,29 @@ pub fn run() {
       //offline
       is_offline,
       try_reconnect,
+      //content
+      content_sources,
+      content_categories,
+      content_search,
+      content_project,
+      content_versions,
+      content_plan_install,
+      content_install,
+      content_installed,
+      content_set_enabled,
+      content_set_order,
+      content_set_active_shader,
+      content_remove,
+      content_add_file,
+      content_adopt_file,
+      content_find_manual,
+      content_updates,
+      content_check_updates,
+      content_update,
+      modpack_plan,
+      modpack_install,
+      profile_duplicate,
+      profile_export_mrpack,
     ])
     .setup(|app| {
       let _ = app.handle().app_store()?;
@@ -149,6 +185,8 @@ pub fn run() {
       app.manage(Mutex::new(ProfileStore::new(app.handle().clone())?));
       app.manage(std::sync::Mutex::new(UpdateLimiterStore::default()));
       app.manage(OfflineState::new(app.handle().clone()));
+      app.manage(Providers::new());
+      app.manage(UpdatesCache::default());
 
       app.manage(Mutex::new(tauri::async_runtime::block_on(
         McVersionStore::new(app.handle().clone()),
@@ -161,6 +199,7 @@ pub fn run() {
           log::error!("Error: {err}");
           let _ = handle.emit(MANIFEST_REFRESH_ERROR, ()).log();
         }
+        tauri::async_runtime::spawn(run_loop(handle));
       }));
 
       Ok(())

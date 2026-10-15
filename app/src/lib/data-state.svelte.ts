@@ -13,6 +13,9 @@ export enum UpdateType {
   Profiles = 'Profiles',
   ProfileLogs = 'ProfileLogs',
   ProfileQuickPlay = 'ProfileQuickPlay',
+  ProfileContent = 'ProfileContent',
+  //Content
+  ContentUpdates = 'ContentUpdates',
   //Instances
   Instances = 'Instances',
   InstanceLogs = 'InstanceLogs',

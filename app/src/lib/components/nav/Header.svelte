@@ -11,6 +11,7 @@
   import { is_offline, try_reconnect } from '$lib/tauri/offline.svelte';
   import { instance_list } from '$lib/tauri/instance.svelte';
   import { settings_get } from '$lib/tauri/settings.svelte';
+  import { project_titles } from '$lib/project-titles.svelte';
   import { breadcrumbs } from './breadcrumbs';
   import DownloadsPanel from './DownloadsPanel.svelte';
 
@@ -21,7 +22,8 @@
       page.url.pathname,
       page.url.search,
       profile_list.value,
-      instance_list.value
+      instance_list.value,
+      project_titles
     )
   );
 

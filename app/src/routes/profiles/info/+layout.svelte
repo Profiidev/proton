@@ -13,10 +13,13 @@
   import * as DropdownMenu from '@profidev/pleiades/components/ui/dropdown-menu';
   import { setProfile } from './store.svelte.js';
   import {
+    Copy,
+    Download,
     Ellipsis,
     FastForward,
     FolderOpen,
     Monitor,
+    Package,
     Play,
     Plus,
     SlidersHorizontal,
@@ -38,6 +41,12 @@
   import DestroyDialog from '$lib/components/form/DestroyDialog.svelte';
   import { is_offline } from '$lib/tauri/offline.svelte.js';
   import SimpleSidebar from '$lib/components/nav/SimpleSidebar.svelte';
+  import DuplicateDialog from '$lib/components/profile/DuplicateDialog.svelte';
+  import {
+    content_updates,
+    profile_export_mrpack
+  } from '$lib/tauri/content.svelte.js';
+  import { save } from '@tauri-apps/plugin-dialog';
 
   let { data, children } = $props();
 
@@ -52,6 +61,19 @@
   );
   let deleteOpen = $state(false);
   let stopOpen = $state(false);
+  let duplicateOpen = $state(false);
+
+  const export_mrpack = async () => {
+    if (!profile) return;
+    const { id, name } = profile;
+    const path = await save({
+      defaultPath: `${name}.mrpack`,
+      filters: [{ name: 'Modrinth pack', extensions: ['mrpack'] }]
+    });
+    if (path) {
+      await profile_export_mrpack(id, name, path, ['config', 'options.txt']);
+    }
+  };
 
   $effect(() => {
     if (profile === undefined) {
@@ -71,6 +93,13 @@
       href: `/profiles/info/quick_play?id=${profile?.id}`,
       title: 'Quick play',
       icon: FastForward
+    },
+    {
+      href: `/profiles/info/content/mods?id=${profile?.id}`,
+      match: '/profiles/info/content',
+      title: 'Content',
+      icon: Package,
+      badge: profile ? content_updates.value?.[profile.id]?.length : undefined
     },
     {
       href: `/profiles/info/instances?id=${profile?.id}`,
@@ -191,6 +220,14 @@
               <Wrench />
               Repair profile
             </DropdownMenu.Item>
+            <DropdownMenu.Item onclick={() => (duplicateOpen = true)}>
+              <Copy />
+              Duplicate profile
+            </DropdownMenu.Item>
+            <DropdownMenu.Item onclick={export_mrpack}>
+              <Download />
+              Export as .mrpack
+            </DropdownMenu.Item>
             <DropdownMenu.Item
               variant="destructive"
               onclick={() => (deleteOpen = true)}
@@ -211,6 +248,7 @@
       </div>
     </div>
   </div>
+  <DuplicateDialog bind:open={duplicateOpen} {profile} />
   <DestroyDialog
     bind:open={deleteOpen}
     title="Delete Profile"

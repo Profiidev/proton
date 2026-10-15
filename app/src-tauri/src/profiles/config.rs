@@ -5,7 +5,10 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::sync::Notify;
 
-use crate::versions::{launch::QuickPlay, loader::LoaderType};
+use crate::{
+  content::model::Source,
+  versions::{launch::QuickPlay, loader::LoaderType},
+};
 
 #[derive(Clone)]
 pub struct ProfileInfo {
@@ -33,6 +36,17 @@ pub struct Profile {
   pub game: Option<GameSettings>,
   pub use_local_jvm: bool,
   pub jvm: Option<JvmSettings>,
+  #[serde(default)]
+  pub modpack: Option<ModpackRef>,
+}
+
+/// The modpack version a profile was installed from
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ModpackRef {
+  pub source: Source,
+  pub project_id: String,
+  pub version_id: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
