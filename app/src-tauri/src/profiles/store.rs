@@ -287,6 +287,15 @@ impl ProfileStore {
     res
   }
 
+  pub async fn stop_all_instances(&self, profile: Option<&str>) {
+    let instances = self.instances.lock().await;
+    instances
+      .iter()
+      .filter(|(id, _)| profile.is_none_or(|p| p == id.as_str()))
+      .flat_map(|(_, entry)| entry)
+      .for_each(Instance::stop);
+  }
+
   pub async fn get_instance_logs(&self, profile: &str, id: &str) -> Result<Vec<String>> {
     let instances = self.instances.lock().await;
     let instances = instances.get(profile).ok_or(InstanceError::NotFound)?;
