@@ -9,52 +9,21 @@
   import { page } from '$app/state';
   import { profile_list } from '$lib/tauri/profile.svelte';
   import { is_offline, try_reconnect } from '$lib/tauri/offline.svelte';
+  import { instance_list } from '$lib/tauri/instance.svelte';
+  import { settings_get } from '$lib/tauri/settings.svelte';
+  import { breadcrumbs } from './breadcrumbs';
   import DownloadsPanel from './DownloadsPanel.svelte';
 
-  let items: { label: string; href: string }[] = $state([]);
-  let profiles = $derived(profile_list.value);
   let offline = $derived(is_offline.value);
-
-  const calcItems = async () => {
-    let parts = page.url.pathname.split('/').slice(1);
-
-    let items = [];
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      let label = part
-        .split('_')
-        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(' ');
-
-      if (
-        label === 'Info' &&
-        items.length > 0 &&
-        items[items.length - 1].label === 'Profiles'
-      ) {
-        let id = page.url.searchParams.get('id');
-        if (id) {
-          const profile = profiles?.find((p) => p.id === id);
-          if (profile) {
-            label = profile.name;
-          }
-        }
-      }
-
-      let href = '/' + parts.slice(0, i + 1).join('/') + page.url.search;
-      items.push({ label, href });
-    }
-    return items;
-  };
-
-  $effect(() => {
-    page.url.pathname;
-    page.url.search;
-    profiles;
-
-    calcItems().then((newItems) => {
-      items = newItems;
-    });
-  });
+  let hide_controls = $derived(settings_get.value?.hide_window_controls);
+  let items = $derived(
+    breadcrumbs(
+      page.url.pathname,
+      page.url.search,
+      profile_list.value,
+      instance_list.value
+    )
+  );
 
   const reconnect = async () => {
     if (await try_reconnect()) {
@@ -77,55 +46,63 @@
   };
 </script>
 
-<header data-tauri-drag-region class="flex h-10 items-center">
-  <img src="/icon.svg" alt="Proton Icon" class="mx-2 h-full p-1 select-none" />
-  <p class="mr-4">Proton</p>
-  <Separator orientation="vertical" />
+<header data-tauri-drag-region class="flex h-10 shrink-0 items-center text-sm">
+  <img src="/icon.svg" alt="Proton Icon" class="mx-2 size-7 select-none" />
+  <p class="mr-4 font-medium">Proton</p>
+  <Separator orientation="vertical" class="h-5! self-center!" />
   <Breadcrumb.Root class="mx-4 min-w-0 overflow-hidden">
     <Breadcrumb.List class="flex-nowrap">
-      {#each items as item, i}
+      {#each items as item, i (item.href)}
         {#if i > 0}
           <Breadcrumb.Separator />
         {/if}
         <Breadcrumb.Item>
-          <Breadcrumb.Link href={item.href}>{item.label}</Breadcrumb.Link>
+          {#if i === items.length - 1}
+            <Breadcrumb.Page>{item.label}</Breadcrumb.Page>
+          {:else}
+            <Breadcrumb.Link href={item.href}>{item.label}</Breadcrumb.Link>
+          {/if}
         </Breadcrumb.Item>
       {/each}
     </Breadcrumb.List>
   </Breadcrumb.Root>
-  <div class="mr-2 ml-auto">
+  <div class="ml-auto flex items-center gap-1 pr-1">
+    {#if offline}
+      <Badge
+        class="mr-2 cursor-pointer rounded-full"
+        variant="destructive"
+        onclick={reconnect}>Offline</Badge
+      >
+    {/if}
     <DownloadsPanel />
+    {#if !hide_controls}
+      <Button
+        class="size-8 rounded-full"
+        size="icon"
+        variant="ghost"
+        aria-label="Minimize"
+        onclick={minimize}
+      >
+        <Minus class="size-4.5!" />
+      </Button>
+      <Button
+        class="size-8 rounded-full"
+        size="icon"
+        variant="ghost"
+        aria-label="Maximize"
+        onclick={maximize}
+      >
+        <Square />
+      </Button>
+      <Button
+        class="hover:bg-destructive! size-8 rounded-full"
+        size="icon"
+        variant="ghost"
+        aria-label="Close"
+        onclick={close}
+      >
+        <X class="size-4.5!" />
+      </Button>
+    {/if}
   </div>
-  {#if offline}
-    <Badge
-      class="cursor-pointer rounded-full"
-      variant="destructive"
-      onclick={reconnect}>Offline</Badge
-    >
-    <Separator orientation="vertical" class="mr-2 ml-4" />
-  {/if}
-  <Button
-    class="size-8 cursor-pointer rounded-full"
-    size="icon"
-    variant="ghost"
-    onclick={minimize}
-  >
-    <Minus class="size-5!" />
-  </Button>
-  <Button
-    class="size-8 cursor-pointer rounded-full"
-    size="icon"
-    variant="ghost"
-    onclick={maximize}
-  >
-    <Square />
-  </Button>
-  <Button
-    class="hover:bg-destructive! mr-1 size-8 cursor-pointer rounded-full"
-    size="icon"
-    variant="ghost"
-    onclick={close}
-  >
-    <X class="size-5!" />
-  </Button>
 </header>
