@@ -30,6 +30,7 @@ pub async fn profile_create(
   icon: Option<Vec<u8>>,
   version: String,
   loader: LoaderType,
+  loader_version: Option<String>,
 ) -> Result<()> {
   trace!(
     "Command profile_create called with name {} version {} loader {:?}",
@@ -38,7 +39,7 @@ pub async fn profile_create(
   let mut store = state.lock().await;
 
   store
-    .create_profile(name, icon.as_deref(), version, loader)
+    .create_profile(name, icon.as_deref(), version, loader, loader_version)
     .await
     .log()?;
   store.update_data(UpdateType::Profiles);

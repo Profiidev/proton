@@ -43,20 +43,23 @@ impl Profile {
     icon: Option<&[u8]>,
     version: String,
     loader: LoaderType,
+    loader_version: Option<String>,
   ) -> Result<(String, ProfileInfo)> {
     let id = Uuid::new_v4().to_string();
     let relative_path = path!(PROFILE_DIR, &id);
     let path = path!(data_dir, &relative_path);
 
-    let loader_version = if let Some(loader) = loader.loader() {
-      let version_path = MCVersionPath::new(data_dir, &version);
-      Some(
-        loader
-          .newest_loader_version_for_mc_version(&version, &version_path)
-          .await?,
-      )
-    } else {
-      None
+    let loader_version = match loader.loader() {
+      None => None,
+      Some(_) if loader_version.is_some() => loader_version,
+      Some(loader) => {
+        let version_path = MCVersionPath::new(data_dir, &version);
+        Some(
+          loader
+            .newest_loader_version_for_mc_version(&version, &version_path)
+            .await?,
+        )
+      }
     };
 
     let icon = match icon {

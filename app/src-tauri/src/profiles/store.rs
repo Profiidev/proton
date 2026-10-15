@@ -80,9 +80,18 @@ impl ProfileStore {
     icon: Option<&[u8]>,
     version: String,
     loader: LoaderType,
+    loader_version: Option<String>,
   ) -> Result<()> {
-    let (id, info) =
-      Profile::create(&self.data_dir, &self.handle, name, icon, version, loader).await?;
+    let (id, info) = Profile::create(
+      &self.data_dir,
+      &self.handle,
+      name,
+      icon,
+      version,
+      loader,
+      loader_version,
+    )
+    .await?;
     self.profiles.insert(id, info);
     self.save()?;
 
