@@ -80,7 +80,7 @@
         <SimpleSidebar {items} class="" />
       </aside>
       <div
-        class="flex min-h-0 grow space-y-8 lg:h-full lg:space-y-0 lg:space-x-12"
+        class="flex min-h-0 flex-1 space-y-8 lg:h-full lg:space-y-0 lg:space-x-12"
       >
         {@render children()}
       </div>

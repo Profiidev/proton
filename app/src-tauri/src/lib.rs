@@ -47,6 +47,8 @@ const CLIENT_ID: &str = "dd35660a-6381-41f8-bb34-2a36669581d0";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+  migrate_data_dir();
+
   tauri::Builder::default()
     .plugin(tauri_plugin_process::init())
     .plugin(tauri_plugin_updater::Builder::new().build())
@@ -207,6 +209,21 @@ async fn async_online_check(handle: &AppHandle) -> Result<()> {
   state.state_init();
 
   Ok(())
+}
+
+/// Moves app data from the old identifier folder. Runs before plugins create the new folder.
+fn migrate_data_dir() {
+  let Some(base) = dirs::data_dir() else {
+    return;
+  };
+  let old = base.join("de.proton.mc");
+  let new = base.join("io.profidev.proton");
+  if old.exists()
+    && !new.exists()
+    && let Err(e) = std::fs::rename(&old, &new)
+  {
+    eprintln!("Failed to migrate data dir: {e}");
+  }
 }
 
 async fn async_setup_refresh(handle: &AppHandle) -> Result<()> {

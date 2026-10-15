@@ -9,7 +9,7 @@ use crate::{
   account::store::LaunchInfo,
   path,
   profiles::{
-    PROFILE_CONFIG,
+    PROFILE_CONFIG, PROFILE_DIR,
     config::{
       PlayHistoryFavoriteInfo, Profile, ProfileError, ProfileInfo, QuickPlayInfo, QuickPlayType,
     },
@@ -46,19 +46,32 @@ impl ProfileStore {
 
     let mut profiles = HashMap::new();
     for (id, path) in profile_paths {
-      let path = path!(&data_dir, &path);
-      let Some(watcher) = watch_profile(path.clone(), id.clone(), handle.clone()).ok() else {
+      // older versions stored absolute paths, which break when the data dir moves
+      let path = if path.is_absolute() {
+        match path.strip_prefix(&data_dir) {
+          Ok(relative) => relative.to_path_buf(),
+          Err(_) if !path.exists() => path!(PROFILE_DIR, &id),
+          Err(_) => path,
+        }
+      } else {
+        path
+      };
+      let Some(watcher) = watch_profile(path!(&data_dir, &path), id.clone(), handle.clone()).ok()
+      else {
         continue;
       };
       profiles.insert(id, ProfileInfo { path, watcher });
     }
 
-    Ok(ProfileStore {
+    let store = ProfileStore {
       profiles,
       handle,
       instances: Default::default(),
       data_dir,
-    })
+    };
+    store.save()?;
+
+    Ok(store)
   }
 
   pub async fn create_profile(
