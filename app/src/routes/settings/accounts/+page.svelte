@@ -15,10 +15,9 @@
     TOAST_DURATION
   } from '$lib/tauri/events.svelte';
   import { listen, type Event } from '@tauri-apps/api/event';
-  import { LoaderCircle, Plus, Trash } from '@lucide/svelte';
+  import { CircleHelp, LoaderCircle, Plus, Trash2 } from '@lucide/svelte';
   import { toast } from '@profidev/pleiades/components/util/general';
   import { Button } from '@profidev/pleiades/components/ui/button';
-  import { Separator } from '@profidev/pleiades/components/ui/separator';
   import { Badge } from '@profidev/pleiades/components/ui/badge';
   import { is_offline } from '$lib/tauri/offline.svelte';
 
@@ -67,94 +66,78 @@
     add_loading = false;
   };
 
-  listen(ACCOUNT_LOGIN_STATUS_EVENT, (e: Event<LoginStatus>) => {
-    if (login_toast === undefined) return;
+  $effect(() => {
+    const unlisten = listen(
+      ACCOUNT_LOGIN_STATUS_EVENT,
+      (e: Event<LoginStatus>) => {
+        if (login_toast === undefined) return;
 
-    switch (e.payload) {
-      case LoginStatus.Ms:
-        toast.loading('Logging in to Xbox', {
-          id: login_toast,
-          duration: TOAST_DURATION
-        });
-        break;
-      case LoginStatus.Xbox:
-        toast.loading('Logging in to Xbox Security', {
-          id: login_toast,
-          duration: TOAST_DURATION
-        });
-      case LoginStatus.XboxSecurity:
-        toast.loading('Logging in to Minecraft', {
-          id: login_toast,
-          duration: TOAST_DURATION
-        });
-      case LoginStatus.Mc:
-        toast.loading('Retrieving Minecraft Profile', {
-          id: login_toast,
-          duration: TOAST_DURATION
-        });
-    }
+        const message = {
+          [LoginStatus.Ms]: 'Logging in to Xbox',
+          [LoginStatus.Xbox]: 'Logging in to Xbox Security',
+          [LoginStatus.XboxSecurity]: 'Logging in to Minecraft',
+          [LoginStatus.Mc]: 'Retrieving Minecraft Profile'
+        }[e.payload];
+        if (message) {
+          toast.loading(message, { id: login_toast, duration: TOAST_DURATION });
+        }
+      }
+    );
+    return () => unlisten.then((u) => u());
   });
 </script>
 
-<div class="mt-2 ml-4 flex-1">
-  <div class="flex items-center">
-    <p class="text-xl">Accounts</p>
-    <Button
-      size="icon"
-      class="mr-3.5 ml-auto size-8 cursor-pointer"
-      onclick={add}
-      disabled={add_loading}
-    >
-      {#if add_loading}
-        <LoaderCircle class="animate-spin" />
-      {:else}
-        <Plus />
-      {/if}
-    </Button>
+<div class="flex items-center gap-2">
+  <div class="flex-1">
+    <h1 class="text-xl font-semibold tracking-tight">Accounts</h1>
+    <p class="text-muted-foreground mt-0.5">
+      The account marked Selected is used when you press Play.
+    </p>
   </div>
-  <div class="mt-2 rounded-lg border">
-    {#if accounts && Object.entries(accounts).length > 0}
-      {#each Object.entries(accounts).sort( (a, b) => a[0].localeCompare(b[0]) ) as [id, info], i}
-        <Button
-          class="h-14 w-full cursor-pointer gap-2 p-3"
-          variant="ghost"
-          onclick={() => change(id)}
-        >
-          {#if info}
-            {@const skin_url = info.skins.find(
-              (s) => s.state === State.Active
-            )?.url}
-            <AccountImage {skin_url} />
-            <div class="flex min-w-0 flex-1 flex-col justify-start">
-              <p class="truncate text-start text-sm">{info.name}</p>
-              <p class="text-muted-foreground truncate text-start text-sm">
-                {info.id}
-              </p>
-            </div>
-            {#if id === active}
-              <Badge class="mr-2">Selected</Badge>
-            {/if}
-            <Button
-              variant="destructive"
-              size="icon"
-              class="size-8 cursor-pointer"
-              onclick={(e: MouseEvent) => {
-                e.stopPropagation();
-                remove(id);
-              }}
-            >
-              <Trash />
-            </Button>
-          {:else}
-            <p>{id}</p>
-          {/if}
-        </Button>
-        {#if i !== Object.entries(accounts).length - 1}
-          <Separator />
-        {/if}
-      {/each}
+  <Button onclick={add} disabled={add_loading}>
+    {#if add_loading}
+      <LoaderCircle class="animate-spin" />
     {:else}
-      <p class="p-4">No Accounts available</p>
+      <Plus />
     {/if}
-  </div>
+    Add account
+  </Button>
 </div>
+{#if accounts && Object.keys(accounts).length > 0}
+  {#each Object.entries(accounts).sort( (a, b) => a[0].localeCompare(b[0]) ) as [id, info] (id)}
+    <div
+      class="bg-card ring-foreground/10 flex items-center gap-3 rounded-xl px-3.5 py-3 ring-1"
+    >
+      {#if info}
+        <AccountImage
+          skin_url={info.skins.find((s) => s.state === State.Active)?.url}
+        />
+      {:else}
+        <CircleHelp class="size-8 shrink-0 p-1" />
+      {/if}
+      <div class="flex min-w-0 flex-1 flex-col">
+        <span class="truncate font-medium">{info?.name ?? 'Login failed'}</span>
+        <span class="text-muted-foreground truncate font-mono text-xs">
+          {info?.id ?? id}
+        </span>
+      </div>
+      {#if id === active}
+        <Badge>Selected</Badge>
+      {:else if info}
+        <Button variant="outline" size="sm" onclick={() => change(id)}>
+          Select
+        </Button>
+      {/if}
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label="Remove account"
+        onclick={() => remove(id)}
+      >
+        <Trash2 class="text-destructive" />
+      </Button>
+    </div>
+  {/each}
+{:else}
+  <p class="text-muted-foreground">No accounts available</p>
+{/if}
