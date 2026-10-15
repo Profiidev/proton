@@ -1,4 +1,8 @@
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{
+  collections::HashMap,
+  path::{Path, PathBuf},
+  sync::Arc,
+};
 
 use anyhow::Result;
 use chrono::Utc;
@@ -287,6 +291,14 @@ impl ProfileStore {
     res
   }
 
+  pub fn mods_dirs(&self) -> Vec<(String, PathBuf)> {
+    self
+      .profiles
+      .iter()
+      .map(|(id, info)| (id.clone(), path!(&self.data_dir, &info.path, "mods")))
+      .collect()
+  }
+
   pub async fn stop_all_instances(&self, profile: Option<&str>) {
     let instances = self.instances.lock().await;
     instances
@@ -348,5 +360,42 @@ impl ProfileStore {
 
   pub fn update_data(&self, r#type: UpdateType) {
     update_data(&self.handle, r#type);
+  }
+}
+
+/// Number of `*.jar` files directly inside `dir`, 0 if it does not exist
+pub fn count_mod_jars(dir: &Path) -> usize {
+  let Ok(entries) = std::fs::read_dir(dir) else {
+    return 0;
+  };
+  entries
+    .flatten()
+    .filter(|e| e.file_type().is_ok_and(|t| t.is_file()))
+    .filter(|e| {
+      e.path()
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("jar"))
+    })
+    .count()
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn count_mod_jars_counts_only_jar_files() {
+    let dir = std::env::temp_dir().join(format!("proton-mods-test-{}", std::process::id()));
+    assert_eq!(count_mod_jars(&dir), 0);
+
+    std::fs::create_dir_all(dir.join("sub.jar")).unwrap();
+    for name in ["a.jar", "b.JAR", "c.jar.disabled", "d.txt", "jar"] {
+      std::fs::write(dir.join(name), b"").unwrap();
+    }
+    std::fs::write(dir.join("sub.jar").join("e.jar"), b"").unwrap();
+
+    assert_eq!(count_mod_jars(&dir), 2);
+
+    std::fs::remove_dir_all(&dir).unwrap();
   }
 }
