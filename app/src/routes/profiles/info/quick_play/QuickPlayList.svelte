@@ -41,20 +41,6 @@
 
   const launch = (item: QuickPlayInfo) =>
     profile_launch(profile!.id, profile!.name, active_account, item);
-
-  // fetch each server once per mount, list refreshes would refetch otherwise
-  const status_cache = new Map<
-    string,
-    ReturnType<typeof quick_play_server_status>
-  >();
-  const server_status = (address: string) => {
-    let status = status_cache.get(address);
-    if (!status) {
-      status = quick_play_server_status(address);
-      status_cache.set(address, status);
-    }
-    return status;
-  };
 </script>
 
 <Tabs.Content {value} class="mt-1">
@@ -109,7 +95,7 @@
             </Button>
           {:else}
             {#if item.type === QuickPlayType.Multiplayer}
-              {#await server_status(item.id) then status}
+              {#await quick_play_server_status(item.id) then status}
                 {@const label = players_label(status)}
                 {#if label}
                   <span

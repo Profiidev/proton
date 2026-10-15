@@ -42,7 +42,7 @@
     href={btn.url}
     aria-current={isActive ? 'page' : undefined}
     class={cn(
-      'text-muted-foreground relative flex h-10 shrink-0 items-center gap-3 rounded-md px-2.5 text-sm font-medium whitespace-nowrap transition-colors',
+      'text-muted-foreground relative flex size-10 shrink-0 items-center gap-3 self-center rounded-md px-2.5 text-sm font-medium whitespace-nowrap transition-colors md:w-full md:self-stretch',
       isActive ? 'text-foreground' : 'hover:bg-accent/60 hover:text-foreground'
     )}
   >

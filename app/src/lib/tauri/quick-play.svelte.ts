@@ -63,12 +63,28 @@ export interface ServerStatus {
   players_max: number;
 }
 
-export const quick_play_server_status = async (
+const STATUS_TTL = 60_000;
+const status_cache = new Map<
+  string,
+  { at: number; status: Promise<ServerStatus | undefined> }
+>();
+
+/*
+ * Cached for a minute per address, so revisiting the multiplayer tab or list
+ * refreshes do not hit the status api again. Not async, so the same promise
+ * is returned while cached.
+ */
+// oxlint-disable-next-line promise-function-async
+export const quick_play_server_status = (
   address: string
 ): Promise<ServerStatus | undefined> => {
-  try {
-    return await invoke('quick_play_server_status', { address });
-  } catch {
-    return undefined;
+  const cached = status_cache.get(address);
+  if (cached && Date.now() - cached.at < STATUS_TTL) {
+    return cached.status;
   }
+  const status = invoke<ServerStatus | undefined>('quick_play_server_status', {
+    address
+  }).catch(() => undefined);
+  status_cache.set(address, { at: Date.now(), status });
+  return status;
 };
