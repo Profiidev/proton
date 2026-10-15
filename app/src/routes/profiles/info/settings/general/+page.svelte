@@ -1,13 +1,11 @@
 <script lang="ts">
   import {
     LoaderType,
-    profile_get_icon,
     profile_update,
     profile_update_icon,
     ProfileError,
     type Profile
   } from '$lib/tauri/profile.svelte';
-  import Multiselect from '@profidev/pleiades/components/table/multiselect.svelte';
   import { getProfile } from '../../store.svelte';
   import { toast } from 'svelte-sonner';
   import {
@@ -16,108 +14,52 @@
   } from '$lib/tauri/versions.svelte';
   import { Input } from '@profidev/pleiades/components/ui/input';
   import { Label } from '@profidev/pleiades/components/ui/label';
-  import ImageInput from '$lib/components/form/ImageInput.svelte';
+  import { Button } from '@profidev/pleiades/components/ui/button';
+  import VersionSelect from '$lib/components/form/VersionSelect.svelte';
+  import * as Alert from '@profidev/pleiades/components/ui/alert';
+  import { TriangleAlert } from '@lucide/svelte';
+  import ProfileIcon from '$lib/components/profile/ProfileIcon.svelte';
 
   let profile = $derived(getProfile());
+  let modded = $derived(profile && profile.loader !== LoaderType.Vanilla);
 
-  let versions = $state<{ label: string; value: string }[]>([]);
-  let selectedVersion = $state<[string]>(['']);
-  let loader_versions = $state<{ label: string; value: string }[]>([]);
-  let selectedLoaderVersion = $state<[string]>(['']);
-
-  $effect(() => {
-    if (!profile) {
-      return;
-    }
-
-    version_list(profile?.loader)
-      .catch(() => [] as string[])
-      .then((v) => {
-        versions =
-          v?.map((version) => ({
-            label: version,
-            value: version
-          })) ?? [];
-      });
-  });
+  let versions = $state<string[]>([]);
+  let loader_versions = $state<string[]>([]);
+  let iconInput = $state<HTMLInputElement>();
 
   $effect(() => {
-    if (
-      !profile ||
-      profile.loader === LoaderType.Vanilla ||
-      !selectedVersion ||
-      selectedVersion.length !== 1
-    )
-      return;
-
-    loader_version_list(profile.loader, selectedVersion[0])
-      .catch(() => [] as string[])
-      .then((v) => {
-        loader_versions =
-          v?.map((version) => ({
-            label: version,
-            value: version
-          })) ?? [];
-
-        if (
-          v &&
-          (!selectedLoaderVersion || !v.includes(selectedLoaderVersion[0]))
-        ) {
-          selectedLoaderVersion = [v[0]];
-        }
-      });
-  });
-
-  let formFilePreview = $state('');
-  $effect(() => {
-    if (profile) {
-      (async () => {
-        selectedVersion = [profile.version];
-        if (profile.loader !== LoaderType.Vanilla && profile.loader_version) {
-          selectedLoaderVersion = [profile.loader_version];
-        }
-
-        let icon = await profile_get_icon(profile.id);
-        if (icon) {
-          formFilePreview = `data:image/png;base64,${icon}`;
-        }
-      })();
-    }
-  });
-
-  $effect(() => {
-    selectedVersion;
-    selectedLoaderVersion;
-
     if (!profile) return;
-    let update = false;
-    let updated_profile = { ...profile };
-
-    if (profile.version !== selectedVersion[0] && selectedVersion[0]) {
-      update = true;
-      updated_profile.version = selectedVersion[0];
-    }
-
-    if (
-      profile?.loader !== LoaderType.Vanilla &&
-      profile?.loader_version !== selectedLoaderVersion[0] &&
-      selectedLoaderVersion[0]
-    ) {
-      update = true;
-      updated_profile.loader_version = selectedLoaderVersion[0];
-    }
-
-    if (update) {
-      send_update(updated_profile);
-    }
+    version_list(profile.loader)
+      .catch(() => undefined)
+      .then((v) => (versions = v ?? []));
   });
 
-  const send_update = (profile: Profile) => {
-    profile_update(profile).then((res) => {
-      if (res === ProfileError.Other) {
-        toast.error('Failed to update profile');
+  $effect(() => {
+    if (!profile || !modded) return;
+    loader_version_list(profile.loader, profile.version)
+      .catch(() => undefined)
+      .then((v) => (loader_versions = v ?? []));
+  });
+
+  const send_update = async (profile: Profile) => {
+    if ((await profile_update(profile)) === ProfileError.Other) {
+      toast.error('Failed to update profile');
+    }
+  };
+
+  const change_version = async (version: string) => {
+    if (!profile || version === profile.version) return;
+    let loader_version = profile.loader_version;
+    if (modded) {
+      const available = (await loader_version_list(
+        profile.loader,
+        version
+      ).catch(() => undefined)) ?? [loader_version];
+      if (!loader_version || !available.includes(loader_version)) {
+        loader_version = available[0];
       }
-    });
+    }
+    send_update({ ...profile, version, loader_version });
   };
 
   const update_icon = async (file: File | undefined) => {
@@ -132,48 +74,72 @@
 </script>
 
 {#if profile}
-  <div class="flex gap-4">
-    <div class="flex w-64 flex-col gap-2">
-      <Label>Profile Name</Label>
-      <Input
-        placeholder="Profile Name"
-        value={profile.name}
-        onfocusout={(e) => {
-          let name = (e.target as HTMLInputElement).value;
-          if (!name) {
-            toast.error('Profile name cannot be empty');
-            return;
-          }
-          if (name !== profile.name) {
-            send_update({ ...profile, name });
-          }
-        }}
-      />
-      <Label>Version</Label>
-      <Multiselect
-        label="Version"
-        single={true}
-        data={versions}
-        bind:selected={selectedVersion}
-      />
-      {#if profile.loader !== LoaderType.Vanilla}
-        <Label>Loader Version</Label>
-        <Multiselect
-          single={true}
-          data={loader_versions}
-          label="Loader Version"
-          bind:selected={selectedLoaderVersion}
-        />
-      {/if}
-    </div>
-    <div class="flex flex-col">
-      <ImageInput
-        class="mt-3"
-        key="profile-icon"
-        label="Profile Icon"
-        fileChange={update_icon}
-        previewSrc={formFilePreview}
-      />
-    </div>
+  <div class="flex items-center gap-3.5">
+    <ProfileIcon
+      id={profile.id}
+      class="bg-muted size-16 rounded-md"
+      classFallback="size-8"
+    />
+    <Button variant="outline" size="sm" onclick={() => iconInput?.click()}>
+      Change icon
+    </Button>
+    <input
+      bind:this={iconInput}
+      type="file"
+      class="hidden"
+      accept="image/png, image/jpeg, image/jpg"
+      onchange={(e) => update_icon(e.currentTarget.files?.[0])}
+    />
   </div>
+  <div class="flex flex-col gap-1.5">
+    <Label for="profile-name">Name</Label>
+    <Input
+      id="profile-name"
+      value={profile.name}
+      onchange={(e) => {
+        let name = e.currentTarget.value.trim();
+        if (!name) {
+          toast.error('Profile name cannot be empty');
+          return;
+        }
+        if (name !== profile.name) {
+          send_update({ ...profile, name });
+        }
+      }}
+    />
+  </div>
+  <div class="flex flex-wrap gap-3">
+    <div class="flex flex-[1_1_180px] flex-col gap-1.5">
+      <Label>Minecraft version</Label>
+      <VersionSelect
+        label="Minecraft version"
+        options={versions.includes(profile.version)
+          ? versions
+          : [profile.version, ...versions]}
+        value={profile.version}
+        onchange={change_version}
+      />
+    </div>
+    {#if modded}
+      <div class="flex flex-[1_1_180px] flex-col gap-1.5">
+        <Label>{profile.loader} loader version</Label>
+        <VersionSelect
+          label="Loader version"
+          options={loader_versions}
+          value={profile.loader_version}
+          onchange={(loader_version) =>
+            send_update({ ...profile, loader_version })}
+        />
+      </div>
+    {/if}
+  </div>
+  {#if modded}
+    <Alert.Root>
+      <TriangleAlert />
+      <Alert.Title>Changing the version can break mods</Alert.Title>
+      <Alert.Description>
+        Mods built for another version may fail to load.
+      </Alert.Description>
+    </Alert.Root>
+  {/if}
 {/if}

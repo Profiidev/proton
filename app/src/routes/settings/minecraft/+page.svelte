@@ -5,9 +5,8 @@
     settings_set,
     type MinecraftSettings
   } from '$lib/tauri/settings.svelte';
-  import SwitchTooltip from '$lib/components/form/SwitchTooltip.svelte';
   import GameSettings from '$lib/components/settings/GameSettings.svelte';
-  import type { GameSettings as GameSettingsType } from '$lib/tauri/profile.svelte';
+  import SwitchTile from '$lib/components/settings/SwitchTile.svelte';
 
   let settings = $derived(settings_get.value);
 
@@ -20,47 +19,33 @@
     if (
       await settings_set({
         ...settings,
-        minecraft: {
-          ...settings.minecraft,
-          ...new_settings
-        }
+        minecraft: { ...settings.minecraft, ...new_settings }
       })
     ) {
       toast.error('Failed to save Minecraft settings');
     }
   };
-
-  const saveGameSettings = async (new_settings: Partial<GameSettingsType>) => {
-    await saveSettings({
-      game_settings: {
-        ...settings!.minecraft.game_settings,
-        ...new_settings
-      }
-    });
-  };
 </script>
 
-<div class="mt-2 ml-4 flex-1">
-  <div class="flex items-center">
-    <p class="text-xl">Minecraft</p>
+<div class="flex max-w-[720px] min-w-0 flex-1 flex-col gap-4">
+  <div>
+    <h1 class="text-xl font-semibold tracking-tight">Minecraft</h1>
+    <p class="text-muted-foreground mt-0.5">
+      Defaults for every profile. Profiles can override them.
+    </p>
   </div>
-  <div class="mt-4 mr-4 flex flex-col gap-4">
-    {#if settings}
-      <SwitchTooltip
-        id="show-snapshots"
-        label="Show Snapshots"
-        tooltip="Adds all snapshot/unstable versions to the list of selectable versions."
-        checked={settings.minecraft.show_snapshots ?? false}
-        onCheckedChange={(value) => {
-          saveSettings({ show_snapshots: value });
-        }}
-      />
-      <GameSettings
-        settings={settings.minecraft.game_settings}
-        updateSettings={saveGameSettings}
-      />
-    {:else}
-      <p>Loading...</p>
-    {/if}
-  </div>
+  {#if settings}
+    <SwitchTile
+      title="Show snapshots"
+      description="List snapshots and pre-releases when creating a profile."
+      checked={settings.minecraft.show_snapshots ?? false}
+      onCheckedChange={(show_snapshots) => saveSettings({ show_snapshots })}
+    />
+    <GameSettings
+      settings={settings.minecraft.game_settings}
+      updateSettings={(game_settings) => saveSettings({ game_settings })}
+    />
+  {:else}
+    <p>Loading...</p>
+  {/if}
 </div>
