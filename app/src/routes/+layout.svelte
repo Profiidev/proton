@@ -12,10 +12,15 @@
   import { onMount } from 'svelte';
   import { account_refresh } from '$lib/tauri/account.svelte';
   import { debounce } from '$lib/util.svelte';
-  import { settings_get, settings_set } from '$lib/tauri/settings.svelte';
+  import {
+    settings_get,
+    settings_set,
+    type Settings
+  } from '$lib/tauri/settings.svelte';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
-  import { checkForUpdates } from '$lib/tauri/updater.svelte';
+  import { checkForUpdates, update } from '$lib/tauri/updater.svelte';
+  import { invoke } from '@tauri-apps/api/core';
   import { listen_instance_crash } from '$lib/tauri/instance.svelte';
   import {
     is_offline,
@@ -45,9 +50,14 @@
     if (await account_refresh()) {
       toast.error('Failed to refresh Accounts');
     }
-    let update = await checkForUpdates();
-    if (update) {
-      toast.message(`Update available: ${update}`, {
+    let version = await checkForUpdates();
+    if (version) {
+      const current = await invoke<Settings>('settings_get').catch(() => {});
+      if (current?.auto_update) {
+        await update();
+        return;
+      }
+      toast.message(`Update available: ${version}`, {
         action: {
           label: 'Update',
           onClick: () => {
