@@ -36,7 +36,7 @@
   });
 </script>
 
-<div class="flex h-full w-54 flex-col gap-1 p-2">
+<div class="flex h-full w-18 shrink-0 flex-col gap-1 p-2 md:w-54">
   {#each btns as btn}
     {@const isActive = page.url.pathname.startsWith(btn.url)}
     <Button
@@ -56,7 +56,7 @@
       {/if}
       <div class="relative flex w-full items-center gap-2">
         <btn.icon class="size-full max-w-8" />
-        <p class="truncate">{btn.title}</p>
+        <p class="hidden truncate md:block">{btn.title}</p>
       </div>
     </Button>
   {/each}

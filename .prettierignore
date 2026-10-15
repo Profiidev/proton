@@ -1,6 +1,0 @@
-src-tauri/
-frontend/build/
-node_modules/
-.svelte-kit/
-target/
-.github/

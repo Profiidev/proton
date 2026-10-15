@@ -135,11 +135,11 @@
 </script>
 
 <div class="flex size-full flex-col">
-  <div class="flex w-full gap-2">
+  <div class="flex w-full flex-wrap gap-2">
     <Input
       placeholder="Search profiles..."
       bind:value={text_filter}
-      class="grow"
+      class="min-w-48 flex-1"
       type="search"
     />
     <Multiselect

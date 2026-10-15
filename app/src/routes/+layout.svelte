@@ -84,10 +84,10 @@
 <div class="flex h-full flex-col">
   <Header />
   <Separator />
-  <div class="flex w-full grow">
+  <div class="flex min-h-0 w-full grow">
     <Sidebar />
     <Separator orientation="vertical" />
-    <main class="h-full min-h-0 grow p-2">
+    <main class="h-full min-h-0 min-w-0 grow overflow-auto p-2">
       {@render children()}
     </main>
   </div>

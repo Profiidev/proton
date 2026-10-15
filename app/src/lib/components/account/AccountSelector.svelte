@@ -12,6 +12,7 @@
   import * as Popover from '@profidev/pleiades/components/ui/popover';
   import AccountImage from './AccountImage.svelte';
   import { goto } from '$app/navigation';
+  import { cn } from '@profidev/pleiades/utils';
 
   let accounts: Accounts | undefined = $derived(account_list.value);
   let active: string | undefined = $derived(account_active.value);
@@ -25,7 +26,8 @@
     {#if active && accounts && accounts[active]}
       {@render account({
         info: accounts[active],
-        onclick: () => {}
+        onclick: () => {},
+        collapsed: true
       })}
     {:else}
       <Button
@@ -35,7 +37,9 @@
         <div class="flex size-10 min-w-10 items-center justify-center">
           <CircleHelp />
         </div>
-        <p class="truncate text-start text-sm">No account active</p>
+        <p class="hidden truncate text-start text-sm md:block">
+          No account active
+        </p>
       </Button>
     {/if}
   </Popover.Trigger>
@@ -81,7 +85,8 @@
 
 {#snippet account({
   info,
-  onclick
+  onclick,
+  collapsed
 }: {
   info: ProfileInfo;
   onclick: () => void;
@@ -94,7 +99,12 @@
     {onclick}
   >
     <AccountImage {skin_url} />
-    <div class="flex min-w-0 flex-1 flex-col justify-start">
+    <div
+      class={cn(
+        'min-w-0 flex-1 flex-col justify-start',
+        collapsed ? 'hidden md:flex' : 'flex'
+      )}
+    >
       <p class="truncate text-start text-sm">{info.name}</p>
       <p class="text-muted-foreground truncate text-start text-sm">
         {info.id}
