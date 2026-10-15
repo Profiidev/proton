@@ -18,7 +18,7 @@ use profiles::commands::{
   profile_get_icon, profile_history_list, profile_launch, profile_list, profile_logs,
   profile_mods_count, profile_open_path, profile_quick_play_icon, profile_quick_play_list,
   profile_quick_play_remove, profile_remove, profile_repair, profile_runs_list, profile_update,
-  profile_update_icon,
+  profile_update_icon, quick_play_server_status,
 };
 use settings::{settings_get, settings_set};
 use tauri::{AppHandle, Emitter, Manager, Url, webview::PageLoadEvent};
@@ -124,6 +124,7 @@ pub fn run() {
       profile_quick_play_list,
       profile_quick_play_remove,
       profile_quick_play_icon,
+      quick_play_server_status,
       //home
       profile_favorites_set,
       profile_favorites_list,
