@@ -17,8 +17,11 @@
   import { compareProfiles } from '$lib/util.svelte';
   import { continue_quick_play, latest_played, plural } from '$lib/profiles';
   import { running_label } from '$lib/instances';
-  import { Play } from '@lucide/svelte';
+  import { CircleArrowUp, Play } from '@lucide/svelte';
   import { Button } from '@profidev/pleiades/components/ui/button';
+  import * as Alert from '@profidev/pleiades/components/ui/alert';
+  import { content_updates } from '$lib/tauri/content.svelte';
+  import { updates_banner } from '$lib/content';
 
   let sorted_favorites = $derived(
     (profile_favorites_list.value ?? []).toSorted((a, b) =>
@@ -37,6 +40,9 @@
   );
   let current_running = $derived(
     instance_list.value?.filter((i) => i.profile_id === current?.id).length ?? 0
+  );
+  let banner = $derived(
+    updates_banner(content_updates.value ?? {}, profile_list.value ?? [])
   );
   let current_mods = $derived(
     current && current.loader !== LoaderType.Vanilla
@@ -93,6 +99,17 @@
         {current_running > 0 ? 'Launch another' : 'Play'}
       </Button>
     </section>
+  {/if}
+
+  {#if banner}
+    <Alert.Root class="has-data-[slot=alert-action]:pr-40">
+      <CircleArrowUp />
+      <Alert.Title>{banner.title}</Alert.Title>
+      <Alert.Description>{banner.description}</Alert.Description>
+      <Alert.Action class="top-1/2 right-3 -translate-y-1/2">
+        <Button variant="outline" href={banner.href}>Review updates</Button>
+      </Alert.Action>
+    </Alert.Root>
   {/if}
 
   <section class="flex flex-col gap-2.5">
