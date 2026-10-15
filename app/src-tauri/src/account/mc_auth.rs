@@ -210,15 +210,15 @@ pub async fn refresh_ms_token(client: &Client, ms_refresh_token: &str) -> Result
       ("grant_type", "refresh_token"),
     ])
     .send()
-    .await?
-    .error_for_status()?;
+    .await?;
 
   debug!("Got response with code: {}", res.status());
-  if res.status() != StatusCode::OK {
+  // expired or revoked refresh token (invalid_grant), the user has to log in again
+  if res.status() == StatusCode::BAD_REQUEST || res.status() == StatusCode::UNAUTHORIZED {
     return Ok(None);
   }
 
-  let res: MSTokenRes = res.json().await?;
+  let res: MSTokenRes = res.error_for_status()?.json().await?;
 
   Ok(Some(MsToken {
     access_token: res.access_token,
