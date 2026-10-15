@@ -124,25 +124,37 @@ export const account_remove = async (id: string) => {
   return undefined;
 };
 
-export const account_get_skin = async (
+/*
+ * Texture urls are content addressed, so the same url always returns the same
+ * image. Reusing the promise keeps `{#await}` blocks from reloading on refreshes,
+ * so these functions must not be async (that would wrap a new promise per call).
+ */
+const texture_cache = new Map<string, Promise<any>>();
+// oxlint-disable-next-line promise-function-async
+const cached_texture = <T>(
+  cmd: string,
   url: string
-): Promise<undefined | SkinData> => {
-  try {
-    return await invoke('account_get_skin', { url });
-  } catch {
-    return undefined;
+): Promise<T | undefined> => {
+  const key = `${cmd}:${url}`;
+  let texture = texture_cache.get(key);
+  if (!texture) {
+    texture = invoke<T>(cmd, { url }).catch(() => {
+      // Retry failed loads on the next call
+      texture_cache.delete(key);
+      return undefined;
+    });
+    texture_cache.set(key, texture);
   }
+  return texture;
 };
 
-export const account_get_cape = async (
-  url: string
-): Promise<undefined | CapeData> => {
-  try {
-    return await invoke('account_get_cape', { url });
-  } catch {
-    return undefined;
-  }
-};
+// oxlint-disable-next-line promise-function-async
+export const account_get_skin = (url: string) =>
+  cached_texture<SkinData>('account_get_skin', url);
+
+// oxlint-disable-next-line promise-function-async
+export const account_get_cape = (url: string) =>
+  cached_texture<CapeData>('account_get_cape', url);
 
 export const account_add_skin = async (skin: Uint8Array) => {
   try {
