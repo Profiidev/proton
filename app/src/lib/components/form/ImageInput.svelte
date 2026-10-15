@@ -13,6 +13,8 @@
     disabled?: boolean;
     previewSrc?: string;
     labelComp?: Component;
+    /** Visible text under the upload icon while no image is set */
+    placeholder?: string;
     fileChange: (files: File | undefined) => void;
   }
 
@@ -23,6 +25,7 @@
     disabled,
     previewSrc,
     labelComp,
+    placeholder,
     fileChange
   }: Props = $props();
 
@@ -56,13 +59,16 @@
 <label for={key} class="hover:cursor-pointer">
   <Avatar.Root
     class={cn(
-      'ring-accent ring-offset-background size-20 rounded-md ring-2 ring-offset-2',
+      'ring-accent ring-offset-background size-20 rounded-md ring-2 ring-offset-2 after:rounded-[inherit]',
       className
     )}
   >
-    <Avatar.Image class="object-cover" {src} />
-    <Avatar.Fallback class="rounded-md">
+    <Avatar.Image class="rounded-[inherit] object-cover" {src} />
+    <Avatar.Fallback class="flex-col gap-1 rounded-md">
       <Upload class="size-4" />
+      {#if placeholder}
+        <span class="text-xs">{placeholder}</span>
+      {/if}
       <span class="sr-only">Upload image</span>
     </Avatar.Fallback>
   </Avatar.Root>

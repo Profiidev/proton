@@ -11,7 +11,8 @@ export const profileCreateSchema = z.object({
       { message: 'Invalid image file type' }
     )
     .optional(),
-  loader: z.array(z.enum(LoaderType)).min(1, 'Loader is required'),
+  loader: z.enum(LoaderType),
+  loader_version: z.string().optional(),
   name: z.string().min(1, 'Name is required'),
-  version: z.array(z.string()).min(1, 'Version is required')
+  version: z.string().min(1, 'Version is required')
 });

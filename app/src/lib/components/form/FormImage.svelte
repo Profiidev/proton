@@ -15,6 +15,7 @@
     class?: string;
     label?: string;
     previewSrc?: string;
+    placeholder?: string;
   }
 
   let { formData: form, key, ...restProps }: Props = $props();
