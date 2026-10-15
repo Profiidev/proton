@@ -2,6 +2,7 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use anyhow::Result;
 use chrono::Utc;
+use sysinfo::{Pid, ProcessesToUpdate, System};
 use tauri::{AppHandle, Manager};
 use tokio::sync::Mutex;
 
@@ -152,8 +153,8 @@ impl ProfileStore {
       access_token: info.access_token,
       launcher_name: self.handle.package_info().name.clone(),
       launcher_version: self.handle.package_info().version.to_string(),
-      player_name: info.name,
-      player_uuid: info.id,
+      player_name: info.name.clone(),
+      player_uuid: info.id.clone(),
       user_type: "msa".into(),
       data_dir,
       version: profile.version.clone(),
@@ -165,7 +166,15 @@ impl ProfileStore {
     })
     .await?;
 
-    Instance::create(child, &self.handle, &profile, &self.instances).await?;
+    Instance::create(
+      child,
+      &self.handle,
+      &profile,
+      info.name,
+      info.id,
+      &self.instances,
+    )
+    .await?;
 
     Ok(())
   }
@@ -242,6 +251,14 @@ impl ProfileStore {
     let instances = self.instances.lock().await;
     let mut res = Vec::new();
 
+    let pids: Vec<Pid> = instances
+      .values()
+      .flatten()
+      .map(|i| Pid::from_u32(i.pid()))
+      .collect();
+    let mut system = System::new();
+    system.refresh_processes(ProcessesToUpdate::Some(&pids), true);
+
     for (profile, instances) in instances.iter() {
       let profile_name = self.profile(profile).await.ok().map(|p| p.name);
 
@@ -255,6 +272,9 @@ impl ProfileStore {
           loader: i.loader(),
           loader_version: i.loader_version().cloned(),
           launched_at: i.launched_at(),
+          account_name: Some(i.account_name().to_string()),
+          account_id: Some(i.account_id().to_string()),
+          memory_used: system.process(Pid::from_u32(i.pid())).map(|p| p.memory()),
         })
         .collect();
       if instances.is_empty() {
