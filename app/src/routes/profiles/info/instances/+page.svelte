@@ -4,60 +4,64 @@
     instance_stop,
     type InstanceInfo
   } from '$lib/tauri/instance.svelte';
-  import { Button } from '@profidev/pleiades/components/ui/button';
-  import { Separator } from '@profidev/pleiades/components/ui/separator';
+  import * as Empty from '@profidev/pleiades/components/ui/empty';
   import { getProfile } from '../store.svelte';
-  import { CircleStop } from '@lucide/svelte';
-  import { compareDateTimes } from '$lib/util.svelte';
-  import { goto } from '$app/navigation';
-  import { DateTime as D } from '@profidev/pleiades/util/time.svelte';
+  import { group_by_profile } from '$lib/instances';
   import DestroyDialog from '$lib/components/form/DestroyDialog.svelte';
+  import InstanceRow from '$lib/components/instance/InstanceRow.svelte';
 
   let profile = $derived(getProfile());
-  let instances = $derived(instance_list.value);
   let profile_instances = $derived(
-    instances
-      ?.filter((i) => i.profile_id === profile?.id)
-      .toSorted((a, b) => compareDateTimes(a.launched_at, b.launched_at)) ?? []
+    (profile && group_by_profile(instance_list.value ?? []).get(profile.id)) ??
+      []
   );
+
+  let now = $state(Date.now());
+  $effect(() => {
+    const interval = setInterval(() => {
+      instance_list.update();
+      now = Date.now();
+    }, 3000);
+    return () => clearInterval(interval);
+  });
 
   let stopOpen = $state(false);
   let stop_instance = $state<InstanceInfo>();
 </script>
 
-<div class="flex w-full flex-col gap-2">
-  {#each profile_instances as instance, index}
-    <Button
-      variant="outline"
-      class="h-fit w-full cursor-pointer p-2"
-      onclick={() => goto(`/instances/info/logs?id=${instance.id}`)}
-    >
-      <p class="ml-2 text-base">Instance {index + 1}</p>
-      <Separator orientation="vertical" class="mx-1 h-8!" />
-      <p class="text-muted-foreground">
-        Launched at {D.DateTime?.fromISO(instance.launched_at)
-          .setLocale('de')
-          .toLocaleString(D.DateTime.DATETIME_SHORT)}
-      </p>
-      <Button
-        variant="destructive"
-        class="ml-auto cursor-pointer"
-        onclick={(e) => {
-          e.stopImmediatePropagation();
-          stopOpen = true;
-          stop_instance = instance;
-        }}
-      >
-        <CircleStop />
-        Stop
-      </Button>
-    </Button>
-  {/each}
-  {#if profile_instances.length === 0}
-    <p class="text-muted-foreground mt-2 ml-2">
-      No running instances found for this profile.
+<div class="flex w-full min-w-0 flex-col gap-3">
+  <div>
+    <h2 class="text-base font-medium">Running instances</h2>
+    <p class="text-muted-foreground mt-0.5 text-xs">
+      Use Launch another above to start more. Pick a different account to play
+      with two at once.
     </p>
-  {/if}
+  </div>
+  {#each profile_instances as instance, index (instance.id)}
+    <InstanceRow
+      {instance}
+      number={index + 1}
+      {now}
+      card
+      onstop={() => {
+        stop_instance = instance;
+        stopOpen = true;
+      }}
+    />
+  {:else}
+    <Empty.Root class="flex-none border border-dashed">
+      <Empty.Header>
+        <Empty.Title>Not running</Empty.Title>
+        <Empty.Description>
+          This profile has no running instance. Press Play above to start one.
+        </Empty.Description>
+      </Empty.Header>
+    </Empty.Root>
+  {/each}
+  <p class="text-muted-foreground text-xs">
+    Worlds are shared between instances, so only open a world in one of them at
+    a time.
+  </p>
 </div>
 <DestroyDialog
   bind:open={stopOpen}
