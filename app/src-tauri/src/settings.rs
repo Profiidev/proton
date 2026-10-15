@@ -15,6 +15,11 @@ pub struct MaxMem {
 }
 
 impl MaxMem {
+  /// Leaves 2 GB for the OS, the same rule the memory sliders explain
+  pub fn fits(&self, mb: u64) -> bool {
+    mb + 2048 <= self.max_mem
+  }
+
   pub fn new() -> Self {
     let system = System::new_all();
     let bytes = system.total_memory();

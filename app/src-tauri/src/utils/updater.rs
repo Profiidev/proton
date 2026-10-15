@@ -21,6 +21,7 @@ pub enum UpdateType {
   Profiles,
   ProfileLogs,
   ProfileQuickPlay,
+  ProfileContent,
   //instances
   Instances,
   InstanceLogs,
@@ -28,6 +29,8 @@ pub enum UpdateType {
   Settings,
   //offline
   Offline,
+  //content
+  ContentUpdates,
 }
 
 pub fn update_data(handle: &AppHandle, r#type: UpdateType) {

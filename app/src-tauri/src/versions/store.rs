@@ -1,13 +1,14 @@
-use std::{collections::HashMap, sync::Arc, time::Instant};
+use std::{
+  collections::HashMap,
+  sync::{Arc, LazyLock},
+  time::Instant,
+};
 
 use anyhow::Result;
 use log::info;
 use reqwest::Client;
 use tauri::{AppHandle, Manager};
-use tokio::{
-  join, select,
-  sync::{Mutex, Notify},
-};
+use tokio::{join, select, sync::Notify};
 
 use crate::{
   settings::SettingsExt,
@@ -43,7 +44,41 @@ pub struct McVersionStore {
   java_manifest: JavaVersions,
   handle: AppHandle,
   client: Arc<Client>,
-  cancel_notify: Arc<Mutex<HashMap<usize, Arc<Notify>>>>,
+}
+
+/// Cancel handles of running jobs (downloads, installs, updates) by job id
+static CANCEL: LazyLock<std::sync::Mutex<HashMap<usize, Arc<Notify>>>> =
+  LazyLock::new(Default::default);
+
+/// Registered job, unregistered on drop so early returns cannot leak it
+pub struct CancelGuard {
+  id: usize,
+  pub notify: Arc<Notify>,
+}
+
+impl Drop for CancelGuard {
+  fn drop(&mut self) {
+    CANCEL.lock().unwrap().remove(&self.id);
+  }
+}
+
+/// Registers a job, `profile_cancel_download(id)` wakes `notify`
+pub fn register_cancel(id: usize) -> CancelGuard {
+  let notify = Arc::new(Notify::new());
+  CANCEL.lock().unwrap().insert(id, notify.clone());
+  CancelGuard { id, notify }
+}
+
+/// Whether any job is running
+pub fn is_busy() -> bool {
+  !CANCEL.lock().unwrap().is_empty()
+}
+
+pub fn cancel(id: usize) {
+  if let Some(notify) = CANCEL.lock().unwrap().get(&id) {
+    // stores a permit, so a cancel sent before the job reaches its select! is not lost
+    notify.notify_one();
+  }
 }
 
 impl McVersionStore {
@@ -76,7 +111,6 @@ impl McVersionStore {
       java_manifest: java_manifest?,
       handle,
       client: Arc::new(client),
-      cancel_notify: Arc::new(Mutex::new(HashMap::new())),
     })
   }
 
@@ -132,10 +166,7 @@ impl McVersionStore {
     loader: LoaderType,
     loader_version: Option<String>,
   ) -> Result<bool> {
-    let notify = Arc::new(Notify::new());
-    let mut notifies = self.cancel_notify.lock().await;
-    notifies.insert(id, notify.clone());
-    drop(notifies);
+    let guard = register_cancel(id);
 
     let start = Instant::now();
     info!("Checking/Downloading minecraft version {version} with download id {id}");
@@ -175,24 +206,12 @@ impl McVersionStore {
         );
         download_finished = true;
       },
-      _ = notify.notified() => {
+      _ = guard.notify.notified() => {
         info!("Check/Download for minecraft version {version} with id {id} was canceled");
       }
     };
 
-    let mut notifies = self.cancel_notify.lock().await;
-    notifies.remove(&id);
-    drop(notifies);
-
     Ok(download_finished)
-  }
-
-  pub async fn cancel_check_or_download(&self, id: usize) {
-    let notifies = self.cancel_notify.lock().await;
-    if let Some(notify) = notifies.get(&id) {
-      notify.notify_waiters();
-    }
-    drop(notifies);
   }
 
   pub async fn check_meta(&self, version: &str, id: usize) -> Result<bool> {

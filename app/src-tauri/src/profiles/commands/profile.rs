@@ -16,7 +16,10 @@ use crate::{
     store::{ProfileStore, count_mod_jars},
   },
   utils::{log::ResultLogExt, updater::UpdateType},
-  versions::{loader::LoaderType, store::McVersionStore},
+  versions::{
+    loader::LoaderType,
+    store::{McVersionStore, cancel},
+  },
 };
 
 #[derive(Error, Debug)]
@@ -283,11 +286,8 @@ pub async fn profile_repair(
 }
 
 #[tauri::command]
-pub async fn profile_cancel_download(
-  state: State<'_, Mutex<McVersionStore>>,
-  id: usize,
-) -> Result<()> {
-  let store = state.lock().await;
-  store.cancel_check_or_download(id).await;
+pub async fn profile_cancel_download(id: usize) -> Result<()> {
+  trace!("Command profile_cancel_download called with id {id}");
+  cancel(id);
   Ok(())
 }

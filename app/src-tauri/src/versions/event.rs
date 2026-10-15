@@ -37,6 +37,12 @@ pub enum DownloadCheckStatus {
   ModLoaderFilesDownload(usize, usize),
   ModLoaderPreprocess,
   ModLoaderPreprocessDone,
+  ContentResolve,
+  /// bytes
+  ContentDownload(usize, usize),
+  /// file counts
+  ContentFiles(usize, usize),
+  ModpackOverrides(usize, usize),
   Done,
 }
 
