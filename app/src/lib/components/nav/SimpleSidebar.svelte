@@ -11,6 +11,10 @@
       href: string;
       title: string;
       icon?: Component<{ class?: string }>;
+      /** Path prefix that marks the item active, defaults to the href path */
+      match?: string;
+      /** Amber count chip, hidden when 0 */
+      badge?: number;
     }[];
   }
 
@@ -26,7 +30,7 @@
   {#each items as item (item.href)}
     {@const url = new URL(item.href, location.origin)}
     {@const isActive =
-      page.url.pathname.startsWith(url.pathname) &&
+      page.url.pathname.startsWith(item.match ?? url.pathname) &&
       page.url.search === url.search}
 
     <a
@@ -51,6 +55,13 @@
         <item.icon class="relative size-4 shrink-0" />
       {/if}
       <span class="relative">{item.title}</span>
+      {#if item.badge}
+        <span
+          class="relative ml-auto inline-flex h-5 items-center rounded-full bg-amber-500/15 px-1.5 text-xs font-medium text-amber-500"
+        >
+          {item.badge}
+        </span>
+      {/if}
     </a>
   {/each}
 </nav>
