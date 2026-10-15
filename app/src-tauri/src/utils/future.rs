@@ -1,15 +1,8 @@
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use anyhow::Result;
 use tauri::async_runtime::{JoinHandle, spawn};
-use tokio::{
-  select,
-  sync::mpsc::{self, Sender},
-  task::JoinSet,
-  time::sleep,
-};
-
-use crate::utils::log::ResultLogExt;
+use tokio::{sync::watch, task::JoinSet, time::sleep};
 
 pub const MAX_PARALLEL_DEFAULT: usize = 20;
 
@@ -65,53 +58,24 @@ where
   }
 }
 
-pub struct UpdateLimiter<T: Send + Sync + 'static> {
+/// Calls `f` with the latest data at most once per `delay`, the last data is always delivered
+pub struct UpdateLimiter<T: Clone + Send + Sync + 'static> {
   _task: JoinHandle<()>,
-  sender: Sender<T>,
+  sender: watch::Sender<Option<T>>,
 }
 
-impl<T: Send + Sync + 'static> UpdateLimiter<T> {
+impl<T: Clone + Send + Sync + 'static> UpdateLimiter<T> {
   pub fn new<F: Fn(T) + Send + 'static>(delay: Duration, f: F) -> Self {
-    let (sender, mut receiver) = mpsc::channel(100);
+    let (sender, mut receiver) = watch::channel(None);
 
+    // changed() still reports unseen data after the sender is dropped, so the final update is sent
     let task = spawn(async move {
-      let mut data = None;
-      let mut last_update = Instant::now();
-
-      loop {
-        let elapsed = last_update.elapsed();
-        let remaining = if elapsed >= delay {
-          // also try to trigger a update here
-          // so when the updates over the channel are faster than the sleep timer resolution
-          // a update gets triggered in any case
-          if let Some(data_val) = data {
-            f(data_val);
-            data = None;
-            last_update = Instant::now();
-          }
-          delay
-        } else {
-          delay - elapsed
-        };
-
-        select! {
-          new_data = receiver.recv() => if new_data.is_some() {
-            data = new_data;
-          } else {
-            // one last update before ending the update limiter
-            if let Some(data) = data {
-              f(data);
-            }
-            break;
-          },
-          _ = sleep(remaining) => {
-            if let Some(data_val) = data {
-              f(data_val);
-              data = None;
-              last_update = Instant::now();
-            }
-          },
-        };
+      while receiver.changed().await.is_ok() {
+        let data = receiver.borrow_and_update().clone();
+        if let Some(data) = data {
+          f(data);
+        }
+        sleep(delay).await;
       }
     });
 
@@ -121,7 +85,31 @@ impl<T: Send + Sync + 'static> UpdateLimiter<T> {
     }
   }
 
-  pub fn call(&self, data: T) -> Result<()> {
-    Ok(self.sender.try_send(data).log()?)
+  pub fn call(&self, data: T) {
+    self.sender.send_replace(Some(data));
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use std::sync::{Arc, Mutex};
+
+  use super::*;
+
+  #[tokio::test]
+  async fn limiter_delivers_the_last_update() {
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let sink = seen.clone();
+    let limiter = UpdateLimiter::new(Duration::from_millis(20), move |n| {
+      sink.lock().unwrap().push(n)
+    });
+    for n in 0..1000 {
+      limiter.call(n);
+    }
+    drop(limiter);
+    sleep(Duration::from_millis(100)).await;
+    let seen = seen.lock().unwrap();
+    assert!(seen.len() < 10);
+    assert_eq!(seen.last(), Some(&999));
   }
 }

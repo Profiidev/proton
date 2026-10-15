@@ -33,7 +33,8 @@ fn async_watcher(config: Config) -> notify::Result<(RecommendedWatcher, Receiver
     move |res| {
       block_on(async {
         if let Ok(event) = res {
-          let _ = tx.send(event).await.log();
+          // fails once the watch loop stopped, the remaining events are not needed
+          let _ = tx.send(event).await;
         }
       })
     },
@@ -80,7 +81,7 @@ pub fn watch_profile(path: PathBuf, profile: String, app: AppHandle) -> Result<A
       }
 
       if event.paths.iter().any(|p| is_content(&path, p)) {
-        let _ = content.call(());
+        content.call(());
       }
 
       if event.paths.iter().any(|p| p.ends_with(QUICK_PLAY)) {

@@ -65,7 +65,7 @@ pub fn emit_download_check_status(handle: &AppHandle, data: DownloadCheckStatus,
   });
 
   let done = data == DownloadCheckStatus::Done;
-  let _ = func.call(data);
+  func.call(data);
 
   if done {
     debounce_state.debounce.remove(&id);

@@ -46,7 +46,9 @@
       No download folders set, add one in Settings, Minecraft.
     {/if}
   </span>
-  <div class="bg-card/50 flex flex-col overflow-hidden rounded-xl border">
+  <div
+    class="bg-card/50 flex max-h-64 shrink-0 flex-col overflow-y-auto rounded-xl border"
+  >
     {#each files as file (file.fileId)}
       <div
         class="flex flex-wrap items-center gap-3 border-b px-3 py-2.5 last:border-0"

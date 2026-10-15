@@ -120,21 +120,23 @@
   );
 
   const install = async () => {
-    if (!plan || !profile) return;
+    // closing resets the reactive plan, keep what this install needs
+    const [target, picked, paths] = [profile, plan, found];
+    if (!picked || !target) return;
     open = false;
-    content_target.id = profile.id;
+    content_target.id = target.id;
     // Restricted files come from the download folders
-    for (const file of plan.manual) {
-      if (await content_adopt_file(profile.id, file, found[file.fileId])) {
-        toast.error(`Failed to add ${file.fileName} to ${profile.name}`);
+    for (const file of picked.manual) {
+      if (await content_adopt_file(target.id, file, paths[file.fileId])) {
+        toast.error(`Failed to add ${file.fileName} to ${target.name}`);
         return;
       }
     }
-    const rest = { ...plan, manual: [] };
+    const rest = { ...picked, manual: [] };
     if (rest.items.length === 0) {
-      toast.success(`Installed ${project.name} in ${profile.name}`);
+      toast.success(`Installed ${project.name} in ${target.name}`);
     } else {
-      void content_install(rest, profile.name);
+      void content_install(rest, target.name);
     }
   };
 </script>

@@ -439,6 +439,7 @@ pub async fn modpack_install(
   handle: AppHandle,
   plan: PackPlan,
   name: String,
+  manual: HashMap<String, PathBuf>,
   id: usize,
 ) -> Result<String> {
   trace!("Command modpack_install called with name {name} id {id}");
@@ -495,7 +496,7 @@ pub async fn modpack_install(
     store.update_data(UpdateType::Profiles);
     let dir = store.get_profile_path(&profile)?;
     drop(store);
-    modpack::install_files(
+    let done = modpack::install_files(
       &providers,
       &dir,
       &archive,
@@ -504,13 +505,22 @@ pub async fn modpack_install(
       &guard.notify,
       progress,
     )
-    .await
+    .await?;
+    // restricted files picked up from the download folders
+    for file in plan.manual.iter().filter(|_| done) {
+      let path = manual
+        .get(&file.file_id)
+        .ok_or(ContentError::NeedsManualDownload)?;
+      adopt_file(&dir, file, path).await?;
+    }
+    if !plan.manual.is_empty() {
+      update_data(&handle, UpdateType::ProfileContent);
+    }
+    anyhow::Ok(done)
   }
   .await;
+  // ponytail: the cached archive stays, other installs of the same version may still read it
   if let Ok(true) = res {
-    if matches!(plan.source, PackSource::Remote { .. }) {
-      let _ = tokio::fs::remove_file(&archive).await;
-    }
     return Ok(profile);
   }
 

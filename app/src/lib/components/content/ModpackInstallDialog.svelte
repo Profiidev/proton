@@ -1,7 +1,6 @@
 <script lang="ts">
   import * as Dialog from '@profidev/pleiades/components/ui/dialog';
   import * as Alert from '@profidev/pleiades/components/ui/alert';
-  import * as Select from '@profidev/pleiades/components/ui/select';
   import { Button } from '@profidev/pleiades/components/ui/button';
   import { Checkbox } from '@profidev/pleiades/components/ui/checkbox';
   import { Input } from '@profidev/pleiades/components/ui/input';
@@ -12,7 +11,7 @@
     LoaderCircle,
     TriangleAlert
   } from '@lucide/svelte';
-  import { toast } from '@profidev/pleiades/components/util/general';
+  import VersionSelect from '$lib/components/form/VersionSelect.svelte';
   import ProjectIcon from './ProjectIcon.svelte';
   import ManualDownloads from './ManualDownloads.svelte';
   import { plural } from '$lib/profiles';
@@ -21,7 +20,6 @@
   import { profile_launch } from '$lib/tauri/profile.svelte';
   import {
     ContentError,
-    content_adopt_file,
     content_versions,
     modpack_install,
     modpack_plan,
@@ -43,9 +41,10 @@
 
   let versions = $state<VersionInfo[]>([]);
   let picked = $state<string>();
-  let version_id = $derived(
-    versions.find((v) => v.id === picked)?.id ?? default_version(versions)?.id
+  let version = $derived(
+    versions.find((v) => v.id === picked) ?? default_version(versions)
   );
+  let version_id = $derived(version?.id);
 
   $effect(() => {
     versions = [];
@@ -116,19 +115,13 @@
   );
 
   const install = async () => {
-    if (!current) return;
+    // closing resets the reactive plan, keep what this install needs
+    const [pack, paths] = [current, found];
+    if (!pack) return;
     const profile_name = name.trim();
     open = false;
-    const id = await modpack_install(current, profile_name);
-    if (!id) return;
-    // Restricted files come from the download folders
-    for (const file of current.manual) {
-      if (await content_adopt_file(id, file, found[file.fileId])) {
-        toast.error(`Failed to add ${file.fileName} to ${profile_name}`);
-        return;
-      }
-    }
-    if (start) {
+    const id = await modpack_install(pack, profile_name, paths);
+    if (id && start) {
       await profile_launch(id, profile_name, account_active.value);
     }
   };
@@ -188,24 +181,15 @@
       {#if project}
         <div class="flex min-w-0 flex-[1_1_160px] flex-col gap-1.5">
           <Label>Pack version</Label>
-          <Select.Root
-            type="single"
-            bind:value={() => version_id ?? '', (id) => (picked = id)}
-          >
-            <Select.Trigger
-              aria-label="Pack version"
-              class="w-full"
-              disabled={versions.length === 0}
-            >
-              {versions.find((v) => v.id === version_id)?.versionNumber ??
-                'Select'}
-            </Select.Trigger>
-            <Select.Content>
-              {#each versions as v (v.id)}
-                <Select.Item value={v.id} label={version_label(v)} />
-              {/each}
-            </Select.Content>
-          </Select.Root>
+          <VersionSelect
+            label="Pack version"
+            options={versions.map(version_label)}
+            disabled={versions.length === 0}
+            bind:value={
+              () => version && version_label(version),
+              (l) => (picked = versions.find((v) => version_label(v) === l)?.id)
+            }
+          />
         </div>
       {/if}
     </div>

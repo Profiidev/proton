@@ -385,10 +385,15 @@ export const modpack_plan = async (source: PackSource) =>
   get_or_error<PackPlan>('modpack_plan', { source });
 
 /** Resolves to the new profile id, undefined on failure or cancel */
-export const modpack_install = async (plan: PackPlan, name: string) =>
+/** `manual` maps the restricted file ids to the downloaded files */
+export const modpack_install = async (
+  plan: PackPlan,
+  name: string,
+  manual: Record<string, string>
+) =>
   run_job<string>(
     'modpack_install',
-    { name, plan },
+    { manual, name, plan },
     `${name}: install`,
     `Installed modpack ${name}`,
     `Failed to install modpack ${name}`
