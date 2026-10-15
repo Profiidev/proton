@@ -167,6 +167,8 @@
     })
   );
 
+  const scroll = 'lg:min-h-0 lg:flex-1 lg:overflow-y-auto';
+
   let dialog_open = $state(false);
   let dialog_version = $state<string>();
   const install = (version?: string) => {
@@ -189,7 +191,8 @@
   };
 </script>
 
-<div class="flex flex-col gap-4 px-5 pt-4 pb-6">
+<!-- wide windows scroll only the tab content, narrow ones wrap and scroll the page -->
+<div class="flex flex-col gap-4 px-5 pt-4 pb-6 lg:h-full lg:min-h-0">
   {#if summary && detail}
     <header class="flex shrink-0 flex-wrap items-center gap-4">
       <ProjectIcon
@@ -240,21 +243,29 @@
       </div>
     </header>
 
-    <div class="flex flex-wrap items-start gap-5">
-      <Tabs.Root value="description" class="min-w-0 flex-[999_1_520px]">
+    <div
+      class="flex flex-wrap items-start gap-5 lg:min-h-0 lg:flex-1 lg:flex-nowrap"
+    >
+      <Tabs.Root
+        value="description"
+        class="min-w-0 flex-[999_1_520px] lg:min-h-0 lg:self-stretch"
+      >
         <Tabs.List>
           <Tabs.Trigger value="description">Description</Tabs.Trigger>
           <Tabs.Trigger value="versions">Versions</Tabs.Trigger>
           <Tabs.Trigger value="gallery">Gallery</Tabs.Trigger>
         </Tabs.List>
-        <Tabs.Content value="description" class="pt-3">
+        <Tabs.Content value="description" class={[scroll, 'pt-3']}>
           <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
           <div class="prose-content max-w-160" onclick={open_link}>
             <!-- eslint-disable-next-line svelte/no-at-html-tags -- sanitized by the backend -->
             {@html detail.body}
           </div>
         </Tabs.Content>
-        <Tabs.Content value="versions" class="flex flex-col gap-3 pt-2">
+        <Tabs.Content
+          value="versions"
+          class={[scroll, 'flex flex-col gap-3 pt-2']}
+        >
           {#if !is_pack && target}
             <Label class="font-normal">
               <Switch bind:checked={show_all} />
@@ -328,7 +339,7 @@
             </Empty.Root>
           {/if}
         </Tabs.Content>
-        <Tabs.Content value="gallery" class="pt-3">
+        <Tabs.Content value="gallery" class={[scroll, 'pt-3']}>
           {#if detail.gallery.length > 0}
             <div
               class="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-2"
@@ -362,7 +373,9 @@
         </Tabs.Content>
       </Tabs.Root>
 
-      <aside class="flex flex-[0_0_260px] flex-col gap-3">
+      <aside
+        class="flex flex-[0_0_260px] flex-col gap-3 lg:max-h-full lg:overflow-y-auto"
+      >
         <div class={card}>
           <span class="font-medium">Compatibility</span>
           {#if summary.gameVersions.length > 0}
