@@ -56,8 +56,7 @@ impl ProfileStore {
       } else {
         path
       };
-      let Some(watcher) =
-        watch_profile(path!(&data_dir, &path), id.clone(), handle.clone()).ok()
+      let Some(watcher) = watch_profile(path!(&data_dir, &path), id.clone(), handle.clone()).ok()
       else {
         continue;
       };
