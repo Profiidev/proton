@@ -130,3 +130,8 @@
     @apply font-sans;
   }
 }
+
+/* :active bubbles to ancestors, so stop outer buttons moving when a nested one is pressed */
+[data-slot='button']:has(:is(button, a, [role='button']):active) {
+  translate: none;
+}

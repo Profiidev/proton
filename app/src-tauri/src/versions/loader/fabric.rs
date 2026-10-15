@@ -196,10 +196,10 @@ impl LoaderVersion for FabricLikeLoaderVersion {
       ));
     }
 
-    let mut libs = vec![meta.loader.maven, meta.intermediary.maven];
-    if let Some(hashed) = meta.hashed {
-      libs.push(hashed.maven);
-    }
+    // unobfuscated versions (26.1+) have no intermediary on quilt
+    let mut libs = vec![meta.loader.maven];
+    libs.extend(meta.intermediary.map(|i| i.maven));
+    libs.extend(meta.hashed.map(|h| h.maven));
 
     for lib in libs {
       let base_url = if lib.contains("fabricmc") {
@@ -245,10 +245,9 @@ impl LoaderVersion for FabricLikeLoaderVersion {
     }
 
     libs.push(ClasspathEntry::from_name(&meta.loader.maven, mc_path)?);
-    libs.push(ClasspathEntry::from_name(
-      &meta.intermediary.maven,
-      mc_path,
-    )?);
+    if let Some(intermediary) = meta.intermediary {
+      libs.push(ClasspathEntry::from_name(&intermediary.maven, mc_path)?);
+    }
 
     Ok(libs)
   }
@@ -272,7 +271,7 @@ impl LoaderVersion for FabricLikeLoaderVersion {
 #[serde(rename_all = "camelCase")]
 struct FabricVersionMeta {
   loader: MavenLib,
-  intermediary: MavenLib,
+  intermediary: Option<MavenLib>,
   hashed: Option<MavenLib>,
   launcher_meta: FabricLauncherMeta,
 }
