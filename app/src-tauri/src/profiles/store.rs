@@ -1,7 +1,12 @@
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{
+  collections::HashMap,
+  path::{Path, PathBuf},
+  sync::Arc,
+};
 
 use anyhow::Result;
 use chrono::Utc;
+use sysinfo::{Pid, ProcessesToUpdate, System};
 use tauri::{AppHandle, Manager};
 use tokio::sync::Mutex;
 
@@ -80,9 +85,18 @@ impl ProfileStore {
     icon: Option<&[u8]>,
     version: String,
     loader: LoaderType,
+    loader_version: Option<String>,
   ) -> Result<()> {
-    let (id, info) =
-      Profile::create(&self.data_dir, &self.handle, name, icon, version, loader).await?;
+    let (id, info) = Profile::create(
+      &self.data_dir,
+      &self.handle,
+      name,
+      icon,
+      version,
+      loader,
+      loader_version,
+    )
+    .await?;
     self.profiles.insert(id, info);
     self.save()?;
 
@@ -143,8 +157,8 @@ impl ProfileStore {
       access_token: info.access_token,
       launcher_name: self.handle.package_info().name.clone(),
       launcher_version: self.handle.package_info().version.to_string(),
-      player_name: info.name,
-      player_uuid: info.id,
+      player_name: info.name.clone(),
+      player_uuid: info.id.clone(),
       user_type: "msa".into(),
       data_dir,
       version: profile.version.clone(),
@@ -156,7 +170,15 @@ impl ProfileStore {
     })
     .await?;
 
-    Instance::create(child, &self.handle, &profile, &self.instances).await?;
+    Instance::create(
+      child,
+      &self.handle,
+      &profile,
+      info.name,
+      info.id,
+      &self.instances,
+    )
+    .await?;
 
     Ok(())
   }
@@ -233,6 +255,14 @@ impl ProfileStore {
     let instances = self.instances.lock().await;
     let mut res = Vec::new();
 
+    let pids: Vec<Pid> = instances
+      .values()
+      .flatten()
+      .map(|i| Pid::from_u32(i.pid()))
+      .collect();
+    let mut system = System::new();
+    system.refresh_processes(ProcessesToUpdate::Some(&pids), true);
+
     for (profile, instances) in instances.iter() {
       let profile_name = self.profile(profile).await.ok().map(|p| p.name);
 
@@ -246,6 +276,9 @@ impl ProfileStore {
           loader: i.loader(),
           loader_version: i.loader_version().cloned(),
           launched_at: i.launched_at(),
+          account_name: Some(i.account_name().to_string()),
+          account_id: Some(i.account_id().to_string()),
+          memory_used: system.process(Pid::from_u32(i.pid())).map(|p| p.memory()),
         })
         .collect();
       if instances.is_empty() {
@@ -256,6 +289,23 @@ impl ProfileStore {
     }
 
     res
+  }
+
+  pub fn mods_dirs(&self) -> Vec<(String, PathBuf)> {
+    self
+      .profiles
+      .iter()
+      .map(|(id, info)| (id.clone(), path!(&self.data_dir, &info.path, "mods")))
+      .collect()
+  }
+
+  pub async fn stop_all_instances(&self, profile: Option<&str>) {
+    let instances = self.instances.lock().await;
+    instances
+      .iter()
+      .filter(|(id, _)| profile.is_none_or(|p| p == id.as_str()))
+      .flat_map(|(_, entry)| entry)
+      .for_each(Instance::stop);
   }
 
   pub async fn get_instance_logs(&self, profile: &str, id: &str) -> Result<Vec<String>> {
@@ -310,5 +360,42 @@ impl ProfileStore {
 
   pub fn update_data(&self, r#type: UpdateType) {
     update_data(&self.handle, r#type);
+  }
+}
+
+/// Number of `*.jar` files directly inside `dir`, 0 if it does not exist
+pub fn count_mod_jars(dir: &Path) -> usize {
+  let Ok(entries) = std::fs::read_dir(dir) else {
+    return 0;
+  };
+  entries
+    .flatten()
+    .filter(|e| e.file_type().is_ok_and(|t| t.is_file()))
+    .filter(|e| {
+      e.path()
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("jar"))
+    })
+    .count()
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn count_mod_jars_counts_only_jar_files() {
+    let dir = std::env::temp_dir().join(format!("proton-mods-test-{}", std::process::id()));
+    assert_eq!(count_mod_jars(&dir), 0);
+
+    std::fs::create_dir_all(dir.join("sub.jar")).unwrap();
+    for name in ["a.jar", "b.JAR", "c.jar.disabled", "d.txt", "jar"] {
+      std::fs::write(dir.join(name), b"").unwrap();
+    }
+    std::fs::write(dir.join("sub.jar").join("e.jar"), b"").unwrap();
+
+    assert_eq!(count_mod_jars(&dir), 2);
+
+    std::fs::remove_dir_all(&dir).unwrap();
   }
 }

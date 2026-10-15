@@ -8,10 +8,10 @@
   } from '$lib/tauri/account.svelte';
   import { LoaderCircle } from '@lucide/svelte';
   import { Label } from '@profidev/pleiades/components/ui/label';
-  import * as Select from '@profidev/pleiades/components/ui/select';
+  import * as NativeSelect from '@profidev/pleiades/components/ui/native-select';
   import {
     IdleAnimation,
-    type PlayerAnimation,
+    RunningAnimation,
     SkinViewer,
     WalkingAnimation,
     WaveAnimation,
@@ -19,148 +19,112 @@
   } from 'skinview3d';
   import { onMount } from 'svelte';
 
-  interface Props {
-    flipped?: boolean;
-  }
-
-  let { flipped }: Props = $props();
-
   let accounts = $derived(account_list.value);
   let active_account = $derived(account_active.value);
-  let account = $derived(
-    accounts && Object.entries(accounts).find((a) => a[0] === active_account)
+  let account = $derived(active_account ? accounts?.[active_account] : null);
+  let cape_url = $derived(
+    account?.capes.find((c) => c.state === State.Active)?.url
   );
 
   let canvas: HTMLCanvasElement | undefined = $state();
-  let mainViewer: SkinViewer | undefined = $state();
-  let animation: string = $state('Idle');
-  let cape_option: string = $state('Cape');
+  let viewer: SkinViewer | undefined = $state();
+  let animation = $state('idle');
+  let back: BackEquipment | 'none' = $state('cape');
 
-  let animations: {
-    key: string;
-    value: PlayerAnimation;
-  }[] = [
-    {
-      key: 'Idle',
-      value: new IdleAnimation()
-    },
-    {
-      key: 'Walking',
-      value: new WalkingAnimation()
-    },
-    {
-      key: 'Waving',
-      value: new WaveAnimation()
-    }
-  ];
-
-  let cape_options: string[] = ['None', 'Cape', 'Elytra'];
-
-  $effect(() => {
-    animation;
-    if (mainViewer) {
-      mainViewer.animation = animations.find((a) => a.key === animation)!.value;
-    }
-  });
-
-  $effect(() => {
-    account;
-    mainViewer;
-    if (mainViewer && account && account[1]) {
-      let url = account[1].skins.find((s) => s.state === State.Active)?.url;
-      if (url) {
-        account_get_skin(url).then((data) => {
-          if (data && mainViewer) {
-            mainViewer.loadSkin(`data:image/png;base64, ${data.data}`);
-          }
-        });
-      }
-    }
-  });
-
-  $effect(() => {
-    account;
-    mainViewer;
-    cape_option;
-    if (mainViewer && account && account[1]) {
-      let url = account[1].capes.find((s) => s.state === State.Active)?.url;
-      if (url) {
-        account_get_cape(url).then((data) => {
-          if (data && mainViewer) {
-            let backEquipment: BackEquipment | undefined;
-
-            switch (cape_option) {
-              case 'None':
-                mainViewer.loadCape(null);
-                break;
-              case 'Elytra':
-                backEquipment = 'elytra';
-              case 'Cape':
-                mainViewer.loadCape(`data:image/png;base64, ${data.data}`, {
-                  backEquipment
-                });
-                break;
-            }
-          }
-        });
-      } else {
-        mainViewer.loadCape(null);
-      }
-    }
-  });
-
-  const init = () => {
-    mainViewer = new SkinViewer({
-      canvas,
-      width: 280,
-      height: 400,
-      zoom: 0.8
-    });
-
-    mainViewer.controls.enableZoom = false;
-    if (flipped) {
-      mainViewer.camera.position.z = -50;
-    }
+  const animations = {
+    none: () => null,
+    idle: () => new IdleAnimation(),
+    walking: () => new WalkingAnimation(),
+    running: () => new RunningAnimation(),
+    waving: () => new WaveAnimation()
   };
 
+  $effect(() => {
+    if (viewer) {
+      viewer.animation =
+        animations[animation as keyof typeof animations]?.() ?? null;
+    }
+  });
+
+  let skin_url = $derived(
+    account?.skins.find((s) => s.state === State.Active)?.url
+  );
+
+  $effect(() => {
+    let url = skin_url;
+    if (viewer && url) {
+      account_get_skin(url).then((data) => {
+        if (data) viewer?.loadSkin(`data:image/png;base64, ${data.data}`);
+      });
+    }
+  });
+
+  $effect(() => {
+    if (!viewer) return;
+    if (!cape_url || back === 'none') {
+      viewer.loadCape(null);
+      return;
+    }
+    let backEquipment = back;
+    account_get_cape(cape_url).then((data) => {
+      if (data) {
+        viewer?.loadCape(`data:image/png;base64, ${data.data}`, {
+          backEquipment
+        });
+      }
+    });
+  });
+
   onMount(() => {
-    setTimeout(init);
+    let v: SkinViewer | undefined;
+    const timeout = setTimeout(() => {
+      v = new SkinViewer({ canvas, width: 212, height: 280, zoom: 0.8 });
+      v.controls.enableZoom = false;
+      viewer = v;
+    });
+    return () => {
+      clearTimeout(timeout);
+      v?.dispose();
+    };
   });
 </script>
 
-<div class="flex h-full w-70 flex-col">
-  <p class="my-2 w-full text-center">Active</p>
-  <div class="relative h-100 w-full">
-    <canvas bind:this={canvas} class="h-100 w-full select-none"></canvas>
-    {#if !mainViewer}
-      <div
-        class="absolute top-0 left-0 flex h-100 w-full items-center justify-center"
-      >
-        <LoaderCircle class="size-16 animate-spin" />
+<div
+  class="bg-card ring-foreground/10 flex w-60 shrink-0 flex-col gap-3 rounded-xl p-3.5 ring-1"
+>
+  <div class="bg-muted relative h-70 rounded-lg">
+    <canvas bind:this={canvas} class="h-70 w-full select-none"></canvas>
+    {#if !viewer}
+      <div class="absolute inset-0 flex items-center justify-center">
+        <LoaderCircle class="size-10 animate-spin" />
       </div>
     {/if}
   </div>
-  <p class="w-full text-center">Display Options</p>
-  <Label class="my-2">Animation</Label>
-  <Select.Root bind:value={animation} type="single">
-    <Select.Trigger class="w-full">{animation}</Select.Trigger>
-    <Select.Content>
-      {#each animations as animation}
-        <Select.Item value={animation.key} label={animation.key}
-          >{animation.key}</Select.Item
-        >
-      {/each}
-    </Select.Content>
-  </Select.Root>
-  {#if account?.[1]?.capes.find((c) => c.state === State.Active)}
-    <Label class="my-2">Back Equipment</Label>
-    <Select.Root bind:value={cape_option} type="single">
-      <Select.Trigger class="w-full">{cape_option}</Select.Trigger>
-      <Select.Content>
-        {#each cape_options as option}
-          <Select.Item value={option} label={option}>{option}</Select.Item>
-        {/each}
-      </Select.Content>
-    </Select.Root>
-  {/if}
+  <div class="flex flex-col gap-1.5">
+    <Label for="skin-animation">Animation</Label>
+    <NativeSelect.Root
+      id="skin-animation"
+      class="w-full"
+      bind:value={animation}
+    >
+      <NativeSelect.Option value="none">None</NativeSelect.Option>
+      <NativeSelect.Option value="idle">Idle</NativeSelect.Option>
+      <NativeSelect.Option value="walking">Walking</NativeSelect.Option>
+      <NativeSelect.Option value="running">Running</NativeSelect.Option>
+      <NativeSelect.Option value="waving">Waving</NativeSelect.Option>
+    </NativeSelect.Root>
+  </div>
+  <div class="flex flex-col gap-1.5">
+    <Label for="skin-back">Back equipment</Label>
+    <NativeSelect.Root
+      id="skin-back"
+      class="w-full"
+      bind:value={back}
+      disabled={!cape_url}
+    >
+      <NativeSelect.Option value="none">None</NativeSelect.Option>
+      <NativeSelect.Option value="cape">Cape</NativeSelect.Option>
+      <NativeSelect.Option value="elytra">Elytra</NativeSelect.Option>
+    </NativeSelect.Root>
+  </div>
 </div>

@@ -1,72 +1,23 @@
 <script lang="ts">
-  import {
-    LoaderType,
-    profile_create,
-    profile_launch,
-    profile_list,
-    ProfileError
-  } from '$lib/tauri/profile.svelte';
-  import FormDialog from '@profidev/pleiades/components/form/form-dialog.svelte';
-  import FormInput from '@profidev/pleiades/components/form/form-input.svelte';
-  import { profileCreateSchema } from './schema.svelte';
-  import {
-    vanilla_version_list,
-    version_list
-  } from '$lib/tauri/versions.svelte';
+  import { profile_list } from '$lib/tauri/profile.svelte';
+  import { vanilla_version_list } from '$lib/tauri/versions.svelte';
   import { Input } from '@profidev/pleiades/components/ui/input';
-  import { ScrollArea } from '@profidev/pleiades/components/ui/scroll-area';
-  import { Plus } from '@lucide/svelte';
-  import FormImage from '../../lib/components/form/FormImage.svelte';
-  import { compareProfiles, file_to_bytes } from '$lib/util.svelte';
+  import { Button } from '@profidev/pleiades/components/ui/button';
+  import * as Dialog from '@profidev/pleiades/components/ui/dialog';
+  import { Plus, Search } from '@lucide/svelte';
+  import { compareProfiles } from '$lib/util.svelte';
   import Multiselect from '@profidev/pleiades/components/table/multiselect.svelte';
   import Fuse from 'fuse.js';
-  import { goto } from '$app/navigation';
-  import { account_active } from '$lib/tauri/account.svelte';
-  import ProfileListButton from '$lib/components/profile/ProfileListButton.svelte';
-  import FormSelectUpdate from '$lib/components/form/FormSelectUpdate.svelte';
-  import type { FormValue } from '@profidev/pleiades/components/form/types';
+  import ProfileCard from '$lib/components/profile/ProfileCard.svelte';
+  import { profiles_summary } from '$lib/profiles';
+  import CreateProfileForm from './CreateProfileForm.svelte';
 
   let version_filter = $state<string[]>([]);
   let loader_filter = $state<string[]>([]);
   let text_filter = $state('');
   let createOpen = $state(false);
-  let createDialog = $state<FormDialog<typeof profileCreateSchema>>();
-  let currentLoader = $state<[LoaderType]>([LoaderType.Vanilla]);
-  let currentVersion = $state<[string]>();
-  let new_version_list = $state<string[]>();
-  $effect(() => {
-    version_list(currentLoader[0])
-      .catch(() => [] as string[])
-      .then((versions) => {
-        new_version_list = versions;
-        if (
-          versions &&
-          currentVersion &&
-          !versions.includes(currentVersion[0])
-        ) {
-          currentVersion = [versions[0]];
-        }
-      });
-  });
 
-  let active_account = $derived(account_active.value);
   let profiles = $derived(profile_list.value);
-  let vanilla_versions = $derived(
-    (vanilla_version_list.value ?? []).map((v) => ({
-      label: v,
-      value: v
-    }))
-  );
-
-  $effect(() => {
-    if (createOpen) {
-      createDialog?.setValue({
-        name: '',
-        loader: [LoaderType.Vanilla],
-        version: vanilla_versions?.length ? [vanilla_versions[0].value] : []
-      });
-    }
-  });
 
   let profile_fuse = $derived(
     new Fuse(profiles ?? [], {
@@ -104,126 +55,76 @@
       .toSorted(compareProfiles)
   );
   let filtered_versions = $derived(
-    vanilla_versions?.filter((v) =>
-      profiles?.some((p) => p.version === v.value)
-    )
+    (vanilla_version_list.value ?? [])
+      .filter((v) => profiles?.some((p) => p.version === v))
+      .map((v) => ({ label: v, value: v }))
   );
   let filtered_loaders = $derived(
-    profiles
-      ? [...new Set(profiles.map((p) => p.loader))].map((l) => ({
-          label: l,
-          value: l
-        }))
-      : []
+    [...new Set((profiles ?? []).map((p) => p.loader))].map((l) => ({
+      label: l,
+      value: l
+    }))
   );
-
-  const createProfile = async (form: FormValue<typeof profileCreateSchema>) => {
-    let data: any = { ...form };
-    data.version = form.version[0];
-    data.loader = form.loader[0];
-    if (form.icon) {
-      data.icon = await file_to_bytes(form.icon);
-    }
-
-    let res = await profile_create(data);
-    if (res === ProfileError.InvalidImage) {
-      return { field: 'icon', error: 'Invalid image' } as const;
-    } else if (res === ProfileError.Other) {
-      return { error: 'Failed to create profile' };
-    }
-  };
 </script>
 
-<div class="flex size-full flex-col">
-  <div class="flex w-full flex-wrap gap-2">
-    <Input
-      placeholder="Search profiles..."
-      bind:value={text_filter}
-      class="min-w-48 flex-1"
-      type="search"
-    />
+<div class="flex flex-col gap-4 px-5 pt-4 pb-6">
+  <div class="flex flex-wrap items-baseline gap-2.5">
+    <h1 class="text-xl font-semibold tracking-tight">Profiles</h1>
+    <span class="text-muted-foreground text-sm">
+      {profiles_summary(profiles ?? [])}
+    </span>
+  </div>
+  <div class="flex flex-wrap items-center gap-2">
+    <div class="relative min-w-50 flex-[1_1_280px]">
+      <Search
+        class="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2"
+      />
+      <Input
+        placeholder="Search profiles by name, loader or version"
+        aria-label="Search profiles"
+        bind:value={text_filter}
+        class="pl-8"
+        type="search"
+      />
+    </div>
     <Multiselect
-      data={filtered_loaders ?? []}
+      data={filtered_loaders}
       label="Loader"
       bind:selected={loader_filter}
-      buttonPrefix="Search"
-      class="w-35"
+      buttonPrefix=""
     />
     <Multiselect
-      data={filtered_versions ?? []}
+      data={filtered_versions}
       label="Version"
       bind:selected={version_filter}
-      buttonPrefix="Search"
-      class="w-35"
+      buttonPrefix=""
     />
-    <FormDialog
-      title="Create Profile"
-      confirm="Create"
-      trigger={{
-        size: 'icon'
-      }}
-      schema={profileCreateSchema}
-      onsubmit={createProfile}
-      bind:open={createOpen}
-      bind:this={createDialog as any}
-      class="w-100"
-    >
-      {#snippet triggerInner()}
-        <Plus />
-      {/snippet}
-      {#snippet children({ props })}
-        <div class="flex w-full">
-          <div>
-            <FormImage key="icon" class="mt-6 size-20" {...props} />
-          </div>
-          <div class="ml-auto">
-            <FormInput label="Name" placeholder="Name" key="name" {...props} />
-            <FormSelectUpdate
-              bind:val={currentLoader}
-              label="Loader"
-              key="loader"
-              single={true}
-              data={Object.keys(LoaderType).map((l) => ({
-                label: l,
-                value: l as LoaderType
-              })) ?? []}
-              {...props}
-            />
-            <FormSelectUpdate
-              bind:val={currentVersion}
-              label="Version"
-              key="version"
-              single={true}
-              data={new_version_list?.map((v) => ({
-                label: v,
-                value: v
-              })) ?? []}
-              {...props}
-            />
-          </div>
-        </div>
-      {/snippet}
-    </FormDialog>
+    <Button onclick={() => (createOpen = true)}>
+      <Plus data-icon="inline-start" />
+      New profile
+    </Button>
   </div>
-  {#if filtered_profiles && filtered_profiles.length > 0}
-    <ScrollArea class="mt-2 min-h-0 grow">
-      <div
-        class="grid size-full auto-rows-min grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-2"
-      >
-        {#each filtered_profiles as profile}
-          <ProfileListButton
-            onclick={() => goto(`/profiles/info/quick_play?id=${profile.id}`)}
-            onclickInner={() => {
-              profile_launch(profile.id, profile.name, active_account);
-            }}
-            item={profile}
-          />
-        {/each}
-      </div>
-    </ScrollArea>
+  {#if filtered_profiles.length > 0}
+    <div class="grid grid-cols-[repeat(auto-fill,minmax(264px,1fr))] gap-2">
+      {#each filtered_profiles as profile (profile.id)}
+        <ProfileCard {profile} />
+      {/each}
+    </div>
   {:else}
-    <p class="text-muted-foreground mt-2 text-center">
+    <p class="text-muted-foreground text-center">
       No profiles found. Adjust your filters or create a new profile.
     </p>
   {/if}
 </div>
+
+<Dialog.Root bind:open={createOpen}>
+  <Dialog.Content
+    class="w-[min(620px,calc(100vw-32px))] max-w-none gap-5 sm:max-w-none"
+  >
+    <Dialog.Header>
+      <Dialog.Title>Create profile</Dialog.Title>
+      <Dialog.Description>Pick a loader and version.</Dialog.Description>
+    </Dialog.Header>
+    <CreateProfileForm onclose={() => (createOpen = false)} />
+  </Dialog.Content>
+</Dialog.Root>

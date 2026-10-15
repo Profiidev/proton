@@ -1,94 +1,143 @@
 <script lang="ts">
-  import { goto } from '$app/navigation';
   import ProfileExternalLink from '$lib/components/profile/ProfileExternalLink.svelte';
-  import ProfileListButton from '$lib/components/profile/ProfileListButton.svelte';
+  import ProfileCard from '$lib/components/profile/ProfileCard.svelte';
+  import ProfileIcon from '$lib/components/profile/ProfileIcon.svelte';
   import { account_active } from '$lib/tauri/account.svelte';
   import {
     profile_favorites_list,
     profile_history_list
   } from '$lib/tauri/home.svelte';
-  import { profile_launch } from '$lib/tauri/profile.svelte';
+  import {
+    LoaderType,
+    profile_launch,
+    profile_list,
+    profile_mods_count
+  } from '$lib/tauri/profile.svelte';
+  import { instance_list } from '$lib/tauri/instance.svelte';
   import { compareProfiles } from '$lib/util.svelte';
-  import { FastForward } from '@lucide/svelte';
-  import { Separator } from '@profidev/pleiades/components/ui/separator';
+  import { continue_quick_play, latest_played, plural } from '$lib/profiles';
+  import { running_label } from '$lib/instances';
+  import { Play } from '@lucide/svelte';
+  import { Button } from '@profidev/pleiades/components/ui/button';
 
-  let favorites = $derived(profile_favorites_list.value);
   let sorted_favorites = $derived(
-    (favorites ?? []).toSorted((a, b) => compareProfiles(a.profile, b.profile))
+    (profile_favorites_list.value ?? []).toSorted((a, b) =>
+      compareProfiles(a.profile, b.profile)
+    )
   );
-  let history = $derived(profile_history_list.value);
   let sorted_history = $derived(
-    (history ?? []).toSorted((a, b) => compareProfiles(a.profile, b.profile))
+    (profile_history_list.value ?? []).toSorted((a, b) =>
+      compareProfiles(a.profile, b.profile)
+    )
   );
   let active_account = $derived(account_active.value);
+  let current = $derived(latest_played(profile_list.value ?? []));
+  let current_quick_play = $derived(
+    current ? continue_quick_play(current) : undefined
+  );
+  let current_running = $derived(
+    instance_list.value?.filter((i) => i.profile_id === current?.id).length ?? 0
+  );
+  let current_mods = $derived(
+    current && current.loader !== LoaderType.Vanilla
+      ? profile_mods_count.value?.[current.id]
+      : undefined
+  );
 </script>
 
-<div class="size-full">
-  <p class="text-md font-bold">Favorites</p>
-  <Separator class="my-2" />
-  {#if sorted_favorites.length > 0}
-    <div
-      class="grid h-auto w-full auto-rows-min grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-2"
+<div class="flex flex-col gap-6 px-5 pt-4 pb-6">
+  {#if current}
+    <section
+      class="bg-card ring-foreground/10 flex flex-wrap items-center gap-4 rounded-xl p-4 ring-1"
     >
-      {#each sorted_favorites as favorite}
-        <ProfileListButton
-          onclick={() =>
-            goto(
-              `/profiles/info/quick_play/${favorite.quick_play?.type.toLocaleLowerCase() ?? 'singleplayer'}?id=${favorite.profile.id}`
-            )}
-          onclickInner={() => {
-            profile_launch(
-              favorite.profile.id,
-              favorite.profile.name,
-              active_account,
-              favorite.quick_play
-            );
-          }}
-          item={favorite.profile}
-          quick_play={favorite.quick_play}
-          textIcon={favorite.quick_play ? FastForward : undefined}
+      <a
+        href={`/profiles/info/quick_play/${current_quick_play?.type ?? 'singleplayer'}?id=${current.id}`}
+        class="shrink-0"
+      >
+        <ProfileIcon
+          id={current.id}
+          class="bg-muted size-14 rounded-lg"
+          classFallback="size-7"
         />
-      {/each}
-    </div>
-  {:else}
-    <p class="text-muted-foreground text-center">
-      No favorites found. Add a profile or quick play option to your favorites
-      in the profile settings.
-    </p>
-    <ProfileExternalLink />
+      </a>
+      <div class="flex min-w-0 flex-[1_1_240px] flex-col gap-0.5">
+        <span
+          class="text-muted-foreground text-xs font-medium tracking-wider uppercase"
+        >
+          Continue playing
+        </span>
+        <h1 class="truncate text-xl font-semibold tracking-tight">
+          {current_quick_play?.name ?? current.name}
+        </h1>
+        <span class="text-muted-foreground text-xs">
+          {[
+            current_quick_play && current.name,
+            `${current.loader} ${current.version}`,
+            current_mods !== undefined && plural(current_mods, 'mod'),
+            current_running > 0 && running_label(current_running)
+          ]
+            .filter(Boolean)
+            .join(' · ')}
+        </span>
+      </div>
+      <Button
+        onclick={() =>
+          profile_launch(
+            current.id,
+            current.name,
+            active_account,
+            current_quick_play
+          )}
+      >
+        <Play data-icon="inline-start" />
+        {current_running > 0 ? 'Launch another' : 'Play'}
+      </Button>
+    </section>
   {/if}
-  <div class="mt-4 flex">
-    <p class="text-md font-bold">History</p>
-  </div>
-  <Separator class="my-2" />
-  {#if sorted_history.length > 0}
-    <div
-      class="grid h-auto w-full auto-rows-min grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-2"
-    >
-      {#each sorted_history as item}
-        <ProfileListButton
-          onclick={() =>
-            goto(
-              `/profiles/info/quick_play/${item.quick_play?.type.toLocaleLowerCase() ?? 'singleplayer'}?id=${item.profile.id}`
-            )}
-          onclickInner={() => {
-            profile_launch(
-              item.profile.id,
-              item.profile.name,
-              active_account,
-              item.quick_play
-            );
-          }}
-          item={item.profile}
-          quick_play={item.quick_play}
-          textIcon={item.quick_play ? FastForward : undefined}
-        />
-      {/each}
+
+  <section class="flex flex-col gap-2.5">
+    <div class="flex items-center gap-2">
+      <h2 class="text-base font-medium">Favorites</h2>
+      <span
+        class="bg-secondary inline-flex h-5 items-center rounded-full px-2 text-xs font-medium"
+      >
+        {sorted_favorites.length}
+      </span>
     </div>
-  {:else}
-    <p class="text-muted-foreground text-center">
-      No entries found in history. Launch a profile to create one.
-    </p>
-    <ProfileExternalLink />
-  {/if}
+    {#if sorted_favorites.length > 0}
+      <div class="grid grid-cols-[repeat(auto-fill,minmax(264px,1fr))] gap-2">
+        {#each sorted_favorites as favorite (`${favorite.profile.id}-${favorite.quick_play?.type}-${favorite.quick_play?.id}`)}
+          <ProfileCard
+            profile={favorite.profile}
+            quick_play={favorite.quick_play}
+          />
+        {/each}
+      </div>
+    {:else}
+      <p class="text-muted-foreground text-center">
+        No favorites found. Add a profile or quick play option to your favorites
+        in the profile settings.
+      </p>
+      <ProfileExternalLink />
+    {/if}
+  </section>
+
+  <section class="flex flex-col gap-2.5">
+    <div class="flex items-center gap-2">
+      <h2 class="text-base font-medium">History</h2>
+      <span class="text-muted-foreground text-xs">Recently played</span>
+    </div>
+    {#if sorted_history.length > 0}
+      <div class="grid grid-cols-[repeat(auto-fill,minmax(264px,1fr))] gap-2">
+        {#each sorted_history as item (`${item.profile.id}-${item.quick_play?.type}-${item.quick_play?.id}`)}
+          <ProfileCard profile={item.profile} quick_play={item.quick_play} />
+        {/each}
+      </div>
+    {:else}
+      <p class="text-muted-foreground text-center">
+        No entries found in history. Launch a profile to create one.
+      </p>
+      <ProfileExternalLink />
+    {/if}
+  </section>
 </div>

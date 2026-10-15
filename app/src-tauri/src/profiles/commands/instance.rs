@@ -37,3 +37,14 @@ pub async fn instance_stop(
   store.stop_instance(profile, id).await.log()?;
   Ok(())
 }
+
+#[tauri::command]
+pub async fn instance_stop_all(
+  state: State<'_, Mutex<ProfileStore>>,
+  profile: Option<String>,
+) -> Result<()> {
+  trace!("Command instance_stop_all called with profile {profile:?}");
+  let store = state.lock().await;
+  store.stop_all_instances(profile.as_deref()).await;
+  Ok(())
+}

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { account_get_skin } from '$lib/tauri/account.svelte';
+  import { account_get_skin, type SkinData } from '$lib/tauri/account.svelte';
   import { CircleHelp } from '@lucide/svelte';
   import { Skeleton } from '@profidev/pleiades/components/ui/skeleton';
   import * as Tooltip from '@profidev/pleiades/components/ui/tooltip';
@@ -9,14 +9,31 @@
   }
 
   let { skin_url }: Props = $props();
+
+  // State instead of {#await}, so account refreshes do not flash the skeleton
+  let skin = $state<SkinData>();
+  let loading = $state(true);
+
+  $effect(() => {
+    const url = skin_url;
+    if (!url) {
+      skin = undefined;
+      loading = false;
+      return;
+    }
+    account_get_skin(url).then((data) => {
+      skin = data;
+      loading = false;
+    });
+  });
 </script>
 
-{#await skin_url ? account_get_skin(skin_url) : Promise.resolve(undefined)}
+{#if loading}
   <Skeleton class="size-8" />
-{:then skin}
+{:else}
   {#if skin}
     <img
-      class="size-8 rounded"
+      class="size-8 shrink-0 rounded"
       style="image-rendering: pixelated;"
       src={`data:image/png;base64, ${skin.head}`}
       alt=""
@@ -25,7 +42,7 @@
     <Tooltip.Provider>
       <Tooltip.Root>
         <Tooltip.Trigger
-          class="flex size-10 min-w-10 items-center justify-center"
+          class="flex size-8 shrink-0 items-center justify-center"
         >
           <CircleHelp />
         </Tooltip.Trigger>
@@ -35,4 +52,4 @@
       </Tooltip.Root>
     </Tooltip.Provider>
   {/if}
-{/await}
+{/if}

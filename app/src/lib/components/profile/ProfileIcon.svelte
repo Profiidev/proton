@@ -27,9 +27,14 @@
 
 <!-- we need to use x so the updater is active or the icon will not be updated -->
 <p class="absolute top-1000 left-1000 hidden">{x?.charAt(0)}</p>
-<Avatar.Root class={cn('size-12 rounded-md', className)}>
+<Avatar.Root
+  class={cn('size-12 rounded-md after:rounded-[inherit]', className)}
+>
   {#if icon}
-    <Avatar.Image class="object-cover" src={`data:image/png;base64, ${icon}`} />
+    <Avatar.Image
+      class="rounded-[inherit] object-cover"
+      src={`data:image/png;base64, ${icon}`}
+    />
   {:else}
     <div class="flex size-full items-center justify-center">
       <Box class={cn('size-10', classFallback)} />

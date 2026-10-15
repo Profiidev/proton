@@ -5,4 +5,9 @@
   let list = $derived(realms_list());
 </script>
 
-<QuickPlayList value="realms" name="realms" join="realm" {list} />
+<QuickPlayList
+  value="realms"
+  empty_title="No realms found"
+  empty_description="This account does not own or belong to a Realm."
+  {list}
+/>

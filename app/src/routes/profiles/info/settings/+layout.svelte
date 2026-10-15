@@ -7,47 +7,24 @@
   let { children } = $props();
 
   let profile = $derived(getProfile());
-  let value = $state('general');
-
-  $effect(() => {
-    let route = page.url.pathname;
-    if (route.includes('/settings/general')) {
-      value = 'general';
-    } else if (route.includes('/settings/minecraft')) {
-      value = 'minecraft';
-    } else if (route.includes('/settings/java')) {
-      value = 'java';
-    } else {
-      value = 'general';
-    }
-  });
+  let value = $derived(
+    ['minecraft', 'java'].find((tab) =>
+      page.url.pathname.includes(`/settings/${tab}`)
+    ) ?? 'general'
+  );
 </script>
 
-<div class="flex w-full flex-col gap-2">
-  <Tabs.Root bind:value>
+<div class="flex w-full max-w-180 flex-col gap-4 overflow-y-auto">
+  <Tabs.Root
+    {value}
+    onValueChange={(tab) =>
+      goto(`/profiles/info/settings/${tab}?id=${profile?.id}`)}
+  >
     <Tabs.List>
-      <Tabs.Trigger
-        value="general"
-        onclick={() => {
-          goto(`/profiles/info/settings/general?id=${profile?.id}`);
-        }}>General</Tabs.Trigger
-      >
-      <Tabs.Trigger
-        value="minecraft"
-        onclick={() => {
-          goto(`/profiles/info/settings/minecraft?id=${profile?.id}`);
-        }}>Minecraft</Tabs.Trigger
-      >
-      <Tabs.Trigger
-        value="java"
-        onclick={() => {
-          goto(`/profiles/info/settings/java?id=${profile?.id}`);
-        }}>Java</Tabs.Trigger
-      >
+      <Tabs.Trigger value="general">General</Tabs.Trigger>
+      <Tabs.Trigger value="minecraft">Minecraft</Tabs.Trigger>
+      <Tabs.Trigger value="java">Java</Tabs.Trigger>
     </Tabs.List>
-
-    <div class="mx-2">
-      {@render children()}
-    </div>
   </Tabs.Root>
+  {@render children()}
 </div>

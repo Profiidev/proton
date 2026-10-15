@@ -56,3 +56,35 @@ export const profile_quick_play_icon = async (
     return undefined;
   }
 };
+
+export interface ServerStatus {
+  online: boolean;
+  players_online: number;
+  players_max: number;
+}
+
+const STATUS_TTL = 60_000;
+const status_cache = new Map<
+  string,
+  { at: number; status: Promise<ServerStatus | undefined> }
+>();
+
+/*
+ * Cached for a minute per address, so revisiting the multiplayer tab or list
+ * refreshes do not hit the status api again. Not async, so the same promise
+ * is returned while cached.
+ */
+// oxlint-disable-next-line promise-function-async
+export const quick_play_server_status = (
+  address: string
+): Promise<ServerStatus | undefined> => {
+  const cached = status_cache.get(address);
+  if (cached && Date.now() - cached.at < STATUS_TTL) {
+    return cached.status;
+  }
+  const status = invoke<ServerStatus | undefined>('quick_play_server_status', {
+    address
+  }).catch(() => undefined);
+  status_cache.set(address, { at: Date.now(), status });
+  return status;
+};

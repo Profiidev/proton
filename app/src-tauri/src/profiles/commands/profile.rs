@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use base64::prelude::*;
 use chrono::Utc;
 use log::trace;
@@ -11,7 +13,7 @@ use crate::{
   offline::OfflineResultExt,
   profiles::{
     config::{Profile, ProfileUpdate, QuickPlayInfo},
-    store::ProfileStore,
+    store::{ProfileStore, count_mod_jars},
   },
   utils::{log::ResultLogExt, updater::UpdateType},
   versions::{loader::LoaderType, store::McVersionStore},
@@ -30,6 +32,7 @@ pub async fn profile_create(
   icon: Option<Vec<u8>>,
   version: String,
   loader: LoaderType,
+  loader_version: Option<String>,
 ) -> Result<()> {
   trace!(
     "Command profile_create called with name {} version {} loader {:?}",
@@ -38,7 +41,7 @@ pub async fn profile_create(
   let mut store = state.lock().await;
 
   store
-    .create_profile(name, icon.as_deref(), version, loader)
+    .create_profile(name, icon.as_deref(), version, loader, loader_version)
     .await
     .log()?;
   store.update_data(UpdateType::Profiles);
@@ -141,6 +144,24 @@ pub async fn profile_list(state: State<'_, Mutex<ProfileStore>>) -> Result<Vec<P
   trace!("Command profile_list called");
   let store = state.lock().await;
   Ok(store.list_profiles().await.log()?)
+}
+
+#[tauri::command]
+pub async fn profile_mods_count(
+  state: State<'_, Mutex<ProfileStore>>,
+) -> Result<HashMap<String, usize>> {
+  trace!("Command profile_mods_count called");
+  let dirs = state.lock().await.mods_dirs();
+  // blocking dir reads, done without holding the store lock
+  let counts = tauri::async_runtime::spawn_blocking(move || {
+    dirs
+      .into_iter()
+      .map(|(id, dir)| (id, count_mod_jars(&dir)))
+      .collect()
+  })
+  .await
+  .map_err(anyhow::Error::from)?;
+  Ok(counts)
 }
 
 #[tauri::command]

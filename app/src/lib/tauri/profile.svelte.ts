@@ -1,19 +1,8 @@
 import { UpdateType, create_data_state } from '$lib/data-state.svelte';
 import { invoke } from '@tauri-apps/api/core';
-import {
-  TOAST_DURATION,
-  VERSION_CHECK_STATUS_EVENT,
-  type VersionCheckData,
-  type VersionCheckStatus
-} from './events.svelte';
-import { listen } from '@tauri-apps/api/event';
-import { browser } from '$app/environment';
 import { toast } from '@profidev/pleiades/components/util/general';
 import type { QuickPlayInfo } from './quick-play.svelte';
-import DownloadNotificationCancel from '$lib/components/profile/DownloadNotificationCancel.svelte';
-import type { ComponentProps } from 'svelte';
-import DownloadNotification from '$lib/components/profile/DownloadNotification.svelte';
-import { b_to_mb } from '$lib/util.svelte';
+import { download_finish, download_start } from './downloads.svelte';
 
 export interface Profile {
   id: string;
@@ -22,6 +11,7 @@ export interface Profile {
   last_played?: string;
   last_played_non_quick_play?: string;
   favorite: boolean;
+  quick_play?: QuickPlayInfo[];
   version: string;
   loader: LoaderType;
   loader_version?: string;
@@ -174,6 +164,21 @@ export const profile_list = create_data_state(
   UpdateType.Profiles
 );
 
+const profile_mods_count_call = async (): Promise<
+  Record<string, number> | undefined
+> => {
+  try {
+    return await invoke('profile_mods_count');
+  } catch {
+    return undefined;
+  }
+};
+/** Number of mod jars per profile id */
+export const profile_mods_count = create_data_state(
+  profile_mods_count_call,
+  UpdateType.Profiles
+);
+
 export const profile_launch = async (
   profile: string,
   name: string,
@@ -188,6 +193,7 @@ export const profile_launch = async (
   const _ = launch_repair(
     profile,
     'profile_launch',
+    `${name}: launch`,
     `Launching profile ${name}`,
     `Failed to launch profile ${name}`,
     quickPlay
@@ -198,197 +204,37 @@ export const profile_repair = async (profile: string, name: string) => {
   const _ = launch_repair(
     profile,
     'profile_repair',
+    `${name}: repair`,
     `Repair of profile ${name} complete`,
     `Failed to repair profile ${name}`
   );
 };
 
-const check_message = new Map<number, string>(),
-  // oxlint-disable new-cap
-  cancel = (id: number) => (internal: any, props: any) =>
-    DownloadNotificationCancel(internal, { ...props, id }),
-  launch_repair = async (
-    profile: string,
-    cmd: string,
-    message: string,
-    err: string,
-    quickPlay?: QuickPlayInfo
-  ) => {
-    const id = Math.round(Math.random() * 1_000_000);
-    try {
-      toast.loading('Checking/Downloading version manifests', {
-        cancel: cancel(id),
-        duration: TOAST_DURATION,
-        id
-      });
-      check_message.set(id, message);
-      await invoke(cmd, {
-        id,
-        profile,
-        quickPlay
-      });
-    } catch {
-      check_message.delete(id);
-
-      toast.error(err, {
-        cancel: undefined,
-        duration: undefined,
-        id
-      });
-    }
-  };
-
-export const profile_cancel_download = async (id: number) => {
+const launch_repair = async (
+  profile: string,
+  cmd: string,
+  title: string,
+  message: string,
+  err: string,
+  quickPlay?: QuickPlayInfo
+) => {
+  const id = Math.round(Math.random() * 1_000_000);
+  download_start(id, title);
   try {
-    await invoke('profile_cancel_download', { id });
+    await invoke(cmd, {
+      id,
+      profile,
+      quickPlay
+    });
   } catch {
-    // Empty
+    download_finish(id, false);
+    toast.error(err);
+    return;
   }
-  return undefined;
+  // The backend returns without error when the download was canceled
+  if (download_finish(id, true) === 'canceled') {
+    toast.warning('Check/Download canceled');
+  } else {
+    toast.success(message);
+  }
 };
-
-const message_props = (
-    info: [number, number],
-    text: string,
-    mib: boolean
-  ): ComponentProps<typeof DownloadNotification> => {
-    const [val, total] = info;
-    return {
-      change: mib,
-      convert: mib ? (value: number) => b_to_mb(value) : undefined,
-      round: mib ? (value: number) => value.toFixed(1) : undefined,
-      text,
-      total,
-      unit: mib ? 'MiB' : undefined,
-      value: val
-    };
-  },
-  // oxlint-disable-next-line complexity
-  get_message = (
-    event: VersionCheckStatus
-  ): ComponentProps<typeof DownloadNotification> | string | undefined => {
-    if (typeof event === 'string') {
-      switch (event) {
-        case 'VersionManifestCheck': {
-          return 'Checking version manifest';
-        }
-        case 'VersionManifestDownload': {
-          return 'Downloading version manifest';
-        }
-        case 'AssetsManifestCheck': {
-          return 'Checking assets manifest';
-        }
-        case 'AssetsManifestDownload': {
-          return 'Downloading assets manifest';
-        }
-        case 'JavaManifestCheck': {
-          return 'Checking java manifest';
-        }
-        case 'JavaManifestDownload': {
-          return 'Downloading java manifest';
-        }
-        case 'ClientCheck': {
-          return 'Checking client jar';
-        }
-        case 'ModLoaderMeta': {
-          return 'Downloading ModLoader version meta';
-        }
-        case 'ModLoaderFilesDownloadInfo': {
-          return 'Downloading ModLoader file information';
-        }
-        case 'ModLoaderPreprocess': {
-          return 'Running preprocessing of ModLoader';
-        }
-        case 'ModLoaderPreprocessDone': {
-          return 'Preprocessing of ModLoader done';
-        }
-        case 'Done': {
-          return undefined;
-        } // No message for done
-        default: {
-          break;
-        }
-      }
-    } else if ('ClientDownload' in event) {
-      return message_props(event.ClientDownload, 'Downloading client', true);
-    } else if ('AssetsCheck' in event) {
-      return message_props(event.AssetsCheck, 'Checking assets', false);
-    } else if ('AssetsDownload' in event) {
-      return message_props(event.AssetsDownload, 'Downloading assets', true);
-    } else if ('JavaCheck' in event) {
-      return message_props(event.JavaCheck, 'Checking java files', false);
-    } else if ('JavaDownload' in event) {
-      return message_props(event.JavaDownload, 'Downloading java files', true);
-    } else if ('NativeLibraryCheck' in event) {
-      return message_props(
-        event.NativeLibraryCheck,
-        'Checking native libraries',
-        false
-      );
-    } else if ('NativeLibraryDownload' in event) {
-      return message_props(
-        event.NativeLibraryDownload,
-        'Downloading native libraries',
-        true
-      );
-    } else if ('LibraryCheck' in event) {
-      return message_props(event.LibraryCheck, 'Checking libraries', false);
-    } else if ('LibraryDownload' in event) {
-      return message_props(
-        event.LibraryDownload,
-        'Downloading libraries',
-        true
-      );
-    } else if ('ModLoaderFilesCheck' in event) {
-      return message_props(
-        event.ModLoaderFilesCheck,
-        'Checking mod loader files',
-        false
-      );
-    } else if ('ModLoaderFilesDownload' in event) {
-      return message_props(
-        event.ModLoaderFilesDownload,
-        'Downloading mod loader files',
-        true
-      );
-    }
-
-    return undefined;
-  };
-
-if (browser) {
-  const _ = listen(VERSION_CHECK_STATUS_EVENT, (e) => {
-    // oxlint-disable-next-line no-unsafe-type-assertion
-    const event = e.payload as VersionCheckData,
-      { id } = event;
-    if (id === undefined) {
-      return;
-    }
-
-    const message = get_message(event.data);
-
-    if (toast.getActiveToasts().find((t) => t.id === id)?.type !== 'loading') {
-      // Only update loading toasts
-      return;
-    }
-
-    if (typeof message === 'object') {
-      toast.loading(DownloadNotification, {
-        componentProps: message,
-        id
-      });
-    } else if (message) {
-      toast.loading(message, {
-        id
-      });
-    } else {
-      const message_content = check_message.get(id);
-      check_message.delete(id);
-      toast.success(message_content ?? '', {
-        cancel: undefined,
-        duration: undefined,
-        id
-      });
-    }
-  });
-}

@@ -34,6 +34,9 @@ pub struct Instance {
   version: String,
   loader: LoaderType,
   loader_version: Option<String>,
+  account_name: String,
+  account_id: String,
+  pid: u32,
   stop_signal: Arc<Notify>,
   lines: Arc<Mutex<Vec<String>>>,
 }
@@ -47,6 +50,9 @@ pub struct InstanceInfo {
   pub version: String,
   pub loader: LoaderType,
   pub loader_version: Option<String>,
+  pub account_name: Option<String>,
+  pub account_id: Option<String>,
+  pub memory_used: Option<u64>,
 }
 
 #[derive(Error, Debug)]
@@ -62,14 +68,13 @@ impl Instance {
     mut child: Child,
     app_handle: &AppHandle,
     profile: &Profile,
+    account_name: String,
+    account_id: String,
     instances: &Arc<Mutex<HashMap<String, Vec<Instance>>>>,
   ) -> Result<()> {
     let id = Uuid::new_v4().to_string();
-    debug!(
-      "Adding child instance with pid {} and id {}",
-      child.id().ok_or(InstanceError::InvalidProcessState)?,
-      id
-    );
+    let pid = child.id().ok_or(InstanceError::InvalidProcessState)?;
+    debug!("Adding child instance with pid {pid} and id {id}");
 
     let stdout = child
       .stdout
@@ -135,6 +140,9 @@ impl Instance {
       version: profile.version.clone(),
       loader: profile.loader,
       loader_version: profile.loader_version.clone(),
+      account_name,
+      account_id,
+      pid,
     };
     let mut instances = instances.lock().await;
     instances
@@ -148,7 +156,8 @@ impl Instance {
 
   pub fn stop(&self) {
     debug!("Stopping instance with id {}", self.id);
-    self.stop_signal.notify_waiters();
+    // notify_one stores a permit, so a stop sent while the task is outside select! is not lost
+    self.stop_signal.notify_one();
   }
 
   pub async fn lines(&self) -> Vec<String> {
@@ -181,6 +190,18 @@ impl Instance {
 
   pub fn launched_at(&self) -> DateTime<Utc> {
     self.launched_at
+  }
+
+  pub fn account_name(&self) -> &str {
+    &self.account_name
+  }
+
+  pub fn account_id(&self) -> &str {
+    &self.account_id
+  }
+
+  pub fn pid(&self) -> u32 {
+    self.pid
   }
 }
 

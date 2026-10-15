@@ -1,218 +1,128 @@
 <script lang="ts">
   import { toast } from 'svelte-sonner';
   import { Button } from '@profidev/pleiades/components/ui/button';
-  import { ScrollArea } from '@profidev/pleiades/components/ui/scroll-area';
   import { Slider } from '@profidev/pleiades/components/ui/slider';
   import { Label } from '@profidev/pleiades/components/ui/label';
   import { Input } from '@profidev/pleiades/components/ui/input';
   import type { JvmSettings } from '$lib/tauri/profile.svelte';
-  import { Plus, Trash } from '@lucide/svelte';
-  import { cn } from '@profidev/pleiades/utils';
+  import { Trash2 } from '@lucide/svelte';
+  import {
+    add_env_var,
+    parse_args,
+    remove_env_var,
+    sorted_env
+  } from './settings';
 
   interface Props {
-    settings?: JvmSettings;
+    settings: JvmSettings;
     maxMem: number;
+    memoryLabel: (mb: number) => string;
+    memoryHint: string;
     updateSettings: (settings: JvmSettings) => Promise<void>;
     disabled?: boolean;
   }
 
-  let { settings, updateSettings, maxMem, disabled }: Props = $props();
+  let {
+    settings,
+    maxMem,
+    memoryLabel,
+    memoryHint,
+    updateSettings,
+    disabled
+  }: Props = $props();
 
+  // live value while dragging, saved on commit
+  let mem = $derived(settings.mem_max);
   let newKey = $state('');
   let newValue = $state('');
 
-  const saveJavaSettings = async (new_settings: Partial<JvmSettings>) => {
-    await updateSettings({
-      ...settings!,
-      ...new_settings
-    });
-  };
+  const save = (new_settings: Partial<JvmSettings>) =>
+    updateSettings({ ...settings, ...new_settings });
 
-  const checkKey = (key: string) => {
-    if (!settings) return;
-    if (!key) {
-      toast.error('Environment variable key cannot be empty');
+  const addEnv = () => {
+    const env = add_env_var(settings.env_vars, newKey, newValue);
+    if (typeof env === 'string') {
+      toast.error(env);
       return;
     }
-    if (Object.keys(settings.env_vars).includes(key)) {
-      toast.error(`Environment variable "${key}" already exists`);
-      return;
-    }
-    return true;
+    save({ env_vars: env });
+    newKey = '';
+    newValue = '';
   };
 </script>
 
-<div class="mr-4 mb-4 flex min-h-0 grow flex-col gap-4">
-  {#if settings}
-    <div class="flex items-center gap-2">
-      <Label
-        for="jvm-memory-slider"
-        class={cn('whitespace-nowrap', disabled && 'text-muted-foreground')}
-      >
-        Java Memory Limit</Label
-      >
-      <Input
-        id="jvm-memory-slider"
-        type="number"
-        class="ml-auto max-w-24 text-right"
-        value={settings.mem_max ?? 1024}
-        min={512}
-        max={maxMem}
-        step={64}
-        onfocusout={(e) => {
-          const value = parseInt((e.target as HTMLInputElement).value, 10);
-          if (value !== settings.mem_max) {
-            saveJavaSettings({ mem_max: value });
-          }
-        }}
-        {disabled}
-      />
-      <p
-        class={cn(
-          'text-sm whitespace-nowrap',
-          disabled && 'text-muted-foreground'
-        )}
-      >
-        MB
-      </p>
-      <Slider
-        type="single"
-        id="jvm-memory-slider"
-        class="max-w-64"
-        value={settings.mem_max ?? 1024}
-        min={512}
-        step={64}
-        max={maxMem}
-        onValueChange={(value) => {
-          if (value === settings.mem_max) return;
-          saveJavaSettings({ mem_max: value });
-        }}
-        {disabled}
-      />
+<div class="flex flex-col gap-1.5">
+  <div class="flex items-center justify-between gap-2">
+    <Label>Memory</Label>
+    <span class="text-xs">{memoryLabel(mem)}</span>
+  </div>
+  <Slider
+    type="single"
+    bind:value={mem}
+    min={1024}
+    max={maxMem}
+    step={256}
+    onValueCommit={(value) => {
+      if (value !== settings.mem_max) save({ mem_max: value });
+    }}
+    {disabled}
+  />
+  <span class="text-muted-foreground text-xs">{memoryHint}</span>
+</div>
+<div class="flex flex-col gap-1.5">
+  <Label for="jvm-args">Java arguments</Label>
+  <Input
+    id="jvm-args"
+    placeholder="-XX:+UseG1GC"
+    value={settings.args.join(' ')}
+    onchange={(e) =>
+      save({ args: parse_args((e.target as HTMLInputElement).value) })}
+    {disabled}
+  />
+</div>
+<div class="flex flex-col gap-1.5">
+  <Label for="env-key">Environment variables</Label>
+  {#if Object.keys(settings.env_vars).length > 0}
+    <div class="bg-card/50 flex flex-col overflow-hidden rounded-xl border">
+      {#each sorted_env(settings.env_vars) as [key, value] (key)}
+        <div
+          class="hover:bg-accent/40 flex items-center gap-3 border-b px-3 py-2.5 last:border-0"
+        >
+          <span class="flex-1 font-mono text-sm break-all">{key}={value}</span>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Remove {key}"
+            onclick={() =>
+              save({ env_vars: remove_env_var(settings.env_vars, key) })}
+            {disabled}
+          >
+            <Trash2 class="text-destructive" />
+          </Button>
+        </div>
+      {/each}
     </div>
-    <Label
-      for="jvm-args"
-      class={cn('whitespace-nowrap', disabled && 'text-muted-foreground')}
-      >Java Arguments</Label
-    >
+  {/if}
+  <form
+    class="flex gap-2"
+    onsubmit={(e) => {
+      e.preventDefault();
+      addEnv();
+    }}
+  >
     <Input
-      id="jvm-args"
-      type="text"
-      placeholder="e.g -XX:+UseG1GC -XX:MaxGCPauseMillis=50"
-      value={settings.args.join(' ') ?? ''}
-      oninput={(e) => {
-        const value = (e.target as HTMLInputElement).value
-          .trim()
-          .split(/\s+/)
-          .filter(Boolean);
-        if (value !== settings.args) {
-          saveJavaSettings({ args: value });
-        }
-      }}
+      id="env-key"
+      placeholder="KEY"
+      aria-label="Key"
+      bind:value={newKey}
       {disabled}
     />
-    <Label
-      for="jvm-env"
-      class={cn('whitespace-nowrap', disabled && 'text-muted-foreground')}
-      >Environment Variables</Label
-    >
-    {#if Object.keys(settings.env_vars).length === 0}
-      <p class="text-muted-foreground text-sm">No environment variables set</p>
-    {:else}
-      <ScrollArea class="min-h-0">
-        <div class="flex flex-col gap-2">
-          {#each Object.entries(settings.env_vars).sort( ([keyA], [keyB]) => keyA.localeCompare(keyB) ) as [key, value]}
-            <div class="flex items-center gap-2">
-              <Input
-                type="text"
-                placeholder="e.g PATH"
-                value={key}
-                onfocusout={(e) => {
-                  const newKey = (e.target as HTMLInputElement).value.trim();
-                  if (!checkKey(newKey)) return;
-                  if (newKey !== key) {
-                    const newEnv = {
-                      ...settings.env_vars
-                    };
-                    delete newEnv[key];
-                    newEnv[newKey] = value;
-                    saveJavaSettings({ env_vars: newEnv });
-                  }
-                }}
-                {disabled}
-              />
-              <Input
-                type="text"
-                placeholder="e.g /usr/bin/java"
-                {value}
-                onfocusout={(e) => {
-                  const newValue = (e.target as HTMLInputElement).value.trim();
-                  if (!newValue) {
-                    toast.error('Environment variable value cannot be empty');
-                    return;
-                  }
-                  if (newValue !== value) {
-                    const newEnv = {
-                      ...settings.env_vars
-                    };
-                    newEnv[key] = newValue;
-                    saveJavaSettings({ env_vars: newEnv });
-                  }
-                }}
-                {disabled}
-              />
-              <Button
-                size="icon"
-                variant="destructive"
-                onclick={() => {
-                  const newEnv = {
-                    ...settings.env_vars
-                  };
-                  delete newEnv[key];
-                  saveJavaSettings({ env_vars: newEnv });
-                }}
-                {disabled}
-              >
-                <Trash />
-              </Button>
-            </div>
-          {/each}
-        </div>
-      </ScrollArea>
-    {/if}
-    <div class="flex items-center gap-2">
-      <Input
-        type="text"
-        placeholder="e.g NEW_VAR"
-        bind:value={newKey}
-        {disabled}
-      />
-      <Input
-        type="text"
-        placeholder="e.g 123"
-        bind:value={newValue}
-        {disabled}
-      />
-      <Button
-        size="icon"
-        onclick={() => {
-          if (!newKey.trim() || !newValue.trim()) {
-            toast.error('Both key and value must be provided');
-            return;
-          }
-          if (!checkKey(newKey)) return;
-          const newEnv = { ...settings.env_vars };
-          newEnv[newKey.trim()] = newValue.trim();
-          saveJavaSettings({ env_vars: newEnv });
-          newKey = '';
-          newValue = '';
-        }}
-        {disabled}
-      >
-        <Plus />
-      </Button>
-    </div>
-  {:else}
-    <p>Loading...</p>
-  {/if}
+    <Input
+      placeholder="value"
+      aria-label="Value"
+      bind:value={newValue}
+      {disabled}
+    />
+    <Button type="submit" variant="outline" {disabled}>Add</Button>
+  </form>
 </div>

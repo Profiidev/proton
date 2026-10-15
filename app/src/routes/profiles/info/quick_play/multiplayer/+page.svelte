@@ -5,4 +5,9 @@
   let list = $derived(multiplayer_list());
 </script>
 
-<QuickPlayList value="multiplayer" name="multiplayer" join="server" {list} />
+<QuickPlayList
+  value="multiplayer"
+  empty_title="No servers found"
+  empty_description="Join a server to add it here."
+  {list}
+/>

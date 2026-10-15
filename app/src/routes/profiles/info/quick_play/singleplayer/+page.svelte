@@ -7,7 +7,7 @@
 
 <QuickPlayList
   value="singleplayer"
-  name="singleplayer"
-  join="singleplayer world"
+  empty_title="No worlds found"
+  empty_description="Join a singleplayer world to add it here."
   {list}
 />

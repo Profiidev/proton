@@ -7,6 +7,8 @@ export interface Settings {
   system_max_mem?: number; // In MB
   sidebar_width?: number;
   url?: URL;
+  auto_update?: boolean;
+  hide_window_controls?: boolean;
   minecraft: MinecraftSettings;
 }
 

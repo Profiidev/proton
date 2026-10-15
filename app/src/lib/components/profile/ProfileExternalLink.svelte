@@ -8,7 +8,7 @@
   <Button
     variant="outline"
     onclick={() => goto('/profiles')}
-    class="text-md inline-flex w-fit cursor-pointer p-0"
+    class="text-md inline-flex w-fit cursor-pointer py-0"
   >
     Profiles
     <ExternalLink />

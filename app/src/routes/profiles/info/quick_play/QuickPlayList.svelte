@@ -1,99 +1,128 @@
 <script lang="ts">
   import {
     profile_quick_play_remove,
+    quick_play_server_status,
+    QuickPlayType,
     type QuickPlayInfo
   } from '$lib/tauri/quick-play.svelte';
   import { Button } from '@profidev/pleiades/components/ui/button';
-  import { Separator } from '@profidev/pleiades/components/ui/separator';
   import * as Dialog from '@profidev/pleiades/components/ui/dialog';
+  import * as Empty from '@profidev/pleiades/components/ui/empty';
   import * as Tabs from '@profidev/pleiades/components/ui/tabs';
   import { getProfile } from '../store.svelte';
   import { DateTime as D } from '@profidev/pleiades/util/time.svelte';
-  import { Play, Star, Trash } from '@lucide/svelte';
+  import { Play, Star, Trash2 } from '@lucide/svelte';
   import { account_active } from '$lib/tauri/account.svelte';
   import { profile_launch } from '$lib/tauri/profile.svelte';
   import { profile_favorites_set } from '$lib/tauri/home.svelte';
   import QuickPlayIcon from '$lib/components/profile/QuickPlayIcon.svelte';
+  import { cn } from '@profidev/pleiades/utils';
+  import { players_label } from './quick-play';
 
   interface Props {
     list: QuickPlayInfo[] | undefined;
-    name: string;
     value: string;
-    join: string;
+    empty_title: string;
+    empty_description: string;
   }
 
-  let { list, name, join, value }: Props = $props();
+  let { list, value, empty_title, empty_description }: Props = $props();
 
   let profile = $derived(getProfile());
 
   let active_account = $derived(account_active.value);
   let removeOpen = $state(false);
   let remove_info = $state<QuickPlayInfo>();
+
+  const last_played = (item: QuickPlayInfo) =>
+    D.DateTime?.fromISO(item.lastPlayedTime)
+      .setLocale('de')
+      .toLocaleString(D.DateTime.DATETIME_SHORT);
+
+  const launch = (item: QuickPlayInfo) =>
+    profile_launch(profile!.id, profile!.name, active_account, item);
 </script>
 
-<Tabs.Content {value} class="flex flex-col gap-2">
+<Tabs.Content {value} class="mt-1">
   {#if list && list.length > 0}
-    {#each list as item}
-      <Button variant="outline" class="h-fit w-full p-2">
-        <QuickPlayIcon profileId={profile!.id} quickPlay={item} />
-        <div class="ml-1 flex w-32 flex-col items-start">
-          <p class="w-full truncate text-left text-base">{item.name}</p>
-          <p class="text-muted-foreground w-full truncate text-left">
-            {item.id}
-          </p>
-        </div>
-        <Separator orientation="vertical" class="mx-1 h-8!" />
-        <p class="text-muted-foreground">
-          Last played at {D.DateTime?.fromISO(item.lastPlayedTime)
-            .setLocale('de')
-            .toLocaleString(D.DateTime.DATETIME_SHORT)}
-        </p>
-        <Button
-          class="ml-auto cursor-pointer"
-          onclick={(e) => {
-            e.stopImmediatePropagation();
-            profile_launch(profile!.id, profile!.name, active_account, item);
-          }}
+    <div class="bg-card/50 flex flex-col overflow-hidden rounded-xl border">
+      {#each list as item (item.id)}
+        {@const singleplayer = item.type === QuickPlayType.Singleplayer}
+        <div
+          class="hover:bg-accent/40 flex items-center gap-3 border-b px-3 py-2.5 last:border-0"
         >
-          <Play />
-          Play
-        </Button>
-        <Button
-          size="icon"
-          variant="outline"
-          onclick={() => {
-            profile_favorites_set(profile!.id, !item.favorite, item);
-          }}
-          class="cursor-pointer"
-        >
-          <Star
-            class={item.favorite
-              ? 'fill-yellow-500 text-yellow-500'
-              : 'text-muted-foreground'}
+          <QuickPlayIcon
+            profileId={profile!.id}
+            quickPlay={item}
+            class={cn('size-10', singleplayer && 'rounded-full')}
           />
-        </Button>
-        <Button
-          variant="destructive"
-          class="cursor-pointer"
-          size="icon"
-          onclick={(e) => {
-            e.stopImmediatePropagation();
-            remove_info = item;
-            removeOpen = true;
-          }}
-        >
-          <Trash />
-        </Button>
-      </Button>
-    {/each}
+          <div class="flex min-w-0 flex-1 flex-col">
+            <span class="truncate font-medium">{item.name}</span>
+            <span class="text-muted-foreground truncate text-xs">
+              {singleplayer || item.type === QuickPlayType.Realms
+                ? `Last played ${last_played(item)}`
+                : item.id}
+            </span>
+          </div>
+          {#if singleplayer}
+            <Button onclick={() => launch(item)}>
+              <Play data-icon="inline-start" />
+              Play
+            </Button>
+            <Button
+              size="icon"
+              variant="outline"
+              aria-label={item.favorite
+                ? 'Remove from favorites'
+                : 'Add to favorites'}
+              onclick={() =>
+                profile_favorites_set(profile!.id, !item.favorite, item)}
+            >
+              <Star
+                class={item.favorite ? 'fill-yellow-500 text-yellow-500' : ''}
+              />
+            </Button>
+            <Button
+              size="icon"
+              variant="outline"
+              aria-label="Delete world"
+              onclick={() => {
+                remove_info = item;
+                removeOpen = true;
+              }}
+            >
+              <Trash2 class="text-destructive" />
+            </Button>
+          {:else}
+            {#if item.type === QuickPlayType.Multiplayer}
+              {#await quick_play_server_status(item.id) then status}
+                {@const label = players_label(status)}
+                {#if label}
+                  <span
+                    class={cn(
+                      'inline-flex h-5 shrink-0 items-center gap-1 rounded-full px-2 text-xs font-medium',
+                      status?.online
+                        ? 'bg-green-500/15 text-green-500'
+                        : 'bg-secondary text-muted-foreground'
+                    )}
+                  >
+                    {label}
+                  </span>
+                {/if}
+              {/await}
+            {/if}
+            <Button onclick={() => launch(item)}>Join</Button>
+          {/if}
+        </div>
+      {/each}
+    </div>
   {:else}
-    <p class="text-muted-foreground mt-2 ml-2">
-      No quick play options available for {name}. Join a {join}
-      to add it to quick play.
-    </p>
-    <p class="text-muted-foreground ml-2 text-sm">
-      Minecraft versions before 1.20 (23w14a) do not support quick play.
-    </p>
+    <Empty.Root class="border border-dashed">
+      <Empty.Header>
+        <Empty.Title>{empty_title}</Empty.Title>
+        <Empty.Description>{empty_description}</Empty.Description>
+      </Empty.Header>
+    </Empty.Root>
   {/if}
 </Tabs.Content>
 
