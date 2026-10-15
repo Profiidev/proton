@@ -12,6 +12,7 @@
   import InstallDialog from '$lib/components/content/InstallDialog.svelte';
   import ModpackInstallDialog from '$lib/components/content/ModpackInstallDialog.svelte';
   import ProjectIcon from '$lib/components/content/ProjectIcon.svelte';
+  import TargetPicker from '$lib/components/content/TargetPicker.svelte';
   import {
     SOURCE_LABEL,
     project_href,
@@ -20,7 +21,7 @@
     sort_versions,
     tag_label
   } from '$lib/components/content/discover';
-  import { pick_target } from '$lib/content';
+  import { pick_target, profile_compat } from '$lib/content';
   import { content_target } from '$lib/content-target.svelte';
   import { project_titles } from '$lib/project-titles.svelte';
   import {
@@ -43,9 +44,6 @@
 
   let is_pack = $derived(data.kind === 'modpack');
   let profiles = $derived(profile_list.value ?? []);
-  let target = $derived(
-    is_pack ? undefined : pick_target(profiles, content_target.id)
-  );
   let known_versions = $derived(vanilla_version_list.value);
 
   let detail = $state<ProjectDetail>();
@@ -67,6 +65,16 @@
     return () => (stale = true);
   });
   let summary = $derived(detail?.summary);
+
+  // Only profiles the project runs on can be picked
+  let compatible = $derived(
+    summary
+      ? profiles.filter((p) => profile_compat(p, data.kind, summary).ok)
+      : []
+  );
+  let target = $derived(
+    is_pack ? undefined : pick_target(compatible, content_target.id)
+  );
 
   // Versions for the target profile, all versions only when asked for
   let show_all = $state(false);
@@ -221,6 +229,9 @@
         </div>
       </div>
       <div class="flex w-55 flex-col items-stretch gap-2">
+        {#if !is_pack}
+          <TargetPicker {target} profiles={compatible} />
+        {/if}
         {#if update}
           <Button onclick={() => install(update.latest.id)}>
             Update to {update.latest.versionNumber}
