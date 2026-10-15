@@ -43,4 +43,31 @@ describe('breadcrumbs', () => {
     ]);
     expect(breadcrumbs('/', '')).toEqual([]);
   });
+
+  it('title-cases hyphenated segments', () => {
+    expect(breadcrumbs('/discover/resource-packs', '')).toEqual([
+      { href: '/discover', label: 'Discover' },
+      { href: '/discover/resource-packs', label: 'Resource Packs' }
+    ]);
+  });
+
+  it('shows kind and project name on the project page', () => {
+    const search = '?kind=resourcepack&source=modrinth&id=abc';
+    expect(
+      breadcrumbs('/discover/project', search, [], [], { abc: 'Faithful' })
+    ).toEqual([
+      { href: '/discover', label: 'Discover' },
+      { href: '/discover/resource-packs', label: 'Resource Packs' },
+      { href: `/discover/project${search}`, label: 'Faithful' }
+    ]);
+  });
+
+  it('falls back while the project name loads', () => {
+    expect(
+      breadcrumbs('/discover/project', '?kind=mod&id=x').map((c) => c.label)
+    ).toEqual(['Discover', 'Mods', 'Project']);
+    expect(
+      breadcrumbs('/discover/project', '?id=x').map((c) => c.label)
+    ).toEqual(['Discover', 'Project']);
+  });
 });

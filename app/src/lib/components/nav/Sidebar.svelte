@@ -1,19 +1,42 @@
 <script lang="ts">
   import AccountSelector from '../account/AccountSelector.svelte';
   import { Separator } from '@profidev/pleiades/components/ui/separator';
-  import { Gamepad2, Home, LibraryBig, Settings } from '@lucide/svelte';
+  import {
+    Gamepad2,
+    Home,
+    Image,
+    LibraryBig,
+    Package,
+    Puzzle,
+    Settings,
+    Sparkles
+  } from '@lucide/svelte';
   import { page } from '$app/state';
   import { cn } from '@profidev/pleiades/utils';
   import { crossfade } from 'svelte/transition';
   import { cubicInOut } from 'svelte/easing';
   import { instance_list } from '$lib/tauri/instance.svelte';
+  import { KIND_ROUTE } from '$lib/content';
+  import type { ContentKind } from '$lib/tauri/content.svelte';
 
   let running = $derived(instance_list.value?.length ?? 0);
+  // The project page belongs to the Discover item of its kind
+  let project_url = $derived(
+    page.url.pathname.startsWith('/discover/project')
+      ? `/discover/${KIND_ROUTE[page.url.searchParams.get('kind') as ContentKind]}`
+      : undefined
+  );
 
   const top = [
     { title: 'Home', url: '/home', icon: Home },
     { title: 'Profiles', url: '/profiles', icon: LibraryBig },
     { title: 'Instances', url: '/instances', icon: Gamepad2 }
+  ];
+  const discover = [
+    { title: 'Mods', url: '/discover/mods', icon: Puzzle },
+    { title: 'Modpacks', url: '/discover/modpacks', icon: Package },
+    { title: 'Resource packs', url: '/discover/resource-packs', icon: Image },
+    { title: 'Shaders', url: '/discover/shaders', icon: Sparkles }
   ];
   const settings = { title: 'Settings', url: '/settings', icon: Settings };
 
@@ -30,6 +53,15 @@
   {#each top as btn (btn.url)}
     {@render link(btn)}
   {/each}
+  <p
+    class="text-muted-foreground mt-3 mb-1 hidden px-2.5 text-xs font-medium md:block"
+  >
+    Discover
+  </p>
+  <Separator class="my-1 md:hidden" />
+  {#each discover as btn (btn.url)}
+    {@render link(btn)}
+  {/each}
   <div class="min-h-4 flex-1"></div>
   {@render link(settings)}
   <Separator class="my-1" />
@@ -37,7 +69,8 @@
 </nav>
 
 {#snippet link(btn: (typeof top)[number])}
-  {@const isActive = page.url.pathname.startsWith(btn.url)}
+  {@const isActive =
+    page.url.pathname.startsWith(btn.url) || project_url === btn.url}
   <a
     href={btn.url}
     aria-current={isActive ? 'page' : undefined}
