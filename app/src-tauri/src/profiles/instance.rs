@@ -156,7 +156,8 @@ impl Instance {
 
   pub fn stop(&self) {
     debug!("Stopping instance with id {}", self.id);
-    self.stop_signal.notify_waiters();
+    // notify_one stores a permit, so a stop sent while the task is outside select! is not lost
+    self.stop_signal.notify_one();
   }
 
   pub async fn lines(&self) -> Vec<String> {
