@@ -18,7 +18,7 @@
   import { Input } from '@profidev/pleiades/components/ui/input';
   import { Label } from '@profidev/pleiades/components/ui/label';
   import { Switch } from '@profidev/pleiades/components/ui/switch';
-  import * as NativeSelect from '@profidev/pleiades/components/ui/native-select';
+  import * as Select from '@profidev/pleiades/components/ui/select';
   import * as ToggleGroup from '@profidev/pleiades/components/ui/toggle-group';
 
   let { data } = $props();
@@ -31,6 +31,11 @@
       group_by_profile(instances).get(instance.profile_id)) ||
       []
   );
+
+  const sibling_label = (i: number) => {
+    const account = siblings[i]?.account_name;
+    return `Instance ${i + 1}${account ? ` · ${account}` : ''}`;
+  };
 
   let search = $state('');
   let mode = $state('all');
@@ -70,21 +75,20 @@
       <h1 class="flex-1 text-xl font-semibold tracking-tight">
         {instance.profile_name} console
       </h1>
-      <NativeSelect.Root
-        aria-label="Instance"
-        class="w-[220px]"
+      <Select.Root
+        type="single"
         value={instance.id}
-        onchange={(e) =>
-          goto(`/instances/info/logs?id=${e.currentTarget.value}`)}
+        onValueChange={(id) => goto(`/instances/info/logs?id=${id}`)}
       >
-        {#each siblings as sibling, i (sibling.id)}
-          <NativeSelect.Option value={sibling.id}>
-            Instance {i + 1}{sibling.account_name
-              ? ` · ${sibling.account_name}`
-              : ''}
-          </NativeSelect.Option>
-        {/each}
-      </NativeSelect.Root>
+        <Select.Trigger aria-label="Instance" class="w-[220px]">
+          {sibling_label(siblings.findIndex((s) => s.id === instance.id))}
+        </Select.Trigger>
+        <Select.Content>
+          {#each siblings as sibling, i (sibling.id)}
+            <Select.Item value={sibling.id} label={sibling_label(i)} />
+          {/each}
+        </Select.Content>
+      </Select.Root>
       <Button variant="destructive" size="sm" onclick={() => (stopOpen = true)}>
         Stop
       </Button>
