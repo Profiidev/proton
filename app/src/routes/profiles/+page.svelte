@@ -11,11 +11,26 @@
   import ProfileCard from '$lib/components/profile/ProfileCard.svelte';
   import { profiles_summary } from '$lib/profiles';
   import CreateProfileForm from './CreateProfileForm.svelte';
+  import FromModpackTab from './FromModpackTab.svelte';
+  import ImportFileTab from './ImportFileTab.svelte';
+  import * as Tabs from '@profidev/pleiades/components/ui/tabs';
+  import ModpackInstallDialog from '$lib/components/content/ModpackInstallDialog.svelte';
+  import type { PackPlan, ProjectSummary } from '$lib/tauri/content.svelte';
 
   let version_filter = $state<string[]>([]);
   let loader_filter = $state<string[]>([]);
   let text_filter = $state('');
   let createOpen = $state(false);
+  let createTab = $state('custom');
+  let packOpen = $state(false);
+  let pack = $state<{ project?: ProjectSummary; plan?: PackPlan }>({});
+
+  // The pack dialog replaces the create dialog
+  const install_pack = (next: typeof pack) => {
+    pack = next;
+    createOpen = false;
+    packOpen = true;
+  };
 
   let profiles = $derived(profile_list.value);
 
@@ -123,8 +138,36 @@
   >
     <Dialog.Header>
       <Dialog.Title>Create profile</Dialog.Title>
-      <Dialog.Description>Pick a loader and version.</Dialog.Description>
+      <Dialog.Description>
+        Pick a loader and version, or start from a modpack.
+      </Dialog.Description>
     </Dialog.Header>
-    <CreateProfileForm onclose={() => (createOpen = false)} />
+    <Tabs.Root bind:value={createTab} class="min-w-0">
+      <Tabs.List>
+        <Tabs.Trigger value="custom">Custom</Tabs.Trigger>
+        <Tabs.Trigger value="modpack">From modpack</Tabs.Trigger>
+        <Tabs.Trigger value="import">Import file</Tabs.Trigger>
+      </Tabs.List>
+      <Tabs.Content value="custom" class="pt-4">
+        <CreateProfileForm onclose={() => (createOpen = false)} />
+      </Tabs.Content>
+      <Tabs.Content value="modpack">
+        {#if createTab === 'modpack'}
+          <FromModpackTab onselect={(project) => install_pack({ project })} />
+        {/if}
+      </Tabs.Content>
+      <Tabs.Content value="import">
+        <!-- Mounted only while visible so it only listens for drops here -->
+        {#if createTab === 'import'}
+          <ImportFileTab onplan={(plan) => install_pack({ plan })} />
+        {/if}
+      </Tabs.Content>
+    </Tabs.Root>
   </Dialog.Content>
 </Dialog.Root>
+
+<ModpackInstallDialog
+  bind:open={packOpen}
+  project={pack.project}
+  plan={pack.plan}
+/>
