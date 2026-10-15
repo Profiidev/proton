@@ -1,13 +1,17 @@
 <script lang="ts">
+  import type { Component } from 'svelte';
   import { page } from '$app/state';
   import { crossfade } from 'svelte/transition';
   import { cubicInOut } from 'svelte/easing';
   import { cn } from '@profidev/pleiades/utils';
-  import { Button } from '@profidev/pleiades/components/ui/button';
 
   interface Props {
-    class: string | undefined;
-    items: { href: string; title: string }[];
+    class?: string;
+    items: {
+      href: string;
+      title: string;
+      icon?: Component<{ class?: string }>;
+    }[];
   }
 
   const { class: className = undefined, items }: Props = $props();
@@ -18,21 +22,21 @@
   });
 </script>
 
-<nav
-  class={cn('flex space-x-2 lg:flex-col lg:space-y-1 lg:space-x-0', className)}
->
-  {#each items as item}
+<nav class={cn('flex flex-col gap-0.5', className)}>
+  {#each items as item (item.href)}
     {@const url = new URL(item.href, location.origin)}
     {@const isActive =
       page.url.pathname.startsWith(url.pathname) &&
       page.url.search === url.search}
 
-    <Button
+    <a
       href={item.href}
-      variant="ghost"
+      aria-current={isActive ? 'page' : undefined}
       class={cn(
-        !isActive && 'hover:underline',
-        'relative justify-start hover:bg-transparent'
+        'relative flex h-8 items-center gap-2 rounded-md px-2.5 text-sm font-medium whitespace-nowrap',
+        isActive
+          ? 'text-foreground'
+          : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
       )}
       data-sveltekit-noscroll
     >
@@ -43,9 +47,10 @@
           out:receive={{ key: 'active-sidebar-tab' }}
         ></div>
       {/if}
-      <div class="relative">
-        {item.title}
-      </div>
-    </Button>
+      {#if item.icon}
+        <item.icon class="relative size-4 shrink-0" />
+      {/if}
+      <span class="relative">{item.title}</span>
+    </a>
   {/each}
 </nav>
