@@ -124,13 +124,11 @@
       {#if id === active}
         <Badge>Selected</Badge>
       {:else if info}
-        <Button variant="outline" size="sm" onclick={() => change(id)}>
-          Select
-        </Button>
+        <Button variant="outline" onclick={() => change(id)}>Select</Button>
       {/if}
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon"
         aria-label="Remove account"
         onclick={() => remove(id)}
       >

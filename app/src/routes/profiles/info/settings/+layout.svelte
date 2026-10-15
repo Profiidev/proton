@@ -14,7 +14,7 @@
   );
 </script>
 
-<div class="flex w-full max-w-[720px] flex-col gap-4 overflow-y-auto">
+<div class="flex w-full max-w-180 flex-col gap-4 overflow-y-auto">
   <Tabs.Root
     {value}
     onValueChange={(tab) =>

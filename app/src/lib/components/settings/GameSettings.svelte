@@ -42,7 +42,7 @@
       type="number"
       aria-label="Width"
       placeholder="854"
-      class="w-[100px]"
+      class="w-25"
       value={settings.width}
       disabled={disabled || !settings.use_custom}
       onchange={(e) => saveSize('width', e)}
@@ -52,7 +52,7 @@
       type="number"
       aria-label="Height"
       placeholder="480"
-      class="w-[100px]"
+      class="w-25"
       value={settings.height}
       disabled={disabled || !settings.use_custom}
       onchange={(e) => saveSize('height', e)}

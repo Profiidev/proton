@@ -44,11 +44,7 @@
       {/if}
     </div>
     {#if instances.length > 0}
-      <Button
-        variant="destructive"
-        size="sm"
-        onclick={() => (stopAllOpen = true)}
-      >
+      <Button variant="destructive" onclick={() => (stopAllOpen = true)}>
         Stop all
       </Button>
     {/if}
@@ -73,7 +69,6 @@
         <span class="flex-1"></span>
         <Button
           variant="outline"
-          size="sm"
           onclick={() =>
             profile_launch(
               first.profile_id,

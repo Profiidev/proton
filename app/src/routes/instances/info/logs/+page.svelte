@@ -80,7 +80,7 @@
         value={instance.id}
         onValueChange={(id) => goto(`/instances/info/logs?id=${id}`)}
       >
-        <Select.Trigger aria-label="Instance" class="w-[220px]">
+        <Select.Trigger aria-label="Instance" class="w-55">
           {sibling_label(siblings.findIndex((s) => s.id === instance.id))}
         </Select.Trigger>
         <Select.Content>
@@ -89,7 +89,7 @@
           {/each}
         </Select.Content>
       </Select.Root>
-      <Button variant="destructive" size="sm" onclick={() => (stopOpen = true)}>
+      <Button variant="destructive" onclick={() => (stopOpen = true)}>
         Stop
       </Button>
     </div>
@@ -111,7 +111,7 @@
         <ToggleGroup.Item value="err">Errors</ToggleGroup.Item>
       </ToggleGroup.Root>
     </div>
-    <LogWindow {lines} bind:follow class="min-h-[480px] grow" />
+    <LogWindow {lines} bind:follow class="min-h-120 grow" />
     <div class="flex items-center gap-2">
       <Switch id="follow" bind:checked={follow} />
       <Label for="follow">Follow new output</Label>

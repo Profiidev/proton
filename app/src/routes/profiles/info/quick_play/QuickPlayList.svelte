@@ -65,12 +65,12 @@
             </span>
           </div>
           {#if singleplayer}
-            <Button size="sm" onclick={() => launch(item)}>
+            <Button onclick={() => launch(item)}>
               <Play data-icon="inline-start" />
               Play
             </Button>
             <Button
-              size="icon-sm"
+              size="icon"
               variant="outline"
               aria-label={item.favorite
                 ? 'Remove from favorites'
@@ -83,7 +83,7 @@
               />
             </Button>
             <Button
-              size="icon-sm"
+              size="icon"
               variant="outline"
               aria-label="Delete world"
               onclick={() => {
@@ -111,7 +111,7 @@
                 {/if}
               {/await}
             {/if}
-            <Button size="sm" onclick={() => launch(item)}>Join</Button>
+            <Button onclick={() => launch(item)}>Join</Button>
           {/if}
         </div>
       {/each}

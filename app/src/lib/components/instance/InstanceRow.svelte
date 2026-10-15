@@ -32,7 +32,7 @@
 
 <div
   class={[
-    'flex flex-wrap items-center gap-4',
+    'flex flex-wrap items-center gap-2',
     card
       ? 'bg-card ring-foreground/10 rounded-xl px-4 py-3.5 ring-1'
       : 'hover:bg-accent/40 border-b px-3.5 py-3 last:border-0'
@@ -46,7 +46,7 @@
     <span class="text-muted-foreground text-xs">{subtitle}</span>
   </div>
   {#if memory}
-    <div class="flex w-45 flex-col gap-1.5">
+    <div class="flex w-45 flex-col gap-1.5 mr-1">
       <div class="flex items-center justify-between gap-3 text-xs">
         <span class="text-muted-foreground">Memory</span>
         <span>{memory.label}</span>
@@ -54,12 +54,8 @@
       <Progress value={memory.percent} />
     </div>
   {/if}
-  <Button
-    variant="outline"
-    size="sm"
-    href={`/instances/info/logs?id=${instance.id}`}
-  >
+  <Button variant="outline" href={`/instances/info/logs?id=${instance.id}`}>
     Console
   </Button>
-  <Button variant="destructive" size="sm" onclick={onstop}>Stop</Button>
+  <Button variant="destructive" onclick={onstop}>Stop</Button>
 </div>

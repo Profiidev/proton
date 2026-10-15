@@ -80,7 +80,7 @@
       class="bg-muted size-16 rounded-md"
       classFallback="size-8"
     />
-    <Button variant="outline" size="sm" onclick={() => iconInput?.click()}>
+    <Button variant="outline" onclick={() => iconInput?.click()}>
       Change icon
     </Button>
     <input
