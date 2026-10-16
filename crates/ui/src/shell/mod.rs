@@ -15,7 +15,7 @@ use proton_components::animation::ease_out_cubic;
 pub use downloads::{DownloadRow, DownloadState, DownloadsExt, DownloadsPanel};
 pub use header::{HEADER_HEIGHT, Header};
 pub use pages::{PageFactory, Placeholder};
-pub use sidebar::{NavItem, Sidebar, SimpleSidebar, sidebar_width};
+pub use sidebar::{COMPACT_BELOW, NavItem, Sidebar, SimpleSidebar, sidebar_width};
 
 use crate::router::{Names, Route, RouterExt, SettingsTab};
 

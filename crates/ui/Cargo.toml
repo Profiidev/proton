@@ -13,16 +13,19 @@ proton_profiles.workspace = true
 proton_config.workspace = true
 proton_versions.workspace = true
 proton_utils.workspace = true
+proton_skin_render = { path = "../skin_render" }
 chrono.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
 gpui-kit.workspace = true
 serde.workspace = true
+image.workspace = true
+url.workspace = true
 
 [dev-dependencies]
 gpui-kit = { workspace = true, features = ["test-support"] }
 proton_components = { workspace = true, features = ["test-support"] }
+proton_store.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true
 tokio.workspace = true
-proton_store.workspace = true
