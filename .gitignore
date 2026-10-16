@@ -9,3 +9,6 @@ devenv.local.nix
 
 # direnv
 .direnv
+# gpui screenshots + comparisons (just screenshots / just compare)
+/fixtures/gpui/
+/fixtures/compare/
