@@ -263,14 +263,128 @@ impl ProjectPage {
 }
 
 /// The project description, http(s) links open in the browser
-pub fn description_view(body: &str) -> TextView {
-  TextView::html("description-text", body.to_string())
-    .selectable(true)
-    .on_link_click(|url, _, _, cx| {
-      if url.starts_with("http") {
-        cx.open_url(url);
-      }
-    })
+pub fn description_view(body: &str) -> impl IntoElement {
+  div().children(
+    description_chunks(body)
+      .into_iter()
+      .enumerate()
+      .map(|(ix, chunk)| {
+        TextView::html(("description-text", ix), chunk)
+          .selectable(true)
+          .on_link_click(|url, _, _, cx| {
+            if url.starts_with("http") {
+              cx.open_url(url);
+            }
+          })
+      }),
+  )
+}
+
+/// Block tags gpui-kit's HTML parser starts a block at
+const BLOCK_TAGS: &[&str] = &[
+  "address",
+  "article",
+  "aside",
+  "blockquote",
+  "details",
+  "summary",
+  "dialog",
+  "div",
+  "dl",
+  "fieldset",
+  "figcaption",
+  "figure",
+  "footer",
+  "form",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "header",
+  "hr",
+  "main",
+  "nav",
+  "ol",
+  "p",
+  "pre",
+  "section",
+  "table",
+  "ul",
+];
+const VOID_TAGS: &[&str] = &[
+  "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track",
+  "wbr",
+];
+
+/// Splits sanitized (ammonia, so well-formed, no comments) HTML into chunks that each hold at most
+/// one top-level block with an image or inline code, split only before a block.
+///
+/// ponytail: works around gpui-base 0.7.3 `InlineFlow` (text/inline_flow.rs): HTML paragraphs
+/// carry no source span, so every paragraph that renders as an inline flow (image + text, or
+/// inline code) gets the same element id `"p"` and they share one layout cache within a
+/// `TextView`. A flow then paints another paragraph's layout: wrong text, or an index-out-of-bounds
+/// panic (inline_flow.rs:621) when that one has more items (Sodium's two badge rows). Paragraphs
+/// nested in one block (list items with inline code) still share; drop this split once upstream
+/// keys HTML paragraphs uniquely (e.g. by sibling index like `block_element_id`).
+fn description_chunks(html: &str) -> Vec<String> {
+  let mut chunks = vec![String::new()];
+  let mut has_flow = false;
+  let mut last_was_block = false;
+  let mut rest = html;
+  while !rest.is_empty() {
+    let (node, is_block) = top_level_node(rest);
+    rest = &rest[node.len()..];
+    if node.trim().is_empty() {
+      chunks.last_mut().unwrap().push_str(node);
+      continue;
+    }
+    let flow = node.contains("<img") || (node.contains("<code") && !node.starts_with("<pre"));
+    if flow && has_flow && (is_block || last_was_block) {
+      chunks.push(String::new());
+      has_flow = false;
+    }
+    has_flow |= flow;
+    last_was_block = is_block;
+    chunks.last_mut().unwrap().push_str(node);
+  }
+  chunks
+}
+
+/// The first top-level node of `html` (text run or whole element) and whether it is a block
+fn top_level_node(html: &str) -> (&str, bool) {
+  if !html.starts_with('<') {
+    return (&html[..html.find('<').unwrap_or(html.len())], false);
+  }
+  let mut depth = 0usize;
+  let mut pos = 0;
+  let mut first = None;
+  while let Some(start) = html[pos..].find('<').map(|i| pos + i) {
+    let end = html[start..]
+      .find('>')
+      .map_or(html.len(), |i| start + i + 1);
+    let tag = &html[start + 1..end];
+    let closing = tag.starts_with('/');
+    let name = tag
+      .trim_start_matches('/')
+      .split(|c: char| c.is_whitespace() || c == '>' || c == '/')
+      .next()
+      .unwrap_or("")
+      .to_ascii_lowercase();
+    let is_block = BLOCK_TAGS.contains(&name.as_str());
+    first.get_or_insert(is_block);
+    if closing {
+      depth = depth.saturating_sub(1);
+    } else if !VOID_TAGS.contains(&name.as_str()) && !tag.ends_with("/>") {
+      depth += 1;
+    }
+    pos = end;
+    if depth == 0 {
+      break;
+    }
+  }
+  (&html[..pos.max(1).min(html.len())], first.unwrap_or(false))
 }
 
 fn kv(key: impl Into<SharedString>, value: impl Into<SharedString>, cx: &App) -> impl IntoElement {
@@ -942,6 +1056,73 @@ pub(crate) mod tests {
       cx.notify();
     });
     cx.update(|window, cx| window.render_frame(cx));
+  }
+
+  struct Desc(String);
+  impl Render for Desc {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+      div().w(px(800.)).child(description_view(&self.0))
+    }
+  }
+
+  fn render_description(html: String, cx: &mut TestAppContext) {
+    init_services(cx);
+    let (_, cx) = cx.add_window_view(|_, _| Desc(html));
+    cx.run_until_parked();
+    cx.update(|window, cx| {
+      window.render_frame(cx);
+      window.render_frame(cx);
+    });
+  }
+
+  /// Minimal upstream repro: two HTML paragraphs of linked images with different item counts
+  const BADGE_ROWS: &str = "<p><a href=\"https://a\"><img src=\"https://x/a.png\"></a>\n<a href=\"https://b\"><img src=\"https://x/b.png\"></a></p>\n<p><a href=\"https://c\"><img src=\"https://x/c.png\"></a>\n<a href=\"https://d\"><img src=\"https://x/d.png\"></a>\n<a href=\"https://e\"><img src=\"https://x/e.png\"></a></p>\n";
+
+  #[gpui::test]
+  fn renders_sibling_badge_rows(cx: &mut TestAppContext) {
+    render_description(BADGE_ROWS.into(), cx);
+    // CurseForge-style HTML: images and inline code mixed with text, nested in a div
+    render_description(
+      proton_content::render::html(
+        r#"<div><p><img src="https://x/a.png"> <strong>JEI</strong></p><p>Run <code>/jei</code> or <img src="https://x/b.png"> <img src="https://x/c.png"> here</p></div><p><img src="https://x/d.png"> and <a href="https://e"><img src="https://x/e.png"></a> <code>x</code></p><ul><li><code>a</code> one</li><li>two <img src="https://x/f.png"> <img src="https://x/g.png"></li></ul>"#,
+      ),
+      cx,
+    );
+  }
+
+  #[test]
+  fn chunks_keep_one_inline_flow_each() {
+    let chunks = description_chunks(BADGE_ROWS);
+    assert_eq!(chunks.len(), 2);
+    assert_eq!(chunks.concat(), BADGE_ROWS);
+    // plain blocks and inline runs stay together
+    let html =
+      "<p>a</p>text <img src=\"x\"> more<p>b <code>c</code></p><ul><li><code>d</code></li></ul>";
+    let chunks = description_chunks(html);
+    assert_eq!(
+      chunks,
+      [
+        "<p>a</p>text <img src=\"x\"> more",
+        "<p>b <code>c</code></p>",
+        "<ul><li><code>d</code></li></ul>"
+      ]
+    );
+  }
+
+  /// Real project bodies (saved from the Modrinth API) render without panicking
+  #[gpui::test]
+  fn renders_real_bodies(cx: &mut TestAppContext) {
+    for body in [
+      include_str!("testdata/sodium.md"),
+      include_str!("testdata/fabric-api.md"),
+      include_str!("testdata/iris.md"),
+      include_str!("testdata/lithium.md"),
+      include_str!("testdata/modmenu.md"),
+      include_str!("testdata/entityculling.md"),
+      include_str!("testdata/fabulously-optimized.md"),
+    ] {
+      render_description(proton_content::render::markdown(body), cx);
+    }
   }
 
   #[gpui::test]
