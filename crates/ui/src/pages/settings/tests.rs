@@ -44,6 +44,8 @@ fn open(cx: &mut TestAppContext, tab: SettingsTab) -> AnyWindowHandle {
   cx.update(|cx| {
     gpui_kit::init(cx);
     proton_components::assets::load(cx).unwrap();
+    // animations run on the wall clock: a click mid dialog-entrance misses its target
+    cx.set_reduce_motion(true);
     proton_config::init(cx);
     proton_versions::init(cx);
     proton_account::init(cx).unwrap();

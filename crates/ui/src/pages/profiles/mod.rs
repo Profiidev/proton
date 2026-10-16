@@ -101,6 +101,16 @@ pub fn card_meta(
   parts.join(" · ")
 }
 
+/// `2 profiles · 1 favorite`
+pub fn profiles_summary(profiles: &[Profile]) -> String {
+  let favorites = profiles.iter().filter(|p| p.favorite).count();
+  format!(
+    "{} · {}",
+    plural(profiles.len(), "profile"),
+    plural(favorites, "favorite")
+  )
+}
+
 pub fn quick_play_tab(quick_play: Option<&QuickPlayInfo>) -> QuickPlayTab {
   match quick_play.map(|q| &q.r#type) {
     Some(QuickPlayType::Multiplayer) => QuickPlayTab::Multiplayer,
@@ -373,7 +383,6 @@ impl Render for ProfilesPage {
     let theme = cx.theme();
     let muted_fg = theme.muted_foreground;
     let all = cx.profiles().profiles.read(cx).clone();
-    let favorites = all.iter().filter(|p| p.favorite).count();
 
     let mut loaders: Vec<SharedString> = vec![];
     for p in &all {
@@ -459,11 +468,12 @@ impl Render for ProfilesPage {
                   .font_weight(FontWeight::SEMIBOLD)
                   .child("Profiles"),
               )
-              .child(div().text_sm().text_color(muted_fg).child(format!(
-                "{} · {}",
-                plural(all.len(), "profile"),
-                plural(favorites, "favorite")
-              ))),
+              .child(
+                div()
+                  .text_sm()
+                  .text_color(muted_fg)
+                  .child(profiles_summary(&all)),
+              ),
           )
           .child(toolbar)
           .child(list),

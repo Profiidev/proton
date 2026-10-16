@@ -25,6 +25,9 @@ pub fn level_color(level: &str) -> Option<Hsla> {
   }
 }
 
+/// [`crate::render_count`] key of the rendered log rows
+pub const ROWS: &str = "LogWindow rows";
+
 /// Emitted when following the tail turns on or off (user scrolled away / back)
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FollowChanged(pub bool);
@@ -140,6 +143,7 @@ impl LogWindow {
   }
 
   fn render_rows(&self, range: Range<usize>, cx: &App) -> Vec<gpui_kit::AnyElement> {
+    crate::render_count::add(ROWS, range.len());
     let entries = self.buffer.read(cx).entries();
     let muted = cx.theme().muted_foreground;
     range
@@ -196,6 +200,7 @@ fn line_width(e: &LogEntry) -> usize {
 
 impl Render for LogWindow {
   fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    crate::render_count::hit::<Self>();
     let theme = cx.theme();
     let frame = div()
       .id("log-window")
@@ -303,7 +308,13 @@ mod tests {
           .into_any_element()
       }
     });
+    let rows = crate::render_count::get(ROWS);
+    let started = std::time::Instant::now();
     test_view::draw(handle, cx);
+    // virtualized: a 600px frame renders a few dozen of the 10k lines
+    assert!(crate::render_count::get(ROWS) - rows < 100);
+    // ponytail: generous for debug builds and CI; catches an O(n) render, not a slow one
+    assert!(started.elapsed() < std::time::Duration::from_millis(500));
     test_view::draw(handle, cx);
     let end = |cx: &mut TestAppContext| log.read_with(cx, |l, _| l.scroll.is_scrolled_to_end());
     assert_eq!(end(cx), Some(true));

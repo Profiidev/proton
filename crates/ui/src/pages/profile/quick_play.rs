@@ -197,20 +197,27 @@ pub(super) fn empty(title: &'static str, description: &'static str, cx: &App) ->
     )
 }
 
-fn status_chip(status: &ServerStatus, cx: &App) -> impl IntoElement {
-  let (label, bg, fg) = if status.online {
-    let green = colors::green_500();
-    (
-      format!("{} / {} online", status.players_online, status.players_max),
-      green.opacity(0.15),
-      green,
-    )
+/// `3 / 20 online` or `Offline`
+pub(super) fn players_label(status: &ServerStatus) -> String {
+  if status.online {
+    format!("{} / {} online", status.players_online, status.players_max)
   } else {
-    (
-      "Offline".into(),
-      cx.theme().secondary,
-      cx.theme().muted_foreground,
-    )
+    "Offline".into()
+  }
+}
+
+/// The "needs 1.20" note shows while there are no worlds and no servers
+pub(super) fn show_note(entries: &[QuickPlayInfo]) -> bool {
+  !entries.iter().any(|q| q.r#type != QuickPlayType::Realms)
+}
+
+fn status_chip(status: &ServerStatus, cx: &App) -> impl IntoElement {
+  let label = players_label(status);
+  let (bg, fg) = if status.online {
+    let green = colors::green_500();
+    (green.opacity(0.15), green)
+  } else {
+    (cx.theme().secondary, cx.theme().muted_foreground)
   };
   div()
     .flex()
@@ -377,7 +384,7 @@ impl Render for QuickPlayPage {
     let theme = cx.theme();
     let list = self.list(cx);
     let entries = self.entries.read(cx);
-    let note = !entries.iter().any(|q| q.r#type != QuickPlayType::Realms);
+    let note = show_note(entries);
     let id = self.id.clone();
 
     let body = if list.is_empty() {

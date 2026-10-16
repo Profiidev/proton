@@ -947,4 +947,31 @@ pub(crate) mod tests {
     });
     cx.update(|window, cx| window.render_frame(cx));
   }
+
+  #[gpui::test]
+  fn tabs_switch_to_versions(cx: &mut TestAppContext) {
+    init_services(cx);
+    let (page, cx) = cx.add_window_view(|window, cx| {
+      ProjectPage::new(
+        "AANobbMI".into(),
+        Kind::Mod,
+        crate::router::Source::Modrinth,
+        window,
+        cx,
+      )
+    });
+    page.update(cx, |p, cx| p.set_detail(detail(), cx));
+    cx.run_until_parked();
+    cx.update(|window, cx| {
+      window.render_frame(cx);
+      window
+        .within("project-tabs")
+        .click(gpui_kit::ElementId::Integer(1), cx);
+    });
+    assert!(page.read_with(cx, |p, _| p.tab == TabKind::Versions));
+    cx.update(|window, cx| {
+      window.render_frame(cx);
+      assert!(window.try_find("description").is_none());
+    });
+  }
 }
