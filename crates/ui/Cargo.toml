@@ -10,6 +10,10 @@ license.workspace = true
 proton_components.workspace = true
 proton_account.workspace = true
 proton_profiles.workspace = true
+proton_config.workspace = true
+proton_versions.workspace = true
+proton_utils.workspace = true
+chrono.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
 gpui-kit.workspace = true
@@ -19,3 +23,5 @@ serde.workspace = true
 gpui-kit = { workspace = true, features = ["test-support"] }
 proton_components = { workspace = true, features = ["test-support"] }
 serde_json.workspace = true
+proton_store.workspace = true
+tempfile.workspace = true
