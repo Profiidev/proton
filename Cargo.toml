@@ -1,3 +1,40 @@
 [workspace]
-members = ["app/src-tauri"]
+members = ["crates/*", "app/src-tauri"]
 resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+repository = "https://github.com/Profiidev/proton"
+license = "MIT"
+
+[workspace.dependencies]
+proton_components = { path = "crates/components" }
+proton_reqwest = { path = "crates/reqwest" }
+gpui-kit = "0.7.3"
+anyhow = "1.0.104"
+futures = "0.3.34"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+tracing = "0.1.44"
+tracing-subscriber = "0.3.23"
+dirs = "7.0.0"
+include_dir = "0.7.4"
+
+# step 0c: root gpui binary (renamed to `proton` once the tauri crate is gone)
+[package]
+name = "proton-gpui"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "proton-gpui"
+path = "src/main.rs"
+
+[dependencies]
+proton_components.workspace = true
+proton_reqwest.workspace = true
+gpui-kit.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
