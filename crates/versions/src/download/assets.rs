@@ -2,12 +2,11 @@ use std::time::Instant;
 
 use anyhow::Result;
 use reqwest::Client;
-use tauri::AppHandle;
 use tracing::debug;
 
 use crate::{
   download::{check_pool, download_pool},
-  event::DownloadCheckStatus,
+  event::{DownloadCheckStatus, DownloadsHandle},
   meta::minecraft::Assets,
   paths::MCPath,
 };
@@ -20,7 +19,7 @@ pub async fn check_download_version_assets(
   assets: &Assets,
   mc_path: &MCPath,
   client: &Client,
-  handle: &AppHandle,
+  handle: &DownloadsHandle,
   update_id: usize,
 ) -> Result<()> {
   debug!("Collecting checks for assets");

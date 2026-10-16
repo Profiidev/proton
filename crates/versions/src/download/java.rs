@@ -4,13 +4,12 @@ use std::time::Instant;
 
 use anyhow::Result;
 use reqwest::Client;
-use tauri::AppHandle;
 use tokio::fs;
 use tracing::debug;
 
 use crate::{
   download::{check_pool, download_pool},
-  event::DownloadCheckStatus,
+  event::{DownloadCheckStatus, DownloadsHandle},
   meta::java::{self, Files},
   paths::JavaVersionPath,
 };
@@ -21,7 +20,7 @@ pub async fn check_download_java_files(
   files: &Files,
   client: &Client,
   java_path: &JavaVersionPath,
-  handle: &AppHandle,
+  handle: &DownloadsHandle,
   update_id: usize,
 ) -> Result<()> {
   debug!("Collecting checks for java");

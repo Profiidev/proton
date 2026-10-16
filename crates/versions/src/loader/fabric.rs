@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use anyhow::Result;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use tauri::Url;
+use url::Url;
 
 use crate::{
   loader::{

@@ -1,7 +1,7 @@
 use std::{path::PathBuf, str::FromStr};
 
 use anyhow::Result;
-use tauri::Url;
+use url::Url;
 
 use crate::paths::MCPath;
 use proton_utils::path;

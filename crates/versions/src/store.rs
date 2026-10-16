@@ -6,23 +6,21 @@ use std::{
 
 use anyhow::Result;
 use reqwest::Client;
-use tauri::{AppHandle, Manager};
 use tokio::{join, select, sync::Notify};
 use tracing::info;
 
 use crate::{
   download::check_download_version,
-  event::{DownloadCheckStatus, emit_download_check_status},
+  event::{DownloadCheckStatus, DownloadsHandle},
   loader::LoaderType,
   meta::java::Component,
   paths::{JavaVersionPath, MCPath, MCVersionPath},
 };
-use proton_config::settings::Settings;
 use proton_utils::{
+  dir::data_dir,
   download::default_client,
   download::{download_and_parse_file_no_hash, download_and_parse_file_no_hash_force},
   file::file_hash,
-  tauri_compat::{UpdateType, update_data},
 };
 
 use super::{
@@ -39,9 +37,9 @@ const JAVA_VERSION_MANIFEST_URL: &str = "https://launchermeta.mojang.com/v1/prod
 
 #[derive(Clone)]
 pub struct McVersionStore {
-  mc_manifest: Manifest,
-  java_manifest: JavaVersions,
-  handle: AppHandle,
+  mc_manifest: Arc<Manifest>,
+  java_manifest: Arc<JavaVersions>,
+  downloads: DownloadsHandle,
   client: Arc<Client>,
 }
 
@@ -61,7 +59,7 @@ impl Drop for CancelGuard {
   }
 }
 
-/// Registers a job, `profile_cancel_download(id)` wakes `notify`
+/// Registers a job, `cancel(id)` wakes `notify`
 pub fn register_cancel(id: usize) -> CancelGuard {
   let notify = Arc::new(Notify::new());
   CANCEL.lock().unwrap().insert(id, notify.clone());
@@ -81,9 +79,10 @@ pub fn cancel(id: usize) {
 }
 
 impl McVersionStore {
-  pub async fn new(handle: AppHandle) -> Result<McVersionStore> {
+  /// Reads the cached manifests, downloads them when missing
+  pub async fn new(downloads: DownloadsHandle) -> Result<McVersionStore> {
     let client = default_client();
-    let data_dir = handle.path().app_data_dir()?;
+    let data_dir = data_dir()?;
     let mc_manifest_path = MCPath::new(&data_dir).mc_manifest();
     let java_manifest_path =
       JavaVersionPath::new(&data_dir, Component::Unknown, String::new()).java_manifest();
@@ -105,19 +104,29 @@ impl McVersionStore {
       ),
     );
 
-    Ok(McVersionStore {
-      mc_manifest: mc_manifest?,
-      java_manifest: java_manifest?,
-      handle,
-      client: Arc::new(client),
-    })
+    Ok(Self::from_manifests(
+      mc_manifest?,
+      java_manifest?,
+      downloads,
+    ))
   }
 
-  pub async fn download_manifests(
-    handle: &AppHandle,
-    client: &Client,
-  ) -> Result<(Manifest, JavaVersions)> {
-    let data_dir = handle.path().app_data_dir()?;
+  pub fn from_manifests(
+    mc_manifest: Manifest,
+    java_manifest: JavaVersions,
+    downloads: DownloadsHandle,
+  ) -> Self {
+    McVersionStore {
+      mc_manifest: Arc::new(mc_manifest),
+      java_manifest: Arc::new(java_manifest),
+      downloads,
+      client: Arc::new(default_client()),
+    }
+  }
+
+  /// Downloads the manifests even when cached
+  pub async fn download_manifests(client: &Client) -> Result<(Manifest, JavaVersions)> {
+    let data_dir = data_dir()?;
     let mc_manifest_path = MCPath::new(&data_dir).mc_manifest();
     let java_manifest_path =
       JavaVersionPath::new(&data_dir, Component::Unknown, String::new()).java_manifest();
@@ -141,21 +150,12 @@ impl McVersionStore {
     Ok((mc_manifest?, java_manifest?))
   }
 
-  pub fn update_manifests(
-    &mut self,
-    mc_manifest: Manifest,
-    java_manifest: JavaVersions,
-  ) -> Result<()> {
-    let update = self.mc_manifest != mc_manifest || self.java_manifest != java_manifest;
-
-    self.mc_manifest = mc_manifest;
-    self.java_manifest = java_manifest;
-
-    if update {
-      update_data(&self.handle, UpdateType::Versions);
-    }
-
-    Ok(())
+  /// Returns whether something changed
+  pub fn update_manifests(&mut self, mc_manifest: Manifest, java_manifest: JavaVersions) -> bool {
+    let update = *self.mc_manifest != mc_manifest || *self.java_manifest != java_manifest;
+    self.mc_manifest = Arc::new(mc_manifest);
+    self.java_manifest = Arc::new(java_manifest);
+    update
   }
 
   pub async fn check_or_download(
@@ -169,7 +169,7 @@ impl McVersionStore {
 
     let start = Instant::now();
     info!("Checking/Downloading minecraft version {version} with download id {id}");
-    let data_dir = self.handle.path().app_data_dir()?;
+    let data_dir = data_dir()?;
 
     let mc = self
       .mc_manifest
@@ -194,7 +194,7 @@ impl McVersionStore {
         java,
         &data_dir,
         &self.client,
-        &self.handle,
+        &self.downloads,
         id,
         loader_version,
       ) => {
@@ -214,7 +214,7 @@ impl McVersionStore {
   }
 
   pub async fn check_meta(&self, version: &str, id: usize) -> Result<bool> {
-    let data_dir = self.handle.path().app_data_dir()?;
+    let data_dir = data_dir()?;
     let manifest_version = self
       .mc_manifest
       .versions
@@ -225,15 +225,14 @@ impl McVersionStore {
     let path = MCVersionPath::new(&data_dir, &manifest_version.id).version_manifest();
     let ok = file_hash(&manifest_version.sha1, &path).await?;
     if ok {
-      emit_download_check_status(&self.handle, DownloadCheckStatus::Done, id);
+      self.downloads.status(id, DownloadCheckStatus::Done);
     }
 
     Ok(ok)
   }
 
-  pub async fn list_versions(&self, loader: &LoaderType) -> Result<Vec<String>> {
-    let stable = !Settings::load()?.minecraft.show_snapshots;
-
+  /// `stable` hides snapshots (`!settings.minecraft.show_snapshots`)
+  pub async fn list_versions(&self, loader: &LoaderType, stable: bool) -> Result<Vec<String>> {
     if let Some(loader) = loader.loader() {
       let mc_versions = self
         .mc_manifest
@@ -242,7 +241,7 @@ impl McVersionStore {
         .map(|v| v.id.clone())
         .collect::<Vec<_>>();
 
-      let data_dir = self.handle.path().app_data_dir().unwrap();
+      let data_dir = data_dir()?;
       let version_path = MCVersionPath::new(&data_dir, "");
       let mut supported_versions = loader.supported_versions(&version_path, stable).await?;
 
@@ -273,11 +272,10 @@ impl McVersionStore {
     &self,
     loader: &LoaderType,
     mc_version: &str,
+    stable: bool,
   ) -> Result<Vec<String>> {
-    let stable = !Settings::load()?.minecraft.show_snapshots;
-
     if let Some(loader) = loader.loader() {
-      let data_dir = self.handle.path().app_data_dir().unwrap();
+      let data_dir = data_dir()?;
       let version_path = MCVersionPath::new(&data_dir, mc_version);
       loader
         .loader_versions_for_mc_version(mc_version, &version_path, stable)
@@ -287,7 +285,7 @@ impl McVersionStore {
     }
   }
 
-  pub fn handle(&self) -> &AppHandle {
-    &self.handle
+  pub fn downloads(&self) -> &DownloadsHandle {
+    &self.downloads
   }
 }
