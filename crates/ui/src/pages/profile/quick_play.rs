@@ -20,7 +20,10 @@ use gpui_kit::{
 use proton_components::{
   animation::ease_out_cubic,
   widgets::{
-    colors, form::open_destroy_dialog, format::format_datetime, profile::QuickPlayIcon,
+    colors,
+    form::{filled, icon_label, open_destroy_dialog},
+    format::format_datetime,
+    profile::QuickPlayIcon,
     tabs::segmented_tabs,
   },
 };
@@ -302,11 +305,12 @@ impl QuickPlayPage {
           let (fav_id, fav_item) = (id.clone(), item.clone());
           let (rm_id, rm_item) = (id.clone(), item.clone());
           el.child(
-            Button::new("play")
-              .primary()
-              .icon(IconName::Play)
-              .label("Play")
-              .on_click(play),
+            filled(icon_label(
+              Button::new("play").primary(),
+              IconName::Play,
+              "Play",
+            ))
+            .on_click(play),
           )
           .child(
             Button::new("favorite")
@@ -336,7 +340,7 @@ impl QuickPlayPage {
           )
         } else {
           el.children(status)
-            .child(Button::new("play").primary().label("Join").on_click(play))
+            .child(filled(Button::new("play").primary().label("Join")).on_click(play))
         }
       })
       .test_support()
