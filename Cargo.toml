@@ -105,3 +105,4 @@ proton_config.workspace = true
 proton_versions.workspace = true
 proton_account.workspace = true
 proton_profiles.workspace = true
+proton_content.workspace = true

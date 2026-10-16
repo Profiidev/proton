@@ -5,8 +5,8 @@ use std::{
 
 use anyhow::Result;
 use async_zip::base::read1::seek::ZipArchiveReader;
+use proton_utils::rt::spawn_blocking;
 use serde::{Deserialize, Serialize};
-use tauri::async_runtime::spawn_blocking;
 use tokio::{
   fs,
   io::BufReader,

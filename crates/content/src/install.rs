@@ -9,9 +9,9 @@ use std::{
 
 use anyhow::Result;
 use chrono::Utc;
+use proton_utils::rt::spawn_blocking;
 use reqwest::Url;
 use sha2::{Digest, Sha512};
-use tauri::async_runtime::spawn_blocking;
 use tokio::{fs, select, sync::Notify};
 
 use super::{

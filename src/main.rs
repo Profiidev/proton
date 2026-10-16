@@ -21,6 +21,7 @@ fn main() {
       proton_versions::init(cx);
       proton_account::init(cx).expect("Failed to load the accounts");
       proton_profiles::init(cx);
+      proton_content::init(cx);
       proton_ui::init(cx);
       open_main_window(cx);
     });

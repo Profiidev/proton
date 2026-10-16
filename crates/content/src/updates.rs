@@ -1,26 +1,24 @@
 use std::{
   collections::HashMap,
-  path::{Path, PathBuf},
-  sync::Mutex,
+  path::Path,
+  sync::{Arc, Mutex},
   time::Duration,
 };
 
 use anyhow::Result;
 use chrono::Utc;
-use tauri::{AppHandle, Manager};
 
 use super::{
   install::newest,
   model::{Channel, PackUpdate, Source, UpdateInfo, VersionInfo},
+  profiles,
   provider::{ContentProvider, Providers, profile_loaders},
   store::{self, Entry},
 };
-use proton_profiles::{config::Profile, store::ProfileStore};
-use proton_utils::{
-  log::ErrorLogExt,
-  tauri_compat::{UpdateType, update_data},
-};
-use proton_versions::store::is_busy;
+use proton_config::offline::OfflineHandle;
+use proton_profiles::{ProfilesHandle, config::Profile};
+use proton_utils::log::ErrorLogExt;
+use proton_versions::{event::DownloadsHandle, store::is_busy};
 
 const INTERVAL: Duration = Duration::from_secs(6 * 60 * 60);
 const LAST_CHECK_KEY: &str = "content_updates_checked";
@@ -177,74 +175,125 @@ pub async fn entries(dir: &Path) -> Vec<Entry> {
     .collect()
 }
 
-/// Checks one or all profiles, stores the result in the cache and returns the whole cache
-pub async fn check_profiles(
-  handle: &AppHandle,
-  profile: Option<&str>,
-) -> Result<HashMap<String, Vec<UpdateInfo>>> {
-  let targets: Vec<(Profile, PathBuf)> = {
-    let state = handle.state::<tokio::sync::Mutex<ProfileStore>>();
-    let store = state.lock().await;
-    let profiles = match profile {
-      Some(id) => vec![store.profile(id).await?],
-      None => store.list_profiles().await?,
+/// What the handle reports to the gpui side, drained by `listener::listen`
+#[derive(Debug, Clone)]
+pub enum ContentMsg {
+  Updates(HashMap<String, Vec<UpdateInfo>>),
+  PackUpdates(HashMap<String, PackUpdate>),
+}
+
+/// Clone it into tokio tasks. Owns the providers (with their caches) and the update caches, the
+/// gpui entities follow through [`ContentMsg`]s.
+#[derive(Clone)]
+pub struct ContentHandle {
+  pub providers: Arc<Providers>,
+  pub offline: OfflineHandle,
+  /// Rows in the downloads panel for installs and exports
+  pub downloads: DownloadsHandle,
+  pub profiles: ProfilesHandle,
+  cache: Arc<UpdatesCache>,
+  packs: Arc<PackUpdates>,
+  tx: flume::Sender<ContentMsg>,
+}
+
+impl ContentHandle {
+  /// The receiver goes to the listener. Tests may drop it, sends are then ignored.
+  pub fn new(
+    offline: OfflineHandle,
+    downloads: DownloadsHandle,
+    profiles: ProfilesHandle,
+  ) -> (Self, flume::Receiver<ContentMsg>) {
+    let (tx, rx) = flume::unbounded();
+    let handle = Self {
+      providers: Arc::new(Providers::new()),
+      offline,
+      downloads,
+      profiles,
+      cache: Default::default(),
+      packs: Default::default(),
+      tx,
     };
-    profiles
-      .into_iter()
-      .filter_map(|p| Some((store.get_profile_path(&p.id).ok()?, p)))
-      .map(|(dir, p)| (p, dir))
-      .collect()
-  };
-
-  let cache = handle.state::<UpdatesCache>();
-  let before = cache.generations();
-  let providers = handle.state::<Providers>();
-  let mut results = HashMap::new();
-  let mut packs = HashMap::new();
-  for (profile, dir) in targets {
-    let entries = entries(&dir).await;
-    let updates = check(|s| providers.get(s), &profile, &entries).await;
-    if let Some(update) = pack_update(&providers, &profile).await {
-      packs.insert(profile.id.clone(), update);
-    }
-    results.insert(profile.id, updates);
+    (handle, rx)
   }
-  {
-    let state = handle.state::<PackUpdates>();
-    let mut known = state.0.lock().unwrap();
-    match profile {
+
+  fn send(&self, msg: ContentMsg) {
+    // the listener is gone only when the app quits
+    let _ = self.tx.send(msg);
+  }
+
+  fn publish_packs(&self) {
+    self.send(ContentMsg::PackUpdates(
+      self.packs.0.lock().unwrap().clone(),
+    ));
+  }
+
+  /// Checks one or all profiles, stores the result in the cache and returns the whole cache
+  pub async fn check_profiles(
+    &self,
+    profile: Option<&str>,
+  ) -> Result<HashMap<String, Vec<UpdateInfo>>> {
+    let targets = match profile {
       Some(id) => {
-        known.remove(id);
-        known.extend(packs);
+        let target = profiles::resolve(&self.profiles, id).await?;
+        vec![(target.profile, target.dir)]
       }
-      None => *known = packs,
+      None => profiles::all(&self.profiles).await?,
+    };
+
+    let before = self.cache.generations();
+    let providers = &self.providers;
+    let mut results = HashMap::new();
+    let mut packs = HashMap::new();
+    for (profile, dir) in targets {
+      let entries = entries(&dir).await;
+      let updates = check(|s| providers.get(s), &profile, &entries).await;
+      if let Some(update) = pack_update(providers, &profile).await {
+        packs.insert(profile.id.clone(), update);
+      }
+      results.insert(profile.id, updates);
     }
+    {
+      let mut known = self.packs.0.lock().unwrap();
+      match profile {
+        Some(id) => {
+          known.remove(id);
+          known.extend(packs);
+        }
+        None => *known = packs,
+      }
+    }
+    self.publish_packs();
+
+    let all = self.cache.store(results, &before, profile.is_none());
+    self.send(ContentMsg::Updates(all.clone()));
+    Ok(all)
   }
 
-  let all = cache.store(results, &before, profile.is_none());
-  update_data(handle, UpdateType::ContentUpdates);
-  Ok(all)
-}
+  /// Drops cached updates of files that were just updated
+  pub fn forget(&self, profile: &str, file_names: &[String]) {
+    self.cache.forget(profile, file_names);
+    self.send(ContentMsg::Updates(self.cache.0.lock().unwrap().clone()));
+  }
 
-/// Drops cached updates of files that were just updated
-pub fn forget(handle: &AppHandle, profile: &str, file_names: &[String]) {
-  handle.state::<UpdatesCache>().forget(profile, file_names);
-  update_data(handle, UpdateType::ContentUpdates);
-}
+  /// The profile is on the newest pack version now
+  pub fn forget_pack(&self, profile: &str) {
+    self.packs.0.lock().unwrap().remove(profile);
+    self.publish_packs();
+  }
 
-/// Checks all profiles now and every 6 hours, waiting while a download or install runs
-pub async fn run_loop(handle: AppHandle) {
-  loop {
-    if is_busy() {
-      tokio::time::sleep(Duration::from_secs(60)).await;
-      continue;
+  /// Checks all profiles now and every 6 hours, waiting while a download or install runs
+  pub async fn run_loop(self) {
+    loop {
+      if is_busy() {
+        tokio::time::sleep(Duration::from_secs(60)).await;
+        continue;
+      }
+      let _ = self.check_profiles(None).await.log_err();
+      let _ = proton_store::store()
+        .set(LAST_CHECK_KEY, &Utc::now())
+        .log_err();
+      tokio::time::sleep(INTERVAL).await;
     }
-    let _ = check_profiles(&handle, None).await.log_err();
-    {
-      let store = proton_store::store();
-      let _ = store.set(LAST_CHECK_KEY, &Utc::now()).log_err();
-    }
-    tokio::time::sleep(INTERVAL).await;
   }
 }
 
@@ -271,6 +320,30 @@ mod tests {
       channel: Some(channel),
       dependency_of: vec![],
       pending: false,
+    }
+  }
+
+  impl ContentHandle {
+    /// Stores updates for `files` of `profile` as a finished check would
+    pub(crate) fn seed(&self, profile: &str, files: &[&str]) {
+      let updates = files
+        .iter()
+        .map(|f| UpdateInfo {
+          profile: profile.into(),
+          kind: ContentKind::Mod,
+          file_name: (*f).into(),
+          source: Source::Modrinth,
+          project_id: "a".into(),
+          name: "A".into(),
+          current: "1".into(),
+          latest: latest("a", "new", Channel::Release),
+        })
+        .collect();
+      let before = self.cache.generations();
+      let all = self
+        .cache
+        .store(HashMap::from([(profile.into(), updates)]), &before, false);
+      self.send(ContentMsg::Updates(all));
     }
   }
 

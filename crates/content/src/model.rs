@@ -149,7 +149,7 @@ pub struct SearchResult {
   pub warnings: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Category {
   pub name: String,
   pub header: String,
@@ -176,7 +176,7 @@ impl ContentKind {
   }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Installed {
   pub kind: ContentKind,
@@ -332,7 +332,7 @@ pub struct PackPlan {
   pub total_bytes: u64,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateInfo {
   pub profile: String,
@@ -347,7 +347,7 @@ pub struct UpdateInfo {
 }
 
 /// A newer version of the pack a profile was installed from
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct PackUpdate {
   /// Installed version number, empty when the provider no longer lists it
