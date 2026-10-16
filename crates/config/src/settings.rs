@@ -38,6 +38,19 @@ pub struct Settings {
   /// Folders checked for manual downloads, `None` means the system Downloads folder
   #[serde(default)]
   pub download_dirs: Option<Vec<PathBuf>>,
+  /// Main window bounds, `None` until the window was moved or resized once
+  #[serde(default)]
+  pub window: Option<WindowState>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
+pub struct WindowState {
+  pub x: f32,
+  pub y: f32,
+  pub width: f32,
+  pub height: f32,
+  #[serde(default)]
+  pub maximized: bool,
 }
 
 impl Settings {

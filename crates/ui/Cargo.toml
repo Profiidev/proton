@@ -16,6 +16,9 @@ proton_versions.workspace = true
 proton_store.workspace = true
 proton_utils.workspace = true
 proton_skin_render = { path = "../skin_render" }
+flume.workspace = true
+dirs.workspace = true
+interprocess.workspace = true
 chrono.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true

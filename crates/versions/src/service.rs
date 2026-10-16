@@ -199,8 +199,9 @@ impl VersionsExt for App {
   }
 }
 
-/// Sets the global and starts the listener. Needs `proton_config::init` first.
-fn init_state(cx: &mut App) -> Versions {
+/// Sets the global and starts the listener, without reading the manifests (tests use this).
+/// Needs `proton_config::init` first.
+pub fn init_state(cx: &mut App) -> Versions {
   let (handle, rx) = DownloadsHandle::new();
   let versions = Versions {
     versions: cx.new(|_| VersionLists::default()),

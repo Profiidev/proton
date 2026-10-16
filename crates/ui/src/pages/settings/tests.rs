@@ -45,6 +45,7 @@ fn open(cx: &mut TestAppContext, tab: SettingsTab) -> AnyWindowHandle {
     gpui_kit::init(cx);
     proton_components::assets::load(cx).unwrap();
     proton_config::init(cx);
+    proton_versions::init(cx);
     proton_account::init(cx).unwrap();
     crate::init(cx);
     super::register(cx);

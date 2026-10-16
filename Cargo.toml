@@ -30,6 +30,7 @@ open = "5.4.4"
 url = { version = "2.5.8", features = ["serde"] }
 tempfile = "3.27.0"
 include_dir = "0.7.4"
+interprocess = "2.4.5"
 
 tauri = { version = "2.12.4", features = [] }
 tauri-build = { version = "2", features = [] }
@@ -106,3 +107,4 @@ proton_versions.workspace = true
 proton_account.workspace = true
 proton_profiles.workspace = true
 proton_content.workspace = true
+tracing.workspace = true
