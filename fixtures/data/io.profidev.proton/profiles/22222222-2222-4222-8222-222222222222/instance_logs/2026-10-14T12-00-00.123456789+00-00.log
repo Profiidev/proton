@@ -1,0 +1,10 @@
+[12:00:01] [main/INFO]: Loading Minecraft 1.21.8 with Fabric Loader 0.17.2
+[12:00:01] [main/INFO]: Setting user: Steve_Fixture
+[12:00:02] [Render thread/INFO]: Backend library: LWJGL version 3.3.3
+[12:00:02] [Render thread/WARN]: Missing sound for event: minecraft:item.goat_horn.play
+[12:00:03] [Render thread/INFO]: Reloading ResourceManager: vanilla, fabric
+[12:00:04] [Worker-Main-2/INFO]: Preparing spawn area: 0%
+[12:00:05] [Worker-Main-2/INFO]: Preparing spawn area: 83%
+[12:00:06] [Server thread/INFO]: Steve_Fixture joined the game
+[12:00:07] [Render thread/INFO]: [System] [CHAT] Hello from the fixture log
+[12:00:30] [Render thread/INFO]: Stopping!
