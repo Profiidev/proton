@@ -12,9 +12,13 @@ use crate::router::{Kind, ProfileTab, QuickPlayTab, RouterExt};
 fn open(cx: &mut TestAppContext) -> (AnyWindowHandle, Rc<Cell<usize>>) {
   let builds = Rc::new(Cell::new(0));
   let counter = builds.clone();
+  let dir = tempfile::tempdir().unwrap().keep();
+  proton_store::init_at(dir.join("store.json"));
   let handle = cx.update(|cx| {
     gpui_kit::init(cx);
     proton_components::assets::load(cx).unwrap();
+    proton_config::init(cx);
+    proton_versions::init_state(cx);
     crate::init(cx);
     PageFactory::register(
       cx,

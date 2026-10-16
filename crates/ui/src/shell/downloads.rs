@@ -1,7 +1,11 @@
+//! Header chip + popover over `proton_versions`' downloads. Each row is its own entity: a
+//! progress tick re-renders only that row and the chip, never the panel or the header.
+
 use gpui_kit::{
-  Anchor, App, AppContext, Context, Entity, Global, InteractiveElement, IntoElement, ParentElement,
-  Render, SharedString, StatefulInteractiveElement, Styled, Window,
+  Anchor, AppContext, Context, Entity, InteractiveElement, IntoElement, ParentElement, Render,
+  StatefulInteractiveElement, Styled, Subscription, Window,
   assets::IconName,
+  base::TestSupportExt,
   component::{
     ActiveTheme, Disableable, Icon, Sizable, StyledExt,
     button::{Button, ButtonVariants},
@@ -12,137 +16,202 @@ use gpui_kit::{
   prelude::FluentBuilder,
   px,
 };
+use proton_versions::{
+  VersionsExt,
+  downloads::{DownloadProgress, chip_label, running_percent},
+};
 
-/// One job in the downloads panel. The downloads service owns the list
-/// ([`DownloadsExt::downloads`]) and the panel only renders it.
-#[derive(Debug, Clone, PartialEq)]
-pub struct DownloadRow {
-  pub id: u64,
-  pub title: SharedString,
-  pub state: DownloadState,
-  /// 0..=100, `None` while unknown
-  pub percent: Option<f32>,
-  /// Stage text, e.g. "Downloading assets · 12 of 300 MiB"
-  pub detail: SharedString,
-  /// e.g. "4.2 MB/s"
-  pub speed: Option<SharedString>,
-  /// Set by the panel's cancel button, the service observes the list and acts on it
-  pub cancel_requested: bool,
+/// Chip label and bar, re-rendered on ticks
+#[derive(Default, PartialEq)]
+struct Chip {
+  running: usize,
+  percent: f32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DownloadState {
-  Running,
-  Done,
-  Failed,
-  Canceled,
-}
-
-struct GlobalDownloads(Entity<Vec<DownloadRow>>);
-
-impl Global for GlobalDownloads {}
-
-pub(crate) fn init(cx: &mut App) {
-  let rows = cx.new(|_| vec![]);
-  cx.set_global(GlobalDownloads(rows));
-}
-
-pub trait DownloadsExt {
-  fn downloads(&self) -> Entity<Vec<DownloadRow>>;
-}
-
-impl DownloadsExt for App {
-  fn downloads(&self) -> Entity<Vec<DownloadRow>> {
-    self.global::<GlobalDownloads>().0.clone()
+impl Render for Chip {
+  fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+    div()
+      .flex()
+      .items_center()
+      .gap_1p5()
+      .child(Icon::new(IconName::Download).size_3p5())
+      .child(chip_label(self.running))
+      .when(self.running > 0, |el| {
+        el.child(
+          Progress::new("downloads-progress")
+            .w(px(40.))
+            .value(self.percent),
+        )
+      })
   }
 }
 
-fn chip_label(running: usize) -> String {
-  match running {
-    0 => "Downloads".into(),
-    1 => "1 download".into(),
-    n => format!("{n} downloads"),
+/// One job in the popover
+pub struct DownloadRowView {
+  row: Entity<DownloadProgress>,
+}
+
+impl DownloadRowView {
+  fn new(row: Entity<DownloadProgress>, cx: &mut Context<Self>) -> Self {
+    cx.observe(&row, |_, _, cx| cx.notify()).detach();
+    Self { row }
   }
 }
 
-fn percent_label(row: &DownloadRow) -> String {
-  match row.state {
-    DownloadState::Done => "Done".into(),
-    DownloadState::Failed => "Failed".into(),
-    DownloadState::Canceled => "Canceled".into(),
-    DownloadState::Running => row
-      .percent
-      .map(|p| format!("{}%", p.round()))
-      .unwrap_or_default(),
+impl Render for DownloadRowView {
+  fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    let theme = cx.theme();
+    let row = self.row.read(cx);
+    let id = row.id;
+    let running = row.is_running();
+    let speed = row.speed_label();
+    div()
+      .flex()
+      .flex_col()
+      .gap_1p5()
+      .child(
+        div()
+          .flex()
+          .items_center()
+          .gap_2()
+          .child(
+            div()
+              .flex_1()
+              .truncate()
+              .font_medium()
+              .child(row.title.clone()),
+          )
+          .child(
+            div()
+              .text_xs()
+              .text_color(theme.muted_foreground)
+              .child(row.percent_label()),
+          )
+          .when(running, |el| {
+            el.child(
+              div()
+                .id(format!("download-cancel-{id}"))
+                .test_support()
+                .child(
+                  Button::new(("download-cancel", id))
+                    .ghost()
+                    .xsmall()
+                    .icon(IconName::X)
+                    .tooltip("Cancel download")
+                    .disabled(row.cancel_requested)
+                    .on_click(move |_, _, cx| cx.versions().clone().cancel_download(id, cx)),
+                ),
+            )
+          }),
+      )
+      .child(Progress::new(("download-progress", id)).value(row.percent() as f32))
+      .when(running, |el| {
+        el.child(
+          div()
+            .flex()
+            .justify_between()
+            .text_xs()
+            .text_color(theme.muted_foreground)
+            .child(row.detail())
+            .when(!speed.is_empty(), |el| el.child(speed)),
+        )
+      })
   }
 }
 
-/// Header chip + popover; hidden while there are no jobs
+/// Hidden while there are no jobs
 pub struct DownloadsPanel {
-  rows: Entity<Vec<DownloadRow>>,
+  rows: Vec<Entity<DownloadRowView>>,
+  chip: Entity<Chip>,
+  all_running: bool,
+  /// one per row, rebuilt when the list changes
+  row_subs: Vec<Subscription>,
 }
 
 impl DownloadsPanel {
   pub fn new(cx: &mut Context<Self>) -> Self {
-    let rows = cx.downloads();
-    cx.observe(&rows, |_, _, cx| cx.notify()).detach();
-    Self { rows }
+    let list = cx.versions().downloads.clone();
+    cx.observe(&list, |this, _, cx| {
+      this.sync_rows(cx);
+      cx.notify();
+    })
+    .detach();
+    let mut this = Self {
+      rows: vec![],
+      chip: cx.new(|_| Chip::default()),
+      all_running: true,
+      row_subs: vec![],
+    };
+    this.sync_rows(cx);
+    this
+  }
+
+  fn sync_rows(&mut self, cx: &mut Context<Self>) {
+    let rows: Vec<_> = cx.versions().downloads.read(cx).rows().cloned().collect();
+    self.row_subs = rows
+      .iter()
+      .map(|row| cx.observe(row, |this, _, cx| this.sync_summary(cx)))
+      .collect();
+    self.rows = rows
+      .into_iter()
+      .map(|row| cx.new(|cx| DownloadRowView::new(row, cx)))
+      .collect();
+    self.sync_summary(cx);
+  }
+
+  /// Updates the chip; the panel itself re-renders only when "Clear finished" flips
+  fn sync_summary(&mut self, cx: &mut Context<Self>) {
+    let list = cx.versions().downloads.read(cx);
+    let rows: Vec<&DownloadProgress> = list.rows().map(|r| r.read(cx)).collect();
+    let running = rows.iter().filter(|r| r.is_running()).count();
+    let chip = Chip {
+      running,
+      percent: running_percent(rows.iter().copied()) as f32,
+    };
+    let all_running = running == rows.len();
+    self.chip.update(cx, |c, cx| {
+      if *c != chip {
+        *c = chip;
+        cx.notify();
+      }
+    });
+    if all_running != self.all_running {
+      self.all_running = all_running;
+      cx.notify();
+    }
   }
 }
 
 impl Render for DownloadsPanel {
   fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-    let rows = self.rows.read(cx);
-    if rows.is_empty() {
+    if self.rows.is_empty() {
       return div().into_any_element();
     }
-    let running: Vec<_> = rows
-      .iter()
-      .filter(|r| r.state == DownloadState::Running)
-      .collect();
-    let average =
-      running.iter().map(|r| r.percent.unwrap_or(0.)).sum::<f32>() / running.len().max(1) as f32;
-    let label = chip_label(running.len());
-    let any_running = !running.is_empty();
-    let theme = cx.theme();
-
     let trigger = Button::new("downloads")
       .ghost()
       .h_7()
       .px(px(10.))
       .rounded_full()
-      .bg(theme.muted)
+      .bg(cx.theme().muted)
       .text_xs()
-      .child(
-        div()
-          .flex()
-          .items_center()
-          .gap_1p5()
-          .child(Icon::new(IconName::Download).size_3p5())
-          .child(label)
-          .when(any_running, |el| {
-            el.child(
-              Progress::new("downloads-progress")
-                .w(px(40.))
-                .value(average),
-            )
-          }),
-      );
+      .child(self.chip.clone());
 
-    let list = self.rows.clone();
+    let rows = self.rows.clone();
+    let all_running = self.all_running;
     Popover::new("downloads-popover")
       .anchor(Anchor::TopRight)
       .trigger(trigger)
-      .content(move |_, _, cx| panel(&list, cx))
+      .content(move |_, _, cx| panel(rows.clone(), all_running, cx))
       .into_any_element()
   }
 }
 
-fn panel(list: &Entity<Vec<DownloadRow>>, cx: &mut App) -> impl IntoElement + use<> {
+fn panel(
+  rows: Vec<Entity<DownloadRowView>>,
+  all_running: bool,
+  cx: &mut gpui_kit::App,
+) -> impl IntoElement + use<> {
   let theme = cx.theme();
-  let rows = list.read(cx).clone();
-  let all_running = rows.iter().all(|r| r.state == DownloadState::Running);
-  let clear = list.clone();
   div()
     .w(px(400.))
     .flex()
@@ -160,12 +229,7 @@ fn panel(list: &Entity<Vec<DownloadRow>>, cx: &mut App) -> impl IntoElement + us
             .xsmall()
             .label("Clear finished")
             .disabled(all_running)
-            .on_click(move |_, _, cx| {
-              clear.update(cx, |rows, cx| {
-                rows.retain(|r| r.state == DownloadState::Running);
-                cx.notify();
-              })
-            }),
+            .on_click(|_, _, cx| cx.versions().clone().clear_finished(cx)),
         ),
     )
     .child(
@@ -176,68 +240,7 @@ fn panel(list: &Entity<Vec<DownloadRow>>, cx: &mut App) -> impl IntoElement + us
         .flex()
         .flex_col()
         .gap_3()
-        .children(rows.into_iter().map(|row| {
-          let cancel = list.clone();
-          let id = row.id;
-          div()
-            .flex()
-            .flex_col()
-            .gap_1p5()
-            .child(
-              div()
-                .flex()
-                .items_center()
-                .gap_2()
-                .child(
-                  div()
-                    .flex_1()
-                    .truncate()
-                    .font_medium()
-                    .child(row.title.clone()),
-                )
-                .child(
-                  div()
-                    .text_xs()
-                    .text_color(theme.muted_foreground)
-                    .child(percent_label(&row)),
-                )
-                .when(row.state == DownloadState::Running, |el| {
-                  el.child(
-                    Button::new(("download-cancel", id))
-                      .ghost()
-                      .xsmall()
-                      .icon(IconName::X)
-                      .tooltip("Cancel download")
-                      .disabled(row.cancel_requested)
-                      .on_click(move |_, _, cx| {
-                        cancel.update(cx, |rows, cx| {
-                          if let Some(r) = rows.iter_mut().find(|r| r.id == id) {
-                            r.cancel_requested = true;
-                            cx.notify();
-                          }
-                        })
-                      }),
-                  )
-                }),
-            )
-            .child(
-              Progress::new(("download-progress", id)).value(match row.state {
-                DownloadState::Done => 100.,
-                _ => row.percent.unwrap_or(0.),
-              }),
-            )
-            .when(row.state == DownloadState::Running, |el| {
-              el.child(
-                div()
-                  .flex()
-                  .justify_between()
-                  .text_xs()
-                  .text_color(theme.muted_foreground)
-                  .child(row.detail.clone())
-                  .children(row.speed.clone()),
-              )
-            })
-        })),
+        .children(rows),
     )
     .child(
       div().text_xs().text_color(theme.muted_foreground).child(
@@ -248,26 +251,79 @@ fn panel(list: &Entity<Vec<DownloadRow>>, cx: &mut App) -> impl IntoElement + us
 
 #[cfg(test)]
 mod tests {
+  use std::{cell::Cell, rc::Rc};
+
+  use gpui_kit::{self as gpui, TestAppContext, test::TestWindowExt};
+  use proton_versions::{downloads::DownloadStatus, event::DownloadCheckStatus};
+
   use super::*;
 
-  #[test]
-  fn labels() {
-    assert_eq!(chip_label(0), "Downloads");
-    assert_eq!(chip_label(1), "1 download");
-    assert_eq!(chip_label(3), "3 downloads");
-    let mut row = DownloadRow {
-      id: 1,
-      title: "x".into(),
-      state: DownloadState::Running,
-      percent: None,
-      detail: "".into(),
-      speed: None,
-      cancel_requested: false,
-    };
-    assert_eq!(percent_label(&row), "");
-    row.percent = Some(41.6);
-    assert_eq!(percent_label(&row), "42%");
-    row.state = DownloadState::Failed;
-    assert_eq!(percent_label(&row), "Failed");
+  fn count<T: 'static>(cx: &mut TestAppContext, entity: &Entity<T>) -> Rc<Cell<usize>> {
+    let count = Rc::new(Cell::new(0));
+    let seen = count.clone();
+    cx.update(|cx| {
+      cx.observe(entity, move |_, _| seen.set(seen.get() + 1))
+        .detach()
+    });
+    count
+  }
+
+  #[gpui::test]
+  fn tick_reaches_only_its_row_and_cancel_calls_the_service(cx: &mut TestAppContext) {
+    let dir = tempfile::tempdir().unwrap().keep();
+    proton_store::init_at(dir.join("store.json"));
+    let (window, panel) = cx.update(|cx| {
+      gpui_kit::init(cx);
+      proton_components::assets::load(cx).unwrap();
+      proton_config::init(cx);
+      proton_versions::init_state(cx);
+      let (window, panel) =
+        gpui_kit::open_window(Default::default(), cx, |_, cx| cx.new(DownloadsPanel::new)).unwrap();
+      (window, panel)
+    });
+    let handle = cx.update(|cx| cx.versions().handle.clone());
+    let a = handle.start("A");
+    let _b = handle.start("B");
+    cx.run_until_parked();
+
+    let views = panel.read_with(cx, |p, _| p.rows.clone());
+    let chip = panel.read_with(cx, |p, _| p.chip.clone());
+    let (panel_n, a_n, b_n, chip_n) = (
+      count(cx, &panel),
+      count(cx, &views[0]),
+      count(cx, &views[1]),
+      count(cx, &chip),
+    );
+    handle.send(proton_versions::event::DownloadMsg::Status {
+      id: a,
+      status: DownloadCheckStatus::AssetsCheck(1, 2),
+    });
+    cx.run_until_parked();
+    assert_eq!(
+      (panel_n.get(), a_n.get(), b_n.get(), chip_n.get()),
+      (0, 1, 0, 1)
+    );
+
+    // open the popover, click A's cancel
+    cx.update_window(window, |_, window, cx| {
+      window.render_frame(cx);
+      window.click("downloads".to_string(), cx);
+    })
+    .unwrap();
+    cx.run_until_parked();
+    cx.update_window(window, |_, window, cx| {
+      window.render_frame(cx);
+      window.click(format!("download-cancel-{a}"), cx);
+    })
+    .unwrap();
+    cx.run_until_parked();
+    let row = cx.read(|cx| cx.versions().downloads.read(cx).get(a).unwrap());
+    assert!(row.read_with(cx, |r, _| r.cancel_requested));
+    let before = panel_n.get();
+    handle.finish(a, true);
+    cx.run_until_parked();
+    assert_eq!(row.read_with(cx, |r, _| r.status), DownloadStatus::Canceled);
+    // "Clear finished" got enabled
+    assert_eq!(panel_n.get(), before + 1);
   }
 }

@@ -1,0 +1,113 @@
+use std::{cell::Cell, rc::Rc};
+
+use gpui_kit::{self as gpui, TestAppContext, component::WindowExt};
+
+use super::*;
+use crate::{router::SettingsTab, shell::Placeholder};
+
+/// Temp store + data dir, config and the router
+fn init_test(cx: &mut TestAppContext) -> std::path::PathBuf {
+  let dir = tempfile::tempdir().unwrap().keep();
+  proton_store::init_at(dir.join("store.json"));
+  cx.update(|cx| {
+    proton_config::init(cx);
+    crate::router::init(cx, Route::Home);
+  });
+  dir
+}
+
+#[gpui::test]
+fn route_is_persisted_once_after_the_debounce(cx: &mut TestAppContext) {
+  init_test(cx);
+  cx.update(persist_route);
+  let writes = Rc::new(Cell::new(0));
+  let seen = writes.clone();
+  cx.update(|cx| {
+    cx.observe(&cx.settings().settings.clone(), move |_, _| {
+      seen.set(seen.get() + 1)
+    })
+    .detach();
+    cx.navigate(Route::Profiles);
+    cx.navigate(Route::Instances);
+    cx.navigate(Route::Settings(SettingsTab::Java));
+  });
+  cx.executor().advance_clock(PERSIST_DELAY / 2);
+  cx.run_until_parked();
+  assert_eq!(writes.get(), 0);
+  cx.executor().advance_clock(PERSIST_DELAY);
+  cx.run_until_parked();
+  assert_eq!(writes.get(), 1);
+  let url = proton_config::settings::Settings::load().unwrap().url;
+  assert_eq!(url.as_deref(), Some("/settings/java"));
+}
+
+#[gpui::test]
+fn start_route_prefers_env_then_settings(cx: &mut TestAppContext) {
+  init_test(cx);
+  cx.update(|cx| proton_config::update(cx, |s| s.url = Some("tauri://localhost/instances".into())));
+  assert_eq!(cx.update(|cx| initial_route(cx)), Route::Instances);
+  // SAFETY: no other test reads this variable
+  unsafe { std::env::set_var(ROUTE_ENV, "/settings/java") };
+  assert_eq!(
+    cx.update(|cx| initial_route(cx)),
+    Route::Settings(SettingsTab::Java)
+  );
+  unsafe { std::env::remove_var(ROUTE_ENV) };
+}
+
+#[gpui::test]
+fn crash_and_manifest_errors_toast(cx: &mut TestAppContext) {
+  let dir = init_test(cx);
+  let window = cx.update(|cx| {
+    gpui_kit::init(cx);
+    proton_components::assets::load(cx).unwrap();
+    proton_profiles::init_at(cx, dir.join("data")).unwrap();
+    toasts(cx);
+    gpui_kit::open_window(Default::default(), cx, |_, cx| {
+      cx.new(|_| Placeholder("x".into()))
+    })
+    .unwrap()
+    .0
+  });
+  let count = |cx: &mut TestAppContext| {
+    cx.update_window(window, |_, window, cx| window.notifications(cx).len())
+      .unwrap()
+  };
+  assert_eq!(count(cx), 0);
+  cx.update(|cx| {
+    cx.profiles().events.clone().update(cx, |_, cx| {
+      cx.emit(ProfilesEvent::InstanceCrashed {
+        profile_name: "Survival".into(),
+      })
+    })
+  });
+  cx.run_until_parked();
+  assert_eq!(count(cx), 1);
+  cx.update(|cx| cx.offline().handle.manifest_refresh_failed());
+  cx.run_until_parked();
+  assert_eq!(count(cx), 2);
+}
+
+#[gpui::test]
+fn shell_data_mirrors_offline_only_on_change(cx: &mut TestAppContext) {
+  init_test(cx);
+  cx.update(|cx| {
+    crate::shell::init(cx);
+    let offline = cx.offline().offline.clone();
+    mirror(cx, offline, |v, d| d.offline = *v);
+  });
+  let notes = Rc::new(Cell::new(0));
+  let seen = notes.clone();
+  cx.update(|cx| {
+    cx.observe(&cx.shell_data(), move |_, _| seen.set(seen.get() + 1))
+      .detach();
+    let offline = cx.offline().offline.clone();
+    offline.write_changed(cx, true);
+  });
+  cx.run_until_parked();
+  assert!(cx.update(|cx| cx.shell_data().read(cx).offline));
+  // a settings-like unrelated notify does not touch shell data
+  cx.update(|cx| cx.offline().offline.clone().update(cx, |_, cx| cx.notify()));
+  cx.run_until_parked();
+  assert_eq!(notes.get(), 1);
+}

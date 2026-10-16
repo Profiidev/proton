@@ -120,7 +120,8 @@ impl DownloadsHandle {
     }
   }
 
-  pub(crate) fn send(&self, msg: DownloadMsg) {
+  /// Unthrottled, `status` is the throttled way for ticks
+  pub fn send(&self, msg: DownloadMsg) {
     // the listener is gone only when the app quits
     let _ = self.tx.send(msg);
   }

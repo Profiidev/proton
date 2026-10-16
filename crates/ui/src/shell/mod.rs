@@ -12,7 +12,7 @@ use gpui_kit::{
 };
 use proton_components::animation::ease_out_cubic;
 
-pub use downloads::{DownloadRow, DownloadState, DownloadsExt, DownloadsPanel};
+pub use downloads::{DownloadRowView, DownloadsPanel};
 pub use header::{HEADER_HEIGHT, Header};
 pub use pages::{PageFactory, Placeholder};
 pub use sidebar::{NavItem, Sidebar, SimpleSidebar, sidebar_width};
@@ -63,7 +63,6 @@ impl ShellDataExt for App {
 pub(crate) fn init(cx: &mut App) {
   let data = cx.new(|_| ShellData::default());
   cx.set_global(GlobalShellData(data));
-  downloads::init(cx);
 }
 
 /// Root view of the main window: header, sidebar and the current page
