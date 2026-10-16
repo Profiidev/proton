@@ -144,6 +144,7 @@ impl HomePage {
           .child(
             div()
               .text_xs()
+              .line_height(px(16.))
               .font_weight(FontWeight::MEDIUM)
               .text_color(muted_fg)
               .child("CONTINUE PLAYING"),
@@ -152,6 +153,7 @@ impl HomePage {
             div()
               .truncate()
               .text_xl()
+              .line_height(px(28.))
               .font_weight(FontWeight::SEMIBOLD)
               .child(title),
           )

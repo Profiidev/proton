@@ -457,6 +457,7 @@ impl Render for ProfilesPage {
               .child(
                 div()
                   .text_xl()
+                  .line_height(px(28.))
                   .font_weight(FontWeight::SEMIBOLD)
                   .child("Profiles"),
               )
