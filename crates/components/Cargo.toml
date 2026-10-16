@@ -17,7 +17,6 @@ proton_utils.workspace = true
 gpui-kit.workspace = true
 include_dir.workspace = true
 chrono.workspace = true
-regex = "1.13.1"
 
 [dev-dependencies]
 gpui-kit = { workspace = true, features = ["test-support"] }

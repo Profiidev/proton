@@ -143,7 +143,10 @@ fn full() -> StyleRefinement {
 impl Render for Shell {
   fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
     let route = cx.route();
-    let page = self.page(&route, window, cx).cached(full());
+    // not `.cached()`: a re-rendered cached view re-renders its whole subtree, so a live child
+    // (log lines, progress) would redraw the entire page. Uncached, a page notify re-renders
+    // only the page root and dirty views; the page's own cached children are reused.
+    let page = self.page(&route, window, cx);
     let page = div().relative().size_full().child(page).map(|el| {
       if cx.reduce_motion() {
         el.into_any_element()

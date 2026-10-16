@@ -24,4 +24,5 @@ gpui-kit = { workspace = true, features = ["test-support"] }
 proton_components = { workspace = true, features = ["test-support"] }
 serde_json.workspace = true
 tempfile.workspace = true
+tokio.workspace = true
 proton_store.workspace = true

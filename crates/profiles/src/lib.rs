@@ -17,7 +17,7 @@ use proton_config::{
   OfflineExt,
   offline::{OfflineHandle, OfflineResultExt},
 };
-use proton_utils::{log::ErrorLogExt, rt};
+use proton_utils::{log::ErrorLogExt, logs::LogBuffer, rt};
 use proton_versions::{
   VersionsExt, event::DownloadsHandle, loader::LoaderType, store::McVersionStore,
 };
@@ -40,11 +40,6 @@ pub const MANIFEST: &str = "proton-content.json";
 /// Downloads land here before they are verified and moved into place
 pub const TMP_DIR: &str = ".proton-tmp";
 
-/// Live log of a running instance, appended in batches with one notify per batch
-// ponytail: minimal stand-in until the components log buffer model exists, the integrator unifies
-#[derive(Default, Debug)]
-pub struct LogLines(pub Vec<String>);
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProfilesEvent {
   /// A game exited with a non-zero status
@@ -63,7 +58,8 @@ impl EventEmitter<ProfilesEvent> for ProfilesEvents {}
 pub struct LazyEntities {
   quick_play: HashMap<String, Entity<Vec<QuickPlayInfo>>>,
   runs: HashMap<String, Entity<Vec<DateTime<Utc>>>>,
-  logs: HashMap<String, Entity<LogLines>>,
+  /// Live log of a running instance, appended in batches with one notify per batch
+  logs: HashMap<String, Entity<LogBuffer>>,
 }
 
 /// Clone this into tokio code. The store lock is held only by tokio tasks.
@@ -190,7 +186,7 @@ impl Profiles {
   }
 
   /// Live log of a running instance, None once it exited
-  pub fn instance_logs(&self, instance: &str, cx: &App) -> Option<Entity<LogLines>> {
+  pub fn instance_logs(&self, instance: &str, cx: &App) -> Option<Entity<LogBuffer>> {
     self.lazy.read(cx).logs.get(instance).cloned()
   }
 
