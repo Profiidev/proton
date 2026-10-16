@@ -32,7 +32,7 @@
       {
         packages.default = pkgs.rustPlatform.buildRustPackage rec {
           pname = "proton";
-          version = "0.2.14";
+          version = "0.2.15";
 
           src = ./.;
 
