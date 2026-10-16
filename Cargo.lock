@@ -5788,9 +5788,14 @@ dependencies = [
  "gpui-kit",
  "proton_account",
  "proton_components",
+ "proton_config",
+ "proton_content",
  "proton_profiles",
+ "proton_store",
+ "proton_versions",
  "serde",
  "serde_json",
+ "tempfile",
  "tracing",
 ]
 

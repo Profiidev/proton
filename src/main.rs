@@ -23,6 +23,8 @@ fn main() {
       proton_profiles::init(cx);
       proton_content::init(cx);
       proton_ui::init(cx);
+      proton_ui::pages::register_all(cx);
+      if let Some(r) = std::env::var("PROTON_ROUTE").ok().and_then(|u| proton_ui::router::Route::from_url(&u)) { use proton_ui::router::RouterExt; cx.navigate(r); } // TEMP
       open_main_window(cx);
     });
 }
