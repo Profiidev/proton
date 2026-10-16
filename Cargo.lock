@@ -5792,6 +5792,7 @@ dependencies = [
  "proton_config",
  "proton_profiles",
  "proton_store",
+ "proton_utils",
  "proton_versions",
  "serde",
  "serde_json",

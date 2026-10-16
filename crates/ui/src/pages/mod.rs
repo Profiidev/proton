@@ -1,10 +1,14 @@
-//! Pages, registered with [`crate::shell::PageFactory`] by [`register_all`]
-
-pub mod profile;
+//! Pages, one module per area. Each registers itself with the shell's page factory.
 
 use gpui_kit::App;
 
+pub mod home;
+pub mod profile;
+pub mod profiles;
+
 /// Registers every page. Call after [`crate::init`] and the service inits, before the window opens.
 pub fn register_all(cx: &mut App) {
+  home::register(cx);
   profile::register(cx);
+  profiles::register(cx);
 }

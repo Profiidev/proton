@@ -12,6 +12,7 @@ proton_account.workspace = true
 proton_profiles.workspace = true
 proton_config.workspace = true
 proton_versions.workspace = true
+proton_utils.workspace = true
 chrono.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
