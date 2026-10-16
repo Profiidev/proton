@@ -4,7 +4,10 @@ use gpui_kit::{
   App, AppContext, Bounds, TitlebarOptions, WindowBounds, WindowDecorations, WindowOptions, px,
   size,
 };
-use proton_ui::shell::Shell;
+use proton_ui::{
+  router::{Route, RouterExt},
+  shell::Shell,
+};
 
 fn main() {
   proton_utils::dir::migrate();
@@ -18,7 +21,17 @@ fn main() {
       gpui_kit::init(cx);
       proton_components::assets::load(cx).expect("Failed to load the theme");
       proton_config::init(cx);
+      proton_account::init(cx).expect("Failed to load the accounts");
+      proton_versions::init(cx);
       proton_ui::init(cx);
+      proton_ui::pages::register_all(cx);
+      // start at a route, e.g. `PROTON_ROUTE=/settings/skins` for screenshots
+      if let Some(route) = std::env::var("PROTON_ROUTE")
+        .ok()
+        .and_then(|url| Route::from_url(&url))
+      {
+        cx.router().update(cx, |r, cx| r.replace(route, cx));
+      }
       open_main_window(cx);
     });
 }

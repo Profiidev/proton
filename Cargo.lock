@@ -6699,11 +6699,13 @@ name = "proton-gpui"
 version = "0.1.0"
 dependencies = [
  "gpui-kit",
+ "proton_account",
  "proton_components",
  "proton_config",
  "proton_reqwest",
  "proton_ui",
  "proton_utils",
+ "proton_versions",
 ]
 
 [[package]]
@@ -6858,10 +6860,20 @@ dependencies = [
 name = "proton_ui"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "gpui-kit",
+ "image",
+ "proton_account",
  "proton_components",
+ "proton_config",
+ "proton_skin_render",
+ "proton_store",
+ "proton_utils",
  "serde",
  "serde_json",
+ "tempfile",
+ "tracing",
+ "url",
 ]
 
 [[package]]

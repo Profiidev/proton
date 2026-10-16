@@ -10,8 +10,18 @@ license.workspace = true
 proton_components.workspace = true
 gpui-kit.workspace = true
 serde.workspace = true
+anyhow.workspace = true
+image.workspace = true
+tracing.workspace = true
+url.workspace = true
+proton_utils.workspace = true
+proton_config.workspace = true
+proton_account.workspace = true
+proton_skin_render = { path = "../skin_render" }
 
 [dev-dependencies]
+proton_store.workspace = true
+tempfile.workspace = true
 gpui-kit = { workspace = true, features = ["test-support"] }
 proton_components = { workspace = true, features = ["test-support"] }
 serde_json.workspace = true
