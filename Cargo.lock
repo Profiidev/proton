@@ -6741,7 +6741,6 @@ dependencies = [
  "gpui-kit",
  "include_dir",
  "proton_utils",
- "regex",
  "tracing",
 ]
 
@@ -6862,12 +6861,19 @@ name = "proton_ui"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "gpui-kit",
  "proton_account",
  "proton_components",
+ "proton_config",
  "proton_profiles",
+ "proton_store",
+ "proton_utils",
+ "proton_versions",
  "serde",
  "serde_json",
+ "tempfile",
+ "tokio",
  "tracing",
 ]
 
@@ -6881,6 +6887,7 @@ dependencies = [
  "futures-util",
  "gpui-kit",
  "hex",
+ "regex",
  "reqwest",
  "serde",
  "serde-xml-rs",

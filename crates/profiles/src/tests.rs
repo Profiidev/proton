@@ -88,7 +88,7 @@ fn log_batch_notifies_once(cx: &mut TestAppContext) {
     .unwrap();
   cx.run_until_parked();
   assert_eq!(count.get(), 1);
-  assert_eq!(cx.update(|cx| logs.read(cx).0.len()), 3);
+  assert_eq!(cx.update(|cx| logs.read(cx).entries().len()), 3);
   // log lines do not wake the instance list
   assert_eq!(instances.get(), 1);
 

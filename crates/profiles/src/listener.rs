@@ -1,6 +1,8 @@
 use gpui_kit::{App, AppContext, AsyncApp, Entity};
 
-use crate::{LogLines, Profiles, ProfilesEvent, store::ProfilesMsg};
+use proton_utils::logs::LogBuffer;
+
+use crate::{Profiles, ProfilesEvent, store::ProfilesMsg};
 
 /// Moves what the tokio side reports into the entities, on the gpui thread
 pub(crate) fn listen(cx: &mut App, rx: flume::Receiver<ProfilesMsg>, profiles: Profiles) {
@@ -42,7 +44,7 @@ fn apply(cx: &mut AsyncApp, p: &Profiles, msg: ProfilesMsg) {
       emit(cx, p, ProfilesEvent::InstanceCrashed { profile_name })
     }
     ProfilesMsg::InstanceAdded(info) => {
-      let logs = cx.new(|_| LogLines::default());
+      let logs = cx.new(|_| LogBuffer::new());
       p.lazy
         .update(cx, |l, _| l.logs.insert(info.id.clone(), logs));
       p.instances.update(cx, |list, cx| {
@@ -60,8 +62,7 @@ fn apply(cx: &mut AsyncApp, p: &Profiles, msg: ProfilesMsg) {
     ProfilesMsg::InstanceLines(id, lines) => {
       if let Some(entity) = p.lazy.read_with(cx, |l, _| l.logs.get(&id).cloned()) {
         entity.update(cx, |log, cx| {
-          log.0.extend(lines);
-          cx.notify();
+          log.extend(lines.iter().map(String::as_str), cx)
         });
       }
     }

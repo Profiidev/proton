@@ -4,6 +4,7 @@ pub mod entity;
 pub mod file;
 pub mod future;
 pub mod log;
+pub mod logs;
 pub mod macros;
 pub mod rt;
 pub mod tauri_compat;
