@@ -21,3 +21,6 @@ pub fn register_all(cx: &mut App) {
   profiles::register(cx);
   settings::register(cx);
 }
+
+#[cfg(test)]
+mod tests;

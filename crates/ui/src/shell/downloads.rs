@@ -60,6 +60,7 @@ impl DownloadRowView {
 
 impl Render for DownloadRowView {
   fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    proton_components::render_count::hit::<Self>();
     let theme = cx.theme();
     let row = self.row.read(cx);
     let id = row.id;

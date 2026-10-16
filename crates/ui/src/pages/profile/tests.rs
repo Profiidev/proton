@@ -40,6 +40,8 @@ fn open<V: 'static + gpui::Render>(
   let (handle, view) = cx.update(|cx| {
     gpui_kit::init(cx);
     proton_components::assets::load(cx).unwrap();
+    // animations run on the wall clock: a click mid dialog-entrance misses its target
+    cx.set_reduce_motion(true);
     proton_config::init(cx);
     proton_versions::init(cx);
     proton_profiles::init_at(cx, data.clone()).unwrap();
@@ -103,13 +105,7 @@ async fn header_delete_asks_then_removes(cx: &mut TestAppContext) {
     header::delete(VANILLA.into(), "Vanilla Survival".into(), window, cx);
   })
   .unwrap();
-  // let the dialog open animation finish so the button takes clicks, under load too
-  for _ in 0..4 {
-    std::thread::sleep(std::time::Duration::from_millis(100));
-    cx.update_window(handle, |_, window, cx| window.render_frame(cx))
-      .unwrap();
-    cx.run_until_parked();
-  }
+  cx.run_until_parked();
   cx.update_window(handle, |_, window, cx| {
     window.render_frame(cx);
     assert!(window.has_active_dialog(cx));
@@ -171,4 +167,83 @@ async fn settings_rename_persists(cx: &mut TestAppContext) {
   .unwrap();
   settle(cx);
   assert_eq!(profile(cx, VANILLA).unwrap().name, "Renamed");
+}
+
+// port of app/src/tests/unit/routes/profiles/info/quick_play/quick-play.test.ts
+#[test]
+fn players_label_and_note() {
+  use proton_profiles::{config::QuickPlayInfo, server::ServerStatus};
+
+  use super::quick_play::{players_label, show_note};
+
+  let status = |online, players_online, players_max| ServerStatus {
+    online,
+    players_online,
+    players_max,
+  };
+  assert_eq!(players_label(&status(false, 0, 0)), "Offline");
+  assert_eq!(players_label(&status(true, 3, 20)), "3 / 20 online");
+
+  let entry = |kind: &str| -> QuickPlayInfo {
+    serde_json::from_value(serde_json::json!({
+      "id": "x", "name": "x", "lastPlayedTime": "2024-01-01T00:00:00Z", "type": kind
+    }))
+    .unwrap()
+  };
+  assert!(show_note(&[]));
+  assert!(show_note(&[entry("realms")]));
+  assert!(!show_note(&[entry("singleplayer")]));
+  assert!(!show_note(&[entry("multiplayer")]));
+}
+
+#[gpui::test]
+async fn quick_play_remove_asks_then_drops_the_entry(cx: &mut TestAppContext) {
+  let (handle, page, _) = open(cx, |w, cx| {
+    QuickPlayPage::new(VANILLA.into(), QuickPlayTab::Singleplayer, w, cx)
+  });
+  settle(cx);
+  cx.update_window(handle, |_, window, cx| {
+    window.render_frame(cx);
+    window.within("entry-1").click("remove", cx);
+  })
+  .unwrap();
+  cx.run_until_parked();
+  cx.update_window(handle, |_, window, cx| {
+    window.render_frame(cx);
+    window.within("dialog").click("ok", cx);
+  })
+  .unwrap();
+  settle(cx);
+  let names = page.read_with(cx, |p, cx| {
+    p.list(cx).into_iter().map(|q| q.name).collect::<Vec<_>>()
+  });
+  assert_eq!(names, ["New World"]);
+}
+
+#[gpui::test]
+async fn settings_override_switches_on(cx: &mut TestAppContext) {
+  for (tab, java) in [
+    (ProfileSettingsTab::Minecraft, false),
+    (ProfileSettingsTab::Java, true),
+  ] {
+    let (handle, _, _) = open(cx, move |w, cx| {
+      SettingsPage::new(VANILLA.into(), tab, w, cx)
+    });
+    let local = |cx: &mut TestAppContext| {
+      let p = profile(cx, VANILLA).unwrap();
+      if java {
+        p.use_local_jvm
+      } else {
+        p.use_local_game
+      }
+    };
+    assert!(!local(cx));
+    cx.update_window(handle, |_, window, cx| {
+      window.render_frame(cx);
+      window.within("use-local").click("switch", cx);
+    })
+    .unwrap();
+    settle(cx);
+    assert!(local(cx), "{tab:?}");
+  }
 }

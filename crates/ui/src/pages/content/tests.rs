@@ -40,8 +40,19 @@ fn fresh_data() -> (PathBuf, PathBuf) {
 
 /// Services on the fixture data and a window showing the mods tab of the fabric profile
 fn open(cx: &mut TestAppContext) -> (AnyWindowHandle, Entity<ContentPage>, PathBuf) {
+  open_with(cx, 0)
+}
+
+/// [`open`] with `extra` generated `generated-<n>.jar` files in the mods folder
+fn open_with(
+  cx: &mut TestAppContext,
+  extra: usize,
+) -> (AnyWindowHandle, Entity<ContentPage>, PathBuf) {
   cx.executor().allow_parking();
   let (data, prof) = fresh_data();
+  for n in 0..extra {
+    std::fs::write(prof.join(format!("mods/generated-{n:03}.jar")), b"jar").unwrap();
+  }
   cx.update(|cx| {
     proton_config::init(cx);
     let (handle, _) = proton_versions::event::DownloadsHandle::new();
@@ -70,7 +81,7 @@ fn open(cx: &mut TestAppContext) -> (AnyWindowHandle, Entity<ContentPage>, PathB
   let page = page.borrow().clone().unwrap();
   wait(cx, || {
     let page = page.clone();
-    move |cx: &mut App| page.read(cx).summary.total == 7
+    move |cx: &mut App| page.read(cx).summary.total == 7 + extra
   });
   draw(handle, cx);
   (handle, page, prof)
@@ -225,4 +236,32 @@ fn bulk_remove_of_a_manual_file_asks_first(cx: &mut TestAppContext) {
   })
   .unwrap();
   assert!(profile_dir.join("mods/local-tweaks-1.0.jar").exists());
+}
+
+#[gpui::test]
+fn a_500_mod_list_renders_only_visible_rows(cx: &mut TestAppContext) {
+  let (handle, page, _) = open_with(cx, 500);
+  let started = std::time::Instant::now();
+  cx.update_window(handle, |_, window, cx| window.draw(cx).clear(cx))
+    .unwrap();
+  // ponytail: generous for debug builds and CI; catches an O(n) render, not a slow one
+  assert!(started.elapsed() < std::time::Duration::from_millis(500));
+  let first = renders(&page, cx).values().filter(|n| **n > 0).count();
+  // virtualized: the 800px window fits a dozen rows, the list renders those and some overdraw
+  assert!(first < 50, "{first} of 507 rows rendered");
+
+  cx.update_window(handle, |_, window, cx| {
+    window.scroll(
+      SharedString::from("generated-005.jar"),
+      gpui_kit::ScrollDelta::Pixels(gpui_kit::point(gpui_kit::px(0.), gpui_kit::px(-20_000.))),
+      cx,
+    );
+    window.draw(cx).clear(cx);
+  })
+  .unwrap();
+  let rendered = renders(&page, cx).values().filter(|n| **n > 0).count();
+  assert!(
+    rendered > first && rendered < 100,
+    "{rendered} of 507 rows rendered after scrolling"
+  );
 }

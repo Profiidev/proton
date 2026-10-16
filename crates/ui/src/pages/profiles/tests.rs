@@ -39,8 +39,11 @@ pub(crate) fn init_fixture(cx: &mut TestAppContext) -> PathBuf {
   cx.update(|cx| {
     gpui_kit::init(cx);
     proton_components::assets::load(cx).unwrap();
+    // animations run on the wall clock: a click mid dialog-entrance misses its target
+    cx.set_reduce_motion(true);
     proton_config::init(cx);
     proton_versions::init(cx);
+    proton_account::init(cx).unwrap();
     proton_profiles::init_at(cx, data.clone()).unwrap();
     proton_content::init(cx);
     crate::init(cx);

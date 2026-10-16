@@ -375,6 +375,8 @@ mod tests {
   #[test]
   fn detail() {
     assert_eq!(base().detail(), "Checking version manifest");
+    assert_eq!(applied(ClientCheck).detail(), "Checking client jar");
+    assert!(!applied(LibraryCheck(3, 4)).bytes);
     let detail = |s| applied(s).detail();
     assert_eq!(
       detail(AssetsDownload(41 * MIB, 96 * MIB)),
@@ -390,6 +392,10 @@ mod tests {
     );
     assert_eq!(with(|d| d.status = DownloadStatus::Done).detail(), "");
     assert_eq!(detail(ContentResolve), "Resolving content");
+    assert_eq!(
+      detail(ContentDownload(41 * MIB, 96 * MIB)),
+      "Downloading content · 41 of 96 MiB"
+    );
     assert_eq!(
       detail(ContentFiles(41, 96)),
       "Installing content · 41 of 96 files"

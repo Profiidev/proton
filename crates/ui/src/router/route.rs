@@ -279,11 +279,12 @@ fn decode(value: &str) -> String {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
   use super::*;
 
-  fn all_routes() -> Vec<Route> {
-    let id = || "8f1c2d3e-aaaa".to_string();
+  /// Every route, tabs and subtabs included, for profile/instance `id`
+  pub(crate) fn all_routes(id: &str) -> Vec<Route> {
+    let id = || id.to_string();
     let mut routes = vec![Route::Home, Route::Profiles, Route::Instances];
     let mut tabs = vec![ProfileTab::Instances, ProfileTab::Logs];
     tabs.extend(QuickPlayTab::ALL.iter().map(|t| ProfileTab::QuickPlay(*t)));
@@ -315,7 +316,7 @@ mod tests {
 
   #[test]
   fn every_route_round_trips() {
-    let routes = all_routes();
+    let routes = all_routes("8f1c2d3e-aaaa");
     assert_eq!(routes.len(), 3 + 11 + 1 + 4 + 8 + 6);
     for route in routes {
       let url = route.to_url();

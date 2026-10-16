@@ -238,6 +238,7 @@ impl Sidebar {
 
 impl Render for Sidebar {
   fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    proton_components::render_count::hit::<Self>();
     let compact = window.viewport_size().width < COMPACT_BELOW;
     let items = items();
     let pill = self

@@ -223,6 +223,81 @@ fn groups_and_summary() {
     .map(|g| g.iter().map(|i| i.id.as_str()).collect())
     .collect();
   assert_eq!(ids, [vec!["x", "c"], vec!["a"]]);
+  // `instance_number`: per profile, in launch order
+  assert_eq!(console::sibling_label(&groups[0], 1), "Instance 2");
+  assert_eq!(console::sibling_label(&groups[1], 0), "Instance 1");
   assert_eq!(running_summary(1, 1), "1 game running across 1 profile.");
   assert_eq!(running_summary(3, 2), "3 games running across 2 profiles.");
+}
+
+#[gpui::test]
+async fn live_log_in_the_shell_re_renders_neither_header_nor_sidebar(cx: &mut TestAppContext) {
+  use proton_components::{render_count, widgets::logs::LogWindow};
+
+  use crate::shell::{Header, Shell, Sidebar};
+
+  cx.executor().allow_parking();
+  let (handle, slot) = setup(cx);
+  cx.update(proton_versions::init_state);
+  let profiles = cx.update(|cx| cx.profiles().clone());
+  let id = spawn_instance(&profiles, cx).await;
+  cx.update(|cx| cx.navigate(Route::InstanceLogs { id: id.clone() }));
+  show(handle, &slot, cx, Shell::new);
+  cx.run_until_parked();
+  for _ in 0..2 {
+    cx.update_window(handle, |_, window, cx| window.draw(cx).clear(cx))
+      .unwrap();
+  }
+  let buffer = cx.update(|cx| profiles.instance_logs(&id, cx)).unwrap();
+
+  let counts = || {
+    [
+      render_count::of::<Header>(),
+      render_count::of::<Sidebar>(),
+      render_count::of::<LogWindow>(),
+    ]
+  };
+  let before = counts();
+  for i in 0..5 {
+    buffer.update(cx, |b, cx| {
+      b.push(&format!("[12:00:0{i}] [main/INFO]: line {i}"), cx)
+    });
+    cx.run_until_parked();
+    cx.update_window(handle, |_, window, cx| window.draw(cx).clear(cx))
+      .unwrap();
+  }
+  let after = counts();
+  assert_eq!((after[0], after[1]), (before[0], before[1]));
+  assert!(after[2] >= before[2] + 5, "{before:?} {after:?}");
+
+  profiles.stop_all(None).await.unwrap();
+  wait(cx, "instance gone", |cx| {
+    cx.update(|cx| cx.profiles().instances.read(cx).is_empty())
+  });
+}
+
+#[gpui::test]
+async fn profile_instances_tab_shows_its_running_instance(cx: &mut TestAppContext) {
+  cx.executor().allow_parking();
+  let (handle, slot) = setup(cx);
+  let page = show(handle, &slot, cx, |_, cx| {
+    ProfileInstancesPage::new(VANILLA.into(), cx)
+  });
+  assert!(page.read_with(cx, |p, _| p.rows.is_empty()));
+
+  let profiles = cx.update(|cx| cx.profiles().clone());
+  let id = spawn_instance(&profiles, cx).await;
+  test_view::draw(handle, cx);
+  assert_eq!(page.read_with(cx, |p, _| p.rows.len()), 1);
+  cx.update_window(handle, |_, window, cx| {
+    window.within(id.clone()).click("console", cx);
+  })
+  .unwrap();
+  assert_eq!(cx.update(|cx| cx.route()), Route::InstanceLogs { id });
+
+  profiles.stop_all(None).await.unwrap();
+  wait(cx, "instance gone", |cx| {
+    cx.update(|cx| cx.profiles().instances.read(cx).is_empty())
+  });
+  assert!(page.read_with(cx, |p, _| p.rows.is_empty()));
 }
