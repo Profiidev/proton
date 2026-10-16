@@ -72,3 +72,54 @@ fn continue_quick_play_only_when_newer() {
   qp.last_played_non_quick_play = None;
   assert!(continue_quick_play(&qp).is_some());
 }
+
+fn profile(id: &str) -> Profile {
+  serde_json::from_value(serde_json::json!({
+    "id": id, "name": format!("P {id}"), "created_at": "2026-01-01T00:00:00Z",
+    "last_played": null, "version": "1.21.8", "loader": "Fabric", "loader_version": null,
+    "downloaded": true, "use_local_game": false, "game": null, "use_local_jvm": false, "jvm": null
+  }))
+  .unwrap()
+}
+
+fn update(profile: &str, kind: &str) -> proton_content::model::UpdateInfo {
+  serde_json::from_value(serde_json::json!({
+    "profile": profile, "kind": kind, "fileName": "x.jar", "source": "modrinth",
+    "projectId": "p", "name": "X", "current": "1",
+    "latest": {
+      "source": "modrinth", "projectId": "p", "id": "v", "name": "v", "versionNumber": "2",
+      "channel": "release", "gameVersions": [], "loaders": [], "publishedAt": "",
+      "files": [], "dependencies": []
+    }
+  }))
+  .unwrap()
+}
+
+// port of `updates_banner` in app/src/tests/unit/lib/content.test.ts
+#[test]
+fn updates_banner_counts_and_names() {
+  let list = [profile("a"), profile("b"), profile("c")];
+  let empty = ContentUpdates(Default::default());
+  assert_eq!(updates_banner(&empty, &list), None);
+  let only_empty = ContentUpdates([("a".into(), vec![])].into());
+  assert_eq!(updates_banner(&only_empty, &list), None);
+
+  let updates = ContentUpdates(
+    [
+      ("b".into(), vec![update("b", "mod"), update("b", "mod")]),
+      ("c".into(), vec![update("c", "mod")]),
+      ("gone".into(), vec![update("g", "mod")]),
+    ]
+    .into(),
+  );
+  let b = updates_banner(&updates, &list).unwrap();
+  assert_eq!(b.title, "3 mod updates available");
+  assert_eq!(b.description, "P b and P c have newer compatible versions.");
+  assert_eq!(b.target.to_url(), "/profiles/info/content/mods?id=b");
+
+  let mixed = ContentUpdates([("a".into(), vec![update("a", "shader")])].into());
+  let b = updates_banner(&mixed, &list).unwrap();
+  assert_eq!(b.title, "1 update available");
+  assert_eq!(b.description, "P a has newer compatible versions.");
+  assert_eq!(b.target.to_url(), "/profiles/info/content/shaders?id=a");
+}

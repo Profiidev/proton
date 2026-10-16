@@ -24,15 +24,6 @@ pub fn content_kind(kind: Kind) -> ContentKind {
   }
 }
 
-pub fn route_kind(kind: ContentKind) -> Kind {
-  match kind {
-    ContentKind::Mod => Kind::Mod,
-    ContentKind::Modpack => Kind::Modpack,
-    ContentKind::ResourcePack => Kind::ResourcePack,
-    ContentKind::Shader => Kind::Shader,
-  }
-}
-
 /// Singular noun of each kind, pluralize with [`plural`]
 pub fn word(kind: ContentKind) -> &'static str {
   match kind {
@@ -42,9 +33,7 @@ pub fn word(kind: ContentKind) -> &'static str {
   }
 }
 
-pub fn plural(n: usize, word: &str) -> String {
-  format!("{n} {word}{}", if n == 1 { "" } else { "s" })
-}
+pub use crate::content::logic::{plural, route_kind};
 
 pub fn source_label(source: Option<Source>) -> &'static str {
   match source {

@@ -42,6 +42,7 @@ pub(crate) fn init_fixture(cx: &mut TestAppContext) -> PathBuf {
     proton_config::init(cx);
     proton_versions::init(cx);
     proton_profiles::init_at(cx, data.clone()).unwrap();
+    proton_content::init(cx);
     crate::init(cx);
   });
   data

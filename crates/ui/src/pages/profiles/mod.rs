@@ -66,9 +66,7 @@ pub fn loader_name(loader: LoaderType) -> &'static str {
   }
 }
 
-pub fn plural(n: usize, word: &str) -> String {
-  format!("{n} {word}{}", if n == 1 { "" } else { "s" })
-}
+pub use crate::content::logic::plural;
 
 /// `compareProfiles`: played first by last played desc, then never played by created desc
 pub fn compare_profiles(a: &Profile, b: &Profile) -> Ordering {

@@ -5,7 +5,7 @@ use gpui_kit::{
   Render, SharedString, StatefulInteractiveElement, Styled, Subscription, TestSupportExt, Window,
   assets::IconName,
   component::{
-    ActiveTheme,
+    ActiveTheme, Icon, Sizable,
     button::{Button, ButtonVariants},
   },
   div, px,
@@ -15,6 +15,7 @@ use proton_components::widgets::{
   format::running_label,
   profile::{ProfileExternalLink, ProfileIcon},
 };
+use proton_content::{ContentExt, ContentUpdates, ModpackUpdates, model::ContentKind};
 use proton_profiles::{
   ProfilesExt,
   config::{PlayHistoryFavoriteInfo, Profile, QuickPlayInfo},
@@ -27,7 +28,8 @@ use super::profiles::{
 };
 use crate::{
   actions::launch,
-  router::{Route, RouterExt},
+  content::logic::route_kind,
+  router::{ProfileTab, QuickPlayTab, Route, RouterExt},
   shell::PageFactory,
 };
 
@@ -37,6 +39,108 @@ pub fn register(cx: &mut App) {
     |r| *r == Route::Home,
     |_, _, cx| cx.new(HomePage::new).into(),
   );
+}
+
+/// Home banner for available content updates (`updates_banner` of the old app)
+#[derive(Debug, PartialEq)]
+pub struct Banner {
+  pub title: String,
+  pub description: String,
+  pub target: Route,
+}
+
+/// "A", "A and B", "A, B and C"
+fn names(list: &[&str]) -> String {
+  match list {
+    [] => String::new(),
+    [one] => one.to_string(),
+    [rest @ .., last] => format!("{} and {last}", rest.join(", ")),
+  }
+}
+
+pub fn updates_banner(updates: &ContentUpdates, profiles: &[Profile]) -> Option<Banner> {
+  let affected: Vec<_> = profiles
+    .iter()
+    .filter(|p| updates.0.get(&p.id).is_some_and(|u| !u.is_empty()))
+    .collect();
+  let first = affected.first()?;
+  let all: Vec<_> = affected.iter().flat_map(|p| &updates.0[&p.id]).collect();
+  let word = if all.iter().all(|u| u.kind == ContentKind::Mod) {
+    "mod update"
+  } else {
+    "update"
+  };
+  let list: Vec<_> = affected.iter().map(|p| p.name.as_str()).collect();
+  Some(Banner {
+    title: format!("{} available", plural(all.len(), word)),
+    description: format!(
+      "{} {} newer compatible versions.",
+      names(&list),
+      if affected.len() == 1 { "has" } else { "have" }
+    ),
+    target: Route::Profile {
+      id: first.id.clone(),
+      tab: ProfileTab::Content(route_kind(updates.0[&first.id][0].kind)),
+    },
+  })
+}
+
+/// Home banner for modpack profiles with a new pack version
+pub fn pack_banner(updates: &ModpackUpdates, profiles: &[Profile]) -> Option<Banner> {
+  let affected: Vec<_> = profiles
+    .iter()
+    .filter(|p| updates.0.contains_key(&p.id))
+    .collect();
+  let first = affected.first()?;
+  let list: Vec<_> = affected.iter().map(|p| p.name.as_str()).collect();
+  Some(Banner {
+    title: format!("{} available", plural(affected.len(), "modpack update")),
+    description: format!(
+      "{} {} a new pack version.",
+      list.join(", "),
+      if affected.len() == 1 { "has" } else { "have" }
+    ),
+    target: Route::Profile {
+      id: first.id.clone(),
+      tab: ProfileTab::QuickPlay(QuickPlayTab::Singleplayer),
+    },
+  })
+}
+
+fn banner(id: &'static str, b: Banner, button: &'static str, cx: &App) -> impl IntoElement {
+  let theme = cx.theme();
+  div()
+    .id(id)
+    .flex()
+    .items_center()
+    .gap_3()
+    .px_4()
+    .py_3()
+    .rounded_lg()
+    .border_1()
+    .border_color(theme.border)
+    .bg(theme.popover)
+    .child(Icon::new(IconName::CircleArrowUp).small())
+    .child(
+      div()
+        .flex()
+        .flex_col()
+        .flex_1()
+        .gap_0p5()
+        .text_sm()
+        .child(div().font_weight(FontWeight::MEDIUM).child(b.title))
+        .child(
+          div()
+            .text_color(theme.muted_foreground)
+            .child(b.description),
+        ),
+    )
+    .child(
+      Button::new((id, 0usize))
+        .outline()
+        .label(button)
+        .on_click(move |_, _, cx| cx.navigate(b.target.clone())),
+    )
 }
 
 /// Most recently played profile
@@ -61,14 +165,17 @@ pub fn continue_quick_play(profile: &Profile) -> Option<&QuickPlayInfo> {
 
 pub struct HomePage {
   meta: Entity<ProfileMeta>,
-  _subs: [Subscription; 5],
+  _subs: [Subscription; 7],
 }
 
 impl HomePage {
   pub fn new(cx: &mut Context<Self>) -> Self {
     let meta = profile_meta(cx);
     let p = cx.profiles().clone();
+    let c = cx.content().clone();
     let subs = [
+      cx.observe(&c.updates, |_, _, cx| cx.notify()),
+      cx.observe(&c.pack_updates, |_, _, cx| cx.notify()),
       cx.observe(&p.profiles, |_, _, cx| cx.notify()),
       cx.observe(&p.favorites, |_, _, cx| cx.notify()),
       cx.observe(&p.history, |_, _, cx| cx.notify()),
@@ -244,7 +351,11 @@ impl Render for HomePage {
     let p = cx.profiles().clone();
     let favorites = p.favorites.read(cx).clone();
     let history = p.history.read(cx).clone();
-    let current = latest_played(p.profiles.read(cx)).cloned();
+    let profiles = p.profiles.read(cx);
+    let current = latest_played(profiles).cloned();
+    let content = cx.content();
+    let updates = updates_banner(content.updates.read(cx), profiles);
+    let packs = pack_banner(content.pack_updates.read(cx), profiles);
     let muted_fg = cx.theme().muted_foreground;
 
     let fav_header = div()
@@ -278,6 +389,8 @@ impl Render for HomePage {
           .pt_4()
           .pb_6()
           .children(current.map(|c| self.continue_card(&c, cx)))
+          .children(updates.map(|b| banner("updates-banner", b, "Review updates", cx)))
+          .children(packs.map(|b| banner("packs-banner", b, "Review", cx)))
           .child(self.section(
             "favorites",
             fav_header.into_any_element(),
