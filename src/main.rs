@@ -1,15 +1,10 @@
 use std::sync::Arc;
 
 use gpui_kit::{
-  App, AppContext, Bounds, Context, IntoElement, ParentElement, Render, Styled, TitlebarOptions,
-  Window, WindowBounds, WindowDecorations, WindowOptions,
-  component::{
-    ActiveTheme,
-    button::{Button, ButtonVariants},
-  },
-  div, px, size,
+  App, AppContext, Bounds, TitlebarOptions, WindowBounds, WindowDecorations, WindowOptions, px,
+  size,
 };
-use proton_components::card::{Card, card_content, card_description, card_header, card_title};
+use proton_ui::shell::Shell;
 
 fn main() {
   proton_utils::dir::migrate();
@@ -23,6 +18,7 @@ fn main() {
       gpui_kit::init(cx);
       proton_components::assets::load(cx).expect("Failed to load the theme");
       proton_config::init(cx);
+      proton_ui::init(cx);
       open_main_window(cx);
     });
 }
@@ -40,34 +36,12 @@ fn open_main_window(cx: &mut App) {
       traffic_light_position: None,
     }),
     window_decorations: Some(WindowDecorations::Client),
+    window_min_size: Some(size(px(600.), px(400.))),
     app_id: Some("io.profidev.proton".into()),
     ..Default::default()
   };
-  gpui_kit::open_window(options, cx, |_, cx| cx.new(|_| Demo)).expect("Failed to open the window");
-}
-
-/// ponytail: placeholder until proton_ui's shell lands
-struct Demo;
-
-impl Render for Demo {
-  fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-    div()
-      .size_full()
-      .flex()
-      .items_center()
-      .justify_center()
-      .bg(cx.theme().background)
-      .text_color(cx.theme().foreground)
-      .child(
-        Card::new()
-          .w_96()
-          .child(
-            card_header()
-              .child(card_title("Proton"))
-              .child(card_description("gpui rewrite, theme preview", cx)),
-          )
-          .child(card_content().child("shadcn Zinc Blue Dark with Geist."))
-          .footer(Button::new("ok").primary().label("Continue")),
-      )
-  }
+  gpui_kit::open_window(options, cx, |window, cx| {
+    cx.new(|cx| Shell::new(window, cx))
+  })
+  .expect("Failed to open the window");
 }
