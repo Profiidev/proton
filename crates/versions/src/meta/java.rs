@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Display};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, value::Serializer};
-use tauri::Url;
+use url::Url;
 
 use super::Rule;
 
@@ -82,7 +82,7 @@ pub struct Artifact {
   pub size: usize,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct JavaVersions {
   pub linux: PlatformVersion,
@@ -94,7 +94,7 @@ pub struct JavaVersions {
   pub windows_x86: PlatformVersion,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct PlatformVersion {
   pub java_runtime_alpha: Vec<Version>,
