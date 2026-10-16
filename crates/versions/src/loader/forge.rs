@@ -9,9 +9,9 @@ use std::{
 use anyhow::Result;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use tauri::Url;
 use tokio::{fs, process::Command};
 use tracing::debug;
+use url::Url;
 
 #[cfg(all(not(debug_assertions), target_os = "windows"))]
 use crate::DETACHED_PROCESS;

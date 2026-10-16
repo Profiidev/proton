@@ -2,7 +2,10 @@ use meta::{Action, Arch, Os, OsName, Rule};
 
 use crate::meta::Features;
 
+pub use service::*;
+
 pub mod download;
+pub mod downloads;
 pub mod event;
 pub mod launch;
 pub mod loader;
@@ -10,6 +13,9 @@ pub mod maven;
 pub mod meta;
 pub mod paths;
 pub mod store;
+
+mod listener;
+mod service;
 
 #[cfg(target_os = "linux")]
 const OS_NAME: Option<OsName> = Some(OsName::Linux);

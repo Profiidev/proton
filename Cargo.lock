@@ -6874,16 +6874,20 @@ dependencies = [
  "async-trait",
  "async_zip",
  "chrono",
+ "flume",
+ "gpui-kit",
  "proton_config",
+ "proton_store",
  "proton_utils",
  "reqwest",
  "serde",
  "serde_json",
- "tauri",
+ "tempfile",
  "thiserror 2.0.21",
  "tokio",
  "tokio-util",
  "tracing",
+ "url",
 ]
 
 [[package]]

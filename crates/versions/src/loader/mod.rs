@@ -92,7 +92,7 @@ pub trait Loader: Send + Sync + 'static {
   }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LoaderType {
   Vanilla,
   Fabric,

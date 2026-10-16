@@ -3,12 +3,12 @@ use std::path::Path;
 use anyhow::Result;
 use async_zip::base::read1::seek::ZipArchiveReader;
 use reqwest::Client;
-use tauri::Url;
 use tokio::{
   fs,
   io::{AsyncReadExt, BufReader},
 };
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
+use url::Url;
 
 use crate::{
   loader::{CheckFuture, DownloadFuture},
