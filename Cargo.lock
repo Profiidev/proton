@@ -6728,9 +6728,11 @@ name = "proton_components"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "gpui-kit",
  "include_dir",
  "proton_utils",
+ "regex",
  "tracing",
 ]
 
