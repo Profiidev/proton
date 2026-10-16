@@ -16,27 +16,10 @@ use crate::{
 
 pub const HEADER_HEIGHT: Pixels = px(40.);
 
-#[derive(PartialEq)]
-struct State {
-  crumbs: Vec<Crumb>,
-  offline: bool,
-  hide_controls: bool,
-}
-
-impl State {
-  fn new(route: &Route, data: &ShellData) -> Self {
-    Self {
-      crumbs: breadcrumbs(&route.to_url(), &data.names),
-      offline: data.offline,
-      hide_controls: data.hide_window_controls,
-    }
-  }
-}
-
-/// Window title bar: logo, breadcrumbs, offline badge, downloads, window controls
+/// Window title bar: logo and breadcrumbs. The actions on the right are [`HeaderActions`], a
+/// sibling, so download ticks never re-render the cached header.
 pub struct Header {
-  state: State,
-  downloads: Entity<DownloadsPanel>,
+  crumbs: Vec<Crumb>,
   /// left button is down on the drag region
   should_move: bool,
 }
@@ -46,24 +29,61 @@ impl Header {
     let router = cx.router();
     let data = cx.shell_data();
     cx.observe(&router, Self::refresh).detach();
-    cx.observe(&data, |this, _, cx| this.refresh_state(cx))
-      .detach();
+    cx.observe(&data, Self::refresh).detach();
     Self {
-      state: State::new(router.read(cx).current(), data.read(cx)),
-      downloads: cx.new(DownloadsPanel::new),
+      crumbs: crumbs(cx),
       should_move: false,
     }
   }
 
   fn refresh<T>(&mut self, _: Entity<T>, cx: &mut Context<Self>) {
-    self.refresh_state(cx);
-  }
-
-  fn refresh_state(&mut self, cx: &mut Context<Self>) {
-    let state = State::new(&cx.route(), cx.shell_data().read(cx));
-    if state != self.state {
-      self.state = state;
+    let crumbs = crumbs(cx);
+    if crumbs != self.crumbs {
+      self.crumbs = crumbs;
       cx.notify();
+    }
+  }
+}
+
+fn crumbs(cx: &App) -> Vec<Crumb> {
+  breadcrumbs(&cx.route().to_url(), &cx.shell_data().read(cx).names)
+}
+
+#[derive(PartialEq)]
+struct ActionsState {
+  offline: bool,
+  hide_controls: bool,
+}
+
+impl ActionsState {
+  fn new(data: &ShellData) -> Self {
+    Self {
+      offline: data.offline,
+      hide_controls: data.hide_window_controls,
+    }
+  }
+}
+
+/// Right end of the title bar: offline badge, downloads, window controls
+pub struct HeaderActions {
+  state: ActionsState,
+  downloads: Entity<DownloadsPanel>,
+}
+
+impl HeaderActions {
+  pub fn new(cx: &mut Context<Self>) -> Self {
+    let data = cx.shell_data();
+    cx.observe(&data, |this, data, cx| {
+      let state = ActionsState::new(data.read(cx));
+      if state != this.state {
+        this.state = state;
+        cx.notify();
+      }
+    })
+    .detach();
+    Self {
+      state: ActionsState::new(data.read(cx)),
+      downloads: cx.new(DownloadsPanel::new),
     }
   }
 }
@@ -94,11 +114,12 @@ fn control(
 
 impl Render for Header {
   fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    proton_components::render_count::hit::<Self>();
     let theme = cx.theme();
-    let last = self.state.crumbs.len().saturating_sub(1);
+    let last = self.crumbs.len().saturating_sub(1);
     let (muted, fg) = (theme.muted_foreground, theme.foreground);
     let mut crumbs = vec![];
-    for (ix, crumb) in self.state.crumbs.iter().enumerate() {
+    for (ix, crumb) in self.crumbs.iter().enumerate() {
       if ix > 0 {
         crumbs.push(
           Icon::new(IconName::ChevronRight)
@@ -128,8 +149,6 @@ impl Render for Header {
           .into_any_element()
       });
     }
-    let data = cx.shell_data();
-
     div()
       .id("header")
       .flex()
@@ -171,48 +190,54 @@ impl Render for Header {
           .gap_2p5()
           .children(crumbs),
       )
-      .child(
-        div()
-          .id("header-actions")
-          .ml_auto()
-          .flex()
-          .items_center()
-          .gap_1()
-          .pr_1()
-          // clicks here must not start a window move
-          .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-          .when(self.state.offline, |el| {
-            el.child(
-              div()
-                .id("offline")
-                .test_support()
-                .mr_2()
-                .h_5()
-                .px_2()
-                .flex()
-                .items_center()
-                .rounded_full()
-                .cursor_pointer()
-                .bg(theme.danger.opacity(0.2))
-                .text_color(theme.danger)
-                .text_xs()
-                .font_medium()
-                .child("Offline")
-                .on_click(move |_, _, cx| data.update(cx, |_, cx| cx.emit(ShellEvent::Reconnect))),
-            )
-          })
-          .child(self.downloads.clone())
-          .when(!self.state.hide_controls, |el| {
-            el.child(
-              control("minimize", IconName::Minus, px(18.), cx)
-                .on_click(|_, window, _| window.minimize_window()),
-            )
-            .child(
-              control("maximize", IconName::Square, px(16.), cx)
-                .on_click(|_, window, _| window.zoom_window()),
-            )
-            .child(control("close", IconName::X, px(18.), cx).on_click(|_, _, cx| cx.quit()))
-          }),
-      )
+  }
+}
+
+impl Render for HeaderActions {
+  fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    proton_components::render_count::hit::<Self>();
+    let theme = cx.theme();
+    let data = cx.shell_data();
+    div()
+      .id("header-actions")
+      .h(HEADER_HEIGHT)
+      .flex_shrink_0()
+      .flex()
+      .items_center()
+      .gap_1()
+      .pr_1()
+      .text_sm()
+      .when(self.state.offline, |el| {
+        el.child(
+          div()
+            .id("offline")
+            .test_support()
+            .mr_2()
+            .h_5()
+            .px_2()
+            .flex()
+            .items_center()
+            .rounded_full()
+            .cursor_pointer()
+            .bg(theme.danger.opacity(0.2))
+            .text_color(theme.danger)
+            .text_xs()
+            .font_medium()
+            .child("Offline")
+            .on_click(move |_, _, cx| data.update(cx, |_, cx| cx.emit(ShellEvent::Reconnect))),
+        )
+      })
+      .child(self.downloads.clone())
+      .when(!self.state.hide_controls, |el| {
+        el.child(
+          control("minimize", IconName::Minus, px(18.), cx)
+            .on_click(|_, window, _| window.minimize_window()),
+        )
+        .child(
+          control("maximize", IconName::Square, px(16.), cx)
+            .on_click(|_, window, _| window.zoom_window()),
+        )
+        .child(control("close", IconName::X, px(18.), cx).on_click(|_, _, cx| cx.quit()))
+      })
   }
 }

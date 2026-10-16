@@ -559,6 +559,10 @@ mod tests {
       "Both key and value must be provided"
     );
     assert_eq!(
+      add_env_var(&env, "B", " ").unwrap_err(),
+      "Both key and value must be provided"
+    );
+    assert_eq!(
       add_env_var(&env, "A=B", "x").unwrap_err(),
       r#"Environment variable key cannot contain "=""#
     );

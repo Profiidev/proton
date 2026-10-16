@@ -123,3 +123,88 @@ fn updates_banner_counts_and_names() {
   assert_eq!(b.description, "P a has newer compatible versions.");
   assert_eq!(b.target.to_url(), "/profiles/info/content/shaders?id=a");
 }
+
+fn played(id: &str, last_played: Option<&str>, favorite: bool) -> Profile {
+  let mut p = profile(id);
+  p.last_played = last_played.map(|t| t.parse().unwrap());
+  p.favorite = favorite;
+  p
+}
+
+fn entry(id: &str, last_played: &str) -> proton_profiles::config::QuickPlayInfo {
+  serde_json::from_value(serde_json::json!({
+    "id": id, "name": id, "lastPlayedTime": last_played, "history": true, "type": "multiplayer"
+  }))
+  .unwrap()
+}
+
+// ports of app/src/tests/unit/lib/profiles.test.ts
+#[test]
+fn card_meta_shows_mods_played_and_quick_play() {
+  use crate::pages::profiles::card_meta;
+  use proton_versions::loader::LoaderType;
+
+  let ago = chrono::Utc::now() - chrono::Duration::hours(2);
+  let mut p = played("a", None, false);
+  p.last_played = Some(ago);
+  assert_eq!(
+    card_meta(&p, None, Some(24)),
+    "24 mods · played 2 hours ago"
+  );
+  p.last_played = None;
+  p.loader = LoaderType::Forge;
+  assert_eq!(card_meta(&p, None, Some(1)), "1 mod · never played");
+
+  p.loader = LoaderType::Vanilla;
+  p.last_played = Some(ago);
+  assert_eq!(card_meta(&p, None, Some(3)), "played 2 hours ago");
+  p.loader = LoaderType::Quilt;
+  p.last_played = None;
+  assert_eq!(card_meta(&p, None, None), "never played");
+
+  p.loader = LoaderType::Fabric;
+  p.name = "SMP".into();
+  let mut qp = entry("x", "2024-01-01T00:00:00Z");
+  qp.last_played_time = ago;
+  assert_eq!(
+    card_meta(&p, Some(&qp), Some(5)),
+    "SMP · played 2 hours ago"
+  );
+}
+
+#[test]
+fn latest_played_and_summary() {
+  use crate::pages::profiles::profiles_summary;
+
+  let profiles = [
+    played("a", Some("2024-05-01T10:00:00Z"), false),
+    played("b", None, false),
+    played("c", Some("2024-05-02T09:00:00+02:00"), false),
+    played("d", Some("2024-04-30T00:00:00Z"), false),
+  ];
+  assert_eq!(latest_played(&profiles).unwrap().id, "c");
+  assert!(latest_played(&[played("a", None, false)]).is_none());
+  assert!(latest_played(&[]).is_none());
+
+  let list = [played("a", None, true), played("b", None, false)];
+  assert_eq!(profiles_summary(&list), "2 profiles · 1 favorite");
+  assert_eq!(profiles_summary(&[]), "0 profiles · 0 favorites");
+}
+
+#[test]
+fn continue_quick_play_cases() {
+  let at = |t: &str| Some(t.parse().unwrap());
+  let mut p = played("a", Some("2024-01-03T00:00:00Z"), false);
+  p.last_played_non_quick_play = at("2024-01-01T00:00:00Z");
+  p.quick_play = vec![
+    entry("old", "2024-01-02T00:00:00Z"),
+    entry("new", "2024-01-03T00:00:00Z"),
+  ];
+  assert_eq!(continue_quick_play(&p).unwrap().id, "new");
+
+  p.last_played_non_quick_play = at("2024-01-04T00:00:00Z");
+  p.quick_play = vec![entry("old", "2024-01-02T00:00:00Z")];
+  assert!(continue_quick_play(&p).is_none());
+
+  assert!(continue_quick_play(&played("a", None, false)).is_none());
+}

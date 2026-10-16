@@ -1,5 +1,7 @@
 mod breadcrumbs;
 mod route;
+#[cfg(test)]
+pub(crate) use route::tests::all_routes;
 
 pub use breadcrumbs::{Crumb, Names, breadcrumbs};
 pub use route::*;

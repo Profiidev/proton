@@ -13,7 +13,7 @@ use gpui_kit::{
 use proton_components::animation::ease_out_cubic;
 
 pub use downloads::{DownloadRowView, DownloadsPanel};
-pub use header::{HEADER_HEIGHT, Header};
+pub use header::{HEADER_HEIGHT, Header, HeaderActions};
 pub use pages::{PageFactory, Placeholder};
 pub use sidebar::{COMPACT_BELOW, NavItem, Sidebar, SimpleSidebar, sidebar_width};
 
@@ -68,6 +68,7 @@ pub(crate) fn init(cx: &mut App) {
 /// Root view of the main window: header, sidebar and the current page
 pub struct Shell {
   header: Entity<Header>,
+  header_actions: Entity<HeaderActions>,
   sidebar: Entity<Sidebar>,
   settings_nav: Entity<SimpleSidebar>,
   profile_nav: Entity<SimpleSidebar>,
@@ -93,6 +94,7 @@ impl Shell {
 
     let this = Self {
       header: cx.new(Header::new),
+      header_actions: cx.new(HeaderActions::new),
       sidebar: cx.new(|cx| Sidebar::new(window, cx)),
       settings_nav: cx.new(|_| SimpleSidebar::default()),
       profile_nav: cx.new(|_| SimpleSidebar::default()),
@@ -145,6 +147,9 @@ impl Render for Shell {
     // not `.cached()`: a re-rendered cached view re-renders its whole subtree, so a live child
     // (log lines, progress) would redraw the entire page. Uncached, a page notify re-renders
     // only the page root and dirty views; the page's own cached children are reused.
+    // (Tried in 3d: a cached page also stopped re-rendering on live log appends.)
+    // ponytail: the page root renders on every frame, keep page roots shallow and push
+    // live parts into cached child views.
     let page = self.page(&route, window, cx);
     let page = div().relative().size_full().child(page).map(|el| {
       if cx.reduce_motion() {
@@ -216,9 +221,9 @@ impl Render for Shell {
 
     let theme = cx.theme();
     let header_style = StyleRefinement::default()
-      .w_full()
-      .h(HEADER_HEIGHT)
-      .flex_shrink_0();
+      .flex_1()
+      .min_w_0()
+      .h(HEADER_HEIGHT);
     let sidebar_style = StyleRefinement::default()
       .h_full()
       .w(sidebar_width(window))
@@ -243,7 +248,16 @@ impl Render for Shell {
         MouseButton::Navigate(NavigationDirection::Forward),
         move |_, _, cx| forward.update(cx, |r, cx| r.forward(cx)),
       )
-      .child(self.header.clone().cached(header_style))
+      .child(
+        div()
+          .flex()
+          .w_full()
+          .h(HEADER_HEIGHT)
+          .flex_shrink_0()
+          .child(self.header.clone().cached(header_style))
+          // a sibling, not a child: the ancestors of a notifying view re-render
+          .child(self.header_actions.clone()),
+      )
       .child(div().h_px().w_full().flex_shrink_0().bg(theme.border))
       .child(
         div()

@@ -25,7 +25,7 @@ use super::{RowView, empty_state, group_by_profile, rows, spawn_toast};
 /// Profile tab "Instances": running instances of this profile as cards
 pub struct ProfileInstancesPage {
   profile: String,
-  rows: Vec<Entity<RowView>>,
+  pub(super) rows: Vec<Entity<RowView>>,
   _instances: Subscription,
 }
 
