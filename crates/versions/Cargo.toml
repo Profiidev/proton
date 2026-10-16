@@ -1,0 +1,21 @@
+[package]
+name = "proton_versions"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+tauri.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+chrono.workspace = true
+reqwest.workspace = true
+tokio.workspace = true
+log.workspace = true
+async-trait.workspace = true
+async_zip.workspace = true
+tokio-util.workspace = true
+proton_utils.workspace = true
+proton_config.workspace = true

@@ -1,7 +1,12 @@
 use anyhow::Result;
 use chrono::Local;
-use content::{
-  commands::{
+use commands::{
+  account::{
+    account_add_skin, account_change_cape, account_change_skin, account_get_active,
+    account_get_cape, account_get_skin, account_list, account_list_skins, account_login,
+    account_refresh, account_refresh_one, account_remove, account_remove_skin, account_set_active,
+  },
+  content::{
     content_add_file, content_adopt_file, content_categories, content_check_updates,
     content_find_manual, content_install, content_installed, content_plan_install, content_project,
     content_remove, content_search, content_set_active_shader, content_set_enabled,
@@ -9,55 +14,38 @@ use content::{
     modpack_install, modpack_plan, modpack_update, modpack_updates, profile_duplicate,
     profile_export_mrpack,
   },
+  offline::{is_offline, try_reconnect},
+  profiles::{
+    instance_list, instance_logs, instance_stop, instance_stop_all, profile_cancel_download,
+    profile_clear_logs, profile_create, profile_favorites_list, profile_favorites_set,
+    profile_get_icon, profile_history_list, profile_launch, profile_list, profile_logs,
+    profile_mods_count, profile_open_path, profile_quick_play_icon, profile_quick_play_list,
+    profile_quick_play_remove, profile_remove, profile_repair, profile_runs_list, profile_update,
+    profile_update_icon, quick_play_server_status,
+  },
+  settings::{settings_get, settings_set},
+  versions::{loader_version_list, version_list},
+};
+use proton_account::{skin_store::SkinStore, store::AccountStore};
+use proton_config::{
+  offline::{MANIFEST_REFRESH_ERROR, OfflineState},
+  settings::{MaxMem, SETTINGS_KEY, SettingsExt},
+};
+use proton_content::{
   provider::Providers,
   updates::{PackUpdates, UpdatesCache, run_loop},
 };
-use profiles::store::ProfileStore;
-use store::TauriAppStoreExt;
-
-use account::{
-  commands::{
-    account_add_skin, account_change_cape, account_change_skin, account_get_active,
-    account_get_cape, account_get_skin, account_list, account_list_skins, account_login,
-    account_refresh, account_refresh_one, account_remove, account_remove_skin, account_set_active,
-  },
-  skin_store::SkinStore,
-  store::AccountStore,
+use proton_profiles::store::ProfileStore;
+use proton_store::TauriAppStoreExt;
+use proton_utils::{log::ResultLogExt, updater::default_client};
+use proton_versions::{
+  event::UpdateLimiterStore, loader::LoaderType, paths::MCVersionPath, store::McVersionStore,
 };
-use profiles::commands::{
-  instance_list, instance_logs, instance_stop, instance_stop_all, profile_cancel_download,
-  profile_clear_logs, profile_create, profile_favorites_list, profile_favorites_set,
-  profile_get_icon, profile_history_list, profile_launch, profile_list, profile_logs,
-  profile_mods_count, profile_open_path, profile_quick_play_icon, profile_quick_play_list,
-  profile_quick_play_remove, profile_remove, profile_repair, profile_runs_list, profile_update,
-  profile_update_icon, quick_play_server_status,
-};
-use settings::{settings_get, settings_set};
 use tauri::{AppHandle, Emitter, Manager, Url, webview::PageLoadEvent};
 use tauri_plugin_log::{RotationStrategy, Target, TargetKind, TimezoneStrategy};
 use tokio::sync::Mutex;
-use versions::{
-  commands::{loader_version_list, version_list},
-  store::McVersionStore,
-};
 
-use crate::{
-  offline::{MANIFEST_REFRESH_ERROR, OfflineState, is_offline, try_reconnect},
-  settings::{MaxMem, SETTINGS_KEY, SettingsExt},
-  utils::{log::ResultLogExt, updater::default_client},
-  versions::{event::UpdateLimiterStore, loader::LoaderType, paths::MCVersionPath},
-};
-
-mod account;
-mod content;
-mod offline;
-mod profiles;
-mod settings;
-mod store;
-mod utils;
-mod versions;
-
-const CLIENT_ID: &str = "dd35660a-6381-41f8-bb34-2a36669581d0";
+mod commands;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -187,7 +175,7 @@ pub fn run() {
       app.manage(Mutex::new(AccountStore::new(app.handle().clone())?));
       app.manage(Mutex::new(ProfileStore::new(app.handle().clone())?));
       app.manage(std::sync::Mutex::new(UpdateLimiterStore::default()));
-      app.manage(OfflineState::new(app.handle().clone()));
+      app.manage(OfflineState::new(app.handle().clone(), spawn_refresh));
       app.manage(Providers::new());
       app.manage(UpdatesCache::default());
       app.manage(PackUpdates::default());
@@ -271,6 +259,17 @@ fn migrate_data_dir() {
   {
     eprintln!("Failed to migrate data dir: {e}");
   }
+}
+
+/// Reconnect hook for [`OfflineState`], refreshes manifests the startup check could not
+fn spawn_refresh(handle: AppHandle) {
+  // we need to move it into a different task to avoid blocking the freeing of the lock
+  tokio::spawn(async move {
+    if let Err(e) = async_setup_refresh(&handle).await.log() {
+      log::error!("Failed to refresh manifests: {e}");
+      let _ = handle.emit(MANIFEST_REFRESH_ERROR, ()).log();
+    }
+  });
 }
 
 async fn async_setup_refresh(handle: &AppHandle) -> Result<()> {

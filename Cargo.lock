@@ -3792,26 +3792,20 @@ dependencies = [
 name = "proton"
 version = "0.1.0"
 dependencies = [
- "ammonia",
  "anyhow",
- "async-trait",
- "async_zip",
  "base64 0.23.1",
  "chrono",
  "dirs",
- "futures-util",
- "hex",
- "image",
  "log",
- "notify",
- "pulldown-cmark",
- "reqwest",
+ "proton_account",
+ "proton_config",
+ "proton_content",
+ "proton_profiles",
+ "proton_store",
+ "proton_utils",
+ "proton_versions",
  "serde",
- "serde-xml-rs",
  "serde_json",
- "sha1",
- "sha2 0.11.1",
- "sysinfo",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
@@ -3824,8 +3818,143 @@ dependencies = [
  "tauri-plugin-window-state",
  "thiserror 2.0.21",
  "tokio",
+]
+
+[[package]]
+name = "proton_account"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64 0.23.1",
+ "chrono",
+ "image",
+ "log",
+ "proton_store",
+ "proton_utils",
+ "reqwest",
+ "serde",
+ "tauri",
+ "thiserror 2.0.21",
+ "tokio",
+]
+
+[[package]]
+name = "proton_config"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "log",
+ "proton_store",
+ "proton_utils",
+ "serde",
+ "serde_json",
+ "sysinfo",
+ "tauri",
+ "tokio",
+]
+
+[[package]]
+name = "proton_content"
+version = "0.1.0"
+dependencies = [
+ "ammonia",
+ "anyhow",
+ "async-trait",
+ "async_zip",
+ "chrono",
+ "futures-util",
+ "hex",
+ "image",
+ "log",
+ "proton_profiles",
+ "proton_store",
+ "proton_utils",
+ "proton_versions",
+ "pulldown-cmark",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
+ "tauri",
+ "thiserror 2.0.21",
+ "tokio",
  "tokio-util",
  "uuid",
+]
+
+[[package]]
+name = "proton_profiles"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64 0.23.1",
+ "chrono",
+ "image",
+ "log",
+ "notify",
+ "proton_account",
+ "proton_config",
+ "proton_store",
+ "proton_utils",
+ "proton_versions",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sysinfo",
+ "tauri",
+ "thiserror 2.0.21",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "proton_store"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-plugin-store",
+]
+
+[[package]]
+name = "proton_utils"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "futures-util",
+ "hex",
+ "log",
+ "reqwest",
+ "serde",
+ "serde-xml-rs",
+ "serde_json",
+ "sha1",
+ "tauri",
+ "thiserror 2.0.21",
+ "tokio",
+]
+
+[[package]]
+name = "proton_versions"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "async_zip",
+ "chrono",
+ "log",
+ "proton_config",
+ "proton_utils",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tauri",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-util",
 ]
 
 [[package]]

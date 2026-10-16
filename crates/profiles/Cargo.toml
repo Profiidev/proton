@@ -1,0 +1,26 @@
+[package]
+name = "proton_profiles"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+tauri.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+chrono.workspace = true
+reqwest.workspace = true
+tokio.workspace = true
+base64.workspace = true
+image.workspace = true
+uuid.workspace = true
+log.workspace = true
+notify.workspace = true
+sysinfo.workspace = true
+proton_utils.workspace = true
+proton_store.workspace = true
+proton_config.workspace = true
+proton_versions.workspace = true
+proton_account.workspace = true
