@@ -5,6 +5,7 @@ members = ["crates/*", "app/src-tauri"]
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
+repository = "https://github.com/Profiidev/proton"
 license = "MIT"
 
 [workspace.dependencies]
@@ -15,6 +16,13 @@ proton_versions = { path = "crates/versions" }
 proton_account = { path = "crates/account" }
 proton_profiles = { path = "crates/profiles" }
 proton_content = { path = "crates/content" }
+proton_components = { path = "crates/components" }
+proton_reqwest = { path = "crates/reqwest" }
+gpui-kit = "0.7.3"
+futures = "0.3.34"
+tracing = "0.1.44"
+tracing-subscriber = "0.3.23"
+include_dir = "0.7.4"
 
 tauri = { version = "2.12.4", features = [] }
 tauri-build = { version = "2", features = [] }
@@ -69,3 +77,21 @@ ammonia = "4.2.3"
 codegen-units = 1
 lto = "fat"
 strip = true
+
+# step 0c: root gpui binary (renamed to `proton` once the tauri crate is gone)
+[package]
+name = "proton-gpui"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "proton-gpui"
+path = "src/main.rs"
+
+[dependencies]
+proton_components.workspace = true
+proton_reqwest.workspace = true
+gpui-kit.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
