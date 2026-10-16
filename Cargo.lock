@@ -5661,7 +5661,6 @@ dependencies = [
  "gpui-kit",
  "include_dir",
  "proton_utils",
- "regex",
  "tracing",
 ]
 
@@ -5797,6 +5796,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+ "tokio",
  "tracing",
 ]
 
@@ -5810,6 +5810,7 @@ dependencies = [
  "futures-util",
  "gpui-kit",
  "hex",
+ "regex",
  "reqwest",
  "serde",
  "serde-xml-rs",
