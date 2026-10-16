@@ -13,13 +13,13 @@ use crate::{
     ContentError,
     install::{Progress, adopt_file, check_plan, execute_install, find_manual, plan_install},
     model::{
-      Category, ContentKind, InstallPlan, Installed, ManualFile, PackPlan, PackSource, PickRef,
-      ProjectDetail, SearchQuery, SearchResult, Source, UpdateInfo, VersionInfo,
+      Category, ContentKind, InstallPlan, Installed, ManualFile, PackPlan, PackSource, PackUpdate,
+      PickRef, ProjectDetail, SearchQuery, SearchResult, Source, UpdateInfo, VersionInfo,
     },
     modpack,
     provider::{Providers, profile_loaders},
     store,
-    updates::{self, UpdatesCache},
+    updates::{self, PackUpdates, UpdatesCache},
   },
   offline::OfflineResultExt,
   profiles::{
@@ -361,6 +361,12 @@ pub async fn content_updates(
 }
 
 #[tauri::command]
+pub async fn modpack_updates(packs: State<'_, PackUpdates>) -> Result<HashMap<String, PackUpdate>> {
+  trace!("Command modpack_updates called");
+  Ok(packs.0.lock().unwrap().clone())
+}
+
+#[tauri::command]
 pub async fn content_check_updates(
   handle: AppHandle,
   profile: Option<&str>,
@@ -470,18 +476,7 @@ pub async fn modpack_install(
   let res = async {
     let store = profiles.lock().await;
     let mut info = store.profile(&profile).await?;
-    if let PackSource::Remote {
-      source,
-      project_id,
-      version_id: Some(version_id),
-    } = &plan.source
-    {
-      info.modpack = Some(ModpackRef {
-        source: *source,
-        project_id: project_id.clone(),
-        version_id: version_id.clone(),
-      });
-    }
+    info.modpack = pack_ref(&plan.source);
     // only when the system has room for it, otherwise the global setting stays in use
     if let Some(mb) = plan.recommended_memory_mb
       && handle.try_state::<MaxMem>().is_some_and(|max| max.fits(mb))
@@ -530,6 +525,102 @@ pub async fn modpack_install(
   drop(store);
   res.check_online_state(&handle).await?;
   Ok(String::new())
+}
+
+/// Switches a modpack profile to the plan's version. Pack files are replaced, content the user
+/// added stays. Nothing is deleted when the download fails or is canceled. False when canceled.
+#[tauri::command]
+pub async fn modpack_update(
+  providers: State<'_, Providers>,
+  profiles: State<'_, Mutex<ProfileStore>>,
+  handle: AppHandle,
+  profile: &str,
+  plan: PackPlan,
+  manual: HashMap<String, PathBuf>,
+  id: usize,
+) -> Result<bool> {
+  trace!("Command modpack_update called with profile {profile} id {id}");
+  let guard = register_cancel(id);
+  let progress = progress(&handle, id);
+  progress(DownloadCheckStatus::ContentResolve);
+  let (_, dir, running) = profile_dir(&profiles, profile).await?;
+  if running {
+    Err(ContentError::Running).log()?;
+  }
+  // restricted files are checked before anything is replaced
+  let manual: Vec<_> = plan
+    .manual
+    .iter()
+    .map(|file| {
+      Ok((
+        file,
+        manual
+          .get(&file.file_id)
+          .ok_or(ContentError::NeedsManualDownload)?,
+      ))
+    })
+    .collect::<std::result::Result<_, ContentError>>()
+    .log()?;
+  let cache = handle.path().app_cache_dir()?;
+  let res = async {
+    let archive = modpack::archive(&providers, &cache, &plan.source).await?;
+    let done = modpack::install_files(
+      &providers,
+      &dir,
+      &archive,
+      &plan,
+      id,
+      &guard.notify,
+      progress,
+    )
+    .await?;
+    for (file, path) in manual.iter().filter(|_| done) {
+      adopt_file(&dir, file, path).await?;
+    }
+    anyhow::Ok(done)
+  }
+  .await;
+  update_data(&handle, UpdateType::ProfileContent);
+  if !res.check_online_state(&handle).await? {
+    return Ok(false);
+  }
+
+  let store = profiles.lock().await;
+  let mut info = store.profile(profile).await.log()?;
+  if info.version != plan.minecraft || info.loader_version != plan.loader_version {
+    info.downloaded = false;
+  }
+  info.version = plan.minecraft;
+  info.loader = plan.loader;
+  info.loader_version = plan.loader_version;
+  info.modpack = pack_ref(&plan.source);
+  info.update(store.data_dir()).await.log()?;
+  store.update_data(UpdateType::Profiles);
+  drop(store);
+  handle
+    .state::<PackUpdates>()
+    .0
+    .lock()
+    .unwrap()
+    .remove(profile);
+  update_data(&handle, UpdateType::ContentUpdates);
+  Ok(true)
+}
+
+/// Remembers remote pack versions so the profile can switch versions later
+fn pack_ref(source: &PackSource) -> Option<ModpackRef> {
+  match source {
+    PackSource::Remote {
+      source,
+      project_id,
+      version_id: Some(version_id),
+    } => Some(ModpackRef {
+      source: *source,
+      project_id: project_id.clone(),
+      version_id: version_id.clone(),
+    }),
+    _ => None,
+  }
 }
 
 #[tauri::command]

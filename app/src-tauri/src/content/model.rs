@@ -351,6 +351,15 @@ pub struct UpdateInfo {
   pub latest: VersionInfo,
 }
 
+/// A newer version of the pack a profile was installed from
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PackUpdate {
+  /// Installed version number, empty when the provider no longer lists it
+  pub current: String,
+  pub latest: VersionInfo,
+}
+
 impl VersionInfo {
   /// The file that gets installed
   pub fn primary_file(&self) -> Option<&FileInfo> {

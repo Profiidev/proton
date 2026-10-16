@@ -22,6 +22,7 @@
     Package,
     Play,
     Plus,
+    RefreshCw,
     SlidersHorizontal,
     Square,
     Star,
@@ -42,6 +43,7 @@
   import { is_offline } from '$lib/tauri/offline.svelte.js';
   import SimpleSidebar from '$lib/components/nav/SimpleSidebar.svelte';
   import DuplicateDialog from '$lib/components/profile/DuplicateDialog.svelte';
+  import ModpackInstallDialog from '$lib/components/content/ModpackInstallDialog.svelte';
   import {
     content_updates,
     profile_export_mrpack
@@ -62,6 +64,7 @@
   let deleteOpen = $state(false);
   let stopOpen = $state(false);
   let duplicateOpen = $state(false);
+  let versionOpen = $state(false);
 
   const export_mrpack = async () => {
     if (!profile) return;
@@ -220,6 +223,12 @@
               <Wrench />
               Repair profile
             </DropdownMenu.Item>
+            {#if profile.modpack}
+              <DropdownMenu.Item onclick={() => (versionOpen = true)}>
+                <RefreshCw />
+                Change pack version
+              </DropdownMenu.Item>
+            {/if}
             <DropdownMenu.Item onclick={() => (duplicateOpen = true)}>
               <Copy />
               Duplicate profile
@@ -249,6 +258,9 @@
     </div>
   </div>
   <DuplicateDialog bind:open={duplicateOpen} {profile} />
+  {#if profile.modpack}
+    <ModpackInstallDialog bind:open={versionOpen} {profile} />
+  {/if}
   <DestroyDialog
     bind:open={deleteOpen}
     title="Delete Profile"

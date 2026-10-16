@@ -10,7 +10,8 @@ use chrono::Utc;
 use tauri::{AppHandle, Manager};
 
 use super::{
-  model::{Channel, Source, UpdateInfo, VersionInfo},
+  install::newest,
+  model::{Channel, PackUpdate, Source, UpdateInfo, VersionInfo},
   provider::{ContentProvider, Providers, profile_loaders},
   store::{self, Entry},
 };
@@ -33,6 +34,10 @@ pub struct UpdatesCache(
   pub Mutex<HashMap<String, Vec<UpdateInfo>>>,
   Mutex<HashMap<String, u64>>,
 );
+
+/// Pack updates per modpack profile id, only profiles with an update are listed
+#[derive(Default)]
+pub struct PackUpdates(pub Mutex<HashMap<String, PackUpdate>>);
 
 impl UpdatesCache {
   fn generations(&self) -> HashMap<String, u64> {
@@ -140,6 +145,31 @@ fn installed_release(entry: &Entry) -> bool {
   entry.channel.is_none_or(|c| c == Channel::Release)
 }
 
+/// Newest version of the profile's pack, None when it is installed or older than the installed one
+pub async fn pack_update(providers: &Providers, profile: &Profile) -> Option<PackUpdate> {
+  let pack = profile.modpack.as_ref()?;
+  let versions = providers
+    .get(pack.source)
+    .versions(&pack.project_id, &[], None)
+    .await
+    .log()
+    .ok()?;
+  pick_pack_update(versions, &pack.version_id)
+}
+
+fn pick_pack_update(versions: Vec<VersionInfo>, installed: &str) -> Option<PackUpdate> {
+  let current = versions.iter().find(|v| v.id == installed).cloned();
+  let latest = newest(versions)?;
+  // a profile on a beta newer than the newest release has nothing to update
+  let newer = current
+    .as_ref()
+    .is_none_or(|v| latest.published_at > v.published_at);
+  (latest.id != installed && newer).then(|| PackUpdate {
+    current: current.map(|v| v.version_number).unwrap_or_default(),
+    latest,
+  })
+}
+
 /// Manifest entries whose file still exists
 pub async fn entries(dir: &Path) -> Vec<Entry> {
   store::load(dir)
@@ -173,10 +203,25 @@ pub async fn check_profiles(
   let before = cache.generations();
   let providers = handle.state::<Providers>();
   let mut results = HashMap::new();
+  let mut packs = HashMap::new();
   for (profile, dir) in targets {
     let entries = entries(&dir).await;
     let updates = check(|s| providers.get(s), &profile, &entries).await;
+    if let Some(update) = pack_update(&providers, &profile).await {
+      packs.insert(profile.id.clone(), update);
+    }
     results.insert(profile.id, updates);
+  }
+  {
+    let state = handle.state::<PackUpdates>();
+    let mut known = state.0.lock().unwrap();
+    match profile {
+      Some(id) => {
+        known.remove(id);
+        known.extend(packs);
+      }
+      None => *known = packs,
+    }
   }
 
   let all = cache.store(results, &before, profile.is_none());
@@ -271,6 +316,33 @@ mod tests {
       &entry(Channel::Alpha),
       &latest("a", "new", Channel::Release)
     ));
+  }
+
+  #[test]
+  fn picks_pack_updates() {
+    let version = |id: &str, at: &str, channel| VersionInfo {
+      id: id.into(),
+      version_number: format!("v{id}"),
+      published_at: at.into(),
+      ..latest("p", id, channel)
+    };
+    let list = || {
+      vec![
+        version("1", "2026-01-01T00:00:00Z", Channel::Release),
+        version("2", "2026-02-01T00:00:00Z", Channel::Release),
+        version("3", "2026-03-01T00:00:00Z", Channel::Beta),
+      ]
+    };
+    let update = pick_pack_update(list(), "1").unwrap();
+    assert_eq!(
+      (update.current.as_str(), update.latest.id.as_str()),
+      ("v1", "2")
+    );
+    assert!(pick_pack_update(list(), "2").is_none());
+    // on the newer beta, the older release is no update
+    assert!(pick_pack_update(list(), "3").is_none());
+    // unlisted installed version
+    assert_eq!(pick_pack_update(list(), "x").unwrap().current, "");
   }
 
   /// Newest version is a beta, the newest release is only returned with `release_only`
