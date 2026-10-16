@@ -36,37 +36,45 @@ pub fn register(cx: &mut App) {
 }
 
 /// Wires the content dialogs into the create-profile dialog tabs and the profile menu
-pub fn register_hooks(_cx: &mut App) {
-  // ===== integrator: these hooks live on other branches (2a profiles, 2b profile header) =====
-  // use crate::content::{
-  //   FromModpackTab, ImportFileTab, ModpackInstallDialog, ProjectRef, export_mrpack,
-  //   open_duplicate_dialog,
-  // };
-  // use gpui_kit::component::WindowExt;
-  // crate::pages::profiles::set_create_tab(_cx, crate::pages::profiles::CreateTab::FromModpack, |window, cx| {
-  //   cx.new(|cx| {
-  //     FromModpackTab::new(
-  //       |project, window, cx| {
-  //         window.close_dialog(cx);
-  //         ModpackInstallDialog::open(ProjectRef::from(&project), window, cx);
-  //       },
-  //       window,
-  //       cx,
-  //     )
-  //   })
-  //   .into()
-  // });
-  // crate::pages::profiles::set_create_tab(_cx, crate::pages::profiles::CreateTab::ImportFile, |_, cx| {
-  //   cx.new(|_| {
-  //     ImportFileTab::new(|plan, window, cx| {
-  //       window.close_dialog(cx);
-  //       ModpackInstallDialog::open_plan(plan, window, cx);
-  //     })
-  //   })
-  //   .into()
-  // });
-  // crate::pages::profile::set_menu_action(_cx, crate::pages::profile::MenuAction::Duplicate, open_duplicate_dialog);
-  // crate::pages::profile::set_menu_action(_cx, crate::pages::profile::MenuAction::Export, export_mrpack);
-  // "Change pack version" (2b): ModpackInstallDialog::open_change(&profile_id, window, cx)
-  // ===== end integrator =====
+pub fn register_hooks(cx: &mut App) {
+  use gpui_kit::component::WindowExt;
+
+  use crate::{
+    content::{
+      FromModpackTab, ImportFileTab, ModpackInstallDialog, ProjectRef, export_mrpack,
+      open_duplicate_dialog,
+    },
+    pages::{
+      profile::{MenuAction, set_menu_action},
+      profiles::{CreateTab, set_create_tab},
+    },
+  };
+
+  set_create_tab(cx, CreateTab::FromModpack, |window, cx| {
+    cx.new(|cx| {
+      FromModpackTab::new(
+        |project, window, cx| {
+          window.close_dialog(cx);
+          ModpackInstallDialog::open(ProjectRef::from(&project), window, cx);
+        },
+        window,
+        cx,
+      )
+    })
+    .into()
+  });
+  set_create_tab(cx, CreateTab::ImportFile, |_, cx| {
+    cx.new(|_| {
+      ImportFileTab::new(|plan, window, cx| {
+        window.close_dialog(cx);
+        ModpackInstallDialog::open_plan(plan, window, cx);
+      })
+    })
+    .into()
+  });
+  set_menu_action(cx, MenuAction::Duplicate, open_duplicate_dialog);
+  set_menu_action(cx, MenuAction::Export, export_mrpack);
+  set_menu_action(cx, MenuAction::ChangeVersion, |id, window, cx| {
+    ModpackInstallDialog::open_change(&id, window, cx)
+  });
 }

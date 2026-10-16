@@ -342,7 +342,7 @@ mod tests {
       ..row("local.jar")
     };
     let all = vec![api.clone(), sodium.clone(), manual.clone()];
-    assert_eq!(remove_warning(&[sodium.clone()], &all), None);
+    assert_eq!(remove_warning(std::slice::from_ref(&sodium), &all), None);
     // removing the dependent too needs no warning
     assert_eq!(remove_warning(&[api.clone(), sodium], &all), None);
     assert_eq!(

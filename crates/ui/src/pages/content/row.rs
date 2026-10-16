@@ -90,13 +90,15 @@ impl ContentRow {
   fn action(
     &self,
     f: impl Fn(&mut ContentPage, &mut Window, &mut Context<ContentPage>) + 'static,
-  ) -> Rc<dyn Fn(&mut Window, &mut App)> {
+  ) -> RowAction {
     let page = self.page.clone();
     Rc::new(move |window, cx| {
       let _ = page.update(cx, |p, cx| f(p, window, cx));
     })
   }
 }
+
+type RowAction = Rc<dyn Fn(&mut Window, &mut App)>;
 
 impl Render for ContentRow {
   fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {

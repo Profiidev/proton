@@ -1,7 +1,7 @@
 use gpui_kit::{
-  App, AppContext, Context, Entity, FontWeight, ImageSource, InteractiveElement, IntoElement,
-  ParentElement, PathPromptOptions, Render, SharedString, StatefulInteractiveElement, Styled,
-  Subscription, WeakEntity, Window,
+  AnyView, App, AppContext, Context, Entity, FontWeight, ImageSource, InteractiveElement,
+  IntoElement, ParentElement, PathPromptOptions, Render, SharedString, StatefulInteractiveElement,
+  Styled, Subscription, WeakEntity, Window,
   assets::IconName,
   component::{
     ActiveTheme,
@@ -18,7 +18,7 @@ use proton_components::widgets::{
   form::{SwitchTile, VersionSelect},
   profile::ProfileIcon,
 };
-use proton_config::SettingsExt;
+use proton_config::{SettingsExt, settings::system_max_mem};
 use proton_profiles::{
   ProfilesExt,
   config::{Profile, ProfileUpdate},
@@ -28,6 +28,7 @@ use proton_versions::{VersionsExt, loader::LoaderType};
 use super::{find_profile, load_icon, quick_play::tabs, update_of};
 use crate::{
   actions::{toast, toast_error},
+  pages::settings::forms::{GameSettingsForm, JavaSettingsForm, memory_of_total},
   router::{ProfileSettingsTab, ProfileTab, Route, RouterExt},
 };
 
@@ -46,7 +47,9 @@ pub struct SettingsPage {
   pub(super) name: Entity<InputState>,
   versions: Entity<VersionSelect>,
   loader_versions: Entity<VersionSelect>,
-  _subscriptions: [Subscription; 2],
+  game_form: Entity<GameSettingsForm>,
+  java_form: Entity<JavaSettingsForm>,
+  _subscriptions: [Subscription; 3],
 }
 
 impl SettingsPage {
@@ -78,9 +81,65 @@ impl SettingsPage {
           .ok();
       })
     });
+    let global = cx.settings().get(cx);
+    let max_mem = match global.system_max_mem {
+      0 => match system_max_mem() {
+        0 => 8192,
+        mb => mb,
+      },
+      mb => mb,
+    };
+    let initial_game = global.minecraft.game_settings.clone();
+    let initial_jvm = global.minecraft.jvm_settings.clone();
+    let game_form = cx.new(|cx| {
+      let this = this.clone();
+      GameSettingsForm::new(initial_game, window, cx).on_change(move |next, _, cx| {
+        let next = next.clone();
+        this
+          .update(cx, |this, cx| {
+            let Some(use_local) = this.profile.as_ref().map(|p| p.use_local_game) else {
+              return;
+            };
+            this.send(cx, |u| {
+              u.use_local_game = use_local;
+              u.game = Some(next);
+            });
+          })
+          .ok();
+      })
+    });
+    let java_form = cx.new(|cx| {
+      let this = this.clone();
+      JavaSettingsForm::new(
+        initial_jvm,
+        max_mem,
+        move |mb| memory_of_total(mb, max_mem),
+        "Most modded profiles run well with 4 to 6 GB.",
+        window,
+        cx,
+      )
+      .on_change(move |next, _, cx| {
+        let next = next.clone();
+        this
+          .update(cx, |this, cx| {
+            let Some(use_local) = this.profile.as_ref().map(|p| p.use_local_jvm) else {
+              return;
+            };
+            this.send(cx, |u| {
+              u.use_local_jvm = use_local;
+              u.jvm = Some(next);
+            });
+          })
+          .ok();
+      })
+    });
     let profiles = cx.profiles().profiles.clone();
+    let settings = cx.settings().settings.clone();
     let subscriptions = [
       cx.observe_in(&profiles, window, |this, _, window, cx| {
+        this.sync_profile(window, cx)
+      }),
+      cx.observe_in(&settings, window, |this, _, window, cx| {
         this.sync_profile(window, cx)
       }),
       cx.subscribe_in(&name, window, |this, _, event, _, cx| {
@@ -97,6 +156,8 @@ impl SettingsPage {
       name,
       versions,
       loader_versions,
+      game_form,
+      java_form,
       _subscriptions: subscriptions,
     };
     this.sync_profile(window, cx);
@@ -120,6 +181,22 @@ impl SettingsPage {
     if versions_changed {
       self.load_versions(&p, window, cx);
     }
+    let global = &cx.settings().get(cx).minecraft;
+    let game = p
+      .game
+      .clone()
+      .unwrap_or_else(|| global.game_settings.clone());
+    let jvm = p.jvm.clone().unwrap_or_else(|| global.jvm_settings.clone());
+    let game_disabled = p.game.is_none() || !p.use_local_game;
+    let jvm_disabled = p.jvm.is_none() || !p.use_local_jvm;
+    self.game_form.update(cx, |f, cx| {
+      f.set_settings(game, window, cx);
+      f.set_disabled(game_disabled, cx);
+    });
+    self.java_form.update(cx, |f, cx| {
+      f.set_settings(jvm, window, cx);
+      f.set_disabled(jvm_disabled, cx);
+    });
     // ponytail: re-reads the icon on every profiles change, one small file
     let load = load_icon(self.id.clone(), cx);
     cx.spawn(async move |this, cx| {
@@ -352,6 +429,7 @@ fn override_tile(
   this: WeakEntity<SettingsPage>,
   p: &Profile,
   java: bool,
+  form: AnyView,
   cx: &App,
 ) -> impl IntoElement + use<> {
   let global = &cx.settings().get(cx).minecraft;
@@ -398,17 +476,7 @@ fn override_tile(
             .ok();
         }),
     )
-    // ponytail: the game/java forms come from the settings pages (2e), wired in after merge
-    .child(
-      div()
-        .text_sm()
-        .text_color(cx.theme().muted_foreground)
-        .child(if java {
-          "Java settings form follows."
-        } else {
-          "Game settings form follows."
-        }),
-    )
+    .child(form)
 }
 
 impl Render for SettingsPage {
@@ -416,13 +484,15 @@ impl Render for SettingsPage {
     let id = self.id.clone();
     let body = self.profile.clone().map(|p| match self.tab {
       ProfileSettingsTab::General => self.general(&p, cx).into_any_element(),
-      tab => override_tile(
-        cx.entity().downgrade(),
-        &p,
-        tab == ProfileSettingsTab::Java,
-        cx,
-      )
-      .into_any_element(),
+      tab => {
+        let java = tab == ProfileSettingsTab::Java;
+        let form: AnyView = if java {
+          self.java_form.clone().into()
+        } else {
+          self.game_form.clone().into()
+        };
+        override_tile(cx.entity().downgrade(), &p, java, form, cx).into_any_element()
+      }
     });
     div()
       .id("profile-settings")

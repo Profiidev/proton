@@ -1,6 +1,6 @@
 use gpui_kit::{
-  Anchor, App, ClickEvent, Context, FontWeight, ImageSource, IntoElement, ParentElement, Render,
-  SharedString, Styled, Subscription, Window,
+  Anchor, App, ClickEvent, Context, FontWeight, ImageSource, InteractiveElement, IntoElement,
+  ParentElement, Render, SharedString, StatefulInteractiveElement, Styled, Subscription, Window,
   assets::IconName,
   component::{
     ActiveTheme, Icon, Sizable,
@@ -19,6 +19,7 @@ use proton_components::widgets::{
   profile::ProfileIcon,
 };
 use proton_config::OfflineExt;
+use proton_content::Content;
 use proton_profiles::{ProfilesExt, config::Profile};
 
 use super::{MenuAction, find_profile, load_icon, run_menu_action};
@@ -33,25 +34,31 @@ pub struct ProfileHeader {
   profile: Option<Profile>,
   icon: Option<ImageSource>,
   running: usize,
-  _subscriptions: [Subscription; 2],
+  pack_update: Option<String>,
+  _subscriptions: Vec<Subscription>,
 }
 
 impl ProfileHeader {
   pub fn new(id: String, _: &mut Window, cx: &mut Context<Self>) -> Self {
     let profiles = cx.profiles().clone();
-    let subscriptions = [
+    let mut subscriptions = vec![
       cx.observe(&profiles.profiles, |this, _, cx| this.sync_profile(cx)),
       cx.observe(&profiles.instances, |this, _, cx| this.sync_running(cx)),
     ];
+    if let Some(content) = cx.try_global::<Content>().cloned() {
+      subscriptions.push(cx.observe(&content.pack_updates, |this, _, cx| this.sync_pack_update(cx)));
+    }
     let mut this = Self {
       id,
       profile: None,
       icon: None,
       running: 0,
+      pack_update: None,
       _subscriptions: subscriptions,
     };
     this.sync_profile(cx);
     this.sync_running(cx);
+    this.sync_pack_update(cx);
     this
   }
 
@@ -88,6 +95,17 @@ impl ProfileHeader {
       .count();
     if running != self.running {
       self.running = running;
+      cx.notify();
+    }
+  }
+
+  fn sync_pack_update(&mut self, cx: &mut Context<Self>) {
+    let next = cx
+      .try_global::<Content>()
+      .and_then(|c| c.pack_updates.read(cx).0.get(&self.id))
+      .map(|u| u.latest.version_number.clone());
+    if next != self.pack_update {
+      self.pack_update = next;
       cx.notify();
     }
   }
@@ -219,6 +237,29 @@ impl Render for ProfileHeader {
           )
           .when(running > 0, |el| {
             el.child(dot_chip(running_label(running), colors::green_500()))
+          })
+          .when_some(self.pack_update.clone(), |el, v| {
+            let id = id.clone();
+            el.child(
+              div()
+                .id("pack-update")
+                .cursor_pointer()
+                .h_5()
+                .px_2()
+                .rounded_full()
+                .flex()
+                .items_center()
+                .gap_1()
+                .bg(theme.primary.opacity(0.15))
+                .text_color(theme.primary)
+                .text_xs()
+                .font_weight(FontWeight::MEDIUM)
+                .child(Icon::new(IconName::CircleArrowUp).size_3())
+                .child(format!("Pack update {v}"))
+                .on_click(move |_, w, cx| {
+                  run_menu_action(MenuAction::ChangeVersion, id.clone(), w, cx)
+                }),
+            )
           }),
       )
       .child(
