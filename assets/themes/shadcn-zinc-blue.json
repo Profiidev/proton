@@ -64,7 +64,9 @@
         "chart.5": "#193cb8",
         "base.blue": "#2b7fff",
         "base.blue.light": "#8ec5ff",
-        "base.red": "#ff6467"
+        "base.red": "#ff6467",
+        "switch.background": "#ffffff1f",
+        "switch.thumb.background": "#fafafa"
       }
     },
     {

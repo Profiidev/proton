@@ -20,6 +20,7 @@ proton_profiles = { path = "crates/profiles" }
 proton_content = { path = "crates/content" }
 proton_components = { path = "crates/components" }
 proton_reqwest = { path = "crates/reqwest" }
+proton_ui = { path = "crates/ui" }
 gpui-kit = "0.7.3"
 futures = "0.3.34"
 tracing = "0.1.44"
@@ -97,6 +98,7 @@ path = "src/main.rs"
 [dependencies]
 proton_components.workspace = true
 proton_reqwest.workspace = true
+proton_ui.workspace = true
 gpui-kit.workspace = true
 proton_utils.workspace = true
 proton_config.workspace = true

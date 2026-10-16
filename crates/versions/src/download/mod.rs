@@ -9,7 +9,6 @@ use std::{
 
 use anyhow::Result;
 use reqwest::Client;
-use tauri::AppHandle;
 use thiserror::Error;
 use tracing::debug;
 
@@ -20,7 +19,7 @@ use crate::{
     libraries::check_download_version_java_libraries,
     manifest::{check_assets_manifest, check_client, check_java_manifest, check_version_manifest},
   },
-  event::{DownloadCheckStatus, emit_download_check_status},
+  event::{DownloadCheckStatus, DownloadsHandle},
   loader::LoaderVersion,
   meta::{java::PlatformVersion, minecraft::ManifestVersion},
   paths::{JavaVersionPath, MCPath, MCVersionPath},
@@ -45,7 +44,7 @@ pub async fn check_download_version(
   java: &PlatformVersion,
   data_dir: &PathBuf,
   client: &Client,
-  handle: &AppHandle,
+  handle: &DownloadsHandle,
   update_id: usize,
   loader_version: Option<Box<dyn LoaderVersion>>,
 ) -> Result<()> {
@@ -67,7 +66,7 @@ pub async fn check_download_version(
   .await?;
 
   if let Some(loader) = loader_version {
-    emit_download_check_status(handle, DownloadCheckStatus::ModLoaderMeta, update_id);
+    handle.status(update_id, DownloadCheckStatus::ModLoaderMeta);
 
     debug!("Collecting checks for mod loader files");
     let futures = loader
@@ -84,11 +83,7 @@ pub async fn check_download_version(
     .await?;
     debug!("Completed all checks for mod loader files");
 
-    emit_download_check_status(
-      handle,
-      DownloadCheckStatus::ModLoaderFilesDownloadInfo,
-      update_id,
-    );
+    handle.status(update_id, DownloadCheckStatus::ModLoaderFilesDownloadInfo);
     let mut downloads = Vec::with_capacity(futures.len());
     for fut in futures {
       downloads.push(fut.await?);
@@ -104,28 +99,24 @@ pub async fn check_download_version(
     debug!("Completed all downloads for mod loader files");
 
     debug!("Running mod loader preprocess");
-    emit_download_check_status(handle, DownloadCheckStatus::ModLoaderPreprocess, update_id);
+    handle.status(update_id, DownloadCheckStatus::ModLoaderPreprocess);
 
     loader
       .preprocess(&version_path, &mc_path, java_path.bin_path())
       .await?;
 
-    emit_download_check_status(
-      handle,
-      DownloadCheckStatus::ModLoaderPreprocessDone,
-      update_id,
-    );
+    handle.status(update_id, DownloadCheckStatus::ModLoaderPreprocessDone);
     debug!("Completed mod loader preprocess");
   }
 
-  emit_download_check_status(handle, DownloadCheckStatus::Done, update_id);
+  handle.status(update_id, DownloadCheckStatus::Done);
 
   Ok(())
 }
 
 async fn check_pool<S, F, O>(
   futures: Vec<F>,
-  handle: &AppHandle,
+  handle: &DownloadsHandle,
   update_id: usize,
   status: S,
 ) -> Result<Vec<O>>
@@ -138,7 +129,7 @@ where
 
   let res = pool
     .run_cb(None, |done, total| {
-      emit_download_check_status(handle, status(done, total), update_id)
+      handle.status(update_id, status(done, total))
     })
     .await;
 
@@ -154,7 +145,7 @@ where
 
 async fn download_pool<S, F, Fut>(
   funcs: Vec<(F, usize)>,
-  handle: AppHandle,
+  handle: DownloadsHandle,
   update_id: usize,
   status: S,
 ) -> Result<()>
@@ -173,7 +164,7 @@ where
     Box::new(move |chunk| {
       done.fetch_add(chunk, Ordering::SeqCst);
       let done = done.load(Ordering::SeqCst);
-      emit_download_check_status(&handle, status(done, total_size), update_id)
+      handle.status(update_id, status(done, total_size))
     })
   };
 
@@ -182,7 +173,7 @@ where
     futures.push(func(cb.clone()));
   }
 
-  emit_download_check_status(&handle, status(0, total_size), update_id);
+  handle.status(update_id, status(0, total_size));
 
   let pool = FuturePool::new(futures);
   let results = pool.run(None).await;

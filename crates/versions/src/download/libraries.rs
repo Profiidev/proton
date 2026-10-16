@@ -3,7 +3,6 @@ use std::{path::PathBuf, time::Instant};
 use anyhow::Result;
 use async_zip::base::read1::seek::ZipArchiveReader;
 use reqwest::Client;
-use tauri::AppHandle;
 use tokio::{
   fs,
   io::{self, BufReader},
@@ -14,7 +13,7 @@ use tracing::debug;
 use crate::{
   check_rule,
   download::{check_pool, download_pool},
-  event::DownloadCheckStatus,
+  event::{DownloadCheckStatus, DownloadsHandle},
   meta::minecraft::Version,
   paths::{JavaVersionPath, MCPath},
 };
@@ -29,7 +28,7 @@ pub async fn check_download_version_java_libraries(
   client: &Client,
   java_path: &JavaVersionPath,
   mc_path: &MCPath,
-  handle: &AppHandle,
+  handle: &DownloadsHandle,
   update_id: usize,
 ) -> Result<Vec<String>> {
   debug!("Collecting checks for java libraries");

@@ -3,7 +3,7 @@ use std::{collections::HashMap, fmt::Display};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, value::Serializer};
-use tauri::Url;
+use url::Url;
 
 use super::{
   Rule,

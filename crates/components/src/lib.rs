@@ -2,6 +2,7 @@ pub mod animation;
 pub mod assets;
 pub mod card;
 pub mod utils;
+pub mod widgets;
 
 /// gpui test helpers: a themed window drawing a closure
 #[cfg(any(test, feature = "test-support"))]
