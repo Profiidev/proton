@@ -23,6 +23,7 @@ fn main() {
       proton_profiles::init(cx);
       proton_content::init(cx);
       proton_ui::init(cx);
+      proton_ui::pages::register_all(cx);
       open_main_window(cx);
     });
 }
