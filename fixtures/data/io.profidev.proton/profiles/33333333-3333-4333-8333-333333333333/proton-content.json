@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "kind": "mod",
+      "fileName": "jei-1.20.1-forge-15.20.0.106.jar",
+      "sha1": "5ce9eb82b097bc51fd3e4e8648e7a42ee3d9d57f",
+      "fingerprint": 17152554,
+      "manual": false,
+      "fromPack": false,
+      "installedAt": "2026-10-01T12:00:00.000000000+00:00",
+      "source": "curseforge",
+      "projectId": "238222",
+      "versionId": "5846880",
+      "name": "Just Enough Items (JEI)",
+      "iconUrl": null,
+      "versionNumber": "15.20.0.106",
+      "channel": "release",
+      "dependencyOf": [],
+      "pending": false
+    },
+    {
+      "kind": "mod",
+      "fileName": "journeymap-1.20.1-5.10.3-forge.jar",
+      "sha1": "a030df0b675cd8529ea306d6d7e8ef725fd88ea2",
+      "fingerprint": 21444652,
+      "manual": false,
+      "fromPack": false,
+      "installedAt": "2026-10-01T12:00:00.000000000+00:00",
+      "source": "curseforge",
+      "projectId": "32274",
+      "versionId": "5789363",
+      "name": "JourneyMap",
+      "iconUrl": null,
+      "versionNumber": "5.10.3",
+      "channel": "release",
+      "dependencyOf": [],
+      "pending": false
+    },
+    {
+      "kind": "mod",
+      "fileName": "create-1.20.1-0.5.1.j.jar",
+      "sha1": "31a381d90c65fbd3813c1f9d290d6cfb8567cba3",
+      "fingerprint": 13961197,
+      "manual": false,
+      "fromPack": false,
+      "installedAt": "2026-10-01T12:00:00.000000000+00:00",
+      "source": "curseforge",
+      "projectId": "328085",
+      "versionId": "5838779",
+      "name": "Create",
+      "iconUrl": null,
+      "versionNumber": "0.5.1.j",
+      "channel": "release",
+      "dependencyOf": [],
+      "pending": false
+    }
+  ]
+}
