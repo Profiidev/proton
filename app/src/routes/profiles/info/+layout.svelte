@@ -13,6 +13,7 @@
   import * as DropdownMenu from '@profidev/pleiades/components/ui/dropdown-menu';
   import { setProfile } from './store.svelte.js';
   import {
+    CircleArrowUp,
     Copy,
     Download,
     Ellipsis,
@@ -46,6 +47,7 @@
   import ModpackInstallDialog from '$lib/components/content/ModpackInstallDialog.svelte';
   import {
     content_updates,
+    modpack_updates,
     profile_export_mrpack
   } from '$lib/tauri/content.svelte.js';
   import { save } from '@tauri-apps/plugin-dialog';
@@ -65,6 +67,9 @@
   let stopOpen = $state(false);
   let duplicateOpen = $state(false);
   let versionOpen = $state(false);
+  let pack_update = $derived(
+    profile ? modpack_updates.value?.[profile.id] : undefined
+  );
 
   const export_mrpack = async () => {
     if (!profile) return;
@@ -145,6 +150,15 @@
               {running_label(running)}
             </span>
           {/if}
+          {#if pack_update}
+            <button
+              class="bg-primary/15 text-primary inline-flex h-5 items-center gap-1 rounded-full px-2 text-xs font-medium"
+              onclick={() => (versionOpen = true)}
+            >
+              <CircleArrowUp class="size-3" />
+              Pack update {pack_update.latest.versionNumber}
+            </button>
+          {/if}
         </div>
         <p class="text-muted-foreground text-sm">
           {profile.loader}
@@ -204,7 +218,7 @@
               </Button>
             {/snippet}
           </DropdownMenu.Trigger>
-          <DropdownMenu.Content align="end" class="w-[210px]">
+          <DropdownMenu.Content align="end" class="w-52.5">
             <DropdownMenu.Item onclick={() => profile_open_path(profile.id)}>
               <FolderOpen />
               Open directory

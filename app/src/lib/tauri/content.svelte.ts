@@ -170,6 +170,13 @@ export interface UpdateInfo {
   latest: VersionInfo;
 }
 
+/** A newer version of the pack a profile was installed from */
+export interface PackUpdate {
+  /** Installed version number, empty when the provider no longer lists it */
+  current: string;
+  latest: VersionInfo;
+}
+
 /** Update infos per profile id */
 export type Updates = Record<string, UpdateInfo[]>;
 
@@ -261,6 +268,12 @@ export const content_sources = create_data_state(
 
 export const content_updates = create_data_state(
   async () => get<Updates>('content_updates'),
+  UpdateType.ContentUpdates
+);
+
+/** Pack updates per modpack profile id, only profiles with an update */
+export const modpack_updates = create_data_state(
+  async () => get<Record<string, PackUpdate>>('modpack_updates'),
   UpdateType.ContentUpdates
 );
 
@@ -397,6 +410,21 @@ export const modpack_install = async (
     `${name}: install`,
     `Installed modpack ${name}`,
     `Failed to install modpack ${name}`
+  );
+
+/** Switches a modpack profile to the plan's version, user added content stays. True when done */
+export const modpack_update = async (
+  profile: string,
+  name: string,
+  plan: PackPlan,
+  manual: Record<string, string>
+) =>
+  run_job<boolean>(
+    'modpack_update',
+    { manual, plan, profile },
+    `${name}: update pack`,
+    `Updated ${name} to ${plan.version}`,
+    `Failed to update ${name}`
   );
 
 export const profile_duplicate = async (profile: string, name: string) =>

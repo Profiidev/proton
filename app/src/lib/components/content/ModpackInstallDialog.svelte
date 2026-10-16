@@ -54,6 +54,9 @@
 
   let versions = $state<VersionInfo[]>([]);
   let picked = $state<string>();
+  let installed_label = $derived(
+    versions.find((v) => v.id === installed)?.versionNumber
+  );
   let version = $derived(
     versions.find((v) => v.id === picked) ?? default_version(versions)
   );
@@ -61,7 +64,7 @@
 
   $effect(() => {
     versions = [];
-    picked = installed;
+    picked = undefined;
     if (!open || !pack) return;
     const { source, id } = pack;
     let stale = false;
@@ -212,7 +215,14 @@
       {/if}
       {#if pack}
         <div class="flex min-w-0 flex-[1_1_160px] flex-col gap-1.5">
-          <Label>Pack version</Label>
+          <Label>
+            Pack version
+            {#if installed_label}
+              <span class="text-muted-foreground font-normal">
+                · installed {installed_label}
+              </span>
+            {/if}
+          </Label>
           <VersionSelect
             label="Pack version"
             options={versions.map(version_label)}
