@@ -7,6 +7,7 @@ pub mod format;
 pub mod instance;
 pub mod logs;
 pub mod profile;
+pub mod slider;
 pub mod tabs;
 
 use std::rc::Rc;
