@@ -1,49 +1,66 @@
 use std::{
   collections::HashMap,
   path::{Path, PathBuf},
-  sync::Arc,
 };
 
 use anyhow::Result;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use sysinfo::{Pid, ProcessesToUpdate, System};
-use tauri::{AppHandle, Manager};
-use tokio::sync::Mutex;
 
 use crate::{
   PROFILE_CONFIG, PROFILE_DIR,
   config::{
-    PlayHistoryFavoriteInfo, Profile, ProfileError, ProfileInfo, QuickPlayInfo, QuickPlayType,
+    PlayHistoryFavoriteInfo, Profile, ProfileError, ProfileInfo, ProfileUpdate, QuickPlayInfo,
+    QuickPlayType,
   },
+  instance::{Instance, InstanceError, InstanceInfo, Instances},
   watcher::watch_profile,
 };
 use proton_account::store::LaunchInfo;
 use proton_config::settings::Settings;
-use proton_utils::path;
-use proton_utils::{
-  file::read_parse_file,
-  tauri_compat::{UpdateType, update_data},
-};
+use proton_utils::{file::read_parse_file, path};
 use proton_versions::{
   launch::{LaunchArgs, launch_minecraft_version},
   loader::LoaderType,
 };
 
-use super::instance::{Instance, InstanceError, InstanceInfo};
+pub const LAUNCHER_NAME: &str = "Proton";
+
+/// What the tokio side reports to the gpui side, drained by `listener::listen`
+#[derive(Debug)]
+pub enum ProfilesMsg {
+  Profiles {
+    profiles: Vec<Profile>,
+    favorites: Vec<PlayHistoryFavoriteInfo>,
+    history: Vec<PlayHistoryFavoriteInfo>,
+  },
+  QuickPlay(String, Vec<QuickPlayInfo>),
+  Runs(String, Vec<DateTime<Utc>>),
+  /// The watcher merged the game's quick play file into this profile
+  QuickPlayFileChanged(String),
+  /// Content folder or manifest of this profile changed on disk, throttled
+  ContentChanged(String),
+  InstanceAdded(InstanceInfo),
+  InstanceRemoved(String),
+  /// A batch of new log lines of the instance with this id
+  InstanceLines(String, Vec<String>),
+  InstanceCrashed {
+    profile_name: String,
+  },
+}
 
 pub struct ProfileStore {
   profiles: HashMap<String, ProfileInfo>,
-  instances: Arc<Mutex<HashMap<String, Vec<Instance>>>>,
-  handle: AppHandle,
+  instances: Instances,
+  tx: flume::Sender<ProfilesMsg>,
   data_dir: PathBuf,
 }
 
 impl ProfileStore {
   const PROFILE_KEY: &str = "profiles";
 
-  pub fn new(handle: AppHandle) -> Result<ProfileStore> {
+  pub fn new(data_dir: PathBuf, tx: flume::Sender<ProfilesMsg>) -> Result<ProfileStore> {
     let store = proton_store::store();
-    let data_dir = handle.path().app_data_dir()?;
     let profile_paths: HashMap<String, PathBuf> = store.get_or_default(Self::PROFILE_KEY)?;
 
     let mut profiles = HashMap::new();
@@ -58,7 +75,7 @@ impl ProfileStore {
       } else {
         path
       };
-      let Some(watcher) = watch_profile(path!(&data_dir, &path), id.clone(), handle.clone()).ok()
+      let Some(watcher) = watch_profile(path!(&data_dir, &path), id.clone(), tx.clone()).ok()
       else {
         continue;
       };
@@ -67,7 +84,7 @@ impl ProfileStore {
 
     let store = ProfileStore {
       profiles,
-      handle,
+      tx,
       instances: Default::default(),
       data_dir,
     };
@@ -86,7 +103,7 @@ impl ProfileStore {
   ) -> Result<String> {
     let (id, info) = Profile::create(
       &self.data_dir,
-      &self.handle,
+      &self.tx,
       name,
       icon,
       version,
@@ -106,12 +123,28 @@ impl ProfileStore {
     let watcher = watch_profile(
       path!(&self.data_dir, &path),
       profile.id.clone(),
-      self.handle.clone(),
+      self.tx.clone(),
     )?;
     self
       .profiles
       .insert(profile.id.clone(), ProfileInfo { path, watcher });
     self.save()
+  }
+
+  /// Applies the editable fields, a changed version or loader needs a new download
+  pub async fn update_profile(&self, update: ProfileUpdate) -> Result<()> {
+    let mut profile = self.profile(&update.id).await?;
+    if update.version != profile.version || update.loader_version != profile.loader_version {
+      profile.downloaded = false;
+    }
+    profile.name = update.name;
+    profile.version = update.version;
+    profile.loader_version = update.loader_version;
+    profile.use_local_game = update.use_local_game;
+    profile.game = update.game;
+    profile.use_local_jvm = update.use_local_jvm;
+    profile.jvm = update.jvm;
+    profile.update(&self.data_dir).await
   }
 
   pub fn get_profile_path(&self, profile: &str) -> Result<PathBuf> {
@@ -129,11 +162,13 @@ impl ProfileStore {
     Ok(())
   }
 
+  /// All profiles, oldest first
   pub async fn list_profiles(&self) -> Result<Vec<Profile>> {
-    let mut profiles = Vec::new();
+    let mut profiles: Vec<Profile> = Vec::new();
     for info in self.profiles.values() {
       profiles.push(read_parse_file(&path!(&self.data_dir, &info.path, PROFILE_CONFIG)).await?);
     }
+    profiles.sort_by_key(|p| p.created_at);
 
     Ok(profiles)
   }
@@ -144,7 +179,6 @@ impl ProfileStore {
     profile: Profile,
     quick_play: Option<QuickPlayInfo>,
   ) -> Result<()> {
-    let data_dir = self.data_dir.clone();
     let settings = Settings::load()?.minecraft;
 
     let jvm_settings = if profile.use_local_jvm {
@@ -166,32 +200,42 @@ impl ProfileStore {
 
     let child = launch_minecraft_version(&LaunchArgs {
       access_token: info.access_token,
-      launcher_name: self.handle.package_info().name.clone(),
-      launcher_version: self.handle.package_info().version.to_string(),
+      launcher_name: LAUNCHER_NAME.into(),
+      launcher_version: env!("CARGO_PKG_VERSION").into(),
       player_name: info.name.clone(),
       player_uuid: info.id.clone(),
       user_type: "msa".into(),
-      data_dir,
+      data_dir: self.data_dir.clone(),
       version: profile.version.clone(),
       working_sub_dir: profile.relative_to_data().display().to_string(),
-      quick_play: quick_play.clone().map(|q| q.into()),
+      quick_play: quick_play.map(|q| q.into()),
       loader,
       game_settings,
       jvm_settings,
     })
     .await?;
 
+    self.add_instance(child, &profile, info.name, info.id).await
+  }
+
+  /// Tracks a started game process as an instance of `profile`
+  pub async fn add_instance(
+    &self,
+    child: tokio::process::Child,
+    profile: &Profile,
+    account_name: String,
+    account_id: String,
+  ) -> Result<()> {
     Instance::create(
       child,
-      &self.handle,
-      &profile,
-      info.name,
-      info.id,
+      &self.data_dir,
+      profile,
+      account_name,
+      account_id,
       &self.instances,
+      &self.tx,
     )
-    .await?;
-
-    Ok(())
+    .await
   }
 
   pub async fn list_history(&mut self) -> Result<Vec<PlayHistoryFavoriteInfo>> {
@@ -225,27 +269,23 @@ impl ProfileStore {
         });
       }
 
+      // drop singleplayer entries whose world was deleted
       let saves = profile_info.list_saves(&self.data_dir).await?;
-      let mut updated = false;
+      let before = profile_info.quick_play.len();
+      profile_info
+        .quick_play
+        .retain(|q| q.r#type != QuickPlayType::Singleplayer || saves.contains(&q.id));
+      if profile_info.quick_play.len() < before {
+        profile_info.update(&self.data_dir).await?;
+      }
 
-      for (i, quick_play) in profile_info.quick_play.clone().into_iter().enumerate() {
-        if quick_play.r#type == QuickPlayType::Singleplayer && !saves.contains(&quick_play.id) {
-          profile_info.quick_play.remove(i);
-          updated = true;
-          continue;
-        }
-
-        if quick_play_access(&quick_play) {
+      for quick_play in &profile_info.quick_play {
+        if quick_play_access(quick_play) {
           entries.push(PlayHistoryFavoriteInfo {
             profile: profile_info.clone(),
             quick_play: Some(quick_play.clone()),
           });
         }
-      }
-
-      if updated {
-        profile_info.update(&self.data_dir).await?;
-        self.update_data(UpdateType::ProfileQuickPlay);
       }
     }
 
@@ -264,8 +304,16 @@ impl ProfileStore {
 
   pub async fn list_instances(&self) -> Vec<InstanceInfo> {
     let instances = self.instances.lock().await;
-    let mut res = Vec::new();
+    instances
+      .values()
+      .flatten()
+      .map(|i| i.info().clone())
+      .collect()
+  }
 
+  /// Memory used per instance id, polled by the UI
+  pub async fn instances_memory(&self) -> HashMap<String, u64> {
+    let instances = self.instances.lock().await;
     let pids: Vec<Pid> = instances
       .values()
       .flatten()
@@ -274,32 +322,14 @@ impl ProfileStore {
     let mut system = System::new();
     system.refresh_processes(ProcessesToUpdate::Some(&pids), true);
 
-    for (profile, instances) in instances.iter() {
-      let profile_name = self.profile(profile).await.ok().map(|p| p.name);
-
-      let instances: Vec<InstanceInfo> = instances
-        .iter()
-        .map(|i| InstanceInfo {
-          id: i.id().to_string(),
-          profile_name: profile_name.clone().unwrap_or(i.profile_name().to_string()),
-          profile_id: i.profile_id().to_string(),
-          version: i.version().to_string(),
-          loader: i.loader(),
-          loader_version: i.loader_version().cloned(),
-          launched_at: i.launched_at(),
-          account_name: Some(i.account_name().to_string()),
-          account_id: Some(i.account_id().to_string()),
-          memory_used: system.process(Pid::from_u32(i.pid())).map(|p| p.memory()),
-        })
-        .collect();
-      if instances.is_empty() {
-        continue;
-      }
-
-      res.extend(instances);
-    }
-
-    res
+    instances
+      .values()
+      .flatten()
+      .filter_map(|i| {
+        let memory = system.process(Pid::from_u32(i.pid()))?.memory();
+        Some((i.info().id.clone(), memory))
+      })
+      .collect()
   }
 
   pub async fn is_running(&self, profile: &str) -> bool {
@@ -324,22 +354,11 @@ impl ProfileStore {
       .for_each(Instance::stop);
   }
 
-  pub async fn get_instance_logs(&self, profile: &str, id: &str) -> Result<Vec<String>> {
-    let instances = self.instances.lock().await;
-    let instances = instances.get(profile).ok_or(InstanceError::NotFound)?;
-    let instance = instances
-      .iter()
-      .find(|i| i.id() == id)
-      .ok_or(InstanceError::NotFound)?;
-    Ok(instance.lines().await)
-  }
-
   pub async fn stop_instance(&self, profile: &str, id: &str) -> Result<()> {
-    let mut instances = self.instances.lock().await;
-    let entry = instances.get_mut(profile).ok_or(InstanceError::NotFound)?;
-    let instance = entry
-      .iter()
-      .find(|i| i.id() == id)
+    let instances = self.instances.lock().await;
+    let instance = instances
+      .get(profile)
+      .and_then(|entry| entry.iter().find(|i| i.info().id == id))
       .ok_or(InstanceError::NotFound)?;
     instance.stop();
     Ok(())
@@ -349,18 +368,13 @@ impl ProfileStore {
     &self.data_dir
   }
 
-  pub fn handle(&self) -> &AppHandle {
-    &self.handle
-  }
-
   fn save(&self) -> Result<()> {
-    let mut profiles = HashMap::new();
-    for (id, info) in &self.profiles {
-      profiles.insert(id.clone(), info.path.clone());
-    }
-
-    let store = proton_store::store();
-    store.set(Self::PROFILE_KEY, &profiles)
+    let profiles: HashMap<&String, &PathBuf> = self
+      .profiles
+      .iter()
+      .map(|(id, info)| (id, &info.path))
+      .collect();
+    proton_store::store().set(Self::PROFILE_KEY, &profiles)
   }
 
   pub fn profile_info(&self, profile: &str) -> Result<&ProfileInfo> {
@@ -372,10 +386,6 @@ impl ProfileStore {
 
   pub async fn profile(&self, profile: &str) -> Result<Profile> {
     self.profile_info(profile)?.profile(&self.data_dir).await
-  }
-
-  pub fn update_data(&self, r#type: UpdateType) {
-    update_data(&self.handle, r#type);
   }
 }
 
