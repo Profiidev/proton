@@ -1,4 +1,7 @@
-use std::collections::HashMap;
+use std::{
+  collections::HashMap,
+  net::{Ipv4Addr, Ipv6Addr},
+};
 
 use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
@@ -7,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::{
   io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
-  net::TcpListener,
+  net::{TcpListener, TcpStream},
   time::timeout,
 };
 use tracing::{debug, warn};
@@ -16,7 +19,7 @@ use url::Url;
 use proton_utils::CLIENT_ID;
 
 const REDIRECT_URI: &str = "http://localhost:51701";
-const REDIRECT_ADDR: &str = "127.0.0.1:51701";
+const REDIRECT_PORT: u16 = 51701;
 const LOGIN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10 * 60);
 const READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
@@ -240,7 +243,7 @@ pub async fn refresh_ms_token(client: &Client, ms_refresh_token: &str) -> Result
 pub async fn get_ms_token(client: &Client) -> Result<MsToken> {
   let state = uuid::Uuid::new_v4().to_string();
   // bind before opening the browser, so the redirect cannot arrive before we listen
-  let listener = bind_redirect(REDIRECT_ADDR).await?;
+  let listener = RedirectListener::bind(REDIRECT_PORT).await?;
 
   let url = authorize_url(&state)?;
   debug!("Opening login in the browser: {url}");
@@ -288,24 +291,52 @@ pub fn authorize_url(state: &str) -> Result<Url> {
   )?)
 }
 
-async fn bind_redirect(addr: &str) -> Result<TcpListener> {
-  TcpListener::bind(addr).await.map_err(|e| {
-    if e.kind() == std::io::ErrorKind::AddrInUse {
-      let port = addr.rsplit(':').next().and_then(|p| p.parse().ok());
-      AuthError::PortInUse(port.unwrap_or_default()).into()
-    } else {
-      e.into()
-    }
-  })
+/// Listens on 127.0.0.1 and, when available, [::1], since browsers may resolve `localhost` to
+/// either
+struct RedirectListener {
+  v4: TcpListener,
+  v6: Option<TcpListener>,
+}
+
+impl RedirectListener {
+  /// Port 0 picks a free port for v4 and reuses it for v6
+  async fn bind(port: u16) -> Result<Self> {
+    let v4 = TcpListener::bind((Ipv4Addr::LOCALHOST, port))
+      .await
+      .map_err(|e| -> anyhow::Error {
+        if e.kind() == std::io::ErrorKind::AddrInUse {
+          AuthError::PortInUse(port).into()
+        } else {
+          e.into()
+        }
+      })?;
+    let port = v4.local_addr()?.port();
+    let v6 = TcpListener::bind((Ipv6Addr::LOCALHOST, port))
+      .await
+      .inspect_err(|e| debug!("No IPv6 login listener: {e}"))
+      .ok();
+    Ok(Self { v4, v6 })
+  }
+
+  async fn accept(&self) -> std::io::Result<TcpStream> {
+    let (stream, _) = match &self.v6 {
+      Some(v6) => tokio::select! {
+        r = self.v4.accept() => r,
+        r = v6.accept() => r,
+      },
+      None => self.v4.accept().await,
+    }?;
+    Ok(stream)
+  }
 }
 
 const PAGE_OK: &str = "<!doctype html><html><body style=\"font-family:sans-serif\"><h2>Login successful</h2><p>You can close this tab and return to Proton.</p></body></html>";
 const PAGE_ERR: &str = "<!doctype html><html><body style=\"font-family:sans-serif\"><h2>Login failed</h2><p>You can close this tab and return to Proton.</p></body></html>";
 
 /// Accepts redirect connections until one carries a code (or an error) for our state
-async fn wait_for_code(listener: &TcpListener, state: &str) -> Result<String> {
+async fn wait_for_code(listener: &RedirectListener, state: &str) -> Result<String> {
   loop {
-    let (mut stream, _) = listener.accept().await?;
+    let mut stream = listener.accept().await?;
     let mut line = String::new();
     let read = timeout(
       READ_TIMEOUT,
@@ -387,18 +418,36 @@ mod tests {
     state: &str,
   ) -> (
     std::net::SocketAddr,
+    Option<std::net::SocketAddr>,
     tokio::task::JoinHandle<Result<String>>,
   ) {
-    let listener = bind_redirect("127.0.0.1:0").await.unwrap();
-    let addr = listener.local_addr().unwrap();
+    let listener = RedirectListener::bind(0).await.unwrap();
+    let addr = listener.v4.local_addr().unwrap();
+    let v6 = listener.v6.as_ref().map(|l| l.local_addr().unwrap());
     let state = state.to_string();
     let task = tokio::spawn(async move { wait_for_code(&listener, &state).await });
-    (addr, task)
+    (addr, v6, task)
+  }
+
+  #[tokio::test]
+  async fn accepts_on_ipv6() {
+    let (addr, v6, task) = server("s1").await;
+    let Some(v6) = v6 else {
+      eprintln!("IPv6 loopback unavailable, skipping");
+      return;
+    };
+    assert_eq!(v6.port(), addr.port());
+    assert!(
+      get(v6, "/?code=six&state=s1")
+        .await
+        .starts_with("HTTP/1.1 200")
+    );
+    assert_eq!(task.await.unwrap().unwrap(), "six");
   }
 
   #[tokio::test]
   async fn extracts_code_and_ignores_unrelated() {
-    let (addr, task) = server("s1").await;
+    let (addr, _, task) = server("s1").await;
     assert!(get(addr, "/favicon.ico").await.starts_with("HTTP/1.1 404"));
     assert!(get(addr, "/").await.starts_with("HTTP/1.1 404"));
     let res = get(addr, "/?code=abc%2Fd&state=s1").await;
@@ -408,7 +457,7 @@ mod tests {
 
   #[tokio::test]
   async fn rejects_state_mismatch() {
-    let (addr, task) = server("s1").await;
+    let (addr, _, task) = server("s1").await;
     assert!(
       get(addr, "/?code=abc&state=evil")
         .await
@@ -420,7 +469,7 @@ mod tests {
 
   #[tokio::test]
   async fn reports_error_param() {
-    let (addr, task) = server("s1").await;
+    let (addr, _, task) = server("s1").await;
     get(
       addr,
       "/?error=access_denied&error_description=User+cancelled&state=s1",
@@ -432,13 +481,13 @@ mod tests {
 
   #[tokio::test]
   async fn cancel_frees_the_port_and_busy_port_is_clear() {
-    let (addr, task) = server("s1").await;
-    let busy = bind_redirect(&addr.to_string()).await.unwrap_err();
+    let (addr, _, task) = server("s1").await;
+    let busy = RedirectListener::bind(addr.port()).await.err().unwrap();
     assert!(matches!(busy.downcast_ref(), Some(AuthError::PortInUse(p)) if *p == addr.port()));
 
     task.abort();
     assert!(task.await.unwrap_err().is_cancelled());
-    bind_redirect(&addr.to_string()).await.unwrap();
+    RedirectListener::bind(addr.port()).await.unwrap();
   }
 
   #[test]
