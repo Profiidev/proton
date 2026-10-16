@@ -80,12 +80,10 @@ fn download_tick_re_renders_only_its_row(cx: &mut TestAppContext) {
   });
   draw(handle, cx);
   let delta: Vec<usize> = counts().iter().zip(before).map(|(a, b)| a - b).collect();
-  // header and sidebar are cached and no ancestor of the downloads: they stay.
-  // ponytail: the open popover's rows re-render with the panel (their parent view); they have
-  // no fixed height to `.cached()` them with. Measure rows if the panel ever gets long.
+  // header and sidebar are cached and no ancestor of the downloads: they stay. The open
+  // popover's rows are cached too, only the ticked one renders.
   // The page root renders on every frame (see `Shell::render`), so it is not asserted.
-  assert_eq!(delta[..2], [0, 0], "header, sidebar");
-  assert!(delta[2] > 0, "the row shows the tick");
+  assert_eq!(delta, [0, 0, 1], "header, sidebar, rows");
   // the actions bar (offline badge, downloads, controls) is the cheap uncached sibling
   assert!(render_count::of::<HeaderActions>() > 0);
 }

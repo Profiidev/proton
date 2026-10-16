@@ -94,7 +94,9 @@ impl RenderOnce for InstanceRow {
       .gap_2()
       .map(|this| {
         if self.card {
+          // -1px: a `ring-1` takes no space
           this
+            .m(px(-1.))
             .px_4()
             .py(px(14.))
             .rounded(px(14.))

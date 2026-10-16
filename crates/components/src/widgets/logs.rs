@@ -202,13 +202,16 @@ impl Render for LogWindow {
   fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
     crate::render_count::hit::<Self>();
     let theme = cx.theme();
+    // the frame overhangs by 1px on each side: the reference's `ring-1` takes no space
     let frame = div()
       .id("log-window")
-      .relative()
+      .absolute()
+      .top(px(-1.))
+      .left(px(-1.))
+      .right(px(-1.))
+      .bottom(px(-1.))
       .flex()
       .flex_col()
-      .min_h(px(420.))
-      .size_full()
       .overflow_hidden()
       .rounded(px(14.))
       .border_1()
@@ -219,18 +222,19 @@ impl Render for LogWindow {
       .line_height(px(20.));
 
     if self.visible.is_empty() {
-      return frame
-        .px(px(14.))
-        .py_3()
-        .child(
-          div()
-            .font_family(theme.font_family.clone())
-            .text_sm()
-            .text_color(theme.muted_foreground)
-            .child("No logs found for the current filter settings"),
-        )
-        .test_support()
-        .into_any_element();
+      return outer(
+        frame
+          .px(px(14.))
+          .py_3()
+          .child(
+            div()
+              .font_family(theme.font_family.clone())
+              .text_sm()
+              .text_color(theme.muted_foreground)
+              .child("No logs found for the current filter settings"),
+          )
+          .test_support(),
+      );
     }
 
     let list = uniform_list(
@@ -249,16 +253,26 @@ impl Render for LogWindow {
       cx.defer_in(window, |this, _, cx| this.sync_follow(cx));
     }));
 
-    frame
-      .on_mouse_up(
-        MouseButton::Left,
-        cx.listener(|this, _, _, cx| this.sync_follow(cx)),
-      )
-      .child(list)
-      .child(Scrollbar::new(&self.scroll))
-      .test_support()
-      .into_any_element()
+    outer(
+      frame
+        .on_mouse_up(
+          MouseButton::Left,
+          cx.listener(|this, _, _, cx| this.sync_follow(cx)),
+        )
+        .child(list)
+        .child(Scrollbar::new(&self.scroll))
+        .test_support(),
+    )
   }
+}
+
+fn outer(frame: impl IntoElement) -> gpui_kit::AnyElement {
+  div()
+    .relative()
+    .min_h(px(420.))
+    .size_full()
+    .child(frame)
+    .into_any_element()
 }
 
 #[cfg(test)]

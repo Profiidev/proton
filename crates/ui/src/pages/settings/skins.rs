@@ -425,7 +425,7 @@ impl Render for SkinsPage {
       .flex_col()
       .flex_none()
       .gap_3()
-      .w(px(240.))
+      .w(px(242.))
       .p(px(14.))
       .child(
         div()

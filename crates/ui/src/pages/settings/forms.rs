@@ -485,10 +485,12 @@ impl Render for JavaSettingsForm {
               .child(div().text_xs().child((self.memory_label)(self.mem))),
           )
           .child(
+            // zero height: the label, track and hint spacing of the reference comes from the
+            // gaps alone, the kit slider (24px hit box) overhangs centered on the track line
             div()
               .flex()
               .items_center()
-              .h_4()
+              .h(px(0.))
               .child(Slider::new(&self.slider).disabled(disabled)),
           )
           .child(

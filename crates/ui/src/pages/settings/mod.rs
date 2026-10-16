@@ -84,17 +84,20 @@ fn heading(title: &'static str, subtitle: Option<SharedString>, cx: &App) -> Div
     )
     .children(subtitle.map(|s| {
       div()
-        .mt(px(2.))
+        // mt-0.5 in the reference, gpui sets the glyphs 1px lower in the line box
+        .mt(px(1.))
         .line_height(px(24.))
         .text_color(cx.theme().muted_foreground)
         .child(s)
     }))
 }
 
-/// "Ring card": `bg-card ring-1 ring-foreground/10 rounded-xl`
+/// "Ring card": `bg-card ring-1 ring-foreground/10 rounded-xl`. A ring is drawn outside the box
+/// and takes no space, the -1px margin does the same for the border. Fixed sizes add 2px.
 fn ring_card(cx: &App) -> Div {
   let theme = cx.theme();
   div()
+    .m(px(-1.))
     .rounded(px(14.))
     .border_1()
     .border_color(theme.foreground.opacity(0.1))
