@@ -89,9 +89,16 @@ impl Asset for Head {
     let handle = cx.accounts().handle.clone();
     async move {
       let head: Result<_> = async {
-        let path = rt::spawn(async move { handle.get_skin(url).await }).await??.head;
+        let path = rt::spawn(async move { handle.get_skin(url).await })
+          .await??
+          .head;
         let face = image::load_from_memory(&std::fs::read(path)?)?.into_rgba8();
-        Ok(imageops::resize(&face, HEAD_SIZE, HEAD_SIZE, FilterType::Nearest))
+        Ok(imageops::resize(
+          &face,
+          HEAD_SIZE,
+          HEAD_SIZE,
+          FilterType::Nearest,
+        ))
       }
       .await;
       head

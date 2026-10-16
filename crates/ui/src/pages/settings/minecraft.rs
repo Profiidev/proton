@@ -1,8 +1,8 @@
 //! `/settings/minecraft` and `/settings/java`: global defaults for every profile
 
 use gpui_kit::{
-  AppContext, Context, ElementId, Entity, FontWeight, IntoElement, ParentElement, PathPromptOptions,
-  Render, Styled, Subscription, Window,
+  AppContext, Context, ElementId, Entity, FontWeight, IntoElement, ParentElement,
+  PathPromptOptions, Render, Styled, Subscription, Window,
   assets::IconName,
   component::{
     ActiveTheme, Sizable,
@@ -46,13 +46,17 @@ impl MinecraftPage {
         proton_config::update(cx, |s| s.minecraft.game_settings = next);
       })
     });
-    let sub = cx.observe_in(&settings, window, |this: &mut Self, settings, window, cx| {
-      let value = settings.read(cx).minecraft.game_settings.clone();
-      this
-        .game
-        .update(cx, |form, cx| form.set_settings(value, window, cx));
-      cx.notify();
-    });
+    let sub = cx.observe_in(
+      &settings,
+      window,
+      |this: &mut Self, settings, window, cx| {
+        let value = settings.read(cx).minecraft.game_settings.clone();
+        this
+          .game
+          .update(cx, |form, cx| form.set_settings(value, window, cx));
+        cx.notify();
+      },
+    );
     Self { game, _sub: sub }
   }
 
@@ -100,10 +104,16 @@ impl Render for MinecraftPage {
         div()
           .flex()
           .flex_col()
-          .child(div().font_weight(FontWeight::MEDIUM).child("Download folders"))
+          .child(
+            div()
+              .line_height(px(24.))
+              .font_weight(FontWeight::MEDIUM)
+              .child("Download folders"),
+          )
           .child(
             div()
               .text_xs()
+              .line_height(px(16.))
               .text_color(muted)
               .child("Watched for files CurseForge only allows from its website."),
           ),
@@ -114,7 +124,14 @@ impl Render for MinecraftPage {
           .flex()
           .items_center()
           .gap_2()
-          .child(div().flex_1().min_w_0().truncate().text_sm().child(label.clone()))
+          .child(
+            div()
+              .flex_1()
+              .min_w_0()
+              .truncate()
+              .text_sm()
+              .child(label.clone()),
+          )
           .child(
             Button::new(ElementId::Name(format!("remove-dir-{label}").into()))
               .ghost()
@@ -142,6 +159,7 @@ impl Render for MinecraftPage {
 
     page(
       "minecraft-page",
+      px(16.),
       [
         heading("Minecraft", Some(SUBTITLE.into()), cx).into_any_element(),
         SwitchTile::new(
@@ -189,12 +207,16 @@ impl JavaPage {
         proton_config::update(cx, |s| s.minecraft.jvm_settings = next);
       })
     });
-    let sub = cx.observe_in(&settings, window, |this: &mut Self, settings, window, cx| {
-      let value = settings.read(cx).minecraft.jvm_settings.clone();
-      this
-        .java
-        .update(cx, |form, cx| form.set_settings(value, window, cx));
-    });
+    let sub = cx.observe_in(
+      &settings,
+      window,
+      |this: &mut Self, settings, window, cx| {
+        let value = settings.read(cx).minecraft.jvm_settings.clone();
+        this
+          .java
+          .update(cx, |form, cx| form.set_settings(value, window, cx));
+      },
+    );
     Self { java, _sub: sub }
   }
 }
@@ -203,6 +225,7 @@ impl Render for JavaPage {
   fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
     page(
       "java-page",
+      px(16.),
       [
         heading("Java", Some(SUBTITLE.into()), cx).into_any_element(),
         self.java.clone().into_any_element(),

@@ -22,7 +22,7 @@ pub use skins::SkinsPage;
 
 use gpui_kit::{
   AnyElement, App, AppContext, Div, ElementId, FontWeight, InteractiveElement, IntoElement,
-  ParentElement, SharedString, StatefulInteractiveElement, Styled, Window,
+  ParentElement, Pixels, SharedString, StatefulInteractiveElement, Styled, Window,
   component::{ActiveTheme, WindowExt, notification::NotificationType},
   div, px,
 };
@@ -56,15 +56,16 @@ pub fn register(cx: &mut App) {
 }
 
 /// Page root: fills the content area and scrolls itself
-fn page(id: impl Into<ElementId>, children: impl IntoIterator<Item = AnyElement>) -> impl IntoElement {
-  div().id(id).size_full().overflow_y_scroll().child(
-    div()
-      .flex()
-      .flex_col()
-      .gap_4()
-      .w_full()
-      .children(children),
-  )
+fn page(
+  id: impl Into<ElementId>,
+  gap: Pixels,
+  children: impl IntoIterator<Item = AnyElement>,
+) -> impl IntoElement {
+  div()
+    .id(id)
+    .size_full()
+    .overflow_y_scroll()
+    .child(div().flex().flex_col().gap(gap).w_full().children(children))
 }
 
 /// H1 + muted subtitle
@@ -84,6 +85,7 @@ fn heading(title: &'static str, subtitle: Option<SharedString>, cx: &App) -> Div
     .children(subtitle.map(|s| {
       div()
         .mt(px(2.))
+        .line_height(px(24.))
         .text_color(cx.theme().muted_foreground)
         .child(s)
     }))
@@ -99,7 +101,12 @@ fn ring_card(cx: &App) -> Div {
     .bg(theme.popover)
 }
 
-fn toast(window: &mut Window, cx: &mut App, kind: NotificationType, message: impl Into<SharedString>) {
+fn toast(
+  window: &mut Window,
+  cx: &mut App,
+  kind: NotificationType,
+  message: impl Into<SharedString>,
+) {
   window.push_notification((kind, message.into()), cx);
 }
 

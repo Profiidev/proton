@@ -3,7 +3,7 @@
 use gpui_kit::{
   Context, FontWeight, IntoElement, ParentElement, Render, SharedString, Styled, Window,
   component::{
-    ActiveTheme,
+    ActiveTheme, Disableable,
     button::{Button, ButtonVariants},
     notification::NotificationType,
   },
@@ -17,14 +17,14 @@ use super::{heading, offline_guard, page, ring_card, toast};
 /// Looks for a newer release, `Some(version)` when there is one.
 // ponytail: stub until Phase 4 wires cargo-packager-updater (signed latest.json on GitHub
 // releases); the UI states below already follow the old updater flow
-pub fn check_update() -> impl Future<Output = anyhow::Result<Option<String>>> {
-  async { Ok(None) }
+pub async fn check_update() -> anyhow::Result<Option<String>> {
+  Ok(None)
 }
 
 /// Downloads and installs `version`, then restarts.
 // ponytail: stub, see `check_update`
-pub fn install_update(version: String) -> impl Future<Output = anyhow::Result<()>> {
-  async move { anyhow::bail!("Updater not available yet ({version})") }
+pub async fn install_update(version: String) -> anyhow::Result<()> {
+  anyhow::bail!("Updater not available yet ({version})")
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -68,7 +68,12 @@ impl AboutPage {
             }
             Err(e) => {
               tracing::error!("Update check failed: {e:#}");
-              toast(window, cx, NotificationType::Error, "Failed to check for updates");
+              toast(
+                window,
+                cx,
+                NotificationType::Error,
+                "Failed to check for updates",
+              );
               UpdateState::Idle
             }
           };
@@ -89,7 +94,12 @@ impl AboutPage {
         .update_in(cx, |this, window, cx| {
           if let Err(e) = res {
             tracing::error!("Update failed: {e:#}");
-            toast(window, cx, NotificationType::Error, "Failed to download update");
+            toast(
+              window,
+              cx,
+              NotificationType::Error,
+              "Failed to download update",
+            );
           }
           this.update = UpdateState::Available(version);
           cx.notify();
@@ -124,9 +134,9 @@ impl Render for AboutPage {
           .label(format!("Install {v}"))
           .loading(matches!(self.update, UpdateState::Installing(_)))
           .disabled(matches!(self.update, UpdateState::Installing(_)))
-          .on_click(cx.listener(move |this, _, window, cx| {
-            this.install(version.clone(), window, cx)
-          }))
+          .on_click(
+            cx.listener(move |this, _, window, cx| this.install(version.clone(), window, cx)),
+          )
       }
       state => Button::new("check-updates")
         .outline()
@@ -138,6 +148,7 @@ impl Render for AboutPage {
 
     page(
       "about-page",
+      px(16.),
       [
         heading("About", None, cx).into_any_element(),
         ring_card(cx)
@@ -152,10 +163,16 @@ impl Render for AboutPage {
               .flex_col()
               .flex_1()
               .min_w(px(200.))
-              .child(div().font_weight(FontWeight::MEDIUM).child("Proton"))
+              .child(
+                div()
+                  .line_height(px(24.))
+                  .font_weight(FontWeight::MEDIUM)
+                  .child("Proton"),
+              )
               .child(
                 div()
                   .text_xs()
+                  .line_height(px(16.))
                   .text_color(cx.theme().muted_foreground)
                   .child(version_line(&self.update)),
               ),

@@ -1,11 +1,11 @@
 //! `/settings/accounts`: list, browser login, select, remove
 
 use gpui_kit::{
-  AnyElement, AppContext, Context, ElementId, FontWeight, IntoElement, ParentElement, Render,
-  SharedString, Styled, Subscription, WeakEntity, Window,
+  AnyElement, Context, ElementId, FontWeight, IntoElement, ParentElement, Render, SharedString,
+  Styled, Subscription, WeakEntity, Window,
   assets::IconName,
   component::{
-    ActiveTheme, Icon, Sizable, WindowExt,
+    ActiveTheme, Disableable, Icon, Sizable, WindowExt,
     button::{Button, ButtonVariants},
     notification::{Notification, NotificationType},
   },
@@ -69,9 +69,7 @@ impl AccountsPage {
           .outline()
           .label("Cancel")
           .on_click(move |_, _, cx| {
-            page
-              .update(cx, |p, _| p.cancelled = true)
-              .ok();
+            page.update(cx, |p, _| p.cancelled = true).ok();
             cx.accounts().cancel_login();
           })
       });
@@ -98,7 +96,12 @@ impl AccountsPage {
             return;
           }
           match res {
-            Ok(()) => toast(window, cx, NotificationType::Success, "Successfully added Account"),
+            Ok(()) => toast(
+              window,
+              cx,
+              NotificationType::Success,
+              "Successfully added Account",
+            ),
             Err(e) => {
               tracing::error!("Login failed: {e:#}");
               toast(window, cx, NotificationType::Error, "Failed to add Account")
@@ -117,7 +120,12 @@ fn select(id: String, window: &mut Window, cx: &mut gpui_kit::App) {
     .spawn(cx, async move |cx| {
       if task.await.is_err() {
         cx.update(|window, cx| {
-          toast(window, cx, NotificationType::Error, "Failed to switch Account")
+          toast(
+            window,
+            cx,
+            NotificationType::Error,
+            "Failed to switch Account",
+          )
         })
         .ok();
       }
@@ -140,7 +148,8 @@ fn remove(id: String, name: SharedString, window: &mut Window, cx: &mut gpui_kit
             Ok(()) => (NotificationType::Success, "Successfully removed Account"),
             Err(_) => (NotificationType::Error, "Failed to remove Account"),
           };
-          cx.update(|window, cx| toast(window, cx, kind, message)).ok();
+          cx.update(|window, cx| toast(window, cx, kind, message))
+            .ok();
         })
         .detach();
     },
@@ -245,10 +254,17 @@ impl Render for AccountsPage {
               .flex_col()
               .flex_1()
               .min_w_0()
-              .child(div().truncate().font_weight(FontWeight::MEDIUM).child(name))
               .child(
                 div()
                   .truncate()
+                  .line_height(px(24.))
+                  .font_weight(FontWeight::MEDIUM)
+                  .child(name),
+              )
+              .child(
+                div()
+                  .truncate()
+                  .line_height(px(16.))
                   .font_family("monospace")
                   .text_xs()
                   .text_color(muted)
@@ -259,7 +275,7 @@ impl Render for AccountsPage {
           .child(
             Button::new(ElementId::Name(format!("remove-{id}").into()))
               .ghost()
-              .icon(Icon::new(IconName::Trash2).text_color(theme.danger))
+              .icon(Icon::new(IconName::Trash).text_color(theme.danger))
               .tooltip("Remove account")
               .on_click(move |_, window, cx| {
                 remove(remove_id.clone(), remove_name.clone(), window, cx)
@@ -268,6 +284,6 @@ impl Render for AccountsPage {
           .into_any_element(),
       );
     }
-    page("accounts-page", children)
+    page("accounts-page", px(12.), children)
   }
 }

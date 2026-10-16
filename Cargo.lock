@@ -5786,12 +5786,19 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "gpui-kit",
+ "image",
  "proton_account",
  "proton_components",
+ "proton_config",
  "proton_profiles",
+ "proton_skin_render",
+ "proton_store",
+ "proton_utils",
  "serde",
  "serde_json",
+ "tempfile",
  "tracing",
+ "url",
 ]
 
 [[package]]

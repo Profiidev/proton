@@ -215,10 +215,16 @@ impl RenderOnce for SwitchTile {
           .flex()
           .flex_col()
           .flex_1()
-          .child(div().font_weight(FontWeight::MEDIUM).child(self.title))
+          .child(
+            div()
+              .line_height(px(24.))
+              .font_weight(FontWeight::MEDIUM)
+              .child(self.title),
+          )
           .child(
             div()
               .text_xs()
+              .line_height(px(16.))
               .text_color(cx.theme().muted_foreground)
               .child(self.description),
           ),

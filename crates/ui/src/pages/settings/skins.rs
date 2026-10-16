@@ -70,7 +70,7 @@ fn choices<T>(
   window: &mut Window,
   cx: &mut App,
 ) -> Entity<Choices> {
-  let items = list.iter().map(|(l, _)| SharedString::from(*l)).collect();
+  let items: Vec<SharedString> = list.iter().map(|(l, _)| SharedString::from(*l)).collect();
   cx.new(|cx| {
     SelectState::new(
       SearchableVec::new(items),
@@ -82,7 +82,10 @@ fn choices<T>(
 }
 
 fn pick<T: Copy>(list: &[(&'static str, T)], label: &SharedString) -> Option<T> {
-  list.iter().find(|(l, _)| *l == label.as_ref()).map(|(_, v)| *v)
+  list
+    .iter()
+    .find(|(l, _)| *l == label.as_ref())
+    .map(|(_, v)| *v)
 }
 
 impl SkinsPage {
@@ -92,7 +95,12 @@ impl SkinsPage {
       viewer.set_size(size(px(210.), px(280.)), cx);
       viewer
     });
-    let animation = choices(&ANIMATIONS, 1, window, cx);
+    // reduced motion starts the model still
+    let still = cx.reduce_motion();
+    if still {
+      viewer.update(cx, |v, cx| v.set_animation(Animation::None, cx));
+    }
+    let animation = choices(&ANIMATIONS, if still { 0 } else { 1 }, window, cx);
     let back = choices(&BACKS, 1, window, cx);
     let accounts = cx.accounts().clone();
     let subs = vec![
@@ -203,7 +211,7 @@ impl SkinsPage {
       let Ok(task) = this.update(cx, |this, cx| {
         this.adding = true;
         cx.notify();
-        let accounts = cx.accounts().clone();
+        let accounts = cx.accounts().handle.clone();
         cx.background_spawn(async move {
           let png = std::fs::read(&path)?;
           accounts_add(accounts, png).await
@@ -217,7 +225,12 @@ impl SkinsPage {
           this.adding = false;
           cx.notify();
           match res {
-            Ok(()) => toast(window, cx, NotificationType::Success, "Successfully added Skin"),
+            Ok(()) => toast(
+              window,
+              cx,
+              NotificationType::Success,
+              "Successfully added Skin",
+            ),
             Err(_) => toast(window, cx, NotificationType::Error, "Failed to add Skin"),
           }
         })
@@ -243,7 +256,12 @@ impl SkinsPage {
           this.changing = None;
           cx.notify();
           match res {
-            Ok(()) => toast(window, cx, NotificationType::Success, "Successfully changed Skin"),
+            Ok(()) => toast(
+              window,
+              cx,
+              NotificationType::Success,
+              "Successfully changed Skin",
+            ),
             Err(_) => toast(window, cx, NotificationType::Error, "Failed to change Skin"),
           }
         })
@@ -254,13 +272,11 @@ impl SkinsPage {
 }
 
 /// `Accounts` holds entities, which stay on the gpui thread; the handle goes to tokio
-fn accounts_add(
+async fn accounts_add(
   accounts: proton_account::AccountsHandle,
   png: Vec<u8>,
-) -> impl Future<Output = anyhow::Result<()>> + Send {
-  async move {
-    proton_utils::rt::spawn(async move { accounts.add_skin(png).await.map(|_| ()) }).await?
-  }
+) -> anyhow::Result<()> {
+  proton_utils::rt::spawn(async move { accounts.add_skin(png).await.map(|_| ()) }).await?
 }
 
 fn remove_skin(id: String, window: &mut Window, cx: &mut App) {
@@ -271,7 +287,8 @@ fn remove_skin(id: String, window: &mut Window, cx: &mut App) {
         Ok(()) => (NotificationType::Success, "Successfully removed Skin"),
         Err(_) => (NotificationType::Error, "Failed to remove Skin"),
       };
-      cx.update(|window, cx| toast(window, cx, kind, message)).ok();
+      cx.update(|window, cx| toast(window, cx, kind, message))
+        .ok();
     })
     .detach();
 }
@@ -363,7 +380,7 @@ impl Tile {
               Button::new(ElementId::NamedChild(Arc::new(self.id), "remove".into()))
                 .ghost()
                 .small()
-                .icon(Icon::new(IconName::Trash2).text_color(theme.danger))
+                .icon(Icon::new(IconName::Trash).text_color(theme.danger))
                 .tooltip(format!("Remove {}", self.label.to_lowercase()))
                 .on_click(move |_, window, cx| remove(window, cx)),
             ),
@@ -374,7 +391,12 @@ impl Tile {
 }
 
 /// `label` + full width select
-fn select_field(id: &'static str, label: &'static str, state: &Entity<Choices>, disabled: bool) -> AnyElement {
+fn select_field(
+  id: &'static str,
+  label: &'static str,
+  state: &Entity<Choices>,
+  disabled: bool,
+) -> AnyElement {
   div()
     .flex()
     .flex_col()
@@ -382,6 +404,7 @@ fn select_field(id: &'static str, label: &'static str, state: &Entity<Choices>, 
     .child(
       div()
         .text_sm()
+        .line_height(px(14.))
         .font_weight(FontWeight::MEDIUM)
         .child(label),
     )
@@ -426,11 +449,25 @@ impl Render for SkinsPage {
             )
           }),
       )
-      .child(select_field("skin-animation", "Animation", &self.animation, false))
-      .child(select_field("skin-back", "Back equipment", &self.back, !has_cape));
+      .child(select_field(
+        "skin-animation",
+        "Animation",
+        &self.animation,
+        false,
+      ))
+      .child(select_field(
+        "skin-back",
+        "Back equipment",
+        &self.back,
+        !has_cape,
+      ));
 
     let full = content_width(window, true);
-    let column = if full - 260. >= 320. { full - 260. } else { full };
+    let column = if full - 260. >= 320. {
+      full - 260.
+    } else {
+      full
+    };
     let cols = auto_fill_cols(column, 120.);
 
     let this = cx.entity().downgrade();
@@ -454,7 +491,9 @@ impl Render for SkinsPage {
             let id = change_id.clone();
             this.update(cx, |p, cx| p.change(id, window, cx)).ok();
           }),
-          on_remove: Some(Rc::new(move |window, cx| remove_skin(remove_id.clone(), window, cx))),
+          on_remove: Some(Rc::new(move |window, cx| {
+            remove_skin(remove_id.clone(), window, cx)
+          })),
         }
         .render(cx)
       })
@@ -465,7 +504,12 @@ impl Render for SkinsPage {
         .child("No skins available")
         .into_any_element()
     } else {
-      div().grid().grid_cols(cols).gap_2().children(tiles).into_any_element()
+      div()
+        .grid()
+        .grid_cols(cols)
+        .gap_2()
+        .children(tiles)
+        .into_any_element()
     };
 
     let column = div()
@@ -479,7 +523,11 @@ impl Render for SkinsPage {
           .flex()
           .items_center()
           .gap_2()
-          .child(heading("Skins", Some("Click a skin to wear it.".into()), cx))
+          .child(heading(
+            "Skins",
+            Some("Click a skin to wear it.".into()),
+            cx,
+          ))
           .child(
             Button::new("add-skin")
               .primary()
@@ -493,6 +541,7 @@ impl Render for SkinsPage {
 
     page(
       "skins-page",
+      px(12.),
       [div()
         .flex()
         .flex_wrap()
@@ -504,4 +553,3 @@ impl Render for SkinsPage {
     )
   }
 }
-

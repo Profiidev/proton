@@ -24,8 +24,10 @@ pub struct CapesPage {
 impl CapesPage {
   pub fn new(cx: &mut Context<Self>) -> Self {
     let accounts = cx.accounts().clone();
-    cx.observe(&accounts.accounts, |_, _, cx| cx.notify()).detach();
-    cx.observe(&accounts.active, |_, _, cx| cx.notify()).detach();
+    cx.observe(&accounts.accounts, |_, _, cx| cx.notify())
+      .detach();
+    cx.observe(&accounts.active, |_, _, cx| cx.notify())
+      .detach();
     Self { changing: None }
   }
 
@@ -46,7 +48,12 @@ impl CapesPage {
           this.changing = None;
           cx.notify();
           match res {
-            Ok(()) => toast(window, cx, NotificationType::Success, "Successfully changed Cape"),
+            Ok(()) => toast(
+              window,
+              cx,
+              NotificationType::Success,
+              "Successfully changed Cape",
+            ),
             Err(_) => toast(window, cx, NotificationType::Error, "Failed to change Cape"),
           }
         })
@@ -73,7 +80,9 @@ impl Render for CapesPage {
       .active_id(cx)
       .and_then(|id| accounts.accounts.read(cx).get(id).cloned().flatten());
     let muted = cx.theme().muted_foreground;
-    let owner = info.as_ref().map_or("this account".to_string(), |i| i.name.clone());
+    let owner = info
+      .as_ref()
+      .map_or("this account".to_string(), |i| i.name.clone());
     let header = heading(
       "Capes",
       Some(format!("Capes owned by {owner}. Choose none to hide your cape.").into()),
@@ -84,6 +93,7 @@ impl Render for CapesPage {
     let Some(info) = info else {
       return page(
         "capes-page",
+        px(12.),
         [
           header,
           div()
@@ -94,20 +104,24 @@ impl Render for CapesPage {
       );
     };
     let Some(skin) = textures::active_skin(&info).map(|s| s.url.clone()) else {
-      return page("capes-page", [header, loader()]);
+      return page("capes-page", px(12.), [header, loader()]);
     };
     // the bare skin decides when the grid shows, like the old page waited for it
     let bare = (SkinSrc::Url(skin.clone()), None);
     if window.use_asset::<Textures>(&bare, cx).flatten().is_none() {
-      return page("capes-page", [header, loader()]);
+      return page("capes-page", px(12.), [header, loader()]);
     }
 
     let active = textures::active_cape(&info).map(|c| c.url.clone());
     let model = textures::model(&info);
     let this = cx.entity().downgrade();
     let mut tiles = vec![];
-    let options = std::iter::once((REMOVE_CAPE.to_string(), None, "No cape"))
-      .chain(info.capes.iter().map(|c| (c.id.clone(), Some(c.url.clone()), "Cape")));
+    let options = std::iter::once((REMOVE_CAPE.to_string(), None, "No cape")).chain(
+      info
+        .capes
+        .iter()
+        .map(|c| (c.id.clone(), Some(c.url.clone()), "Cape")),
+    );
     for (id, cape, label) in options {
       let src = (SkinSrc::Url(skin.clone()), cape.clone());
       let textures = window.use_asset::<Textures>(&src, cx).flatten();
@@ -135,6 +149,7 @@ impl Render for CapesPage {
     let cols = auto_fill_cols(content_width(window, false), 140.);
     page(
       "capes-page",
+      px(12.),
       [
         header,
         div()

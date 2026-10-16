@@ -23,7 +23,7 @@ use gpui_kit::{
   component::{
     ActiveTheme, Disableable, Icon, Sizable,
     button::{Button, ButtonVariants},
-    input::{Input, InputEvent, InputState, NumberInput, NumberInputEvent, StepAction},
+    input::{Input, InputEvent, InputState},
     notification::NotificationType,
     slider::{Slider, SliderEvent, SliderState},
     switch::Switch,
@@ -41,7 +41,7 @@ fn label(text: impl Into<SharedString>) -> impl IntoElement {
   div()
     .text_sm()
     .font_weight(FontWeight::MEDIUM)
-    .line_height(px(20.))
+    .line_height(px(14.))
     .child(text.into())
 }
 
@@ -67,29 +67,15 @@ impl GameSettingsForm {
         .placeholder("480")
         .default_value(settings.height.to_string())
     });
-    let mut subs = vec![];
-    for (state, is_width) in [(&width, true), (&height, false)] {
-      subs.push(
+    let subs = [(&width, true), (&height, false)]
+      .map(|(state, is_width)| {
         cx.subscribe_in(state, window, move |this, _, e: &InputEvent, window, cx| {
           if matches!(e, InputEvent::Blur | InputEvent::PressEnter { .. }) {
             this.save_size(is_width, window, cx);
           }
-        }),
-      );
-      subs.push(cx.subscribe_in(
-        state,
-        window,
-        move |this, state, NumberInputEvent::Step(step), window, cx| {
-          let current: usize = state.read(cx).value().trim().parse().unwrap_or(0);
-          let next = match step {
-            StepAction::Increment => current + 1,
-            StepAction::Decrement => current.saturating_sub(1),
-          };
-          state.update(cx, |s, cx| s.set_value(next.to_string(), window, cx));
-          this.save_size(is_width, window, cx);
-        },
-      ));
-    }
+        })
+      })
+      .into();
     Self {
       settings,
       disabled: false,
@@ -100,10 +86,7 @@ impl GameSettingsForm {
     }
   }
 
-  pub fn on_change(
-    mut self,
-    f: impl Fn(&GameSettings, &mut Window, &mut App) + 'static,
-  ) -> Self {
+  pub fn on_change(mut self, f: impl Fn(&GameSettings, &mut Window, &mut App) + 'static) -> Self {
     self.on_change = Some(Rc::new(f));
     self
   }
@@ -113,11 +96,19 @@ impl GameSettingsForm {
   }
 
   /// Shows a value saved elsewhere (or the result of `on_change`)
-  pub fn set_settings(&mut self, settings: GameSettings, window: &mut Window, cx: &mut Context<Self>) {
+  pub fn set_settings(
+    &mut self,
+    settings: GameSettings,
+    window: &mut Window,
+    cx: &mut Context<Self>,
+  ) {
     if settings == self.settings {
       return;
     }
-    for (state, value) in [(&self.width, settings.width), (&self.height, settings.height)] {
+    for (state, value) in [
+      (&self.width, settings.width),
+      (&self.height, settings.height),
+    ] {
       if state.read(cx).value().trim().parse() != Ok(value) {
         state.update(cx, |s, cx| s.set_value(value.to_string(), window, cx));
       }
@@ -199,15 +190,15 @@ impl Render for GameSettingsForm {
           .items_center()
           .gap_2()
           .child(
-            NumberInput::new(&self.width)
+            div()
               .w(px(100.))
-              .disabled(sizes_disabled),
+              .child(Input::new(&self.width).disabled(sizes_disabled)),
           )
           .child(div().text_color(muted).child("×"))
           .child(
-            NumberInput::new(&self.height)
+            div()
               .w(px(100.))
-              .disabled(sizes_disabled),
+              .child(Input::new(&self.height).disabled(sizes_disabled)),
           ),
       )
       .test_support()
@@ -291,8 +282,8 @@ impl JavaSettingsForm {
     let mem = settings.mem_max as u64;
     let slider = cx.new(|_| {
       SliderState::new()
-        .min(1024.)
         .max(max_mem.max(1024) as f32)
+        .min(1024.)
         .step(256.)
         .default_value(mem as f32)
     });
@@ -304,20 +295,24 @@ impl JavaSettingsForm {
     let key = cx.new(|cx| InputState::new(window, cx).placeholder("KEY"));
     let value = cx.new(|cx| InputState::new(window, cx).placeholder("value"));
     let subs = vec![
-      cx.subscribe_in(&slider, window, |this, _, e: &SliderEvent, window, cx| match e {
-        SliderEvent::Change(v) => {
-          this.mem = v.start() as u64;
-          cx.notify();
-        }
-        SliderEvent::Release(v) => {
-          let mem = v.start() as usize;
-          if mem != this.settings.mem_max {
-            let mut next = this.settings.clone();
-            next.mem_max = mem;
-            this.change(next, window, cx);
+      cx.subscribe_in(
+        &slider,
+        window,
+        |this, _, e: &SliderEvent, window, cx| match e {
+          SliderEvent::Change(v) => {
+            this.mem = v.start() as u64;
+            cx.notify();
           }
-        }
-      }),
+          SliderEvent::Release(v) => {
+            let mem = v.start() as usize;
+            if mem != this.settings.mem_max {
+              let mut next = this.settings.clone();
+              next.mem_max = mem;
+              this.change(next, window, cx);
+            }
+          }
+        },
+      ),
       cx.subscribe_in(&args, window, |this, args, e: &InputEvent, window, cx| {
         if matches!(e, InputEvent::Blur | InputEvent::PressEnter { .. }) {
           let parsed = parse_args(&args.read(cx).value());
@@ -356,16 +351,19 @@ impl JavaSettingsForm {
   }
 
   /// Shows a value saved elsewhere (or the result of `on_change`)
-  pub fn set_settings(&mut self, settings: JvmSettings, window: &mut Window, cx: &mut Context<Self>) {
+  pub fn set_settings(
+    &mut self,
+    settings: JvmSettings,
+    window: &mut Window,
+    cx: &mut Context<Self>,
+  ) {
     if settings == self.settings {
       return;
     }
     if settings.mem_max != self.settings.mem_max {
       self.mem = settings.mem_max as u64;
       let mem = self.mem as f32;
-      self
-        .slider
-        .update(cx, |s, cx| s.set_value(mem, window, cx));
+      self.slider.update(cx, |s, cx| s.set_value(mem, window, cx));
     }
     if parse_args(&self.args.read(cx).value()) != settings.args {
       let joined = settings.args.join(" ");
@@ -464,12 +462,12 @@ impl Render for JavaSettingsForm {
               Button::new(ElementId::Name(format!("remove-env-{key}").into()))
                 .ghost()
                 .small()
-                .icon(Icon::new(IconName::Trash2).text_color(theme.danger))
+                .icon(Icon::new(IconName::Trash).text_color(theme.danger))
                 .tooltip(format!("Remove {key}"))
                 .disabled(disabled)
-                .on_click(cx.listener(move |this, _, window, cx| {
-                  this.remove_env(&remove, window, cx)
-                })),
+                .on_click(
+                  cx.listener(move |this, _, window, cx| this.remove_env(&remove, window, cx)),
+                ),
             )
         }))
     });
@@ -493,7 +491,13 @@ impl Render for JavaSettingsForm {
               .child(label("Memory"))
               .child(div().text_xs().child((self.memory_label)(self.mem))),
           )
-          .child(Slider::new(&self.slider).disabled(disabled))
+          .child(
+            div()
+              .flex()
+              .items_center()
+              .h_4()
+              .child(Slider::new(&self.slider).disabled(disabled)),
+          )
           .child(
             div()
               .text_xs()
@@ -520,8 +524,16 @@ impl Render for JavaSettingsForm {
             div()
               .flex()
               .gap_2()
-              .child(div().flex_1().child(Input::new(&self.key).disabled(disabled)))
-              .child(div().flex_1().child(Input::new(&self.value).disabled(disabled)))
+              .child(
+                div()
+                  .flex_1()
+                  .child(Input::new(&self.key).disabled(disabled)),
+              )
+              .child(
+                div()
+                  .flex_1()
+                  .child(Input::new(&self.value).disabled(disabled)),
+              )
               .child(
                 Button::new("add-env")
                   .outline()
@@ -567,7 +579,10 @@ mod tests {
 
   #[test]
   fn args_and_labels() {
-    assert_eq!(parse_args("  -Xss1M   -XX:+UseG1GC "), ["-Xss1M", "-XX:+UseG1GC"]);
+    assert_eq!(
+      parse_args("  -Xss1M   -XX:+UseG1GC "),
+      ["-Xss1M", "-XX:+UseG1GC"]
+    );
     assert!(parse_args("   ").is_empty());
     assert_eq!(memory_with_mb(4096), "4.0 GB (4096 MB)");
     assert_eq!(memory_of_total(6144, 14016), "6.0 GB of 13.7 GB");

@@ -6,7 +6,7 @@ use gpui_kit::{
   assets::IconName,
   base::TestSupportExt,
   component::{
-    ActiveTheme, Icon, Sizable, TaskExt,
+    ActiveTheme, Icon, Sizable,
     button::{Button, ButtonVariants},
     popover::Popover,
   },
@@ -32,8 +32,10 @@ impl AccountSelector {
   pub fn new(cx: &mut Context<Self>) -> Self {
     let accounts = cx.accounts().clone();
     // both entities notify only on change
-    cx.observe(&accounts.accounts, |_, _, cx| cx.notify()).detach();
-    cx.observe(&accounts.active, |_, _, cx| cx.notify()).detach();
+    cx.observe(&accounts.accounts, |_, _, cx| cx.notify())
+      .detach();
+    cx.observe(&accounts.active, |_, _, cx| cx.notify())
+      .detach();
     Self { open: false }
   }
 }
@@ -48,8 +50,9 @@ fn identity(
 ) -> Vec<AnyElement> {
   let muted = cx.theme().muted_foreground;
   let image = match info {
-    Some(info) => AccountImage::new(id, active_skin(info).map(|s| head(s.url.clone())))
-      .into_any_element(),
+    Some(info) => {
+      AccountImage::new(id, active_skin(info).map(|s| head(s.url.clone()))).into_any_element()
+    }
     None => div()
       .flex()
       .flex_none()
@@ -60,7 +63,9 @@ fn identity(
       .into_any_element(),
   };
   let name: SharedString = info.map_or("Login failed".into(), |i| i.name.clone().into());
-  let sub: SharedString = info.map_or(fallback_id.to_string(), |i| i.id.clone()).into();
+  let sub: SharedString = info
+    .map_or(fallback_id.to_string(), |i| i.id.clone())
+    .into();
   let mut out = vec![image];
   if !compact {
     out.push(
@@ -108,7 +113,14 @@ impl Render for AccountSelector {
             .child(Icon::new(IconName::CircleQuestionMark)),
         )
         .when(!compact, |t| {
-          t.child(div().flex_1().truncate().text_sm().text_left().child("No account active"))
+          t.child(
+            div()
+              .flex_1()
+              .truncate()
+              .text_sm()
+              .text_left()
+              .child("No account active"),
+          )
         }),
     };
     let trigger = trigger.when(!compact, |t| {
@@ -123,7 +135,7 @@ impl Render for AccountSelector {
     let this = cx.entity().downgrade();
     let close = this.clone();
     Popover::new("account-popover")
-      .anchor(gpui_kit::Corner::BottomLeft)
+      .anchor(gpui_kit::Anchor::BottomLeft)
       .open(self.open)
       .on_open_change(move |open, _, cx| {
         this
@@ -145,25 +157,29 @@ impl Render for AccountSelector {
           .flex_col()
           .w(px(200.))
           .when(list.is_empty(), |d| {
-            d.items_center().gap_1().p_1().child(div().p_2().child("No Accounts")).child(
-              Button::new("add-one")
-                .outline()
-                .small()
-                .label("Add One")
-                .icon(IconName::ExternalLink)
-                .on_click({
-                  let close = close.clone();
-                  move |_, _, cx| {
-                    close
-                      .update(cx, |s, cx| {
-                        s.open = false;
-                        cx.notify();
-                      })
-                      .ok();
-                    cx.navigate(Route::Settings(SettingsTab::Accounts));
-                  }
-                }),
-            )
+            d.items_center()
+              .gap_1()
+              .p_1()
+              .child(div().p_2().child("No Accounts"))
+              .child(
+                Button::new("add-one")
+                  .outline()
+                  .small()
+                  .label("Add One")
+                  .icon(IconName::ExternalLink)
+                  .on_click({
+                    let close = close.clone();
+                    move |_, _, cx| {
+                      close
+                        .update(cx, |s, cx| {
+                          s.open = false;
+                          cx.notify();
+                        })
+                        .ok();
+                      cx.navigate(Route::Settings(SettingsTab::Accounts));
+                    }
+                  }),
+              )
           })
           .children(list.into_iter().map(|(id, info)| {
             let row_id = SharedString::from(format!("account-{id}"));
@@ -193,10 +209,11 @@ impl Render for AccountSelector {
                       })
                       .ok();
                     let task = cx.accounts().set_active(select.clone());
-                    cx.background_spawn(async move {
-                      let _ = task.await.log_err();
-                    })
-                    .detach();
+                    cx.background_executor()
+                      .spawn(async move {
+                        let _ = task.await.log_err();
+                      })
+                      .detach();
                   })
                   .into_any_element()
               }
@@ -205,7 +222,7 @@ impl Render for AccountSelector {
                 .flex()
                 .items_center()
                 .gap(px(10.))
-                .h_14()
+                .h(px(56.))
                 .p_2()
                 .children(identity("failed", None, &id, false, cx))
                 .test_support()
