@@ -8,6 +8,10 @@ license.workspace = true
 
 [dependencies]
 proton_components.workspace = true
+proton_account.workspace = true
+proton_profiles.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
 gpui-kit.workspace = true
 serde.workspace = true
 

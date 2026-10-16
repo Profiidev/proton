@@ -102,3 +102,6 @@ proton_ui.workspace = true
 gpui-kit.workspace = true
 proton_utils.workspace = true
 proton_config.workspace = true
+proton_versions.workspace = true
+proton_account.workspace = true
+proton_profiles.workspace = true

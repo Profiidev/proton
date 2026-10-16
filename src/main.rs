@@ -18,6 +18,9 @@ fn main() {
       gpui_kit::init(cx);
       proton_components::assets::load(cx).expect("Failed to load the theme");
       proton_config::init(cx);
+      proton_versions::init(cx);
+      proton_account::init(cx).expect("Failed to load the accounts");
+      proton_profiles::init(cx);
       proton_ui::init(cx);
       open_main_window(cx);
     });
