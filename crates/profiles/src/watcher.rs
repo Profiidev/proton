@@ -6,69 +6,54 @@ use std::{
 
 use anyhow::Result;
 use notify::{Config, Event, EventKind, RecommendedWatcher, Watcher};
-use tauri::{
-  AppHandle, Manager,
-  async_runtime::{Receiver, block_on, channel, spawn},
-};
-use tokio::{
-  select,
-  sync::{Mutex, Notify},
-};
+use tokio::{select, sync::Notify};
 
-use crate::MANIFEST;
-use crate::store::ProfileStore;
+use crate::{MANIFEST, PROFILE_CONFIG, config::Profile, store::ProfilesMsg};
 use proton_utils::{
+  file::{read_parse_file, write_file},
   future::UpdateLimiter,
   log::ErrorLogExt,
-  tauri_compat::{UpdateType, update_data},
+  path, rt,
 };
 use proton_versions::paths::QUICK_PLAY;
 
-fn async_watcher(config: Config) -> notify::Result<(RecommendedWatcher, Receiver<Event>)> {
-  let (tx, rx) = channel(10);
-
-  let watcher = RecommendedWatcher::new(
-    move |res| {
-      block_on(async {
-        if let Ok(event) = res {
-          // fails once the watch loop stopped, the remaining events are not needed
-          let _ = tx.send(event).await;
-        }
-      })
+/// Watches a profile dir until the returned `Notify` is notified. Content changes become
+/// [`ProfilesMsg::ContentChanged`], a changed quick play file is merged into the profile and
+/// reported as [`ProfilesMsg::QuickPlayFileChanged`].
+pub fn watch_profile(
+  path: PathBuf,
+  profile: String,
+  tx: flume::Sender<ProfilesMsg>,
+) -> Result<Arc<Notify>> {
+  let (event_tx, event_rx) = flume::unbounded::<Event>();
+  let mut watcher = RecommendedWatcher::new(
+    move |res: notify::Result<Event>| {
+      if let Ok(event) = res {
+        // fails once the watch loop stopped, the remaining events are not needed
+        let _ = event_tx.send(event);
+      }
     },
-    config,
+    Config::default(),
   )?;
-
-  Ok((watcher, rx))
-}
-
-pub fn watch_profile(path: PathBuf, profile: String, app: AppHandle) -> Result<Arc<Notify>> {
-  let config = Config::default();
-  let (mut watcher, mut rx) = async_watcher(config)?;
-
   watcher.watch(&path, notify::RecursiveMode::Recursive)?;
 
   let stop = Arc::new(Notify::new());
-  let stop_clone = stop.clone();
-  let data_dir = app.path().app_data_dir()?;
-  let handle = app.clone();
-  let content = UpdateLimiter::new(Duration::from_millis(500), move |()| {
-    update_data(&handle, UpdateType::ProfileContent)
-  });
+  let stop_ = stop.clone();
 
-  spawn(async move {
+  rt::spawn(async move {
+    let content_tx = tx.clone();
+    let id = profile.clone();
+    let content = UpdateLimiter::new(Duration::from_millis(500), move |()| {
+      let _ = content_tx.send(ProfilesMsg::ContentChanged(id.clone()));
+    });
+
     loop {
       let event = select! {
-        event = rx.recv() => {
-          match event {
-            Some(event) => event,
-            None => {
-              println!("Watcher channel closed, stopping watcher.");
-              break;
-            },
-          }
+        event = event_rx.recv_async() => match event {
+          Ok(event) => event,
+          Err(_) => break,
         },
-        _ = stop_clone.notified() => break,
+        _ = stop_.notified() => break,
       };
 
       if !matches!(
@@ -82,14 +67,10 @@ pub fn watch_profile(path: PathBuf, profile: String, app: AppHandle) -> Result<A
         content.call(());
       }
 
-      if event.paths.iter().any(|p| p.ends_with(QUICK_PLAY)) {
-        let store = app.state::<Mutex<ProfileStore>>();
-        let store = store.lock().await;
-        if let Ok(mut info) = store.profile(&profile).await.log_err() {
-          let _ = info.update_quick_play(&data_dir).await.log_err();
-          let _ = info.update(&data_dir).await.log_err();
-          store.update_data(UpdateType::ProfileQuickPlay);
-        }
+      if event.paths.iter().any(|p| p.ends_with(QUICK_PLAY))
+        && merge_quick_play(&path).await.log_err().is_ok()
+      {
+        let _ = tx.send(ProfilesMsg::QuickPlayFileChanged(profile.clone()));
       }
     }
     // keep the watcher alive until here
@@ -97,6 +78,14 @@ pub fn watch_profile(path: PathBuf, profile: String, app: AppHandle) -> Result<A
   });
 
   Ok(stop)
+}
+
+/// Merges the game's quick play file into the profile config inside `dir`
+async fn merge_quick_play(dir: &Path) -> Result<()> {
+  let config = path!(dir, PROFILE_CONFIG);
+  let mut profile: Profile = read_parse_file(&config).await?;
+  profile.merge_quick_play(read_parse_file(&path!(dir, QUICK_PLAY)).await?);
+  write_file(&config, &profile).await
 }
 
 /// Changes in a content folder or the content manifest, temp downloads excluded
