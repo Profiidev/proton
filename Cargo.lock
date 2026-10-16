@@ -5786,10 +5786,12 @@ dependencies = [
  "anyhow",
  "chrono",
  "gpui-kit",
+ "image",
  "proton_account",
  "proton_components",
  "proton_config",
  "proton_profiles",
+ "proton_skin_render",
  "proton_store",
  "proton_utils",
  "proton_versions",
@@ -5798,6 +5800,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+ "url",
 ]
 
 [[package]]
