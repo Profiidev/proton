@@ -4,6 +4,8 @@
 //! then open a window whose root is [`shell::Shell`].
 
 pub mod actions;
+pub mod content;
+pub mod pages;
 pub mod router;
 pub mod shell;
 
