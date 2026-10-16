@@ -2,7 +2,6 @@ use std::{path::PathBuf, time::Instant};
 
 use anyhow::Result;
 use async_zip::base::read1::seek::ZipArchiveReader;
-use log::debug;
 use reqwest::Client;
 use tauri::AppHandle;
 use tokio::{
@@ -10,6 +9,7 @@ use tokio::{
   io::{self, BufReader},
 };
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
+use tracing::debug;
 
 use crate::{
   check_rule,

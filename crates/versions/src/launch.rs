@@ -6,8 +6,8 @@ use std::{
 };
 
 use anyhow::Result;
-use log::debug;
 use tokio::process::{Child, Command};
+use tracing::debug;
 
 use crate::{
   check_feature,

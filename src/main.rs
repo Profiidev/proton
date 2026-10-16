@@ -12,11 +12,8 @@ use gpui_kit::{
 use proton_components::card::{Card, card_content, card_description, card_header, card_title};
 
 fn main() {
-  tracing_subscriber::fmt()
-    .with_env_filter(
-      tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
-    )
-    .init();
+  proton_utils::dir::migrate();
+  proton_utils::log::init();
 
   let http = proton_reqwest::client().expect("Failed to create the HTTP client");
   gpui_kit::application()
@@ -25,6 +22,7 @@ fn main() {
     .run(|cx| {
       gpui_kit::init(cx);
       proton_components::assets::load(cx).expect("Failed to load the theme");
+      proton_config::init(cx);
       open_main_window(cx);
     });
 }

@@ -5,8 +5,11 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-tauri.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-tauri-plugin-store.workspace = true
 anyhow.workspace = true
+tracing.workspace = true
+proton_utils.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

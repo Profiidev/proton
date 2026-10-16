@@ -3,10 +3,10 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use anyhow::Result;
-use log::debug;
 use reqwest::Client;
 use tauri::AppHandle;
 use tokio::fs;
+use tracing::debug;
 
 use crate::{
   download::{check_pool, download_pool},

@@ -2,12 +2,12 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
-use log::debug;
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, Url, WebviewWindowBuilder};
 use thiserror::Error;
 use tokio::time::sleep;
+use tracing::debug;
 
 use proton_utils::CLIENT_ID;
 

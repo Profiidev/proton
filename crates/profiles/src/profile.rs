@@ -4,9 +4,9 @@ use anyhow::Result;
 use base64::prelude::*;
 use chrono::{DateTime, Duration, Utc};
 use image::{ImageFormat, imageops::FilterType};
-use log::debug;
 use tauri::{AppHandle, Manager};
 use tokio::fs;
+use tracing::debug;
 use uuid::Uuid;
 
 use crate::{

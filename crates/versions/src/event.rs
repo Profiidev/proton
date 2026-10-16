@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Mutex, time::Duration};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
-use proton_utils::{future::UpdateLimiter, log::ResultLogExt};
+use proton_utils::{future::UpdateLimiter, log::ErrorLogExt};
 
 const VERSION_CHECK_STATUS_EVENT: &str = "version-check-status";
 
@@ -60,7 +60,7 @@ pub fn emit_download_check_status(handle: &AppHandle, data: DownloadCheckStatus,
     UpdateLimiter::new(Duration::from_millis(50), move |data| {
       let _ = handle
         .emit(VERSION_CHECK_STATUS_EVENT, InternalStatus { id, data })
-        .log();
+        .log_err();
     })
   });
 

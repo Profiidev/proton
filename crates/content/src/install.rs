@@ -438,7 +438,7 @@ pub async fn fetch_all(
         .map_err(|e| match e.downcast_ref::<FileError>() {
           Some(_) => ContentError::HashMismatch,
           None => {
-            log::warn!("Content download failed: {e}");
+            tracing::warn!("Content download failed: {e}");
             ContentError::Network
           }
         })?;
@@ -567,7 +567,7 @@ async fn commit(
     let mut restored = true;
     for (original, backup) in backups.into_iter().rev() {
       if let Err(err) = fs::rename(&backup, &original).await {
-        log::error!(
+        tracing::error!(
           "Failed to restore {} from {}: {err}",
           original.display(),
           backup.display()
@@ -576,7 +576,7 @@ async fn commit(
       }
     }
     if !restored {
-      log::error!(
+      tracing::error!(
         "Install failed with {e}, replaced files are kept in {}",
         backup_dir.display()
       );
@@ -635,7 +635,7 @@ pub async fn adopt_file(dir: &Path, file: &ManualFile, path: &Path) -> Result<Co
     .starts_with(fs::canonicalize(dir).await?)
     && let Err(e) = fs::remove_file(path).await
   {
-    log::warn!("Failed to remove {path:?} after adopting it: {e}");
+    tracing::warn!("Failed to remove {path:?} after adopting it: {e}");
   }
   Ok(kind)
 }

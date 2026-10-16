@@ -1,8 +1,9 @@
 use std::time::Duration;
 
 use anyhow::Result;
-use tauri::async_runtime::{JoinHandle, spawn};
 use tokio::{sync::watch, task::JoinSet, time::sleep};
+
+use crate::rt::{JoinHandle, spawn};
 
 pub const MAX_PARALLEL_DEFAULT: usize = 20;
 

@@ -5,10 +5,10 @@ use std::{
 };
 
 use anyhow::Result;
-use log::info;
 use reqwest::Client;
 use tauri::{AppHandle, Manager};
 use tokio::{join, select, sync::Notify};
+use tracing::info;
 
 use crate::{
   download::check_download_version,
@@ -17,11 +17,12 @@ use crate::{
   meta::java::Component,
   paths::{JavaVersionPath, MCPath, MCVersionPath},
 };
-use proton_config::settings::SettingsExt;
+use proton_config::settings::Settings;
 use proton_utils::{
+  download::default_client,
   download::{download_and_parse_file_no_hash, download_and_parse_file_no_hash_force},
   file::file_hash,
-  updater::{UpdateType, default_client, update_data},
+  tauri_compat::{UpdateType, update_data},
 };
 
 use super::{
@@ -231,7 +232,7 @@ impl McVersionStore {
   }
 
   pub async fn list_versions(&self, loader: &LoaderType) -> Result<Vec<String>> {
-    let stable = !self.handle.app_settings()?.minecraft.show_snapshots;
+    let stable = !Settings::load()?.minecraft.show_snapshots;
 
     if let Some(loader) = loader.loader() {
       let mc_versions = self
@@ -273,7 +274,7 @@ impl McVersionStore {
     loader: &LoaderType,
     mc_version: &str,
   ) -> Result<Vec<String>> {
-    let stable = !self.handle.app_settings()?.minecraft.show_snapshots;
+    let stable = !Settings::load()?.minecraft.show_snapshots;
 
     if let Some(loader) = loader.loader() {
       let data_dir = self.handle.path().app_data_dir().unwrap();

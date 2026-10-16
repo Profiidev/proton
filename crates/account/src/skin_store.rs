@@ -3,19 +3,19 @@ use std::io::Cursor;
 use anyhow::Result;
 use base64::prelude::*;
 use image::ImageFormat;
-use log::debug;
 use reqwest::{Client, multipart::Form};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, Url};
 use thiserror::Error;
 use tokio::fs;
+use tracing::debug;
 
-use proton_store::TauriAppStoreExt;
 use proton_utils::path;
 use proton_utils::{
+  download::default_client,
   file::bytes_hash,
-  log::ResultLogExt,
-  updater::{UpdateType, default_client, update_data},
+  log::ErrorLogExt,
+  tauri_compat::{UpdateType, update_data},
 };
 
 use super::info::{ProfileInfo, SkinVariant, State};
@@ -100,7 +100,7 @@ impl SkinStore {
   const SKIN_FOLDER: &str = "skins";
 
   pub fn new(handle: AppHandle) -> Result<SkinStore> {
-    let store = handle.app_store()?;
+    let store = proton_store::store();
     let skins: Vec<SkinInfo> = store.get_or_default(Self::SKIN_KEY)?;
     let capes: Vec<CapeInfo> = store.get_or_default(Self::CAPE_KEY)?;
 
@@ -169,7 +169,7 @@ impl SkinStore {
   }
 
   fn save(&self) -> Result<()> {
-    let store = self.handle.app_store()?;
+    let store = proton_store::store();
     store.set(Self::CAPE_KEY, &self.capes)?;
     store.set(Self::SKIN_KEY, &self.skins)
   }
@@ -222,11 +222,11 @@ impl SkinStore {
 
     let data_path = path!(&data_dir, format!("{}.png", id));
     //ignore result to prevent inconsistent saved data
-    let _ = std::fs::remove_file(data_path).log();
+    let _ = std::fs::remove_file(data_path).log_err();
 
     let head_path = path!(&data_dir, format!("{}_head.png", id));
     //ignore result to prevent inconsistent saved data
-    let _ = std::fs::remove_file(head_path).log();
+    let _ = std::fs::remove_file(head_path).log_err();
 
     self.skins.retain(|s| s.id != id);
     self.save()?;

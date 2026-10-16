@@ -16,10 +16,9 @@ use super::{
   store::{self, Entry},
 };
 use proton_profiles::{config::Profile, store::ProfileStore};
-use proton_store::TauriAppStoreExt;
 use proton_utils::{
-  log::ResultLogExt,
-  updater::{UpdateType, update_data},
+  log::ErrorLogExt,
+  tauri_compat::{UpdateType, update_data},
 };
 use proton_versions::store::is_busy;
 
@@ -107,7 +106,7 @@ pub async fn check<'p>(
     let Ok(latest) = get(source)
       .latest_for(&hashes, &loaders, &profile.version, release_only)
       .await
-      .log()
+      .log_err()
     else {
       continue;
     };
@@ -150,7 +149,7 @@ pub async fn pack_update(providers: &Providers, profile: &Profile) -> Option<Pac
     .get(pack.source)
     .versions(&pack.project_id, &[], None)
     .await
-    .log()
+    .log_err()
     .ok()?;
   pick_pack_update(versions, &pack.version_id)
 }
@@ -240,9 +239,10 @@ pub async fn run_loop(handle: AppHandle) {
       tokio::time::sleep(Duration::from_secs(60)).await;
       continue;
     }
-    let _ = check_profiles(&handle, None).await.log();
-    if let Ok(store) = handle.app_store() {
-      let _ = store.set(LAST_CHECK_KEY, &Utc::now()).log();
+    let _ = check_profiles(&handle, None).await.log_err();
+    {
+      let store = proton_store::store();
+      let _ = store.set(LAST_CHECK_KEY, &Utc::now()).log_err();
     }
     tokio::time::sleep(INTERVAL).await;
   }

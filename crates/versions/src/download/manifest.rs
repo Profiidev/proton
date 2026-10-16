@@ -1,9 +1,9 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use anyhow::Result;
-use log::debug;
 use reqwest::Client;
 use tauri::AppHandle;
+use tracing::debug;
 
 use crate::{
   download::DownloadError,

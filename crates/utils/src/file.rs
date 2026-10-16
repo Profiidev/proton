@@ -7,9 +7,10 @@ use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
 use serde::{Serialize, de::DeserializeOwned};
 use sha1::{Digest, Sha1};
-use tauri::async_runtime::spawn_blocking;
 use thiserror::Error;
 use tokio::fs::{self, File};
+
+use crate::rt::spawn_blocking;
 
 #[derive(Error, Debug)]
 pub enum FileError {

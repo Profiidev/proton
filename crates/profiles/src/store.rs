@@ -18,12 +18,11 @@ use crate::{
   watcher::watch_profile,
 };
 use proton_account::store::LaunchInfo;
-use proton_config::settings::SettingsExt;
-use proton_store::TauriAppStoreExt;
+use proton_config::settings::Settings;
 use proton_utils::path;
 use proton_utils::{
   file::read_parse_file,
-  updater::{UpdateType, update_data},
+  tauri_compat::{UpdateType, update_data},
 };
 use proton_versions::{
   launch::{LaunchArgs, launch_minecraft_version},
@@ -43,7 +42,7 @@ impl ProfileStore {
   const PROFILE_KEY: &str = "profiles";
 
   pub fn new(handle: AppHandle) -> Result<ProfileStore> {
-    let store = handle.app_store()?;
+    let store = proton_store::store();
     let data_dir = handle.path().app_data_dir()?;
     let profile_paths: HashMap<String, PathBuf> = store.get_or_default(Self::PROFILE_KEY)?;
 
@@ -146,7 +145,7 @@ impl ProfileStore {
     quick_play: Option<QuickPlayInfo>,
   ) -> Result<()> {
     let data_dir = self.data_dir.clone();
-    let settings = self.handle.app_settings()?.minecraft;
+    let settings = Settings::load()?.minecraft;
 
     let jvm_settings = if profile.use_local_jvm {
       profile.jvm.clone().unwrap_or_default()
@@ -360,7 +359,7 @@ impl ProfileStore {
       profiles.insert(id.clone(), info.path.clone());
     }
 
-    let store = self.handle.app_store()?;
+    let store = proton_store::store();
     store.set(Self::PROFILE_KEY, &profiles)
   }
 

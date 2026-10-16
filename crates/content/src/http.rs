@@ -79,7 +79,7 @@ impl Http {
 
 fn parse<T: DeserializeOwned>(value: Value) -> Result<T> {
   serde_json::from_value(value).map_err(|e| {
-    log::warn!("Failed to parse content response: {e}");
+    tracing::warn!("Failed to parse content response: {e}");
     ContentError::Network
   })
 }
@@ -94,14 +94,14 @@ async fn send(req: RequestBuilder) -> Result<Value> {
       .send()
       .await
       .map_err(|e| {
-        log::warn!("Content request failed: {e}");
+        tracing::warn!("Content request failed: {e}");
         ContentError::Network
       })?;
     let status = res.status();
 
     if status == StatusCode::TOO_MANY_REQUESTS || status.is_server_error() {
       if attempt == RETRIES {
-        log::warn!(
+        tracing::warn!(
           "Content request returned {status} after retries: {}",
           res.url()
         );
@@ -125,11 +125,11 @@ async fn send(req: RequestBuilder) -> Result<Value> {
     return match status {
       StatusCode::NOT_FOUND => Err(ContentError::NotFound),
       s if s.is_success() => res.json().await.map_err(|e| {
-        log::warn!("Failed to read content response: {e}");
+        tracing::warn!("Failed to read content response: {e}");
         ContentError::Network
       }),
       s => {
-        log::warn!("Content request returned {s}: {}", res.url());
+        tracing::warn!("Content request returned {s}: {}", res.url());
         Err(ContentError::Network)
       }
     };

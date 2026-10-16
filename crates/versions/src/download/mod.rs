@@ -8,10 +8,10 @@ use std::{
 };
 
 use anyhow::Result;
-use log::debug;
 use reqwest::Client;
 use tauri::AppHandle;
 use thiserror::Error;
+use tracing::debug;
 
 use crate::{
   download::{

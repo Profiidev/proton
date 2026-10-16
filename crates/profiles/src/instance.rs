@@ -2,7 +2,6 @@ use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use log::debug;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, async_runtime::spawn};
 use thiserror::Error;
@@ -13,12 +12,13 @@ use tokio::{
   select,
   sync::{Mutex, Notify},
 };
+use tracing::debug;
 use uuid::Uuid;
 
 use crate::config::{Profile, ProfileInfo};
 use proton_utils::{
-  log::ResultLogExt,
-  updater::{UpdateType, update_data},
+  log::ErrorLogExt,
+  tauri_compat::{UpdateType, update_data},
 };
 use proton_versions::loader::LoaderType;
 
@@ -104,7 +104,7 @@ impl Instance {
           Ok(Some(line)) = stderr.next_line() => line,
           _ = notify.notified() => {
             debug!("Stopping instance with profile {profile_} and id {id_}");
-            let _ = child.kill().await.log();
+            let _ = child.kill().await.log_err();
             clean_instance(&handle, &instances_, &profile_, &id_, &lines_, launched_at).await;
             break;
           }
@@ -116,7 +116,7 @@ impl Instance {
               debug!("Child with profile {profile_} and id {id_} exited with status: {}", status);
               let _ = handle.emit(CRASH_EVENT, CrashInfo {
                 profile_name,
-              }).log();
+              }).log_err();
             }
             break;
           }
@@ -229,7 +229,7 @@ async fn clean_instance(
 
     let lines = lines.lock().await;
     let content = lines.join("\n");
-    let _ = fs::write(log_file, content).await.log();
+    let _ = fs::write(log_file, content).await.log_err();
 
     update_data(handle, UpdateType::ProfileLogs);
   }

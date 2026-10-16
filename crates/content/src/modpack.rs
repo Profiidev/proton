@@ -434,7 +434,7 @@ async fn resolve_curseforge(
   let cf = providers.curseforge();
   let versions = cf.files(ids).await?;
   if versions.len() < ids.len() {
-    log::warn!(
+    tracing::warn!(
       "CurseForge returned {} of {} pack files",
       versions.len(),
       ids.len()

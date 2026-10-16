@@ -1,16 +1,16 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
-use log::debug;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 use thiserror::Error;
+use tracing::debug;
 
-use proton_store::TauriAppStoreExt;
 use proton_utils::{
-  log::ResultLogExt,
-  updater::{UpdateType, default_client, update_data},
+  download::default_client,
+  log::ErrorLogExt,
+  tauri_compat::{UpdateType, update_data},
 };
 
 use super::{
@@ -45,7 +45,7 @@ impl AccountStore {
   const ACTIVE_ACCOUNT_KEY: &str = "active_account";
 
   pub fn new(handle: AppHandle) -> Result<AccountStore> {
-    let store = handle.app_store()?;
+    let store = proton_store::store();
     let accounts: HashMap<String, Option<AccountInfo>> = store.get_or_default(Self::ACCOUNT_KEY)?;
     let active: String = store.get_or_default(Self::ACTIVE_ACCOUNT_KEY)?;
 
@@ -93,15 +93,15 @@ impl AccountStore {
   }
 
   fn save(&self) -> Result<()> {
-    let store = self.handle.app_store()?;
+    let store = proton_store::store();
     store.set(Self::ACCOUNT_KEY, &self.accounts)?;
     store.set(Self::ACTIVE_ACCOUNT_KEY, &self.active)
   }
 
   pub async fn refresh(&mut self, id: &str) -> Result<()> {
     //ignore result to prevent inconsistent saved data
-    let _ = self.refresh_token(id).await.log();
-    let _ = self.refresh_profile(id).await.log();
+    let _ = self.refresh_token(id).await.log_err();
+    let _ = self.refresh_profile(id).await.log_err();
     self.save()?;
 
     update_data(&self.handle, UpdateType::Accounts);
@@ -113,8 +113,8 @@ impl AccountStore {
 
     for id in &keys {
       //ignore result to prevent inconsistent saved data
-      let _ = self.refresh_token(id).await.log();
-      let _ = self.refresh_profile(id).await.log();
+      let _ = self.refresh_token(id).await.log_err();
+      let _ = self.refresh_profile(id).await.log_err();
     }
 
     self.save()?;

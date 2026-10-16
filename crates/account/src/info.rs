@@ -1,10 +1,10 @@
 use std::fmt::Display;
 
 use anyhow::Result;
-use log::debug;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tauri::Url;
+use tracing::debug;
 
 const MC_PROFILE_URL: &str = "https://api.minecraftservices.com/minecraft/profile";
 

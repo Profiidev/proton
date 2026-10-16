@@ -1,38 +1,34 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf, sync::LazyLock};
 
+use anyhow::Result;
+use proton_utils::dir;
 use serde::{Deserialize, Serialize};
 use sysinfo::System;
-use tauri::{AppHandle, Manager, Url};
-
-use proton_store::TauriAppStoreExt;
 
 pub const SETTINGS_KEY: &str = "settings";
 
-pub struct MaxMem {
-  pub max_mem: u64,
+/// Total system memory in MB
+pub fn system_max_mem() -> u64 {
+  static MAX_MEM: LazyLock<u64> = LazyLock::new(|| {
+    let mut system = System::new();
+    system.refresh_memory();
+    system.total_memory() / 1024 / 1024
+  });
+  *MAX_MEM
 }
 
-#[allow(clippy::new_without_default)]
-impl MaxMem {
-  /// Leaves 2 GB for the OS, the same rule the memory sliders explain
-  pub fn fits(&self, mb: u64) -> bool {
-    mb + 2048 <= self.max_mem
-  }
-
-  pub fn new() -> Self {
-    let system = System::new_all();
-    let bytes = system.total_memory();
-    let mb = bytes / 1024 / 1024;
-    MaxMem { max_mem: mb }
-  }
+/// Leaves 2 GB for the OS, the same rule the memory sliders explain
+pub fn mem_fits(mb: u64) -> bool {
+  mb + 2048 <= system_max_mem()
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq)]
 pub struct Settings {
   #[serde(default)]
   pub system_max_mem: u64,
-  sidebar_width: Option<f32>,
-  pub url: Option<Url>,
+  pub sidebar_width: Option<f32>,
+  /// The last route, the UI owns the format. The tauri app stored a full URL here.
+  pub url: Option<String>,
   #[serde(default)]
   pub auto_update: bool,
   #[serde(default)]
@@ -45,15 +41,25 @@ pub struct Settings {
 }
 
 impl Settings {
-  pub fn download_dirs(&self, handle: &AppHandle) -> Vec<PathBuf> {
+  /// Reads the stored settings. gpui code reads `cx.settings()` instead, this is for code
+  /// without a gpui context.
+  pub fn load() -> Result<Self> {
+    proton_store::store().get_or_default(SETTINGS_KEY)
+  }
+
+  pub fn save(&self) -> Result<()> {
+    proton_store::store().set(SETTINGS_KEY, self)
+  }
+
+  pub fn download_dirs(&self) -> Vec<PathBuf> {
     self
       .download_dirs
       .clone()
-      .unwrap_or_else(|| handle.path().download_dir().into_iter().collect())
+      .unwrap_or_else(|| dir::download_dir().into_iter().collect())
   }
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq)]
 pub struct MinecraftSettings {
   pub show_snapshots: bool,
   #[serde(default)]
@@ -62,17 +68,7 @@ pub struct MinecraftSettings {
   pub jvm_settings: JvmSettings,
 }
 
-pub trait SettingsExt {
-  fn app_settings(&self) -> anyhow::Result<Settings>;
-}
-
-impl SettingsExt for AppHandle {
-  fn app_settings(&self) -> anyhow::Result<Settings> {
-    self.app_store()?.get_or_default(SETTINGS_KEY)
-  }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct GameSettings {
   pub use_custom: bool,
   pub width: usize,
@@ -89,7 +85,7 @@ impl Default for GameSettings {
   }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct JvmSettings {
   pub args: Vec<String>,
   pub env_vars: HashMap<String, String>,
@@ -121,5 +117,15 @@ mod tests {
 
     let settings: Settings = serde_json::from_str(r#"{"auto_update":true}"#).unwrap();
     assert!(settings.auto_update);
+  }
+
+  #[test]
+  fn reads_the_tauri_url() {
+    let settings: Settings =
+      serde_json::from_str(r#"{"url":"tauri://localhost/profiles?id=1"}"#).unwrap();
+    assert_eq!(
+      settings.url.as_deref(),
+      Some("tauri://localhost/profiles?id=1")
+    );
   }
 }

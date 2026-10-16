@@ -19,8 +19,8 @@ use crate::MANIFEST;
 use crate::store::ProfileStore;
 use proton_utils::{
   future::UpdateLimiter,
-  log::ResultLogExt,
-  updater::{UpdateType, update_data},
+  log::ErrorLogExt,
+  tauri_compat::{UpdateType, update_data},
 };
 use proton_versions::paths::QUICK_PLAY;
 
@@ -85,9 +85,9 @@ pub fn watch_profile(path: PathBuf, profile: String, app: AppHandle) -> Result<A
       if event.paths.iter().any(|p| p.ends_with(QUICK_PLAY)) {
         let store = app.state::<Mutex<ProfileStore>>();
         let store = store.lock().await;
-        if let Ok(mut info) = store.profile(&profile).await.log() {
-          let _ = info.update_quick_play(&data_dir).await.log();
-          let _ = info.update(&data_dir).await.log();
+        if let Ok(mut info) = store.profile(&profile).await.log_err() {
+          let _ = info.update_quick_play(&data_dir).await.log_err();
+          let _ = info.update(&data_dir).await.log_err();
           store.update_data(UpdateType::ProfileQuickPlay);
         }
       }

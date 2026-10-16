@@ -1,41 +1,183 @@
-use std::sync::Arc;
+//! Key-value JSON store, a drop-in for the old tauri-plugin-store file: same path
+//! (`<data_dir>/store.json`) and same format (pretty JSON, one top-level object).
+
+use std::{
+  path::{Path, PathBuf},
+  sync::{Mutex, MutexGuard, OnceLock},
+};
 
 use anyhow::Result;
+use proton_utils::{dir, log::ErrorLogExt};
 use serde::{Serialize, de::DeserializeOwned};
-use tauri::{AppHandle, Wry};
-use tauri_plugin_store::{Store, StoreExt};
+use serde_json::{Map, Value};
 
 const STORE_FILE: &str = "store.json";
 
-pub struct AppStore {
-  pub store: Arc<Store<Wry>>,
+static STORE: OnceLock<Store> = OnceLock::new();
+
+/// The app store, loaded on first use
+pub fn store() -> &'static Store {
+  STORE.get_or_init(|| {
+    let path = dir::data_dir()
+      .map(|dir| dir.join(STORE_FILE))
+      .expect("No data dir");
+    Store::open(path)
+  })
 }
 
-pub trait TauriAppStoreExt {
-  fn app_store(&self) -> Result<AppStore>;
-}
-
-impl TauriAppStoreExt for AppHandle {
-  fn app_store(&self) -> Result<AppStore> {
-    let store = self.store(STORE_FILE)?;
-
-    Ok(AppStore { store })
+/// Points [`store`] at another file, for tests of crates that save through it. Only works
+/// before the first [`store`] call, later calls are ignored.
+pub fn init_at(path: PathBuf) {
+  if STORE.set(Store::open(path)).is_err() {
+    tracing::warn!("Store already initialized");
   }
 }
 
-impl AppStore {
-  pub fn set<V: Serialize>(&self, key: &str, value: &V) -> Result<()> {
-    let json = serde_json::to_value(value)?;
-    self.store.set(key, json);
+pub struct Store {
+  path: PathBuf,
+  data: Mutex<Map<String, Value>>,
+}
 
-    Ok(())
+impl Store {
+  /// A missing file is an empty store. An unreadable one is copied to `store.json.corrupt`
+  /// before the next save overwrites it.
+  pub fn open(path: PathBuf) -> Self {
+    let data = match std::fs::read(&path) {
+      Ok(bytes) => serde_json::from_slice(&bytes).unwrap_or_else(|e| {
+        tracing::error!("Failed to parse {}: {e}", path.display());
+        let _ = std::fs::copy(&path, path.with_extension("json.corrupt")).log_err();
+        Map::new()
+      }),
+      Err(_) => Map::new(),
+    };
+    Self {
+      path,
+      data: Mutex::new(data),
+    }
+  }
+
+  fn data(&self) -> MutexGuard<'_, Map<String, Value>> {
+    self.data.lock().unwrap_or_else(|e| e.into_inner())
+  }
+
+  pub fn get<V: DeserializeOwned>(&self, key: &str) -> Result<Option<V>> {
+    let Some(json) = self.data().get(key).cloned() else {
+      return Ok(None);
+    };
+    Ok(Some(serde_json::from_value(json)?))
   }
 
   pub fn get_or_default<V: DeserializeOwned + Default>(&self, key: &str) -> Result<V> {
-    let Some(json) = self.store.get(key) else {
-      return Ok(V::default());
-    };
+    Ok(self.get(key)?.unwrap_or_default())
+  }
 
-    Ok(serde_json::from_value(json)?)
+  /// Sets and saves right away
+  pub fn set<V: Serialize>(&self, key: &str, value: &V) -> Result<()> {
+    let json = serde_json::to_value(value)?;
+    let mut data = self.data();
+    data.insert(key.to_string(), json);
+    save(&self.path, &data)
+  }
+
+  pub fn delete(&self, key: &str) -> Result<()> {
+    let mut data = self.data();
+    if data.remove(key).is_some() {
+      save(&self.path, &data)?;
+    }
+    Ok(())
+  }
+
+  pub fn save(&self) -> Result<()> {
+    save(&self.path, &self.data())
+  }
+}
+
+/// Writes a temp file next to the store and renames it, a crash never leaves half a file
+fn save(path: &Path, data: &Map<String, Value>) -> Result<()> {
+  if let Some(parent) = path.parent() {
+    std::fs::create_dir_all(parent)?;
+  }
+  let tmp = path.with_extension("json.tmp");
+  std::fs::write(&tmp, serde_json::to_vec_pretty(data)?)?;
+  std::fs::rename(&tmp, path)?;
+  Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+  use std::collections::HashMap;
+
+  use serde::Deserialize;
+
+  use super::*;
+
+  const FIXTURE: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../fixtures/data/io.profidev.proton/store.json"
+  );
+
+  #[derive(Serialize, Deserialize, Default, PartialEq, Debug)]
+  struct Item {
+    name: String,
+    count: u32,
+  }
+
+  #[test]
+  fn round_trip() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("nested").join(STORE_FILE);
+    let store = Store::open(path.clone());
+    assert_eq!(store.get::<Item>("item").unwrap(), None);
+    assert_eq!(
+      store.get_or_default::<Item>("item").unwrap(),
+      Item::default()
+    );
+
+    let item = Item {
+      name: "a".into(),
+      count: 2,
+    };
+    store.set("item", &item).unwrap();
+    store.set("other", &1).unwrap();
+    store.delete("other").unwrap();
+
+    let reopened = Store::open(path.clone());
+    assert_eq!(reopened.get::<Item>("item").unwrap(), Some(item));
+    assert_eq!(reopened.get::<u32>("other").unwrap(), None);
+    // pretty printed like tauri-plugin-store, no temp file left
+    assert!(
+      std::fs::read_to_string(&path)
+        .unwrap()
+        .starts_with("{\n  \"")
+    );
+    assert!(!path.with_extension("json.tmp").exists());
+  }
+
+  #[test]
+  fn reads_the_tauri_store() {
+    let store = Store::open(FIXTURE.into());
+    let accounts: HashMap<String, Value> = store.get_or_default("accounts").unwrap();
+    assert!(accounts.contains_key("f1f1f1f1f1f14f1f8f1f1f1f1f1f1f1f"));
+
+    // saving keeps every key and value
+    let dir = tempfile::tempdir().unwrap();
+    let copy = dir.path().join(STORE_FILE);
+    std::fs::copy(FIXTURE, &copy).unwrap();
+    Store::open(copy.clone()).save().unwrap();
+    let read = |p: &str| serde_json::from_slice::<Value>(&std::fs::read(p).unwrap()).unwrap();
+    assert_eq!(read(copy.to_str().unwrap()), read(FIXTURE));
+  }
+
+  #[test]
+  fn corrupt_file_is_kept() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join(STORE_FILE);
+    std::fs::write(&path, "{nope").unwrap();
+    let store = Store::open(path.clone());
+    store.set("a", &1).unwrap();
+    assert_eq!(
+      std::fs::read_to_string(path.with_extension("json.corrupt")).unwrap(),
+      "{nope"
+    );
   }
 }

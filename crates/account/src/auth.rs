@@ -1,9 +1,9 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use log::debug;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
+use tracing::debug;
 
 use super::mc_auth::{
   get_minecraft_token, get_ms_token, get_xbox_security_token, get_xbox_token, refresh_ms_token,

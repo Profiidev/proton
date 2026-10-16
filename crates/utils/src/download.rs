@@ -1,14 +1,21 @@
-use std::{path::PathBuf, pin::Pin};
+use std::{path::PathBuf, pin::Pin, time::Duration};
 
 use anyhow::Result;
 use futures_util::StreamExt;
-use log::debug;
 use reqwest::Client;
 use serde::de::DeserializeOwned;
-use tauri::Url;
 use tokio::fs::{self, File};
+use tracing::debug;
+use url::Url;
 
 use crate::file::{FileError, hash_bytes};
+
+pub fn default_client() -> Client {
+  Client::builder()
+    .connect_timeout(Duration::from_secs(10))
+    .build()
+    .unwrap()
+}
 
 pub async fn download_file_no_hash(client: &Client, path: &PathBuf, url: Url) -> Result<Vec<u8>> {
   if File::open(path).await.is_ok() {

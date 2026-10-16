@@ -128,7 +128,7 @@ pub async fn load(dir: &Path) -> Manifest {
     return Manifest::default();
   };
   serde_json::from_slice(&data).unwrap_or_else(|e| {
-    log::warn!("Content manifest in {} is invalid: {e}", dir.display());
+    tracing::warn!("Content manifest in {} is invalid: {e}", dir.display());
     Manifest::default()
   })
 }
@@ -326,7 +326,7 @@ pub async fn identify(providers: &Providers, mut entries: Vec<&mut Entry>) {
     match providers.get(source).by_hashes(&hashes).await {
       Ok(res) => found.extend(res),
       Err(e) => {
-        log::warn!("Content lookup on {source:?} failed: {e}");
+        tracing::warn!("Content lookup on {source:?} failed: {e}");
         failed = true;
       }
     }

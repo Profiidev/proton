@@ -1,9 +1,9 @@
 use std::time::Instant;
 
 use anyhow::Result;
-use log::debug;
 use reqwest::Client;
 use tauri::AppHandle;
+use tracing::debug;
 
 use crate::{
   download::{check_pool, download_pool},
