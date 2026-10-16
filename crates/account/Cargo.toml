@@ -5,15 +5,23 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-tauri.workspace = true
 serde.workspace = true
 anyhow.workspace = true
 thiserror.workspace = true
 chrono.workspace = true
 reqwest.workspace = true
 tokio.workspace = true
-base64.workspace = true
 image.workspace = true
 tracing.workspace = true
+url.workspace = true
+uuid.workspace = true
+open.workspace = true
+flume.workspace = true
+gpui-kit.workspace = true
 proton_utils.workspace = true
 proton_store.workspace = true
+proton_config.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+gpui-kit = { workspace = true, features = ["test-support"] }

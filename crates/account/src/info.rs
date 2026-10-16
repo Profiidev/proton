@@ -3,12 +3,12 @@ use std::fmt::Display;
 use anyhow::Result;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use tauri::Url;
 use tracing::debug;
+use url::Url;
 
 const MC_PROFILE_URL: &str = "https://api.minecraftservices.com/minecraft/profile";
 
-#[derive(Deserialize, Serialize, Clone)]
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
 pub struct ProfileInfo {
   pub id: String,
   pub name: String,
@@ -16,7 +16,7 @@ pub struct ProfileInfo {
   pub capes: Vec<Cape>,
 }
 
-#[derive(Deserialize, Serialize, Clone)]
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Skin {
   pub id: String,
@@ -26,14 +26,14 @@ pub struct Skin {
   pub variant: SkinVariant,
 }
 
-#[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum State {
   Active,
   Inactive,
 }
 
-#[derive(Deserialize, Serialize, Clone)]
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum SkinVariant {
   Classic,
@@ -49,7 +49,7 @@ impl Display for SkinVariant {
   }
 }
 
-#[derive(Deserialize, Serialize, Clone)]
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
 pub struct Cape {
   pub id: String,
   pub state: State,

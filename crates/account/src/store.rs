@@ -3,28 +3,22 @@ use std::collections::HashMap;
 use anyhow::Result;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use tauri::AppHandle;
 use thiserror::Error;
 use tracing::debug;
 
-use proton_utils::{
-  download::default_client,
-  log::ErrorLogExt,
-  tauri_compat::{UpdateType, update_data},
-};
+use proton_utils::{download::default_client, log::ErrorLogExt};
 
 use super::{
-  auth::{AuthInfo, ms_mc_login, refresh_mc_token},
+  auth::{AuthInfo, refresh_mc_token},
   info::{ProfileInfo, get_profile_info},
 };
 
 const CAPE_CHANGE_URL: &str = "https://api.minecraftservices.com/minecraft/profile/capes/active";
-const REMOVE_CAPE: &str = "REMOVE_CAPE";
+pub const REMOVE_CAPE: &str = "REMOVE_CAPE";
 
 pub struct AccountStore {
   accounts: HashMap<String, Option<AccountInfo>>,
   active: String,
-  handle: AppHandle,
   client: Client,
 }
 
@@ -44,7 +38,7 @@ impl AccountStore {
   const ACCOUNT_KEY: &str = "accounts";
   const ACTIVE_ACCOUNT_KEY: &str = "active_account";
 
-  pub fn new(handle: AppHandle) -> Result<AccountStore> {
+  pub fn new() -> Result<AccountStore> {
     let store = proton_store::store();
     let accounts: HashMap<String, Option<AccountInfo>> = store.get_or_default(Self::ACCOUNT_KEY)?;
     let active: String = store.get_or_default(Self::ACTIVE_ACCOUNT_KEY)?;
@@ -52,13 +46,8 @@ impl AccountStore {
     Ok(AccountStore {
       accounts,
       active,
-      handle,
       client: default_client(),
     })
-  }
-
-  pub fn handle(&self) -> &AppHandle {
-    &self.handle
   }
 
   pub fn list_profiles(&self) -> HashMap<String, Option<ProfileInfo>> {
@@ -103,8 +92,6 @@ impl AccountStore {
     let _ = self.refresh_token(id).await.log_err();
     let _ = self.refresh_profile(id).await.log_err();
     self.save()?;
-
-    update_data(&self.handle, UpdateType::Accounts);
     Ok(())
   }
 
@@ -118,13 +105,15 @@ impl AccountStore {
     }
 
     self.save()?;
-
-    update_data(&self.handle, UpdateType::Accounts);
     Ok(())
   }
 
   pub fn active(&self) -> &str {
     &self.active
+  }
+
+  pub fn active_id(&self) -> Option<String> {
+    Some(self.active.clone()).filter(|a| !a.is_empty())
   }
 
   pub fn mc_token(&self, id: &str) -> Option<&String> {
@@ -148,8 +137,6 @@ impl AccountStore {
     debug!("Changing active account to {id}");
     self.active = id;
     self.save()?;
-
-    update_data(&self.handle, UpdateType::AccountActive);
     Ok(())
   }
 
@@ -157,33 +144,19 @@ impl AccountStore {
     debug!("Removing account {id}");
     self.accounts.remove(id);
     self.save()?;
-
-    update_data(&self.handle, UpdateType::Accounts);
     Ok(())
   }
 
-  pub async fn login(&mut self) -> Result<()> {
-    debug!("Adding new account");
-    let auth = ms_mc_login(&self.client, &self.handle).await?;
-    let profile = get_profile_info(&self.client, &auth.mc_token).await?;
-
-    let mut active_changed = false;
+  /// Adds a freshly logged in account, it becomes active when none was
+  pub fn add_account(&mut self, auth: AuthInfo, profile: ProfileInfo) -> Result<()> {
+    debug!("Adding account {}", profile.id);
     if self.active.is_empty() {
-      active_changed = true;
       self.active = profile.id.clone();
     }
-
     self
       .accounts
       .insert(profile.id.clone(), Some(AccountInfo { auth, profile }));
-
-    self.save()?;
-
-    update_data(&self.handle, UpdateType::Accounts);
-    if active_changed {
-      update_data(&self.handle, UpdateType::AccountActive);
-    }
-    Ok(())
+    self.save()
   }
 
   pub async fn refresh_auth(&mut self, id: &str) -> Result<()> {
@@ -196,8 +169,6 @@ impl AccountStore {
       account.profile = profile;
     }
     self.save()?;
-
-    update_data(&self.handle, UpdateType::Accounts);
     Ok(())
   }
 
@@ -226,8 +197,6 @@ impl AccountStore {
 
       account.profile = profile;
       self.save()?;
-
-      update_data(&self.handle, UpdateType::Accounts);
       return Ok(());
     }
 

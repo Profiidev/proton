@@ -1,22 +1,15 @@
-use std::io::Cursor;
+use std::{io::Cursor, path::PathBuf};
 
 use anyhow::Result;
-use base64::prelude::*;
 use image::ImageFormat;
 use reqwest::{Client, multipart::Form};
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager, Url};
 use thiserror::Error;
 use tokio::fs;
 use tracing::debug;
+use url::Url;
 
-use proton_utils::path;
-use proton_utils::{
-  download::default_client,
-  file::bytes_hash,
-  log::ErrorLogExt,
-  tauri_compat::{UpdateType, update_data},
-};
+use proton_utils::{dir::data_dir, download::default_client, file::bytes_hash, log::ErrorLogExt};
 
 use super::info::{ProfileInfo, SkinVariant, State};
 
@@ -25,7 +18,6 @@ const SKIN_CHANGE_URL: &str = "https://api.minecraftservices.com/minecraft/profi
 pub struct SkinStore {
   skins: Vec<SkinInfo>,
   capes: Vec<CapeInfo>,
-  handle: AppHandle,
   client: Client,
 }
 
@@ -35,31 +27,33 @@ pub struct SkinInfo {
   url: Option<Url>,
 }
 
-#[derive(Serialize, Clone)]
+/// A cached skin. The paths work with gpui `img(path)`; for `SkinTextures::from_png` read the
+/// bytes with `std::fs::read(&skin.data)`.
+#[derive(Clone, Debug, PartialEq)]
 pub struct Skin {
-  id: String,
-  url: Option<Url>,
-  data: String,
-  head: String,
+  pub id: String,
+  pub url: Option<Url>,
+  /// full skin png
+  pub data: PathBuf,
+  /// 8x8 face png
+  pub head: PathBuf,
 }
 
 impl SkinInfo {
-  fn load_skin(self, handle: &AppHandle) -> Result<Skin> {
-    debug!("Loading skin data: {}", self.id);
-    let data_dir = path!(handle.path().app_data_dir()?, SkinStore::SKIN_FOLDER);
-
-    let data_path = path!(&data_dir, format!("{}.png", &self.id));
-    let data = std::fs::read(data_path)?;
-
-    let head_path = path!(&data_dir, format!("{}_head.png", &self.id));
-    let head = std::fs::read(head_path)?;
-
-    Ok(Skin {
-      id: self.id,
-      url: self.url,
-      data: BASE64_STANDARD.encode(data),
-      head: BASE64_STANDARD.encode(head),
-    })
+  fn load_skin(&self) -> Result<Skin> {
+    let dir = skin_dir()?;
+    let skin = Skin {
+      id: self.id.clone(),
+      url: self.url.clone(),
+      data: dir.join(format!("{}.png", self.id)),
+      head: dir.join(format!("{}_head.png", self.id)),
+    };
+    anyhow::ensure!(
+      skin.data.exists() && skin.head.exists(),
+      "Skin files missing: {}",
+      self.id
+    );
+    Ok(skin)
   }
 }
 
@@ -69,29 +63,28 @@ pub struct CapeInfo {
   url: Url,
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Cape {
-  id: String,
-  url: Url,
-  data: String,
+  pub id: String,
+  pub url: Url,
+  /// cape png
+  pub data: PathBuf,
 }
 
 impl CapeInfo {
-  fn load_cape(self, handle: &AppHandle) -> Result<Cape> {
-    debug!("Loading cape data: {}", self.id);
-    let data_path = path!(
-      handle.path().app_data_dir()?,
-      SkinStore::SKIN_FOLDER,
-      format!("{}.png", &self.id)
-    );
-    let data = std::fs::read(data_path)?;
-
+  fn load_cape(&self) -> Result<Cape> {
+    let data = skin_dir()?.join(format!("{}.png", self.id));
+    anyhow::ensure!(data.exists(), "Cape file missing: {}", self.id);
     Ok(Cape {
-      id: self.id,
-      url: self.url,
-      data: BASE64_STANDARD.encode(data),
+      id: self.id.clone(),
+      url: self.url.clone(),
+      data,
     })
   }
+}
+
+fn skin_dir() -> Result<PathBuf> {
+  Ok(data_dir()?.join(SkinStore::SKIN_FOLDER))
 }
 
 impl SkinStore {
@@ -99,7 +92,7 @@ impl SkinStore {
   const CAPE_KEY: &str = "capes";
   const SKIN_FOLDER: &str = "skins";
 
-  pub fn new(handle: AppHandle) -> Result<SkinStore> {
+  pub fn new() -> Result<SkinStore> {
     let store = proton_store::store();
     let skins: Vec<SkinInfo> = store.get_or_default(Self::SKIN_KEY)?;
     let capes: Vec<CapeInfo> = store.get_or_default(Self::CAPE_KEY)?;
@@ -107,7 +100,6 @@ impl SkinStore {
     Ok(SkinStore {
       skins,
       capes,
-      handle,
       client: default_client(),
     })
   }
@@ -123,49 +115,31 @@ impl SkinStore {
     let id = bytes_hash(skin)?;
     debug!("Saving skin with id: {}", id);
 
-    let data_dir = path!(self.handle.path().app_data_dir()?, Self::SKIN_FOLDER);
-    fs::create_dir_all(&data_dir).await?;
-
-    let data_path = path!(&data_dir, format!("{}.png", id));
-    fs::write(data_path, skin).await?;
-
-    let head_path = path!(&data_dir, format!("{}_head.png", id));
-    fs::write(head_path, &head).await?;
+    let dir = skin_dir()?;
+    fs::create_dir_all(&dir).await?;
+    fs::write(dir.join(format!("{id}.png")), skin).await?;
+    fs::write(dir.join(format!("{id}_head.png")), &head).await?;
 
     let skin_info = SkinInfo { url, id };
-
     self.skins.push(skin_info.clone());
     self.save()?;
 
-    update_data(&self.handle, UpdateType::AccountSkins);
-
-    Ok(Skin {
-      id: skin_info.id,
-      url: skin_info.url,
-      data: BASE64_STANDARD.encode(skin),
-      head: BASE64_STANDARD.encode(head),
-    })
+    skin_info.load_skin()
   }
 
-  fn add_cape(&mut self, url: Url, cape: &[u8]) -> Result<Cape> {
+  async fn add_cape(&mut self, url: Url, cape: &[u8]) -> Result<Cape> {
     let id = bytes_hash(cape)?;
     debug!("Saving cape with id: {}", id);
 
-    let mut data_path = path!(&self.handle.path().app_data_dir()?, Self::SKIN_FOLDER);
-    std::fs::create_dir_all(&data_path)?;
-
-    data_path.push(format!("{id}.png"));
-    std::fs::write(data_path, cape)?;
+    let dir = skin_dir()?;
+    fs::create_dir_all(&dir).await?;
+    fs::write(dir.join(format!("{id}.png")), cape).await?;
 
     let cape_info = CapeInfo { url, id };
     self.capes.push(cape_info.clone());
     self.save()?;
 
-    Ok(Cape {
-      id: cape_info.id,
-      url: cape_info.url,
-      data: BASE64_STANDARD.encode(cape),
-    })
+    cape_info.load_cape()
   }
 
   fn save(&self) -> Result<()> {
@@ -174,65 +148,50 @@ impl SkinStore {
     store.set(Self::SKIN_KEY, &self.skins)
   }
 
+  async fn download(&self, url: &Url) -> Result<Vec<u8>> {
+    debug!("Downloading texture {url}");
+    let res = self.client.get(url.clone()).send().await?;
+    Ok(res.error_for_status()?.bytes().await?.to_vec())
+  }
+
   pub async fn get_skin_by_url(&mut self, url: Url) -> Result<Skin> {
-    if let Some(skin) = self.skins.iter().find(|s| s.url.as_ref() == Some(&url)) {
-      skin.clone().load_skin(&self.handle)
-    } else {
-      debug!("Skin with url {} not found. downloading", url);
-      let skin = self
-        .client
-        .get(url.clone())
-        .send()
-        .await?
-        .error_for_status()?
-        .bytes()
-        .await?;
-      self.add_skin(Some(url), &skin).await
+    if let Some(skin) = self.skins.iter().find(|s| s.url.as_ref() == Some(&url))
+      && let Ok(skin) = skin.load_skin()
+    {
+      return Ok(skin);
     }
+    let skin = self.download(&url).await?;
+    self.add_skin(Some(url), &skin).await
   }
 
   pub async fn get_cape_by_url(&mut self, url: Url) -> Result<Cape> {
-    if let Some(skin) = self.capes.iter().find(|c| c.url == url) {
-      skin.clone().load_cape(&self.handle)
-    } else {
-      debug!("Cape with url {} not found. downloading", url);
-      let cape = self
-        .client
-        .get(url.clone())
-        .send()
-        .await?
-        .error_for_status()?
-        .bytes()
-        .await?;
-      self.add_cape(url, &cape)
+    if let Some(cape) = self.capes.iter().find(|c| c.url == url)
+      && let Ok(cape) = cape.load_cape()
+    {
+      return Ok(cape);
     }
+    let cape = self.download(&url).await?;
+    self.add_cape(url, &cape).await
   }
 
   pub fn list_skins(&self) -> Vec<Skin> {
     self
       .skins
       .iter()
-      .flat_map(|skin| skin.clone().load_skin(&self.handle))
+      .flat_map(|skin| skin.load_skin().log_err())
       .collect()
   }
 
   pub fn remove_skin(&mut self, id: &str) -> Result<()> {
-    let data_dir = path!(&self.handle.path().app_data_dir()?, Self::SKIN_FOLDER);
+    let dir = skin_dir()?;
     debug!("Deleting skin with id: {}", id);
 
-    let data_path = path!(&data_dir, format!("{}.png", id));
     //ignore result to prevent inconsistent saved data
-    let _ = std::fs::remove_file(data_path).log_err();
-
-    let head_path = path!(&data_dir, format!("{}_head.png", id));
-    //ignore result to prevent inconsistent saved data
-    let _ = std::fs::remove_file(head_path).log_err();
+    let _ = std::fs::remove_file(dir.join(format!("{id}.png"))).log_err();
+    let _ = std::fs::remove_file(dir.join(format!("{id}_head.png"))).log_err();
 
     self.skins.retain(|s| s.id != id);
-    self.save()?;
-
-    update_data(&self.handle, UpdateType::AccountSkins);
-    Ok(())
+    self.save()
   }
 
   pub async fn select_skin(&mut self, id: &str, mc_token: &str) -> Result<ProfileInfo> {
@@ -259,11 +218,7 @@ impl SkinStore {
       res.json().await?
     } else {
       debug!("Skin with id {id} has no url. uploading");
-      let data_path = path!(
-        self.handle.path().app_data_dir()?,
-        Self::SKIN_FOLDER,
-        format!("{}.png", &skin.id)
-      );
+      let data_path = skin_dir()?.join(format!("{}.png", skin.id));
 
       let form = Form::new()
         .text("variant", SkinVariant::Classic.to_string())

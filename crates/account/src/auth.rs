@@ -2,17 +2,15 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter};
 use tracing::debug;
 
 use super::mc_auth::{
   get_minecraft_token, get_ms_token, get_xbox_security_token, get_xbox_token, refresh_ms_token,
 };
 
-const ACCOUNT_LOGIN_STATUS_EVENT: &str = "account-login-status";
-
-#[derive(Serialize, Clone)]
-enum LoginStatus {
+/// Token step that just finished during a login
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum LoginStatus {
   Ms,
   Xbox,
   XboxSecurity,
@@ -33,23 +31,23 @@ pub struct AuthInfo {
   ms_refresh_token: String,
 }
 
-pub async fn ms_mc_login(client: &Client, handle: &AppHandle) -> Result<AuthInfo> {
+pub async fn ms_mc_login(client: &Client, on_step: impl Fn(LoginStatus)) -> Result<AuthInfo> {
   debug!("Trying to get ms token");
-  let ms_token = get_ms_token(client, handle).await?;
-  handle.emit(ACCOUNT_LOGIN_STATUS_EVENT, LoginStatus::Ms)?;
+  let ms_token = get_ms_token(client).await?;
+  on_step(LoginStatus::Ms);
 
   debug!("Retrieving xbox token");
   let xbox_token = get_xbox_token(client, &ms_token.access_token).await?;
-  handle.emit(ACCOUNT_LOGIN_STATUS_EVENT, LoginStatus::Xbox)?;
+  on_step(LoginStatus::Xbox);
 
   debug!("Retrieving xbox security token");
   let xbox_security_token = get_xbox_security_token(client, &xbox_token.token).await?;
-  handle.emit(ACCOUNT_LOGIN_STATUS_EVENT, LoginStatus::XboxSecurity)?;
+  on_step(LoginStatus::XboxSecurity);
 
   debug!("Retrieving mc token");
   let mc_token =
     get_minecraft_token(client, &xbox_token.user_hash, &xbox_security_token.token).await?;
-  handle.emit(ACCOUNT_LOGIN_STATUS_EVENT, LoginStatus::Mc)?;
+  on_step(LoginStatus::Mc);
 
   debug!("Auth done");
   Ok(AuthInfo {

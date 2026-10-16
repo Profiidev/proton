@@ -4,17 +4,23 @@ use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager, Url, WebviewWindowBuilder};
 use thiserror::Error;
-use tokio::time::sleep;
-use tracing::debug;
+use tokio::{
+  io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+  net::TcpListener,
+  time::timeout,
+};
+use tracing::{debug, warn};
+use url::Url;
 
 use proton_utils::CLIENT_ID;
 
 const REDIRECT_URI: &str = "http://localhost:51701";
+const REDIRECT_ADDR: &str = "127.0.0.1:51701";
+const LOGIN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10 * 60);
+const READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
 const SCOPE: &str = "XboxLive.signin offline_access";
-const AUTH_WINDOW_LABEL: &str = "ms_auth";
 const PROMPT: &str = "select_account";
 
 const SANDBOX_ID: &str = "RETAIL";
@@ -48,12 +54,14 @@ pub struct MsToken {
 }
 
 #[derive(Error, Debug)]
-enum AuthError {
-  #[error("Could not find code in redirect url")]
-  NoCode,
-  #[error("User closed login window")]
-  Closed,
-  #[error("Timeout")]
+pub enum AuthError {
+  #[error("Port {0} is already in use, close the program using it and try again")]
+  PortInUse(u16),
+  #[error("Login state mismatch, possible CSRF attempt")]
+  StateMismatch,
+  #[error("Microsoft login failed: {0}")]
+  Denied(String),
+  #[error("Login timed out")]
   Timeout,
   #[error("Invalid Response")]
   InvalidRes,
@@ -227,79 +235,221 @@ pub async fn refresh_ms_token(client: &Client, ms_refresh_token: &str) -> Result
   }))
 }
 
-pub async fn get_ms_token(client: &Client, handle: &AppHandle) -> Result<MsToken> {
-  let start = Utc::now();
+/// Browser login: binds the redirect port, opens the authorize url and waits for the redirect.
+/// Dropping (aborting) the future closes the listener and frees the port.
+pub async fn get_ms_token(client: &Client) -> Result<MsToken> {
+  let state = uuid::Uuid::new_v4().to_string();
+  // bind before opening the browser, so the redirect cannot arrive before we listen
+  let listener = bind_redirect(REDIRECT_ADDR).await?;
 
-  if let Some(window) = handle.get_webview_window(AUTH_WINDOW_LABEL) {
-    window.close()?;
-  }
+  let url = authorize_url(&state)?;
+  debug!("Opening login in the browser: {url}");
+  open::that_detached(url.as_str())?;
 
-  let url = tauri::WebviewUrl::External(Url::parse_with_params(
+  let code = timeout(LOGIN_TIMEOUT, wait_for_code(&listener, &state))
+    .await
+    .map_err(|_| AuthError::Timeout)??;
+  drop(listener);
+
+  debug!("Retrieving ms token with code");
+  let res = client
+    .post(MS_TOKEN_URL)
+    .form(&vec![
+      ("client_id", CLIENT_ID),
+      ("code", &code),
+      ("redirect_uri", REDIRECT_URI),
+      ("grant_type", "authorization_code"),
+    ])
+    .send()
+    .await?
+    .error_for_status()?;
+  debug!("Got response with code: {}", res.status());
+
+  let res: MSTokenRes = res.json().await?;
+
+  Ok(MsToken {
+    access_token: res.access_token,
+    access_token_expires: Utc::now() + Duration::seconds(res.expires_in as i64),
+    refresh_token: res.refresh_token,
+  })
+}
+
+pub fn authorize_url(state: &str) -> Result<Url> {
+  Ok(Url::parse_with_params(
     MS_AUTHORIZE_URL,
-    vec![
+    [
       ("client_id", CLIENT_ID),
       ("response_type", "code"),
       ("scope", SCOPE),
       ("redirect_uri", REDIRECT_URI),
       ("prompt", PROMPT),
+      ("state", state),
     ],
-  )?);
+  )?)
+}
 
-  debug!("Opening Login Window with url: {}", url);
-  let window = WebviewWindowBuilder::new(handle, AUTH_WINDOW_LABEL, url)
-    .zoom_hotkeys_enabled(false)
-    .title("Sign into Proton")
-    .always_on_top(true)
-    .center()
-    .build()?;
+async fn bind_redirect(addr: &str) -> Result<TcpListener> {
+  TcpListener::bind(addr).await.map_err(|e| {
+    if e.kind() == std::io::ErrorKind::AddrInUse {
+      let port = addr.rsplit(':').next().and_then(|p| p.parse().ok());
+      AuthError::PortInUse(port.unwrap_or_default()).into()
+    } else {
+      e.into()
+    }
+  })
+}
 
-  window.set_focus()?;
+const PAGE_OK: &str = "<!doctype html><html><body style=\"font-family:sans-serif\"><h2>Login successful</h2><p>You can close this tab and return to Proton.</p></body></html>";
+const PAGE_ERR: &str = "<!doctype html><html><body style=\"font-family:sans-serif\"><h2>Login failed</h2><p>You can close this tab and return to Proton.</p></body></html>";
 
-  while (Utc::now() - start) < Duration::minutes(10) {
-    if window.title().is_err() {
-      debug!("User closed window canceling");
-      return Err(AuthError::Closed.into());
+/// Accepts redirect connections until one carries a code (or an error) for our state
+async fn wait_for_code(listener: &TcpListener, state: &str) -> Result<String> {
+  loop {
+    let (mut stream, _) = listener.accept().await?;
+    let mut line = String::new();
+    let read = timeout(
+      READ_TIMEOUT,
+      BufReader::new(&mut stream).read_line(&mut line),
+    )
+    .await;
+    if !matches!(read, Ok(Ok(_))) {
+      continue;
     }
 
-    if window.url()?.as_str().starts_with(REDIRECT_URI) {
-      let url = window.url()?;
-
-      let code = url.query_pairs().find(|(key, _)| key == "code");
-
-      window.close()?;
-      handle
-        .get_webview_window("main")
-        .ok_or(AuthError::Closed)?
-        .set_focus()?;
-
-      let code = code.ok_or(AuthError::NoCode)?.1.to_string();
-
-      let req = client.post(MS_TOKEN_URL).form(&vec![
-        ("client_id", CLIENT_ID),
-        ("code", &code),
-        ("redirect_uri", REDIRECT_URI),
-        ("grant_type", "authorization_code"),
-      ]);
-      debug!("Retrieving ms token with code: {}", code);
-
-      let res = req.send().await?.error_for_status()?;
-      debug!("Got response with code: {}", res.status());
-
-      let res: MSTokenRes = res.json().await?;
-
-      return Ok(MsToken {
-        access_token: res.access_token,
-        access_token_expires: Utc::now() + Duration::seconds(res.expires_in as i64),
-        refresh_token: res.refresh_token,
-      });
+    let result = parse_redirect(&line, state);
+    let (status, body) = match &result {
+      Ok(None) => ("404 Not Found", ""),
+      Ok(Some(_)) => ("200 OK", PAGE_OK),
+      Err(_) => ("400 Bad Request", PAGE_ERR),
+    };
+    let res = format!(
+      "HTTP/1.1 {status}\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+      body.len()
+    );
+    if let Err(e) = stream.write_all(res.as_bytes()).await {
+      warn!("Failed to answer the login redirect: {e}");
     }
+    let _ = stream.shutdown().await;
 
-    sleep(std::time::Duration::from_millis(50)).await;
+    if let Some(code) = result? {
+      return Ok(code);
+    }
+  }
+}
+
+/// Parses the request line of a redirect. `Ok(None)` for unrelated requests (favicon, ...).
+fn parse_redirect(request_line: &str, state: &str) -> Result<Option<String>> {
+  let Some(target) = request_line
+    .strip_prefix("GET ")
+    .and_then(|r| r.split_whitespace().next())
+  else {
+    return Ok(None);
+  };
+  let Ok(url) = Url::parse(&format!("http://localhost{target}")) else {
+    return Ok(None);
+  };
+  if url.path() != "/" {
+    return Ok(None);
+  }
+  let query: HashMap<_, _> = url.query_pairs().collect();
+  let (code, error) = (query.get("code"), query.get("error"));
+  if code.is_none() && error.is_none() {
+    return Ok(None);
+  }
+  if query.get("state").map(|s| s.as_ref()) != Some(state) {
+    return Err(AuthError::StateMismatch.into());
+  }
+  if let Some(error) = error {
+    let desc = query.get("error_description").unwrap_or(error);
+    return Err(AuthError::Denied(desc.to_string()).into());
+  }
+  Ok(code.map(|c| c.to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+  use tokio::{io::AsyncReadExt, net::TcpStream};
+
+  use super::*;
+
+  async fn get(addr: std::net::SocketAddr, target: &str) -> String {
+    let mut stream = TcpStream::connect(addr).await.unwrap();
+    stream
+      .write_all(format!("GET {target} HTTP/1.1\r\nHost: localhost\r\n\r\n").as_bytes())
+      .await
+      .unwrap();
+    let mut res = String::new();
+    stream.read_to_string(&mut res).await.unwrap();
+    res
   }
 
-  debug!("Login timed out");
+  async fn server(
+    state: &str,
+  ) -> (
+    std::net::SocketAddr,
+    tokio::task::JoinHandle<Result<String>>,
+  ) {
+    let listener = bind_redirect("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let state = state.to_string();
+    let task = tokio::spawn(async move { wait_for_code(&listener, &state).await });
+    (addr, task)
+  }
 
-  window.close()?;
+  #[tokio::test]
+  async fn extracts_code_and_ignores_unrelated() {
+    let (addr, task) = server("s1").await;
+    assert!(get(addr, "/favicon.ico").await.starts_with("HTTP/1.1 404"));
+    assert!(get(addr, "/").await.starts_with("HTTP/1.1 404"));
+    let res = get(addr, "/?code=abc%2Fd&state=s1").await;
+    assert!(res.starts_with("HTTP/1.1 200") && res.contains("Login successful"));
+    assert_eq!(task.await.unwrap().unwrap(), "abc/d");
+  }
 
-  Err(AuthError::Timeout.into())
+  #[tokio::test]
+  async fn rejects_state_mismatch() {
+    let (addr, task) = server("s1").await;
+    assert!(
+      get(addr, "/?code=abc&state=evil")
+        .await
+        .contains("Login failed")
+    );
+    let err = task.await.unwrap().unwrap_err();
+    assert!(matches!(err.downcast_ref(), Some(AuthError::StateMismatch)));
+  }
+
+  #[tokio::test]
+  async fn reports_error_param() {
+    let (addr, task) = server("s1").await;
+    get(
+      addr,
+      "/?error=access_denied&error_description=User+cancelled&state=s1",
+    )
+    .await;
+    let err = task.await.unwrap().unwrap_err();
+    assert_eq!(err.to_string(), "Microsoft login failed: User cancelled");
+  }
+
+  #[tokio::test]
+  async fn cancel_frees_the_port_and_busy_port_is_clear() {
+    let (addr, task) = server("s1").await;
+    let busy = bind_redirect(&addr.to_string()).await.unwrap_err();
+    assert!(matches!(busy.downcast_ref(), Some(AuthError::PortInUse(p)) if *p == addr.port()));
+
+    task.abort();
+    assert!(task.await.unwrap_err().is_cancelled());
+    bind_redirect(&addr.to_string()).await.unwrap();
+  }
+
+  #[test]
+  fn authorize_url_has_all_params() {
+    let url = authorize_url("xyz").unwrap();
+    let q: HashMap<_, _> = url.query_pairs().collect();
+    assert_eq!(q["state"], "xyz");
+    assert_eq!(q["redirect_uri"], REDIRECT_URI);
+    assert_eq!(q["scope"], SCOPE);
+    assert_eq!(q["response_type"], "code");
+    assert_eq!(q["prompt"], "select_account");
+    assert_eq!(q["client_id"], CLIENT_ID);
+  }
 }
