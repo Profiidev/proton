@@ -185,7 +185,7 @@ impl ConsoleBar {
     }
   }
 
-  fn set_mode(&mut self, mode: usize, cx: &mut Context<Self>) {
+  pub(super) fn set_mode(&mut self, mode: usize, cx: &mut Context<Self>) {
     if mode != self.mode {
       self.mode = mode;
       self.apply_filter(cx);

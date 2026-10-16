@@ -93,7 +93,9 @@ impl OfflineExt for App {
 /// Loads the settings from the store and starts the offline listener. Does not check the
 /// connection, the startup sequence calls `try_reconnect`.
 pub fn init(cx: &mut App) {
-  let settings = Settings::load().log_err().unwrap_or_default();
+  let mut settings = Settings::load().log_err().unwrap_or_default();
+  // runtime value like the tauri `settings_get`: the stored one may come from another machine
+  settings.system_max_mem = settings::system_max_mem();
   let settings = cx.new(|_| settings);
   cx.set_global(SettingsState { settings });
 

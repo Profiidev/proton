@@ -159,6 +159,11 @@ async fn live_log_appends_without_rerendering_the_header(cx: &mut TestAppContext
   assert_eq!(bar.read_with(cx, |b, _| b.renders), renders);
   let log = page.read_with(cx, |p, _| p.log.clone().unwrap());
   assert_eq!(log.read_with(cx, |l, _| l.visible_len()), 5);
+  // "Warnings" hides the INFO lines, "All" brings them back
+  bar.update(cx, |b, cx| b.set_mode(1, cx));
+  assert_eq!(log.read_with(cx, |l, _| l.visible_len()), 0);
+  bar.update(cx, |b, cx| b.set_mode(0, cx));
+  assert_eq!(log.read_with(cx, |l, _| l.visible_len()), 5);
 
   profiles.stop_all(None).await.unwrap();
   wait(cx, "instance gone", |cx| {

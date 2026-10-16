@@ -1,9 +1,10 @@
 //! Header chip + popover over `proton_versions`' downloads. Each row is its own entity: a
-//! progress tick re-renders only that row and the chip, never the panel or the header.
+//! progress tick re-renders only that row and the chip, never the panel or the header. Rows
+//! have a fixed height per state so the open popover draws them `.cached()`.
 
 use gpui_kit::{
   Anchor, AppContext, Context, Entity, InteractiveElement, IntoElement, ParentElement, Render,
-  StatefulInteractiveElement, Styled, Subscription, Window,
+  StatefulInteractiveElement, StyleRefinement, Styled, Subscription, Window,
   assets::IconName,
   base::TestSupportExt,
   component::{
@@ -46,6 +47,17 @@ impl Render for Chip {
   }
 }
 
+/// Title line, progress bar and detail line heights; [`row_style`] adds them up
+const TITLE_H: f32 = 20.;
+const BAR_H: f32 = 8.;
+const DETAIL_H: f32 = 16.;
+const ROW_GAP: f32 = 6.;
+
+fn row_style(running: bool) -> StyleRefinement {
+  let h = TITLE_H + ROW_GAP + BAR_H + if running { ROW_GAP + DETAIL_H } else { 0. };
+  StyleRefinement::default().w_full().h(px(h)).flex_none()
+}
+
 /// One job in the popover
 pub struct DownloadRowView {
   row: Entity<DownloadProgress>,
@@ -74,6 +86,7 @@ impl Render for DownloadRowView {
         div()
           .flex()
           .items_center()
+          .h(px(TITLE_H))
           .gap_2()
           .child(
             div()
@@ -111,6 +124,7 @@ impl Render for DownloadRowView {
           div()
             .flex()
             .justify_between()
+            .h(px(DETAIL_H))
             .text_xs()
             .text_color(theme.muted_foreground)
             .child(row.detail())
@@ -124,7 +138,8 @@ impl Render for DownloadRowView {
 pub struct DownloadsPanel {
   rows: Vec<Entity<DownloadRowView>>,
   chip: Entity<Chip>,
-  all_running: bool,
+  /// per row, picks its cached height; all true disables "Clear finished"
+  running: Vec<bool>,
   /// one per row, rebuilt when the list changes
   row_subs: Vec<Subscription>,
 }
@@ -140,7 +155,7 @@ impl DownloadsPanel {
     let mut this = Self {
       rows: vec![],
       chip: cx.new(|_| Chip::default()),
-      all_running: true,
+      running: vec![],
       row_subs: vec![],
     };
     this.sync_rows(cx);
@@ -160,24 +175,23 @@ impl DownloadsPanel {
     self.sync_summary(cx);
   }
 
-  /// Updates the chip; the panel itself re-renders only when "Clear finished" flips
+  /// Updates the chip; the panel itself re-renders only when a row starts or stops running
   fn sync_summary(&mut self, cx: &mut Context<Self>) {
     let list = cx.versions().downloads.read(cx);
     let rows: Vec<&DownloadProgress> = list.rows().map(|r| r.read(cx)).collect();
-    let running = rows.iter().filter(|r| r.is_running()).count();
+    let flags: Vec<bool> = rows.iter().map(|r| r.is_running()).collect();
     let chip = Chip {
-      running,
+      running: flags.iter().filter(|r| **r).count(),
       percent: running_percent(rows.iter().copied()) as f32,
     };
-    let all_running = running == rows.len();
     self.chip.update(cx, |c, cx| {
       if *c != chip {
         *c = chip;
         cx.notify();
       }
     });
-    if all_running != self.all_running {
-      self.all_running = all_running;
+    if flags != self.running {
+      self.running = flags;
       cx.notify();
     }
   }
@@ -197,18 +211,23 @@ impl Render for DownloadsPanel {
       .text_xs()
       .child(self.chip.clone());
 
-    let rows = self.rows.clone();
-    let all_running = self.all_running;
+    let rows: Vec<_> = self
+      .rows
+      .iter()
+      .zip(&self.running)
+      .map(|(row, running)| (row.clone(), *running))
+      .collect();
+    let all_running = self.running.iter().all(|r| *r);
     Popover::new("downloads-popover")
       .anchor(Anchor::TopRight)
       .trigger(trigger)
-      .content(move |_, _, cx| panel(rows.clone(), all_running, cx))
+      .content(move |_, _, cx| panel(&rows, all_running, cx))
       .into_any_element()
   }
 }
 
 fn panel(
-  rows: Vec<Entity<DownloadRowView>>,
+  rows: &[(Entity<DownloadRowView>, bool)],
   all_running: bool,
   cx: &mut gpui_kit::App,
 ) -> impl IntoElement + use<> {
@@ -241,7 +260,11 @@ fn panel(
         .flex()
         .flex_col()
         .gap_3()
-        .children(rows),
+        .children(
+          rows
+            .iter()
+            .map(|(row, running)| row.clone().cached(row_style(*running))),
+        ),
     )
     .child(
       div().text_xs().text_color(theme.muted_foreground).child(
@@ -326,5 +349,13 @@ mod tests {
     assert_eq!(row.read_with(cx, |r, _| r.status), DownloadStatus::Canceled);
     // "Clear finished" got enabled
     assert_eq!(panel_n.get(), before + 1);
+    cx.update_window(window, |_, window, cx| {
+      window.render_frame(cx);
+      window.click("downloads-clear".to_string(), cx);
+    })
+    .unwrap();
+    cx.run_until_parked();
+    assert!(cx.read(|cx| cx.versions().downloads.read(cx).get(a).is_none()));
+    assert_eq!(panel.read_with(cx, |p, _| p.rows.len()), 1);
   }
 }

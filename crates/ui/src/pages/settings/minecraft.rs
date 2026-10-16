@@ -151,6 +151,8 @@ impl Render for MinecraftPage {
           Button::new("add-folder")
             .outline()
             .small()
+            // shadcn size sm, the kit's small is 24px
+            .h_7()
             .icon(IconName::FolderPlus)
             .label("Add folder")
             .on_click(cx.listener(|this, _, window, cx| this.add_dir(window, cx))),

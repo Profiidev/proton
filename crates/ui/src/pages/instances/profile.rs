@@ -87,7 +87,8 @@ impl Render for ProfileInstancesPage {
         el.child(
           empty_state(
             "Not running",
-            "This profile has no running instance. Press Play above to start one.",
+            // the reference balances the two lines (`text-balance`)
+            "This profile has no running instance.\nPress Play above to start one.",
           )
           .flex_none(),
         )
