@@ -46,7 +46,9 @@ impl ProfileHeader {
       cx.observe(&profiles.instances, |this, _, cx| this.sync_running(cx)),
     ];
     if let Some(content) = cx.try_global::<Content>().cloned() {
-      subscriptions.push(cx.observe(&content.pack_updates, |this, _, cx| this.sync_pack_update(cx)));
+      subscriptions.push(cx.observe(&content.pack_updates, |this, _, cx| {
+        this.sync_pack_update(cx)
+      }));
     }
     let mut this = Self {
       id,

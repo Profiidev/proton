@@ -5,8 +5,8 @@ use std::{collections::HashSet, rc::Rc, time::Duration};
 use chrono::{DateTime, Utc};
 use gpui_kit::{
   AnyElement, App, AppContext, Context, Entity, FontWeight, ImageSource, InteractiveElement,
-  IntoElement, ListAlignment, ListState, ParentElement, Render, SharedString,
-  Styled, Subscription, Task, WeakEntity, Window,
+  IntoElement, ListAlignment, ListState, ParentElement, Render, SharedString, Styled, Subscription,
+  Task, WeakEntity, Window,
   assets::IconName,
   component::{
     ActiveTheme, Disableable, Icon, IndexPath, Sizable,
@@ -30,7 +30,9 @@ use proton_components::widgets::{
 };
 use proton_content::{
   ContentExt, InstalledContent,
-  model::{ContentKind, Environment, ProjectSummary, SearchQuery, SearchResult, SearchSort, Source},
+  model::{
+    ContentKind, Environment, ProjectSummary, SearchQuery, SearchResult, SearchSort, Source,
+  },
 };
 use proton_profiles::ProfilesExt;
 use proton_versions::{VersionsExt, loader::LoaderType};
@@ -137,7 +139,12 @@ impl DiscoverPage {
     let search = cx.new(|cx| InputState::new(window, cx).placeholder(format!("Search {noun}")));
     let sort = cx.new(|cx| {
       SelectState::new(
-        SearchableVec::new(SORTS.iter().map(|(_, l)| SharedString::from(*l)).collect::<Vec<_>>()),
+        SearchableVec::new(
+          SORTS
+            .iter()
+            .map(|(_, l)| SharedString::from(*l))
+            .collect::<Vec<_>>(),
+        ),
         Some(IndexPath::default().row(0)),
         window,
         cx,
@@ -429,7 +436,11 @@ fn skeleton_card(cx: &App) -> impl IntoElement {
 }
 
 impl DiscoverPage {
-  fn aside(&self, target: Option<&proton_profiles::config::Profile>, cx: &mut Context<Self>) -> impl IntoElement {
+  fn aside(
+    &self,
+    target: Option<&proton_profiles::config::Profile>,
+    cx: &mut Context<Self>,
+  ) -> impl IntoElement {
     let theme = cx.theme();
     let muted = theme.muted_foreground;
     let compatible = self.compatible(target.map(|t| t.id.as_str()));
@@ -457,7 +468,11 @@ impl DiscoverPage {
               .flex()
               .flex_col()
               .gap(px(2.))
-              .child(div().font_weight(FontWeight::MEDIUM).child("Compatible only"))
+              .child(
+                div()
+                  .font_weight(FontWeight::MEDIUM)
+                  .child("Compatible only"),
+              )
               .child(div().text_xs().text_color(muted).child(sub)),
           )
           .child(
@@ -509,8 +524,11 @@ impl DiscoverPage {
 
     if self.kind != ContentKind::Shader && !compatible {
       sections.push(
-        group("Game version", vec![self.game_version.clone().into_any_element()])
-          .into_any_element(),
+        group(
+          "Game version",
+          vec![self.game_version.clone().into_any_element()],
+        )
+        .into_any_element(),
       );
     }
 
@@ -534,19 +552,22 @@ impl DiscoverPage {
     }
 
     if self.kind == ContentKind::Mod {
-      let envs = [(Environment::Client, "Client"), (Environment::Server, "Server")]
-        .into_iter()
-        .map(|(env, label)| {
-          Checkbox::new(label)
-            .checked(self.filters.environment == Some(env))
-            .label(label)
-            .on_click(cx.listener(move |this, on: &bool, _, cx| {
-              this.filters.environment = on.then_some(env);
-              this.refresh(cx);
-            }))
-            .into_any_element()
-        })
-        .collect();
+      let envs = [
+        (Environment::Client, "Client"),
+        (Environment::Server, "Server"),
+      ]
+      .into_iter()
+      .map(|(env, label)| {
+        Checkbox::new(label)
+          .checked(self.filters.environment == Some(env))
+          .label(label)
+          .on_click(cx.listener(move |this, on: &bool, _, cx| {
+            this.filters.environment = on.then_some(env);
+            this.refresh(cx);
+          }))
+          .into_any_element()
+      })
+      .collect();
       sections.push(group("Runs on", envs).into_any_element());
     }
 
@@ -633,7 +654,10 @@ impl DiscoverPage {
           .into_any_element();
       }
       let (title, text) = if self.failed {
-        ("Search failed".to_string(), "Check your connection and try again.")
+        (
+          "Search failed".to_string(),
+          "Check your connection and try again.",
+        )
       } else {
         (
           format!("No {noun} found"),
@@ -708,7 +732,11 @@ impl DiscoverPage {
     .icon(project.icon_url.clone().map(ImageSource::from))
     .byline(logic::source_label(project.source), &project.author)
     .description(project.description.clone())
-    .tags(logic::card_tags(&project).into_iter().map(SharedString::from))
+    .tags(
+      logic::card_tags(&project)
+        .into_iter()
+        .map(SharedString::from),
+    )
     .downloads(project.downloads)
     .when_some(
       project.updated_at.parse::<DateTime<Utc>>().ok(),
@@ -855,9 +883,8 @@ mod tests {
         warnings: vec![],
       }))
     });
-    let (page, cx) = cx.add_window_view(|window, cx| {
-      DiscoverPage::with_search(Kind::Modpack, search, window, cx)
-    });
+    let (page, cx) =
+      cx.add_window_view(|window, cx| DiscoverPage::with_search(Kind::Modpack, search, window, cx));
     cx.run_until_parked();
     assert_eq!(*seen.borrow(), [""]);
 

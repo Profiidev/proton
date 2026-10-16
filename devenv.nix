@@ -26,6 +26,7 @@ let
 
     udev # oshi
 
+    wayland
     vulkan-loader # VulkanMod's lwjgl
 
     ## narrator

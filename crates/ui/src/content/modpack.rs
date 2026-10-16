@@ -310,13 +310,9 @@ impl ModpackInstallDialog {
     }
 
     let name = self.name.read(cx).value().trim().to_string();
-    let task = cx.content().modpack_install(
-      plan,
-      name.clone(),
-      found,
-      format!("{name}: install"),
-      cx,
-    );
+    let task =
+      cx.content()
+        .modpack_install(plan, name.clone(), found, format!("{name}: install"), cx);
     cx.spawn(async move |_, cx| {
       let res = task.await;
       cx.update(|cx| match res {
@@ -351,7 +347,9 @@ impl Render for ModpackInstallDialog {
       && self.name.read(cx).value() == self.auto_name.as_str()
     {
       self.auto_name = plan_name.clone();
-      self.name.update(cx, |n, cx| n.set_value(plan_name, window, cx));
+      self
+        .name
+        .update(cx, |n, cx| n.set_value(plan_name, window, cx));
     }
     let current = self.current().cloned();
     let icon = current

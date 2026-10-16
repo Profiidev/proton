@@ -3,9 +3,8 @@
 use std::rc::Rc;
 
 use gpui_kit::{
-  AppContext,
-  App, Context, FontWeight, InteractiveElement, IntoElement, ParentElement, Render, SharedString,
-  StatefulInteractiveElement, Styled, TestSupportExt, WeakEntity, Window,
+  App, AppContext, Context, FontWeight, InteractiveElement, IntoElement, ParentElement, Render,
+  SharedString, StatefulInteractiveElement, Styled, TestSupportExt, WeakEntity, Window,
   assets::IconName,
   component::{
     ActiveTheme, Icon, Sizable,
@@ -204,7 +203,8 @@ impl Render for ContentRow {
     let target = file.clone();
     div()
       .id(SharedString::from(file.clone()))
-      .w_full().h(px(ROW_HEIGHT))
+      .w_full()
+      .h(px(ROW_HEIGHT))
       .flex()
       .items_center()
       .gap_3()
@@ -281,7 +281,8 @@ impl Render for ContentRow {
       )
       .child(
         div()
-          .w(px(104.)).flex()
+          .w(px(104.))
+          .flex()
           .flex_none()
           .child(chip(source_label(entry.source), cx)),
       )

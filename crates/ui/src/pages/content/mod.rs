@@ -14,8 +14,7 @@ use std::{
 use gpui_kit::{
   App, AppContext, Context, Entity, ExternalPaths, FontWeight, InteractiveElement, IntoElement,
   ListSizingBehavior, ParentElement, Render, SharedString, Styled, Subscription, Task,
-  TestSupportExt,
-  UniformListScrollHandle, Window,
+  TestSupportExt, UniformListScrollHandle, Window,
   assets::IconName,
   component::{
     ActiveTheme, Disableable, Icon, IndexPath, Sizable,
@@ -52,7 +51,15 @@ use crate::{
 pub fn register(cx: &mut App) {
   PageFactory::register(
     cx,
-    |r| matches!(r, Route::Profile { tab: ProfileTab::Content(_), .. }),
+    |r| {
+      matches!(
+        r,
+        Route::Profile {
+          tab: ProfileTab::Content(_),
+          ..
+        }
+      )
+    },
     |route, window, cx| {
       let Route::Profile {
         id,
@@ -124,13 +131,17 @@ pub struct ContentPage {
 }
 
 impl ContentPage {
-  pub fn new(profile: String, kind: ContentKind, window: &mut Window, cx: &mut Context<Self>) -> Self {
+  pub fn new(
+    profile: String,
+    kind: ContentKind,
+    window: &mut Window,
+    cx: &mut Context<Self>,
+  ) -> Self {
     let installed = cx.content().clone().installed(&profile, cx);
     let updates = cx.content().updates.clone();
     let noun = word(kind);
-    let search = cx.new(|cx| {
-      InputState::new(window, cx).placeholder(format!("Search installed {noun}s"))
-    });
+    let search =
+      cx.new(|cx| InputState::new(window, cx).placeholder(format!("Search installed {noun}s")));
     let labels = RowStatus::ALL.map(|(_, l)| SharedString::from(l)).to_vec();
     let status_select = cx.new(|cx| {
       SelectState::new(
@@ -253,11 +264,7 @@ impl ContentPage {
   }
 
   /// Toasts a failed command, then resyncs rows that were changed optimistically
-  fn finish(
-    &self,
-    task: Task<anyhow::Result<()>>,
-    cx: &mut Context<Self>,
-  ) -> Task<bool> {
+  fn finish(&self, task: Task<anyhow::Result<()>>, cx: &mut Context<Self>) -> Task<bool> {
     cx.spawn(async move |this, cx| {
       let res = task.await;
       if let Err(e) = &res {
@@ -477,19 +484,21 @@ impl ContentPage {
   fn tabs(&self) -> impl IntoElement {
     let profile = self.profile.clone();
     let selected = LIST_KINDS.iter().position(|k| *k == self.kind).unwrap_or(0);
-    div().flex().child(
-      TabBar::new("content-tabs")
-        .segmented()
-        .selected_index(selected)
-        .on_click(move |ix, _, cx| {
-          cx.navigate(Route::Profile {
-            id: profile.clone(),
-            tab: ProfileTab::Content(route_kind(LIST_KINDS[*ix])),
+    div()
+      .flex()
+      .child(
+        TabBar::new("content-tabs")
+          .segmented()
+          .selected_index(selected)
+          .on_click(move |ix, _, cx| {
+            cx.navigate(Route::Profile {
+              id: profile.clone(),
+              tab: ProfileTab::Content(route_kind(LIST_KINDS[*ix])),
+            })
           })
-        })
-        .children(["Mods", "Resource packs", "Shaders"].map(|l| Tab::new().label(l))),
-    )
-    .into_any_element()
+          .children(["Mods", "Resource packs", "Shaders"].map(|l| Tab::new().label(l))),
+      )
+      .into_any_element()
   }
 
   fn toolbar(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -569,11 +578,9 @@ impl ContentPage {
                 .font_weight(FontWeight::MEDIUM)
                 .child(format!("{} can be updated", plural(n, word(self.kind)))),
             )
-            .child(
-              div()
-                .text_color(theme.muted_foreground)
-                .child(format!("Newer versions compatible with {loader} {version} are available.")),
-            ),
+            .child(div().text_color(theme.muted_foreground).child(format!(
+              "Newer versions compatible with {loader} {version} are available."
+            ))),
         )
         .child(
           Button::new("update-all")
@@ -820,7 +827,9 @@ impl ContentPage {
       .text_sm()
       .text_color(theme.muted_foreground)
       .group_drag_over::<ExternalPaths>("content-page", move |s| {
-        s.border_color(primary).bg(primary.opacity(0.1)).text_color(fg)
+        s.border_color(primary)
+          .bg(primary.opacity(0.1))
+          .text_color(fg)
       })
       .child(Icon::new(IconName::Upload).size_5())
       .child(format!(
@@ -841,9 +850,11 @@ impl Render for ContentPage {
       .flex()
       .flex_col()
       .gap_3()
-      .on_drop(cx.listener(|this, paths: &ExternalPaths, _, cx| {
-        this.add_paths(paths.paths().to_vec(), cx)
-      }))
+      .on_drop(
+        cx.listener(|this, paths: &ExternalPaths, _, cx| {
+          this.add_paths(paths.paths().to_vec(), cx)
+        }),
+      )
       .child(self.tabs())
       .child(self.toolbar(cx))
       .children(self.update_alert(cx))

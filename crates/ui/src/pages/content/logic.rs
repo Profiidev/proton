@@ -137,9 +137,10 @@ pub fn blocking_dependents<'a>(entry: &Installed, all: &'a [Installed]) -> Vec<&
     .iter()
     .filter(|other| {
       other.file_name != entry.file_name
-        && entry.dependency_of.iter().any(|dep| {
-          Some(dep.as_str()) == other.project_id.as_deref() || *dep == other.file_name
-        })
+        && entry
+          .dependency_of
+          .iter()
+          .any(|dep| Some(dep.as_str()) == other.project_id.as_deref() || *dep == other.file_name)
     })
     .collect()
 }

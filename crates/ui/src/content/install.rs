@@ -19,7 +19,9 @@ use gpui_kit::{
   prelude::FluentBuilder,
   px,
 };
-use proton_components::widgets::{chip, colors, form::VersionSelect, input_tile, profile::ProfileIcon};
+use proton_components::widgets::{
+  chip, colors, form::VersionSelect, input_tile, profile::ProfileIcon,
+};
 use proton_content::{
   ContentError, ContentExt,
   model::{InstallPlan, PickRef, PlanReason, VersionInfo},
@@ -170,10 +172,9 @@ impl InstallDialog {
     } else {
       "pack"
     };
-    let description: SharedString = format!(
-      "Choose which profile gets this {noun}. Only compatible profiles can be selected."
-    )
-    .into();
+    let description: SharedString =
+      format!("Choose which profile gets this {noun}. Only compatible profiles can be selected.")
+        .into();
     let view = cx.new(|cx| {
       let mut this = Self::new(project, version_id, window, cx);
       this.chosen = target;
@@ -183,11 +184,7 @@ impl InstallDialog {
       dialog
         .title(title.clone())
         .w(px(520.))
-        .child(
-          DialogDescription::new()
-            .mb_2()
-            .child(description.clone()),
-        )
+        .child(DialogDescription::new().mb_2().child(description.clone()))
         .child(view.clone())
     });
   }
@@ -201,8 +198,8 @@ impl InstallDialog {
     let search = cx.new(|cx| InputState::new(window, cx).placeholder("Search profiles"));
     let this = cx.entity().downgrade();
     let select = cx.new(|cx| {
-      let mut s = VersionSelect::new("Version", vec![], None, window, cx).on_change(
-        move |label, _, cx| {
+      let mut s =
+        VersionSelect::new("Version", vec![], None, window, cx).on_change(move |label, _, cx| {
           let label = label.to_string();
           let _ = this.update(cx, |this, cx| {
             let v = this
@@ -212,8 +209,7 @@ impl InstallDialog {
               .cloned();
             this.set_version(v, cx);
           });
-        },
-      );
+        });
       s.set_disabled(true, cx);
       s
     });
@@ -221,7 +217,9 @@ impl InstallDialog {
     let target = target(cx);
     let icons = profile_icons(cx);
     let subs = vec![
-      cx.observe_in(&profiles, window, |this, _, window, cx| this.sync(window, cx)),
+      cx.observe_in(&profiles, window, |this, _, window, cx| {
+        this.sync(window, cx)
+      }),
       cx.observe_in(&target, window, |this, _, window, cx| this.sync(window, cx)),
       cx.observe(&icons, |_, _, cx| cx.notify()),
       cx.subscribe(&search, |_, _, e: &InputEvent, cx| {
@@ -392,9 +390,7 @@ impl InstallDialog {
         let name = file.file_name.clone();
         let task = cx.update(|cx| cx.content().clone().adopt_file(&profile.id, file, path, cx));
         if let Err(e) = task.await {
-          cx.update(|cx| {
-            toast_error(&format!("Failed to add {name} to {}", profile.name), &e, cx)
-          });
+          cx.update(|cx| toast_error(&format!("Failed to add {name} to {}", profile.name), &e, cx));
           return;
         }
       }
@@ -485,11 +481,7 @@ impl Render for InstallDialog {
               .checked(checked)
               .disabled(!compat.ok),
           )
-          .child(
-            ProfileIcon::new(icon)
-              .size(px(36.))
-              .fallback_size(px(20.)),
-          )
+          .child(ProfileIcon::new(icon).size(px(36.)).fallback_size(px(20.)))
           .child(
             div()
               .flex()
@@ -658,7 +650,10 @@ mod tests {
       ]
     );
     let (handle, _) = test_view::open(cx, move |_, cx| {
-      div().w(px(520.)).child(plan_view(&plan, cx)).into_any_element()
+      div()
+        .w(px(520.))
+        .child(plan_view(&plan, cx))
+        .into_any_element()
     });
     cx.update_window(handle, |_, window, cx| {
       window.render_frame(cx);

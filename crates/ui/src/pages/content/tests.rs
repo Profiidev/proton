@@ -169,7 +169,8 @@ fn toggle_disables_and_re_renders_only_that_row(cx: &mut TestAppContext) {
 
   let after = renders(&page, cx);
   for (file, n) in &after {
-    let expected = before.get(file).copied().unwrap_or(2) + usize::from(file.starts_with("fabric-api"));
+    let expected =
+      before.get(file).copied().unwrap_or(2) + usize::from(file.starts_with("fabric-api"));
     assert_eq!(*n, expected, "{file}");
   }
 }
@@ -191,7 +192,10 @@ fn dropping_files_adds_them(cx: &mut TestAppContext) {
       PlatformInput::FileDrop(FileDropEvent::Entered { position, paths }),
       cx,
     );
-    window.dispatch_event(PlatformInput::FileDrop(FileDropEvent::Submit { position }), cx);
+    window.dispatch_event(
+      PlatformInput::FileDrop(FileDropEvent::Submit { position }),
+      cx,
+    );
   })
   .unwrap();
   wait(cx, || {

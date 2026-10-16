@@ -81,7 +81,12 @@ impl Render for Duplicate {
           .flex()
           .flex_col()
           .gap(px(6.))
-          .child(div().text_sm().font_weight(FontWeight::MEDIUM).child("Name"))
+          .child(
+            div()
+              .text_sm()
+              .font_weight(FontWeight::MEDIUM)
+              .child("Name"),
+          )
           .child(Input::new(&self.name)),
       )
       .child(
@@ -111,13 +116,15 @@ pub fn open_duplicate_dialog(profile: String, window: &mut Window, cx: &mut App)
   };
   let view = cx.new(|cx| {
     let name = cx.new(|cx| InputState::new(window, cx).default_value(format!("{original} (copy)")));
-    let sub = cx.subscribe_in(&name, window, |this: &mut Duplicate, _, e, window, cx| {
-      match e {
+    let sub = cx.subscribe_in(
+      &name,
+      window,
+      |this: &mut Duplicate, _, e, window, cx| match e {
         InputEvent::PressEnter { .. } => this.submit(window, cx),
         InputEvent::Change => cx.notify(),
         _ => {}
-      }
-    });
+      },
+    );
     Duplicate {
       profile,
       original,

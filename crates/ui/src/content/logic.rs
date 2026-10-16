@@ -158,7 +158,11 @@ pub fn build_query(
       filters.game_version.clone()
     },
     categories: filters.categories.clone(),
-    environment: if has_loaders { filters.environment } else { None },
+    environment: if has_loaders {
+      filters.environment
+    } else {
+      None
+    },
     sort: filters.sort,
     offset,
     limit: PAGE_SIZE,
@@ -314,7 +318,10 @@ pub fn version_label(v: &VersionInfo) -> String {
 }
 
 /// `id` when listed, else the newest release, else the newest version (lists are newest first)
-pub fn default_version<'a>(versions: &'a [VersionInfo], id: Option<&str>) -> Option<&'a VersionInfo> {
+pub fn default_version<'a>(
+  versions: &'a [VersionInfo],
+  id: Option<&str>,
+) -> Option<&'a VersionInfo> {
   use proton_content::model::Channel;
   versions
     .iter()
@@ -513,12 +520,21 @@ pub(crate) mod tests {
     };
     let q = build_query(ContentKind::Mod, &filters, Some("x"), 40);
     assert_eq!(
-      (q.query.as_str(), q.offset, q.limit, &q.loaders, q.game_version.as_deref()),
+      (
+        q.query.as_str(),
+        q.offset,
+        q.limit,
+        &q.loaders,
+        q.game_version.as_deref()
+      ),
       ("sodium", 40, 20, &s(&["forge"]), Some("1.20"))
     );
     assert_eq!(q.environment, Some(Environment::Client));
     assert_eq!(q.compatible_with, None);
-    assert_eq!((q.categories, q.sort), (s(&["tech"]), SearchSort::Downloads));
+    assert_eq!(
+      (q.categories, q.sort),
+      (s(&["tech"]), SearchSort::Downloads)
+    );
 
     let compatible = Filters {
       compatible: true,
@@ -590,17 +606,29 @@ pub(crate) mod tests {
       runs_on(Some("required"), Some("optional")),
       Some("Client and server")
     );
-    assert_eq!(runs_on(Some("required"), Some("unsupported")), Some("Client"));
+    assert_eq!(
+      runs_on(Some("required"), Some("unsupported")),
+      Some("Client")
+    );
     assert_eq!(runs_on(None, None), None);
 
-    assert!(shader_ready(&[installed("YL57xq9U"), installed("AANobbMI")]));
+    assert!(shader_ready(&[
+      installed("YL57xq9U"),
+      installed("AANobbMI")
+    ]));
     assert!(!shader_ready(&[installed("455508")]));
 
     assert_eq!(
-      sort_versions(&s(&["1.20", "snap", "1.21"]), &s(&["1.21", "1.20.1", "1.20"])),
+      sort_versions(
+        &s(&["1.20", "snap", "1.21"]),
+        &s(&["1.21", "1.20.1", "1.20"])
+      ),
       s(&["1.21", "1.20", "snap"])
     );
-    assert_eq!(short_list(&s(&["a", "b", "c", "d", "e"]), 3), "a, b, c, +2 more");
+    assert_eq!(
+      short_list(&s(&["a", "b", "c", "d", "e"]), 3),
+      "a, b, c, +2 more"
+    );
     assert_eq!(short_list(&s(&["a", "b"]), 3), "a, b");
 
     let mut p = summary("x");
@@ -618,7 +646,9 @@ pub(crate) mod tests {
     assert_eq!(default_version(&list, Some("3")).unwrap().id, "3");
     assert_eq!(default_version(&list, Some("missing")).unwrap().id, "2");
     assert_eq!(
-      default_version(&[version("1", Channel::Alpha)], None).unwrap().id,
+      default_version(&[version("1", Channel::Alpha)], None)
+        .unwrap()
+        .id,
       "1"
     );
     assert!(default_version(&[], None).is_none());

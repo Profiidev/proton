@@ -21,11 +21,7 @@ use gpui_kit::{
   prelude::FluentBuilder,
   px,
 };
-use proton_components::widgets::{
-  chip, colors,
-  content::ProjectIcon,
-  format::relative_time,
-};
+use proton_components::widgets::{chip, colors, content::ProjectIcon, format::relative_time};
 use proton_content::{
   ContentExt, InstalledContent,
   model::{ContentKind, DependencyKind, Installed, ProjectDetail, Source, VersionInfo},
@@ -74,7 +70,13 @@ pub struct ProjectPage {
 }
 
 impl ProjectPage {
-  pub fn new(id: String, kind: Kind, source: crate::router::Source, window: &mut Window, cx: &mut Context<Self>) -> Self {
+  pub fn new(
+    id: String,
+    kind: Kind,
+    source: crate::router::Source,
+    window: &mut Window,
+    cx: &mut Context<Self>,
+  ) -> Self {
     let kind = logic::content_kind(kind);
     let source = logic::content_source(source);
     let picker = (kind != ContentKind::Modpack).then(|| {
@@ -316,7 +318,11 @@ fn empty(title: &str, text: String, cx: &App) -> AnyElement {
     .border_1()
     .border_dashed()
     .border_color(cx.theme().border)
-    .child(div().font_weight(FontWeight::MEDIUM).child(title.to_string()))
+    .child(
+      div()
+        .font_weight(FontWeight::MEDIUM)
+        .child(title.to_string()),
+    )
     .child(
       div()
         .text_sm()
@@ -376,55 +382,58 @@ impl ProjectPage {
           .child(col(110.).child("Loaders"))
           .child(col(100.).child("Published"))
           .child(col(80.).text_right().child("Action"));
-        let rows = list.iter().enumerate().map(|(ix, v)| {
-          let installed = entry.is_some_and(|e| e.version_id.as_deref() == Some(&v.id));
-          let id = v.id.clone();
-          let channel = serde_json::to_value(v.channel)
-            .ok()
-            .and_then(|c| c.as_str().map(logic::tag_label))
-            .unwrap_or_default();
-          let loaders: Vec<String> = v.loaders.iter().map(|l| logic::tag_label(l)).collect();
-          let published = v
-            .published_at
-            .parse::<DateTime<Utc>>()
-            .map(|t| relative_time(t, now))
-            .unwrap_or_default();
-          div()
-            .flex()
-            .items_center()
-            .gap_3()
-            .min_h_10()
-            .px_3()
-            .py_1()
-            .when(ix + 1 < list.len(), |el| el.border_b_1().border_color(border))
-            .child(
-              div()
-                .flex_1()
-                .min_w_0()
-                .truncate()
-                .font_weight(FontWeight::MEDIUM)
-                .child(v.version_number.clone()),
-            )
-            .child(col(70.).child(channel))
-            .child(col(150.).child(logic::short_list(
-              &logic::sort_versions(&v.game_versions, &self.known),
-              2,
-            )))
-            .child(col(110.).child(loaders.join(", ")))
-            .child(col(100.).child(published))
-            .child(div().w(px(80.)).flex().justify_end().child(if installed {
-              green_chip("Installed", cx).into_any_element()
-            } else {
-              Button::new(("install-version", ix))
-                .outline()
-                .small()
-                .label("Install")
-                .on_click(cx.listener(move |this, _, window, cx| {
-                  this.install(Some(id.clone()), window, cx)
-                }))
-                .into_any_element()
-            }))
-        });
+        let rows =
+          list.iter().enumerate().map(|(ix, v)| {
+            let installed = entry.is_some_and(|e| e.version_id.as_deref() == Some(&v.id));
+            let id = v.id.clone();
+            let channel = serde_json::to_value(v.channel)
+              .ok()
+              .and_then(|c| c.as_str().map(logic::tag_label))
+              .unwrap_or_default();
+            let loaders: Vec<String> = v.loaders.iter().map(|l| logic::tag_label(l)).collect();
+            let published = v
+              .published_at
+              .parse::<DateTime<Utc>>()
+              .map(|t| relative_time(t, now))
+              .unwrap_or_default();
+            div()
+              .flex()
+              .items_center()
+              .gap_3()
+              .min_h_10()
+              .px_3()
+              .py_1()
+              .when(ix + 1 < list.len(), |el| {
+                el.border_b_1().border_color(border)
+              })
+              .child(
+                div()
+                  .flex_1()
+                  .min_w_0()
+                  .truncate()
+                  .font_weight(FontWeight::MEDIUM)
+                  .child(v.version_number.clone()),
+              )
+              .child(col(70.).child(channel))
+              .child(col(150.).child(logic::short_list(
+                &logic::sort_versions(&v.game_versions, &self.known),
+                2,
+              )))
+              .child(col(110.).child(loaders.join(", ")))
+              .child(col(100.).child(published))
+              .child(div().w(px(80.)).flex().justify_end().child(if installed {
+                green_chip("Installed", cx).into_any_element()
+              } else {
+                Button::new(("install-version", ix))
+                  .outline()
+                  .small()
+                  .label("Install")
+                  .on_click(cx.listener(move |this, _, window, cx| {
+                    this.install(Some(id.clone()), window, cx)
+                  }))
+                  .into_any_element()
+              }))
+          });
         div()
           .rounded_xl()
           .border_1()
@@ -446,10 +455,7 @@ impl ProjectPage {
         el.child(
           Switch::new("show-all")
             .checked(self.show_all)
-            .label(format!(
-              "Show all versions, not only those for {}",
-              t.name
-            ))
+            .label(format!("Show all versions, not only those for {}", t.name))
             .on_click(cx.listener(|this, on: &bool, _, cx| {
               this.show_all = *on;
               if *on {
@@ -529,16 +535,25 @@ impl ProjectPage {
     if !summary.game_versions.is_empty() {
       compat = compat.child(kv(
         "Game version",
-        logic::short_list(&logic::sort_versions(&summary.game_versions, &self.known), 3),
+        logic::short_list(
+          &logic::sort_versions(&summary.game_versions, &self.known),
+          3,
+        ),
         cx,
       ));
     }
     if !summary.loaders.is_empty() {
-      let loaders: Vec<String> = summary.loaders.iter().map(|l| logic::tag_label(l)).collect();
+      let loaders: Vec<String> = summary
+        .loaders
+        .iter()
+        .map(|l| logic::tag_label(l))
+        .collect();
       compat = compat.child(kv("Loaders", loaders.join(", "), cx));
     }
-    if let Some(runs) = logic::runs_on(summary.client_side.as_deref(), summary.server_side.as_deref())
-    {
+    if let Some(runs) = logic::runs_on(
+      summary.client_side.as_deref(),
+      summary.server_side.as_deref(),
+    ) {
       compat = compat.child(kv("Runs on", runs, cx));
     }
     compat = compat.child(
@@ -644,7 +659,14 @@ impl ProjectPage {
 
 impl Render for ProjectPage {
   fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-    let root = div().size_full().flex().flex_col().gap_4().px_5().pt_4().pb_6();
+    let root = div()
+      .size_full()
+      .flex()
+      .flex_col()
+      .gap_4()
+      .px_5()
+      .pt_4()
+      .pb_6();
     let Some(detail) = self.detail.clone() else {
       return root.when(self.failed, |el| {
         el.child(empty(
@@ -690,9 +712,9 @@ impl Render for ProjectPage {
         Button::new("install")
           .primary()
           .label(format!("Update to {}", u.latest.version_number))
-          .on_click(cx.listener(move |this, _, window, cx| {
-            this.install(Some(id.clone()), window, cx)
-          }))
+          .on_click(
+            cx.listener(move |this, _, window, cx| this.install(Some(id.clone()), window, cx)),
+          )
       }
       (None, Some(_)) => Button::new("install")
         .secondary()

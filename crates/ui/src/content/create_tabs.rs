@@ -301,12 +301,8 @@ impl Render for ImportFileTab {
           }))
           .map(|el| {
             if self.busy {
-              el.child(Spinner::new().large()).child(
-                div()
-                  .text_sm()
-                  .text_color(muted)
-                  .child("Reading modpack…"),
-              )
+              el.child(Spinner::new().large())
+                .child(div().text_sm().text_color(muted).child("Reading modpack…"))
             } else {
               el.child(Icon::new(IconName::FileUp).size(px(24.)).text_color(muted))
                 .child(
@@ -337,7 +333,10 @@ mod tests {
   #[test]
   fn modpack_queries_and_pack_files() {
     let q = modpack_query("  ");
-    assert_eq!((q.query.as_str(), q.sort, q.limit), ("", SearchSort::Downloads, 10));
+    assert_eq!(
+      (q.query.as_str(), q.sort, q.limit),
+      ("", SearchSort::Downloads, 10)
+    );
     assert_eq!(modpack_query(" fo ").sort, SearchSort::Relevance);
     assert!(is_pack("a/b.MRPACK".as_ref()));
     assert!(is_pack("b.zip".as_ref()));
