@@ -9,10 +9,10 @@ use async_zip::{
   base::{read1::seek::ZipArchiveReader, write::ZipFileWriter},
 };
 use chrono::Utc;
+use proton_utils::rt::spawn_blocking;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha512};
-use tauri::async_runtime::spawn_blocking;
 use tokio::{
   fs,
   io::{AsyncReadExt, BufReader},

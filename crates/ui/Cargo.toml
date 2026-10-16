@@ -8,15 +8,16 @@ license.workspace = true
 
 [dependencies]
 proton_components.workspace = true
+proton_account.workspace = true
+proton_profiles.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
 gpui-kit.workspace = true
 serde.workspace = true
-anyhow.workspace = true
 image.workspace = true
-tracing.workspace = true
 url.workspace = true
 proton_utils.workspace = true
 proton_config.workspace = true
-proton_account.workspace = true
 proton_skin_render = { path = "../skin_render" }
 
 [dev-dependencies]

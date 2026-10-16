@@ -21,8 +21,10 @@ fn main() {
       gpui_kit::init(cx);
       proton_components::assets::load(cx).expect("Failed to load the theme");
       proton_config::init(cx);
-      proton_account::init(cx).expect("Failed to load the accounts");
       proton_versions::init(cx);
+      proton_account::init(cx).expect("Failed to load the accounts");
+      proton_profiles::init(cx);
+      proton_content::init(cx);
       proton_ui::init(cx);
       proton_ui::pages::register_all(cx);
       // start at a route, e.g. `PROTON_ROUTE=/settings/skins` for screenshots
