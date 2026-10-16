@@ -32,7 +32,7 @@ use super::{
     ContentKind, ManualFile, PackCounts, PackFile, PackPlan, PackSource, ProjectSummary, Source,
   },
   provider::{ContentProvider, Providers},
-  store::{self, Entry, Manifest, safe_name},
+  store::{self, Entry, safe_name},
 };
 use crate::{
   profiles::config::Profile,
@@ -665,8 +665,8 @@ async fn extract_overrides(
   Ok(content)
 }
 
-/// Downloads the pack files into the new profile, applies the overrides and writes the manifest.
-/// Ok(false) when canceled, the caller deletes the profile on error or cancel.
+/// Downloads the pack files into the profile, replaces the files of a previously installed pack
+/// version, applies the overrides and writes the manifest. Ok(false) when canceled.
 pub async fn install_files(
   providers: &Providers,
   dir: &Path,
@@ -702,6 +702,17 @@ pub async fn install_files(
     }
     let fingerprints = fetch_all(providers, fetches, plan.total_bytes, progress.clone()).await?;
 
+    // a version change replaces the old pack files, only after the new ones are downloaded
+    // ponytail: old pack files outside the content folders stay, track them when packs leave junk
+    let mut manifest = store::load(dir).await;
+    for entry in manifest.entries.iter().filter(|e| e.from_pack) {
+      let path = store::disk_path(dir, entry.kind, &entry.file_name)?;
+      if path.exists() {
+        fs::remove_file(path).await?;
+      }
+    }
+    manifest.entries.retain(|e| !e.from_pack);
+
     let total = plan.files.len();
     let mut entries = Vec::new();
     for (i, (file, fingerprint)) in plan.files.iter().zip(fingerprints).enumerate() {
@@ -727,12 +738,15 @@ pub async fn install_files(
       }
     }
 
-    let mut manifest = Manifest {
-      entries,
-      ..Default::default()
-    };
     // names and icons, best effort, failed lookups stay pending for the next scan
-    store::identify(providers, manifest.entries.iter_mut().collect()).await;
+    store::identify(providers, entries.iter_mut().collect()).await;
+    // content the user added stays unless the pack now ships the same file
+    manifest.entries.retain(|e| {
+      !entries
+        .iter()
+        .any(|n| n.kind == e.kind && n.file_name == e.file_name)
+    });
+    manifest.entries.extend(entries);
     let _lock = store::lock().await;
     store::save(dir, &manifest).await
   };
@@ -1149,6 +1163,78 @@ mod tests {
         .is_err()
     );
     assert!(!dir.parent().unwrap().join("evil.txt").exists());
+
+    std::fs::remove_dir_all(&dir).unwrap();
+  }
+
+  #[tokio::test]
+  async fn version_change_replaces_pack_files_only() {
+    let dir = temp_dir("modpack-version-change");
+    let mods = dir.join("mods");
+    std::fs::create_dir_all(&mods).unwrap();
+    std::fs::write(mods.join("old.jar.disabled"), b"old").unwrap();
+    std::fs::write(mods.join("user.jar"), b"user").unwrap();
+    let old = pack_entry(ContentKind::Mod, "old.jar".into(), "s".into(), 0);
+    let user = Entry {
+      from_pack: false,
+      ..pack_entry(ContentKind::Mod, "user.jar".into(), "s".into(), 0)
+    };
+    store::save(
+      &dir,
+      &store::Manifest {
+        entries: vec![old, user],
+        ..Default::default()
+      },
+    )
+    .await
+    .unwrap();
+
+    let zip = dir.join("p.zip");
+    let index = json!({
+      "formatVersion": 1, "game": "minecraft", "versionId": "2", "name": "P",
+      "files": [], "dependencies": {"minecraft": "1.21.1"}
+    });
+    write_zip(
+      &zip,
+      &[
+        (INDEX, index.to_string().as_bytes()),
+        ("overrides/mods/new.jar", b"new"),
+      ],
+    )
+    .await;
+    let plan = plan(
+      &Providers::new(),
+      &dir,
+      PackSource::Path { path: zip.clone() },
+    )
+    .await
+    .unwrap();
+    let progress: Progress = Arc::new(|_| {});
+    let done = install_files(
+      &Providers::new(),
+      &dir,
+      &zip,
+      &plan,
+      0,
+      &Notify::new(),
+      progress,
+    )
+    .await
+    .unwrap();
+    assert!(done);
+    assert!(!mods.join("old.jar.disabled").exists());
+    assert!(mods.join("user.jar").exists() && mods.join("new.jar").exists());
+    let mut names: Vec<_> = store::load(&dir)
+      .await
+      .entries
+      .into_iter()
+      .map(|e| (e.file_name, e.from_pack))
+      .collect();
+    names.sort();
+    assert_eq!(
+      names,
+      [("new.jar".into(), true), ("user.jar".into(), false)]
+    );
 
     std::fs::remove_dir_all(&dir).unwrap();
   }

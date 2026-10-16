@@ -20,7 +20,7 @@
   import { CircleArrowUp, Play } from '@lucide/svelte';
   import { Button } from '@profidev/pleiades/components/ui/button';
   import * as Alert from '@profidev/pleiades/components/ui/alert';
-  import { content_updates } from '$lib/tauri/content.svelte';
+  import { content_updates, modpack_updates } from '$lib/tauri/content.svelte';
   import { updates_banner } from '$lib/content';
 
   let sorted_favorites = $derived(
@@ -43,6 +43,9 @@
   );
   let banner = $derived(
     updates_banner(content_updates.value ?? {}, profile_list.value ?? [])
+  );
+  let pack_updates = $derived(
+    (profile_list.value ?? []).filter((p) => modpack_updates.value?.[p.id])
   );
   let current_mods = $derived(
     current && current.loader !== LoaderType.Vanilla
@@ -108,6 +111,27 @@
       <Alert.Description>{banner.description}</Alert.Description>
       <Alert.Action class="top-1/2 right-3 -translate-y-1/2">
         <Button variant="outline" href={banner.href}>Review updates</Button>
+      </Alert.Action>
+    </Alert.Root>
+  {/if}
+
+  {#if pack_updates.length > 0}
+    <Alert.Root class="has-data-[slot=alert-action]:pr-40">
+      <CircleArrowUp />
+      <Alert.Title>
+        {plural(pack_updates.length, 'modpack update')} available
+      </Alert.Title>
+      <Alert.Description>
+        {pack_updates.map((p) => p.name).join(', ')}
+        {pack_updates.length === 1 ? 'has' : 'have'} a new pack version.
+      </Alert.Description>
+      <Alert.Action class="top-1/2 right-3 -translate-y-1/2">
+        <Button
+          variant="outline"
+          href={`/profiles/info?id=${pack_updates[0].id}`}
+        >
+          Review
+        </Button>
       </Alert.Action>
     </Alert.Root>
   {/if}

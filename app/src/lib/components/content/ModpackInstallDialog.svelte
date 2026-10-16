@@ -17,12 +17,13 @@
   import { plural } from '$lib/profiles';
   import { account_active } from '$lib/tauri/account.svelte';
   import { settings_get } from '$lib/tauri/settings.svelte';
-  import { profile_launch } from '$lib/tauri/profile.svelte';
+  import { profile_launch, type Profile } from '$lib/tauri/profile.svelte';
   import {
     ContentError,
     content_versions,
     modpack_install,
     modpack_plan,
+    modpack_update,
     type PackPlan,
     type ProjectSummary,
     type VersionInfo
@@ -32,15 +33,30 @@
   interface Props {
     open?: boolean;
     /** Pack to install, its versions are listed */
-    project?: ProjectSummary;
+    project?: Pick<ProjectSummary, 'source' | 'id' | 'name' | 'iconUrl'>;
     /** Precomputed plan, e.g. from an imported file */
     plan?: PackPlan;
+    /** Modpack profile whose version is changed instead of creating a new profile */
+    profile?: Profile;
   }
 
-  let { open = $bindable(false), project, plan }: Props = $props();
+  let { open = $bindable(false), project, plan, profile }: Props = $props();
+
+  let pack = $derived(
+    project ??
+      (profile?.modpack && {
+        source: profile.modpack.source,
+        id: profile.modpack.projectId,
+        name: profile.name
+      })
+  );
+  let installed = $derived(profile?.modpack?.versionId);
 
   let versions = $state<VersionInfo[]>([]);
   let picked = $state<string>();
+  let installed_label = $derived(
+    versions.find((v) => v.id === installed)?.versionNumber
+  );
   let version = $derived(
     versions.find((v) => v.id === picked) ?? default_version(versions)
   );
@@ -48,8 +64,9 @@
 
   $effect(() => {
     versions = [];
-    if (!open || !project) return;
-    const { source, id } = project;
+    picked = undefined;
+    if (!open || !pack) return;
+    const { source, id } = pack;
     let stale = false;
     void content_versions(source, id).then((list = []) => {
       if (stale) return;
@@ -66,11 +83,11 @@
   $effect(() => {
     remote = undefined;
     remote_error = undefined;
-    if (!project || !version_id) return;
+    if (!pack || !version_id) return;
     let stale = false;
     void modpack_plan({
-      projectId: project.id,
-      source: project.source,
+      projectId: pack.id,
+      source: pack.source,
       type: 'remote',
       versionId: version_id
     }).then((result) => {
@@ -87,7 +104,7 @@
   });
 
   let current = $derived(plan ?? remote);
-  let name = $derived(current?.name ?? project?.name ?? '');
+  let name = $derived(current?.name ?? pack?.name ?? '');
   let start = $state(false);
 
   let max_mem = $derived(settings_get.value?.system_max_mem);
@@ -118,8 +135,16 @@
     // closing resets the reactive plan, keep what this install needs
     const [pack, paths] = [current, found];
     if (!pack) return;
-    const profile_name = name.trim();
     open = false;
+    if (profile) {
+      const { id, name } = profile;
+      const ok = await modpack_update(id, name, pack, paths);
+      if (ok && start) {
+        await profile_launch(id, name, account_active.value);
+      }
+      return;
+    }
+    const profile_name = name.trim();
     const id = await modpack_install(pack, profile_name, paths);
     if (id && start) {
       await profile_launch(id, profile_name, account_active.value);
@@ -132,15 +157,23 @@
     class="max-h-[calc(100vh-32px)] w-[min(540px,calc(100vw-32px))] max-w-none gap-4.5 overflow-y-auto sm:max-w-none"
   >
     <Dialog.Header>
-      <Dialog.Title>Install {current?.name ?? project?.name}</Dialog.Title>
-      <Dialog.Description>
-        This creates a new profile. Your other profiles are not touched.
-      </Dialog.Description>
+      {#if profile}
+        <Dialog.Title>Change version of {profile.name}</Dialog.Title>
+        <Dialog.Description>
+          Pack files are replaced with the chosen version. Content you added
+          stays, edited configs may be overwritten.
+        </Dialog.Description>
+      {:else}
+        <Dialog.Title>Install {current?.name ?? pack?.name}</Dialog.Title>
+        <Dialog.Description>
+          This creates a new profile. Your other profiles are not touched.
+        </Dialog.Description>
+      {/if}
     </Dialog.Header>
 
     <div class="flex items-center gap-3.5">
       <ProjectIcon
-        url={current?.iconUrl ?? project?.iconUrl}
+        url={current?.iconUrl ?? pack?.iconUrl}
         {name}
         class="size-16"
       />
@@ -174,13 +207,22 @@
     </div>
 
     <div class="flex flex-wrap gap-3">
-      <div class="flex min-w-0 flex-[1.4_1_200px] flex-col gap-1.5">
-        <Label for="modpack-name">Profile name</Label>
-        <Input id="modpack-name" bind:value={name} />
-      </div>
-      {#if project}
+      {#if !profile}
+        <div class="flex min-w-0 flex-[1.4_1_200px] flex-col gap-1.5">
+          <Label for="modpack-name">Profile name</Label>
+          <Input id="modpack-name" bind:value={name} />
+        </div>
+      {/if}
+      {#if pack}
         <div class="flex min-w-0 flex-[1_1_160px] flex-col gap-1.5">
-          <Label>Pack version</Label>
+          <Label>
+            Pack version
+            {#if installed_label}
+              <span class="text-muted-foreground font-normal">
+                · installed {installed_label}
+              </span>
+            {/if}
+          </Label>
           <VersionSelect
             label="Pack version"
             options={versions.map(version_label)}
@@ -194,7 +236,7 @@
       {/if}
     </div>
 
-    {#if current?.recommendedMemoryMb !== undefined}
+    {#if !profile && current?.recommendedMemoryMb !== undefined}
       {#if memory_ok}
         <Alert.Root>
           <Info />
@@ -243,12 +285,21 @@
 
     <Dialog.Footer>
       <Button variant="outline" onclick={() => (open = false)}>Cancel</Button>
-      <Button
-        disabled={!current || name.trim() === '' || !manual_done}
-        onclick={install}
-      >
-        Create profile and install
-      </Button>
+      {#if profile}
+        <Button
+          disabled={!current || version_id === installed || !manual_done}
+          onclick={install}
+        >
+          Change version
+        </Button>
+      {:else}
+        <Button
+          disabled={!current || name.trim() === '' || !manual_done}
+          onclick={install}
+        >
+          Create profile and install
+        </Button>
+      {/if}
     </Dialog.Footer>
   </Dialog.Content>
 </Dialog.Root>

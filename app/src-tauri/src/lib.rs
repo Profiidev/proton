@@ -6,10 +6,11 @@ use content::{
     content_find_manual, content_install, content_installed, content_plan_install, content_project,
     content_remove, content_search, content_set_active_shader, content_set_enabled,
     content_set_order, content_sources, content_update, content_updates, content_versions,
-    modpack_install, modpack_plan, profile_duplicate, profile_export_mrpack,
+    modpack_install, modpack_plan, modpack_update, modpack_updates, profile_duplicate,
+    profile_export_mrpack,
   },
   provider::Providers,
-  updates::{UpdatesCache, run_loop},
+  updates::{PackUpdates, UpdatesCache, run_loop},
 };
 use profiles::store::ProfileStore;
 use store::TauriAppStoreExt;
@@ -170,10 +171,12 @@ pub fn run() {
       content_adopt_file,
       content_find_manual,
       content_updates,
+      modpack_updates,
       content_check_updates,
       content_update,
       modpack_plan,
       modpack_install,
+      modpack_update,
       profile_duplicate,
       profile_export_mrpack,
     ])
@@ -187,6 +190,7 @@ pub fn run() {
       app.manage(OfflineState::new(app.handle().clone()));
       app.manage(Providers::new());
       app.manage(UpdatesCache::default());
+      app.manage(PackUpdates::default());
 
       app.manage(Mutex::new(tauri::async_runtime::block_on(
         McVersionStore::new(app.handle().clone()),

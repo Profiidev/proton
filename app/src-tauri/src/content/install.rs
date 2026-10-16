@@ -62,6 +62,22 @@ pub async fn plan_install<'p>(
     manual: Vec::new(),
     total_bytes: 0,
   };
+  // picking another version of an installed project switches to it
+  let mut replaces = replaces.clone();
+  for pick in picks {
+    let Some(version) = &pick.version_id else {
+      continue;
+    };
+    if let Some(entry) = entries.iter().find(|e| {
+      e.project_id.as_deref() == Some(pick.project_id.as_str())
+        && e.version_id.as_ref() != Some(version)
+    }) {
+      replaces
+        .entry(pick.project_id.clone())
+        .or_insert(entry.file_name.clone());
+    }
+  }
+  let replaces = &replaces;
   let installed = |id: &str| {
     !replaces.contains_key(id)
       && entries.iter().any(|e| {
@@ -897,6 +913,47 @@ mod tests {
     assert_eq!(plan.optional[0].name, "opt name");
     assert_eq!(plan.conflicts[0].project_id, "bad");
     assert_eq!(plan.conflicts[0].reason, "Incompatible with a name");
+  }
+
+  #[tokio::test]
+  async fn picked_version_replaces_installed_one() {
+    let stub = Stub {
+      projects: vec![project("a", ContentKind::Mod)],
+      versions: vec![
+        version("a", "a1", "fabric", &[]),
+        version("a", "a22", "fabric", &[]),
+      ],
+    };
+    let installed = Entry {
+      version_id: Some("a22".into()),
+      ..entry("a")
+    };
+    let run = |version: &str| {
+      let picks = [PickRef {
+        version_id: Some(version.into()),
+        ..pick("a")
+      }];
+      let entries = [installed.clone()];
+      let stub = &stub;
+      async move {
+        plan_install(
+          |_| stub as &dyn ContentProvider,
+          &profile(LoaderType::Fabric),
+          &entries,
+          &picks,
+          &HashMap::new(),
+        )
+        .await
+        .unwrap()
+      }
+    };
+    let plan = run("a1").await;
+    assert_eq!(plan.items[0].version.id, "a1");
+    assert_eq!(plan.items[0].replaces.as_deref(), Some("a.jar"));
+    // the installed version stays installed
+    let plan = run("a22").await;
+    assert!(plan.items.is_empty());
+    assert_eq!(plan.already_installed[0].project_id, "a");
   }
 
   #[tokio::test]

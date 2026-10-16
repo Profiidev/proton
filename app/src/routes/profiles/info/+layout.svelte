@@ -13,6 +13,7 @@
   import * as DropdownMenu from '@profidev/pleiades/components/ui/dropdown-menu';
   import { setProfile } from './store.svelte.js';
   import {
+    CircleArrowUp,
     Copy,
     Download,
     Ellipsis,
@@ -22,6 +23,7 @@
     Package,
     Play,
     Plus,
+    RefreshCw,
     SlidersHorizontal,
     Square,
     Star,
@@ -42,8 +44,10 @@
   import { is_offline } from '$lib/tauri/offline.svelte.js';
   import SimpleSidebar from '$lib/components/nav/SimpleSidebar.svelte';
   import DuplicateDialog from '$lib/components/profile/DuplicateDialog.svelte';
+  import ModpackInstallDialog from '$lib/components/content/ModpackInstallDialog.svelte';
   import {
     content_updates,
+    modpack_updates,
     profile_export_mrpack
   } from '$lib/tauri/content.svelte.js';
   import { save } from '@tauri-apps/plugin-dialog';
@@ -62,6 +66,10 @@
   let deleteOpen = $state(false);
   let stopOpen = $state(false);
   let duplicateOpen = $state(false);
+  let versionOpen = $state(false);
+  let pack_update = $derived(
+    profile ? modpack_updates.value?.[profile.id] : undefined
+  );
 
   const export_mrpack = async () => {
     if (!profile) return;
@@ -142,6 +150,15 @@
               {running_label(running)}
             </span>
           {/if}
+          {#if pack_update}
+            <button
+              class="bg-primary/15 text-primary inline-flex h-5 items-center gap-1 rounded-full px-2 text-xs font-medium"
+              onclick={() => (versionOpen = true)}
+            >
+              <CircleArrowUp class="size-3" />
+              Pack update {pack_update.latest.versionNumber}
+            </button>
+          {/if}
         </div>
         <p class="text-muted-foreground text-sm">
           {profile.loader}
@@ -201,7 +218,7 @@
               </Button>
             {/snippet}
           </DropdownMenu.Trigger>
-          <DropdownMenu.Content align="end" class="w-[210px]">
+          <DropdownMenu.Content align="end" class="w-52.5">
             <DropdownMenu.Item onclick={() => profile_open_path(profile.id)}>
               <FolderOpen />
               Open directory
@@ -220,6 +237,12 @@
               <Wrench />
               Repair profile
             </DropdownMenu.Item>
+            {#if profile.modpack}
+              <DropdownMenu.Item onclick={() => (versionOpen = true)}>
+                <RefreshCw />
+                Change pack version
+              </DropdownMenu.Item>
+            {/if}
             <DropdownMenu.Item onclick={() => (duplicateOpen = true)}>
               <Copy />
               Duplicate profile
@@ -249,6 +272,9 @@
     </div>
   </div>
   <DuplicateDialog bind:open={duplicateOpen} {profile} />
+  {#if profile.modpack}
+    <ModpackInstallDialog bind:open={versionOpen} {profile} />
+  {/if}
   <DestroyDialog
     bind:open={deleteOpen}
     title="Delete Profile"
