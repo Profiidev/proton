@@ -5790,6 +5790,7 @@ dependencies = [
  "proton_account",
  "proton_components",
  "proton_config",
+ "proton_content",
  "proton_profiles",
  "proton_skin_render",
  "proton_store",
