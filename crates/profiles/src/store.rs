@@ -16,7 +16,7 @@ use crate::{
   instance::{Instance, InstanceError, InstanceInfo, Instances},
   watcher::watch_profile,
 };
-use proton_account::store::LaunchInfo;
+
 use proton_config::settings::Settings;
 use proton_utils::{file::read_parse_file, path};
 use proton_versions::{
@@ -25,6 +25,14 @@ use proton_versions::{
 };
 
 pub const LAUNCHER_NAME: &str = "Proton";
+
+/// The account a game is started with, from the account service
+#[derive(Debug, Clone)]
+pub struct LaunchInfo {
+  pub id: String,
+  pub name: String,
+  pub access_token: String,
+}
 
 /// What the tokio side reports to the gpui side, drained by `listener::listen`
 #[derive(Debug)]

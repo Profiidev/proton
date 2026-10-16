@@ -9,15 +9,18 @@ use crate::{
   config::{PlayHistoryFavoriteInfo, Profile, ProfileUpdate, QuickPlayInfo},
   instance::InstanceInfo,
   server::ServerStatus,
+  store::LaunchInfo,
   store::{ProfileStore, ProfilesMsg, count_mod_jars},
 };
-use proton_account::store::LaunchInfo;
+
 use proton_config::{
   OfflineExt,
   offline::{OfflineHandle, OfflineResultExt},
 };
 use proton_utils::{log::ErrorLogExt, rt};
-use proton_versions::{loader::LoaderType, store::McVersionStore};
+use proton_versions::{
+  VersionsExt, event::DownloadsHandle, loader::LoaderType, store::McVersionStore,
+};
 
 pub mod config;
 pub mod instance;
@@ -284,22 +287,20 @@ impl Profiles {
     })
   }
 
-  /// Downloads or checks the game if needed, then starts it. `auth` comes from the account
-  /// service (active account, token already refreshed). Ok without launching when the download
-  /// was canceled.
+  /// Downloads or checks the game if needed (a row in the downloads panel), then starts it.
+  /// `auth` comes from the account service (active account, token already refreshed). Ok
+  /// without launching when the download was canceled.
   pub fn launch(
     &self,
     cx: &App,
     profile: String,
-    download_id: usize,
     quick_play: Option<QuickPlayInfo>,
     auth: LaunchInfo,
-    versions: McVersionStore,
   ) -> impl Future<Output = Result<()>> + use<> {
-    let offline = cx.offline().handle.clone();
+    let files = GameFiles::new(cx);
     self.run(move |h| async move {
       let mut profile = h.store.lock().await.profile(&profile).await?;
-      if !ensure_downloaded(&versions, &offline, &profile, download_id).await? {
+      if !files.ensure(&profile, !profile.downloaded).await? {
         return Ok(());
       }
       profile.downloaded = true;
@@ -317,27 +318,17 @@ impl Profiles {
   }
 
   /// Checks all game files and downloads what is missing or broken
-  pub fn repair(
-    &self,
-    cx: &App,
-    profile: String,
-    download_id: usize,
-    versions: McVersionStore,
-  ) -> impl Future<Output = Result<()>> + use<> {
-    let offline = cx.offline().handle.clone();
+  pub fn repair(&self, cx: &App, profile: String) -> impl Future<Output = Result<()>> + use<> {
+    let files = GameFiles::new(cx);
     self.run(move |h| async move {
       let mut profile = h.store.lock().await.profile(&profile).await?;
-      if !download(&versions, &offline, &profile, download_id).await? {
+      if !files.ensure(&profile, true).await? {
         return Ok(());
       }
       profile.downloaded = true;
       profile.update(h.store.lock().await.data_dir()).await?;
       h.refresh().await
     })
-  }
-
-  pub fn cancel_download(download_id: usize) {
-    proton_versions::store::cancel(download_id);
   }
 
   pub fn clear_logs(&self, profile: String) -> impl Future<Output = Result<()>> + use<> {
@@ -458,41 +449,48 @@ impl Profiles {
   }
 }
 
-async fn download(
-  versions: &McVersionStore,
-  offline: &OfflineHandle,
-  profile: &Profile,
-  download_id: usize,
-) -> Result<bool> {
-  versions
-    .check_or_download(
-      &profile.version,
-      download_id,
-      profile.loader,
-      profile.loader_version.clone(),
-    )
-    .await
-    // a failed download can mean we went offline
-    .check_online_state(offline)
-    .await
+/// What launch/repair need from the versions and offline services, taken from `cx` up front
+struct GameFiles {
+  store: Result<McVersionStore>,
+  downloads: DownloadsHandle,
+  offline: OfflineHandle,
 }
 
-/// True when the game files are ready, false when the download was canceled
-async fn ensure_downloaded(
-  versions: &McVersionStore,
-  offline: &OfflineHandle,
-  profile: &Profile,
-  download_id: usize,
-) -> Result<bool> {
-  if profile.downloaded
-    && versions
-      .check_meta(&profile.version, download_id)
-      .await
-      .log_err()?
-  {
-    return Ok(true);
+impl GameFiles {
+  fn new(cx: &App) -> Self {
+    let versions = cx.versions();
+    Self {
+      store: versions.store(cx),
+      downloads: versions.handle.clone(),
+      offline: cx.offline().handle.clone(),
+    }
   }
-  download(versions, offline, profile, download_id).await
+
+  /// True when the game files are ready, false when the download was canceled. Without
+  /// `force` only the version meta is checked and the download runs only when it is broken.
+  async fn ensure(self, profile: &Profile, force: bool) -> Result<bool> {
+    let store = self.store?;
+    let id = self.downloads.start(profile.name.clone());
+    let result = async {
+      if !force && store.check_meta(&profile.version, id).await? {
+        return Ok(true);
+      }
+      store
+        .check_or_download(
+          &profile.version,
+          id,
+          profile.loader,
+          profile.loader_version.clone(),
+        )
+        .await
+        // a failed download can mean we went offline
+        .check_online_state(&self.offline)
+        .await
+    }
+    .await;
+    self.downloads.finish(id, matches!(result, Ok(true)));
+    result.log_err()
+  }
 }
 
 fn mark_played(profile: &mut Profile, quick_play: Option<&QuickPlayInfo>, now: DateTime<Utc>) {
