@@ -138,7 +138,7 @@ impl Render for FromModpackTab {
             .items_center()
             .gap_3()
             .p_2()
-            .rounded_lg()
+            .rounded(px(10.))
             .hover(move |s| s.bg(accent.opacity(0.5)))
             .child(ProjectIcon::new(hit.icon_url.clone().map(ImageSource::from)).size(px(36.)))
             .child(
@@ -287,7 +287,7 @@ impl Render for ImportFileTab {
           .w_full()
           .h(px(192.))
           .p_6()
-          .rounded_xl()
+          .rounded(px(14.))
           .border_1()
           .border_dashed()
           .border_color(theme.border)

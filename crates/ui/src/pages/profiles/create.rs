@@ -12,13 +12,14 @@ use gpui_kit::{
     button::{Button, ButtonVariants},
     input::{Input, InputEvent, InputState},
     switch::Switch,
-    tab::{Tab, TabBar},
   },
   div,
   prelude::FluentBuilder,
   px,
 };
 use proton_components::widgets::form::{ImageInput, VersionSelect};
+use proton_components::widgets::label;
+use proton_components::widgets::tabs::segmented_tabs;
 use proton_config::SettingsExt;
 use proton_profiles::{ProfilesExt, config::ProfileError};
 use proton_utils::log::ErrorLogExt;
@@ -317,7 +318,7 @@ impl CreateDialog {
         .items_center()
         .justify_center()
         .px_1()
-        .rounded_lg()
+        .rounded(px(10.))
         .border_1()
         .cursor_pointer()
         .text_size(px(13.))
@@ -422,10 +423,6 @@ fn is_image(path: &Path) -> bool {
     .is_some_and(|e| matches!(e.to_ascii_lowercase().as_str(), "png" | "jpg" | "jpeg"))
 }
 
-fn label(text: &'static str) -> impl IntoElement {
-  div().text_sm().font_weight(FontWeight::MEDIUM).child(text)
-}
-
 fn error(text: Option<SharedString>, cx: &App) -> Option<impl IntoElement + use<>> {
   let color = cx.theme().danger;
   text.map(|t| div().text_sm().text_color(color).child(t))
@@ -456,20 +453,20 @@ impl Render for CreateDialog {
       CreateTab::FromModpack => 1,
       CreateTab::ImportFile => 2,
     };
-    let tabs = TabBar::new("create-tabs")
-      .segmented()
-      .selected_index(selected)
-      .child(Tab::new().label("Custom"))
-      .child(Tab::new().label("From modpack"))
-      .child(Tab::new().label("Import file"))
-      .on_click(cx.listener(|this, ix: &usize, window, cx| {
+    let tabs = segmented_tabs(
+      "create-tabs",
+      ["Custom", "From modpack", "Import file"],
+      selected,
+      cx.listener(|this, ix: &usize, window, cx| {
         let tab = [
           CreateTab::Custom,
           CreateTab::FromModpack,
           CreateTab::ImportFile,
         ][*ix];
         this.select_tab(tab, window, cx);
-      }));
+      }),
+      cx,
+    );
 
     let body = match self.tab {
       CreateTab::Custom => self.render_custom(cx).into_any_element(),

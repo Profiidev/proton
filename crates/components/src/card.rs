@@ -2,7 +2,7 @@
 
 use gpui_kit::{
   AnyElement, App, Div, IntoElement, ParentElement, Refineable, RenderOnce, SharedString,
-  StyleRefinement, Styled, Window, component::ActiveTheme, div, prelude::FluentBuilder,
+  StyleRefinement, Styled, Window, component::ActiveTheme, div, prelude::FluentBuilder, px,
 };
 
 #[derive(IntoElement, Default)]
@@ -46,7 +46,7 @@ impl RenderOnce for Card {
       .gap_4()
       .pt_4()
       .overflow_hidden()
-      .rounded_xl()
+      .rounded(px(14.))
       .border_1()
       .border_color(theme.border)
       .bg(theme.popover)
@@ -59,7 +59,7 @@ impl RenderOnce for Card {
             .flex()
             .items_center()
             .p_4()
-            .rounded_b_xl()
+            .rounded_b(px(14.))
             .border_t_1()
             .border_color(theme.border)
             .bg(theme.muted.opacity(0.5))

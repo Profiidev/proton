@@ -401,7 +401,7 @@ impl Render for ProfileHeader {
         div()
           .flex_none()
           .size_20()
-          .rounded_lg()
+          .rounded(px(10.))
           .overflow_hidden()
           .bg(theme.muted)
           .child(

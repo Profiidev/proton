@@ -2,9 +2,11 @@ use std::borrow::Cow;
 
 use anyhow::{Context, Result};
 use gpui_kit::{
-  App, AssetSource, SharedString,
+  AnyWindowHandle, App, AssetSource, Entity, Render, SharedString, Styled, Window, WindowOptions,
   assets::AllAssets as KitAssets,
+  base::Root,
   component::{Theme, ThemeRegistry},
+  relative,
 };
 use include_dir::{Dir, include_dir};
 
@@ -13,6 +15,28 @@ static ASSETS: Dir = include_dir!("$CARGO_MANIFEST_DIR/../../assets");
 
 /// The web app is forced dark
 pub const THEME: &str = "shadcn Zinc Blue Dark";
+
+/// Window-wide line height. gpui defaults to 1.618 (phi), Tailwind's text-sm/xl use 1.4286/1.4
+/// (14/20, 20/28): one ratio is ±1px off for xs (16) and base (24), pages pin those exactly.
+pub const LINE_HEIGHT: f32 = 1.4;
+
+/// `gpui_kit::open_window` with [`LINE_HEIGHT`] set on the kit root, so dialogs and popovers
+/// (rendered in root overlays, outside the view) inherit it too
+pub fn open_window<V: Render>(
+  options: WindowOptions,
+  cx: &mut App,
+  build: impl FnOnce(&mut Window, &mut App) -> Entity<V>,
+) -> Result<(AnyWindowHandle, Entity<V>)> {
+  let (handle, view) = gpui_kit::open_window(options, cx, build)?;
+  handle.update(cx, |_, window, cx| {
+    if let Some(Some(root)) = window.root::<Root>() {
+      root.update(cx, |root, _| {
+        root.text_style().line_height = Some(relative(LINE_HEIGHT));
+      });
+    }
+  })?;
+  Ok((handle, view))
+}
 
 /// Own assets first, then gpui-kit's (lucide icons etc.)
 pub struct Assets;
@@ -60,6 +84,15 @@ pub fn load(cx: &mut App) -> Result<()> {
     .clone();
   // apply_config also switches to the theme's mode
   Theme::update(cx, |theme| theme.apply_config(&config));
+
+  // Tailwind's `font-mono` stack (ui-monospace/SFMono are not real font names outside Apple)
+  let installed = cx.text_system().all_font_names();
+  if let Some(mono) = ["Menlo", "Monaco", "Consolas", "Liberation Mono"]
+    .into_iter()
+    .find(|f| installed.iter().any(|i| i == f))
+  {
+    Theme::update(cx, |theme| theme.mono_font_family = mono.into());
+  }
   Ok(())
 }
 

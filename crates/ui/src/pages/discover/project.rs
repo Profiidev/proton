@@ -14,13 +14,13 @@ use gpui_kit::{
     scroll::ScrollableElement,
     separator::Separator,
     switch::Switch,
-    tab::{Tab, TabBar},
     text::TextView,
   },
   div, img,
   prelude::FluentBuilder,
   px,
 };
+use proton_components::widgets::tabs::segmented_tabs;
 use proton_components::widgets::{chip, colors, content::ProjectIcon, format::relative_time};
 use proton_content::{
   ContentExt, InstalledContent,
@@ -295,7 +295,7 @@ fn card(cx: &App) -> gpui_kit::Div {
     .flex_col()
     .gap_3()
     .p_4()
-    .rounded_xl()
+    .rounded(px(14.))
     .border_1()
     .border_color(theme.foreground.opacity(0.1))
     .bg(theme.popover)
@@ -314,7 +314,7 @@ fn empty(title: &str, text: String, cx: &App) -> AnyElement {
     .items_center()
     .gap_1()
     .p_6()
-    .rounded_xl()
+    .rounded(px(14.))
     .border_1()
     .border_dashed()
     .border_color(cx.theme().border)
@@ -435,7 +435,7 @@ impl ProjectPage {
               }))
           });
         div()
-          .rounded_xl()
+          .rounded(px(14.))
           .border_1()
           .border_color(theme.foreground.opacity(0.1))
           .bg(theme.popover)
@@ -498,7 +498,7 @@ impl ProjectPage {
             img(ImageSource::from(image.url.clone()))
               .w_full()
               .h(px(135.))
-              .rounded_lg()
+              .rounded(px(10.))
               .bg(bg)
               .object_fit(ObjectFit::Cover),
           )
@@ -835,24 +835,20 @@ impl Render for ProjectPage {
             .flex_1()
             .min_w_0()
             .h_full()
-            .child(
-              div().flex_none().child(
-                TabBar::new("project-tabs")
-                  .segmented()
-                  .selected_index(tab_ix)
-                  .child(Tab::new().label("Description"))
-                  .child(Tab::new().label("Versions"))
-                  .child(Tab::new().label("Gallery"))
-                  .on_click(cx.listener(|this, ix: &usize, _, cx| {
-                    this.tab = match ix {
-                      1 => TabKind::Versions,
-                      2 => TabKind::Gallery,
-                      _ => TabKind::Description,
-                    };
-                    cx.notify();
-                  })),
-              ),
-            )
+            .child(div().flex_none().child(segmented_tabs(
+              "project-tabs",
+              ["Description", "Versions", "Gallery"],
+              tab_ix,
+              cx.listener(|this, ix: &usize, _, cx| {
+                this.tab = match ix {
+                  1 => TabKind::Versions,
+                  2 => TabKind::Gallery,
+                  _ => TabKind::Description,
+                };
+                cx.notify();
+              }),
+              cx,
+            )))
             .child(
               div()
                 .id("tab-content")
@@ -964,9 +960,7 @@ pub(crate) mod tests {
     cx.run_until_parked();
     cx.update(|window, cx| {
       window.render_frame(cx);
-      window
-        .within("project-tabs")
-        .click(gpui_kit::ElementId::Integer(1), cx);
+      window.within("project-tabs").click("Versions", cx);
     });
     assert!(page.read_with(cx, |p, _| p.tab == TabKind::Versions));
     cx.update(|window, cx| {

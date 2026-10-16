@@ -58,7 +58,7 @@ impl Render for DraggedRow {
     div()
       .px_3()
       .py_2()
-      .rounded_md()
+      .rounded(px(8.))
       .border_1()
       .border_color(theme.border)
       .bg(theme.popover)

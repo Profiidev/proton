@@ -1,7 +1,7 @@
 use gpui_kit::{
-  AnyView, App, AppContext, Context, Entity, FontWeight, ImageSource, InteractiveElement,
-  IntoElement, ParentElement, PathPromptOptions, Render, SharedString, StatefulInteractiveElement,
-  Styled, Subscription, WeakEntity, Window,
+  AnyView, App, AppContext, Context, Entity, ImageSource, InteractiveElement, IntoElement,
+  ParentElement, PathPromptOptions, Render, SharedString, StatefulInteractiveElement, Styled,
+  Subscription, WeakEntity, Window,
   assets::IconName,
   component::{
     ActiveTheme,
@@ -14,6 +14,7 @@ use gpui_kit::{
   prelude::FluentBuilder,
   px,
 };
+use proton_components::widgets::label;
 use proton_components::widgets::{
   form::{SwitchTile, VersionSelect},
   profile::ProfileIcon,
@@ -345,7 +346,6 @@ impl SettingsPage {
   fn general(&self, p: &Profile, cx: &mut Context<Self>) -> impl IntoElement + use<> {
     let theme = cx.theme();
     let modded = p.loader != LoaderType::Vanilla;
-    let label = |text: SharedString| div().text_sm().font_weight(FontWeight::MEDIUM).child(text);
     div()
       .flex()
       .flex_col()
@@ -359,7 +359,7 @@ impl SettingsPage {
             div()
               .flex_none()
               .size_16()
-              .rounded_md()
+              .rounded(px(8.))
               .overflow_hidden()
               .bg(theme.muted)
               .child(
@@ -380,7 +380,7 @@ impl SettingsPage {
           .flex()
           .flex_col()
           .gap(px(6.))
-          .child(label("Name".into()))
+          .child(label("Name"))
           .child(Input::new(&self.name).id("profile-name")),
       )
       .child(
@@ -395,7 +395,7 @@ impl SettingsPage {
               .flex_1()
               .min_w(px(180.))
               .gap(px(6.))
-              .child(label("Minecraft version".into()))
+              .child(label("Minecraft version"))
               .child(self.versions.clone()),
           )
           .when(modded, |el| {
@@ -406,7 +406,7 @@ impl SettingsPage {
                 .flex_1()
                 .min_w(px(180.))
                 .gap(px(6.))
-                .child(label(format!("{:?} loader version", p.loader).into()))
+                .child(label(format!("{:?} loader version", p.loader)))
                 .child(self.loader_versions.clone()),
             )
           }),
@@ -514,6 +514,7 @@ impl Render for SettingsPage {
                 tab: ProfileTab::Settings(tab),
               })
             },
+            cx,
           ))
           .children(body),
       )

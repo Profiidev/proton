@@ -33,7 +33,8 @@ default_floating_border none
 gaps inner 0
 gaps outer 0
 focus_on_window_activation none
-for_window [app_id="io.profidev.proton"] floating enable, resize set 1300 800, move position 0 0
+# tiled (the only window fills the 1300x800 output): a floating gpui window draws its 1px
+# client-side border, the Tauri reference has none
 EOF
 env -u WAYLAND_DISPLAY -u DISPLAY -u SWAYSOCK XDG_RUNTIME_DIR=$RUN WLR_BACKENDS=headless \
   WLR_LIBINPUT_NO_DEVICES=1 WLR_RENDERER=vulkan sway -c "$RUN/config" >"$RUN/sway.log" 2>&1 &

@@ -13,7 +13,8 @@ use gpui_kit::{
   assets::IconName,
   component::{
     ActiveTheme, Disableable, Icon, IndexPath, WindowExt,
-    button::ButtonVariant,
+    button::{Button, ButtonVariants},
+    dialog::{DialogDescription, DialogFooter},
     select::{SearchableVec, Select, SelectEvent, SelectState},
     switch::Switch,
     tooltip::Tooltip,
@@ -26,7 +27,8 @@ use gpui_kit::{
 use super::{Handler, input_tile};
 
 /// `DestroyDialog`: title, description and one destructive button running `on_confirm`.
-/// Escape closes it.
+/// Escape closes it. A plain dialog like the web app's (shadcn `Dialog.Footer` is right-aligned,
+/// kit `AlertDialog` centers its buttons).
 pub fn open_destroy_dialog(
   window: &mut Window,
   cx: &mut App,
@@ -37,18 +39,20 @@ pub fn open_destroy_dialog(
 ) {
   let (title, description, button) = (title.into(), description.into(), button.into());
   let on_confirm = Rc::new(on_confirm);
-  window.open_alert_dialog(cx, move |alert, _, _| {
+  window.open_dialog(cx, move |dialog, _, _| {
     let on_confirm = on_confirm.clone();
-    alert
+    dialog
       .title(title.clone())
-      .description(description.clone())
       .close_button(true)
-      .ok_text(button.clone())
-      .ok_variant(ButtonVariant::Danger)
-      .on_ok(move |_, window, cx| {
-        on_confirm(window, cx);
-        true
-      })
+      .child(DialogDescription::new().child(description.clone()))
+      .footer(
+        DialogFooter::new().child(Button::new("ok").danger().label(button.clone()).on_click(
+          move |_, window, cx| {
+            on_confirm(window, cx);
+            window.close_dialog(cx);
+          },
+        )),
+      )
   });
 }
 

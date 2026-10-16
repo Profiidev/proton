@@ -25,13 +25,13 @@ use gpui_kit::{
     radio::Radio,
     scroll::Scrollbar,
     select::{SearchableVec, Select, SelectEvent, SelectState},
-    tab::{Tab, TabBar},
   },
   div,
   prelude::FluentBuilder,
   px, uniform_list,
 };
 use proton_components::widgets::form::open_destroy_dialog;
+use proton_components::widgets::tabs::segmented_tabs;
 use proton_content::{
   ContentExt, InstalledContent,
   model::{ContentKind, Installed, Source},
@@ -481,23 +481,23 @@ impl ContentPage {
       .unwrap_or_default()
   }
 
-  fn tabs(&self) -> impl IntoElement {
+  fn tabs(&self, cx: &App) -> impl IntoElement {
     let profile = self.profile.clone();
     let selected = LIST_KINDS.iter().position(|k| *k == self.kind).unwrap_or(0);
     div()
       .flex()
-      .child(
-        TabBar::new("content-tabs")
-          .segmented()
-          .selected_index(selected)
-          .on_click(move |ix, _, cx| {
-            cx.navigate(Route::Profile {
-              id: profile.clone(),
-              tab: ProfileTab::Content(route_kind(LIST_KINDS[*ix])),
-            })
+      .child(segmented_tabs(
+        "content-tabs",
+        ["Mods", "Resource packs", "Shaders"],
+        selected,
+        move |ix, _, cx| {
+          cx.navigate(Route::Profile {
+            id: profile.clone(),
+            tab: ProfileTab::Content(route_kind(LIST_KINDS[*ix])),
           })
-          .children(["Mods", "Resource packs", "Shaders"].map(|l| Tab::new().label(l))),
-      )
+        },
+        cx,
+      ))
       .into_any_element()
   }
 
@@ -562,7 +562,7 @@ impl ContentPage {
         .gap_3()
         .px_4()
         .py_3()
-        .rounded_lg()
+        .rounded(px(10.))
         .border_1()
         .border_color(theme.border)
         .bg(theme.popover)
@@ -770,7 +770,7 @@ impl ContentPage {
           div()
             .size_10()
             .flex_none()
-            .rounded_md()
+            .rounded(px(8.))
             .border_1()
             .border_dashed()
             .border_color(theme.border),
@@ -798,7 +798,7 @@ impl ContentPage {
       .min_h_0()
       .flex_shrink(1.)
       .overflow_hidden()
-      .rounded_xl()
+      .rounded(px(14.))
       .border_1()
       .border_color(theme.border)
       .bg(theme.popover.opacity(0.5))
@@ -820,7 +820,7 @@ impl ContentPage {
       .items_center()
       .justify_center()
       .gap_2()
-      .rounded_xl()
+      .rounded(px(14.))
       .border_1()
       .border_dashed()
       .border_color(theme.border)
@@ -855,7 +855,7 @@ impl Render for ContentPage {
           this.add_paths(paths.paths().to_vec(), cx)
         }),
       )
-      .child(self.tabs())
+      .child(self.tabs(cx))
       .child(self.toolbar(cx))
       .children(self.update_alert(cx))
       .children(self.selection_bar(cx))

@@ -187,7 +187,8 @@ impl Render for Header {
           .overflow_hidden()
           .flex()
           .items_center()
-          .gap_2p5()
+          // shadcn breadcrumb-list gap-1.5
+          .gap_1p5()
           .children(crumbs),
       )
   }

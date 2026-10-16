@@ -12,7 +12,6 @@ use gpui_kit::{
   component::{
     ActiveTheme, Icon,
     button::{Button, ButtonVariants},
-    tab::{Tab, TabBar},
   },
   div,
   prelude::FluentBuilder,
@@ -20,7 +19,10 @@ use gpui_kit::{
 };
 use proton_components::{
   animation::ease_out_cubic,
-  widgets::{colors, form::open_destroy_dialog, format::format_datetime, profile::QuickPlayIcon},
+  widgets::{
+    colors, form::open_destroy_dialog, format::format_datetime, profile::QuickPlayIcon,
+    tabs::segmented_tabs,
+  },
 };
 use proton_profiles::{
   Profiles, ProfilesExt,
@@ -165,15 +167,16 @@ pub(super) fn tabs<T: Copy + PartialEq + 'static>(
   items: &'static [(&'static str, T)],
   selected: T,
   go: impl Fn(T, &mut App) + 'static,
+  cx: &App,
 ) -> impl IntoElement {
   let ix = items.iter().position(|(_, t)| *t == selected).unwrap_or(0);
-  div().flex().child(
-    TabBar::new(id)
-      .segmented()
-      .selected_index(ix)
-      .children(items.iter().map(|(label, _)| Tab::new().label(*label)))
-      .on_click(move |ix, _, cx| go(items[*ix].1, cx)),
-  )
+  div().flex().child(segmented_tabs(
+    id,
+    items.iter().map(|(label, _)| *label),
+    ix,
+    move |ix, _, cx| go(items[*ix].1, cx),
+    cx,
+  ))
 }
 
 /// Dashed "nothing here" box
@@ -184,7 +187,7 @@ pub(super) fn empty(title: &'static str, description: &'static str, cx: &App) ->
     .items_center()
     .gap_2()
     .p_6()
-    .rounded_xl()
+    .rounded(px(14.))
     .border_1()
     .border_dashed()
     .border_color(cx.theme().border)
@@ -411,7 +414,7 @@ impl Render for QuickPlayPage {
         .flex()
         .flex_col()
         .overflow_hidden()
-        .rounded_xl()
+        .rounded(px(14.))
         .border_1()
         .border_color(theme.border)
         .bg(theme.popover.opacity(0.5))
@@ -438,12 +441,18 @@ impl Render for QuickPlayPage {
       .flex()
       .flex_col()
       .gap_3()
-      .child(tabs("quick-play-tabs", TABS, self.tab, move |tab, cx| {
-        cx.navigate(Route::Profile {
-          id: id.clone(),
-          tab: ProfileTab::QuickPlay(tab),
-        })
-      }))
+      .child(tabs(
+        "quick-play-tabs",
+        TABS,
+        self.tab,
+        move |tab, cx| {
+          cx.navigate(Route::Profile {
+            id: id.clone(),
+            tab: ProfileTab::QuickPlay(tab),
+          })
+        },
+        cx,
+      ))
       .child(body)
       .when(note, |el| {
         el.child(div().text_xs().text_color(theme.muted_foreground).child(

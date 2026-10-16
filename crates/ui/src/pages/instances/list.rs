@@ -8,6 +8,7 @@ use gpui_kit::{
   },
   div,
   prelude::FluentBuilder,
+  px,
 };
 use proton_components::widgets::{
   colors, form::open_destroy_dialog, format::running_label, profile::ProfileExternalLink,
@@ -178,7 +179,7 @@ impl Render for InstancesPage {
             .flex()
             .flex_col()
             .overflow_hidden()
-            .rounded_xl()
+            .rounded(px(14.))
             .border_1()
             .border_color(theme.border)
             .bg(theme.popover.opacity(0.5))

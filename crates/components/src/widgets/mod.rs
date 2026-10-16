@@ -7,6 +7,7 @@ pub mod format;
 pub mod instance;
 pub mod logs;
 pub mod profile;
+pub mod tabs;
 
 use std::rc::Rc;
 
@@ -41,11 +42,28 @@ pub mod colors {
     rgb(0x3b82f6).into()
   }
   /// `color-mix(in oklab, var(--background) 60%, black)`
+  /// Mixing with black in oklab scales L, a and b alike, which scales linear sRGB by 0.6³
   pub fn log_background(background: Hsla) -> Hsla {
-    Hsla {
-      l: background.l * 0.6,
-      ..background
+    let c = background.to_rgb();
+    let mix = |v: f32| {
+      let lin = if v <= 0.04045 {
+        v / 12.92
+      } else {
+        ((v + 0.055) / 1.055).powf(2.4)
+      } * 0.216;
+      if lin <= 0.0031308 {
+        lin * 12.92
+      } else {
+        1.055 * lin.powf(1. / 2.4) - 0.055
+      }
+    };
+    gpui_kit::Rgba {
+      r: mix(c.r),
+      g: mix(c.g),
+      b: mix(c.b),
+      a: c.a,
     }
+    .into()
   }
 }
 
@@ -53,11 +71,20 @@ pub mod colors {
 pub fn input_tile(cx: &App) -> Div {
   let input = cx.theme().input;
   div()
-    .rounded_lg()
+    .rounded(px(10.))
     .border_1()
     .border_color(input)
     .bg(input.opacity(0.3))
     .hover(move |s| s.bg(input.opacity(0.6)))
+}
+
+/// shadcn `Label`: `text-sm leading-none font-medium`
+pub fn label(text: impl Into<SharedString>) -> Div {
+  div()
+    .text_sm()
+    .line_height(px(14.))
+    .font_weight(FontWeight::MEDIUM)
+    .child(text.into())
 }
 
 /// Neutral chip: `bg-secondary h-5 px-2 rounded-full text-xs font-medium`
@@ -91,4 +118,18 @@ pub fn dot_chip(text: impl Into<SharedString>, color: gpui_kit::Hsla) -> impl In
     .font_weight(FontWeight::MEDIUM)
     .child(div().size(px(6.)).rounded_full().bg(color))
     .child(text.into())
+}
+
+#[cfg(test)]
+mod tests {
+  use gpui_kit::rgb;
+
+  #[test]
+  fn log_background_is_the_oklab_mix() {
+    // browser: color-mix(in oklab, #09090b 60%, black) = #020202
+    let c = super::colors::log_background(rgb(0x09090b).into()).to_rgb();
+    for v in [c.r, c.g, c.b] {
+      assert!((v * 255. - 2.).abs() < 0.6, "{v}");
+    }
+  }
 }

@@ -275,7 +275,7 @@ fn open_main_window(cx: &mut App) -> anyhow::Result<AnyWindowHandle> {
     app_id: Some("io.profidev.proton".into()),
     ..Default::default()
   };
-  let (handle, _) = gpui_kit::open_window(options, cx, |window, cx| {
+  let (handle, _) = proton_components::assets::open_window(options, cx, |window, cx| {
     cx.new(|cx| {
       track_window(window, cx);
       Shell::new(window, cx)

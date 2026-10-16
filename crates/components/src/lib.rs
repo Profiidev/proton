@@ -67,7 +67,7 @@ pub mod test_view {
       crate::assets::load(cx).unwrap();
       // animations run on the wall clock: a click mid dialog-entrance misses its target
       cx.set_reduce_motion(true);
-      gpui_kit::open_window(WindowOptions::default(), cx, |_, cx| {
+      crate::assets::open_window(WindowOptions::default(), cx, |_, cx| {
         cx.new(|_| View(Box::new(build)))
       })
       .unwrap()

@@ -210,7 +210,7 @@ impl Render for LogWindow {
       .min_h(px(420.))
       .size_full()
       .overflow_hidden()
-      .rounded_xl()
+      .rounded(px(14.))
       .border_1()
       .border_color(theme.foreground.opacity(0.1))
       .bg(colors::log_background(theme.background))

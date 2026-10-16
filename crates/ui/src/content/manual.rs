@@ -155,7 +155,7 @@ impl Render for ManualDownloads {
           .flex_col()
           .max_h(px(256.))
           .overflow_y_scroll()
-          .rounded_xl()
+          .rounded(px(14.))
           .border_1()
           .border_color(border)
           .bg(bg)

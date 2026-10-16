@@ -362,7 +362,7 @@ impl ProfilesPage {
               .gap_2()
               .px_2()
               .py_1p5()
-              .rounded_md()
+              .rounded(px(8.))
               .text_sm()
               .cursor_pointer()
               .hover(move |s| s.bg(hover))

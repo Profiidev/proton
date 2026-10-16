@@ -16,8 +16,8 @@
 use std::{collections::HashMap, rc::Rc};
 
 use gpui_kit::{
-  App, AppContext, Context, ElementId, Entity, FontWeight, InteractiveElement, IntoElement,
-  ParentElement, Render, SharedString, Styled, Subscription, Window,
+  App, AppContext, Context, ElementId, Entity, InteractiveElement, IntoElement, ParentElement,
+  Render, SharedString, Styled, Subscription, Window,
   assets::IconName,
   base::TestSupportExt,
   component::{
@@ -33,17 +33,10 @@ use gpui_kit::{
   px,
 };
 use proton_components::widgets::Handler;
+use proton_components::widgets::label;
 use proton_config::settings::{GameSettings, JvmSettings};
 
 use super::toast;
-
-fn label(text: impl Into<SharedString>) -> impl IntoElement {
-  div()
-    .text_sm()
-    .font_weight(FontWeight::MEDIUM)
-    .line_height(px(14.))
-    .child(text.into())
-}
 
 /// Window size: custom size switch plus width × height
 pub struct GameSettingsForm {

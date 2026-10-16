@@ -81,7 +81,7 @@ pub fn plan_view(plan: &InstallPlan, cx: &App) -> AnyElement {
           .gap_2()
           .px(px(14.))
           .py_3()
-          .rounded_xl()
+          .rounded(px(14.))
           .border_1()
           .border_color(theme.foreground.opacity(0.1))
           .bg(theme.muted.opacity(0.4))

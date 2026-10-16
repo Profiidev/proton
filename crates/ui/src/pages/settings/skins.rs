@@ -331,7 +331,7 @@ impl Tile {
           .flex()
           .flex_col()
           .p_2()
-          .rounded_lg()
+          .rounded(px(10.))
           .border_1()
           .border_color(if selected { theme.primary } else { input })
           .bg(input.opacity(0.3))
@@ -351,7 +351,7 @@ impl Tile {
               .w_full()
               .h(self.height)
               .overflow_hidden()
-              .rounded_lg()
+              .rounded(px(10.))
               .bg(theme.muted)
               .child(viewer)
               .when(self.busy, |d| {
@@ -434,7 +434,7 @@ impl Render for SkinsPage {
           .justify_center()
           .h(px(280.))
           .overflow_hidden()
-          .rounded_lg()
+          .rounded(px(10.))
           .bg(theme.muted)
           .child(self.viewer.clone())
           .when(self.loading, |d| {
