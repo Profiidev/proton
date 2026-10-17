@@ -1,15 +1,10 @@
 {
-  "$schema": "./node_modules/oxfmt/configuration_schema.json",
   "ignorePatterns": [
-    "node_modules/**/*",
     ".github/**/*",
-    "app/src-tauri/**/*",
-    "app/build/**/*",
-    "app/.svelte-kit/**/*"
+    "fixtures/io.profidev.proton/**/*",
+    "**/testdata/**/*"
   ],
   "printWidth": 80,
   "singleQuote": true,
-  "trailingComma": "none",
-  "svelte": true,
-  "sortTailwindcss": true
+  "trailingComma": "none"
 }

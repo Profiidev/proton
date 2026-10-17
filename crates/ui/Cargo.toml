@@ -1,0 +1,37 @@
+[package]
+name = "proton_ui"
+description = "App shell (window, header, sidebar, router, downloads panel) and pages of Proton"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+proton_components.workspace = true
+proton_account.workspace = true
+proton_profiles.workspace = true
+proton_content.workspace = true
+proton_config.workspace = true
+proton_versions.workspace = true
+proton_store.workspace = true
+proton_utils.workspace = true
+proton_skin_render = { path = "../skin_render" }
+flume.workspace = true
+dirs.workspace = true
+interprocess.workspace = true
+chrono.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+gpui-kit.workspace = true
+image.workspace = true
+url.workspace = true
+cargo-packager-updater.workspace = true
+
+[dev-dependencies]
+gpui-kit = { workspace = true, features = ["test-support"] }
+proton_components = { workspace = true, features = ["test-support"] }
+proton_utils = { workspace = true, features = ["test-support"] }
+tempfile.workspace = true
+tokio.workspace = true
+base64.workspace = true

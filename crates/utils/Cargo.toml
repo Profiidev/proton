@@ -1,0 +1,32 @@
+[package]
+name = "proton_utils"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+chrono.workspace = true
+reqwest.workspace = true
+tokio.workspace = true
+sha1.workspace = true
+hex.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+serde-xml-rs.workspace = true
+futures-util.workspace = true
+gpui-kit.workspace = true
+url.workspace = true
+dirs.workspace = true
+regex = "1.13.1"
+
+[features]
+# FakeServer and the url seam it needs
+test-support = []
+
+[dev-dependencies]
+gpui-kit = { workspace = true, features = ["test-support"] }
+tempfile.workspace = true

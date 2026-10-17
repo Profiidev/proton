@@ -1,6 +1,22 @@
 { pkgs, lib, ... }:
 
 let
+  buildDeps = with pkgs; [
+    pkg-config
+    fontconfig
+    freetype
+    libxkbcommon
+    libxcb
+  ];
+
+  # gpui dlopens these
+  gpuiLibs = with pkgs; [
+    wayland
+    vulkan-loader
+    libxkbcommon
+  ];
+
+  # launched Minecraft (lwjgl natives)
   mcLibs = with pkgs; [
     ## native versions
     glfw3-minecraft
@@ -26,57 +42,35 @@ let
 
     udev # oshi
 
+    wayland
     vulkan-loader # VulkanMod's lwjgl
 
     ## narrator
     flite
   ];
-
-  otherLibs = with pkgs; [
-    openssl
-    at-spi2-atk
-    atkmm
-    cairo
-    gdk-pixbuf
-    glib
-    gtk3
-    harfbuzz
-    librsvg
-    libsoup_3
-    pango
-    webkitgtk_4_1
-    wayland
-    libxkbcommon
-    glib-networking
-    gsettings-desktop-schemas
-  ];
 in
 {
-  packages =
-    with pkgs;
-    [
-      pkg-config
-    ]
-    ++ mcLibs
-    ++ otherLibs;
+  # oxfmt: json/md/yaml formatting, no node needed
+  packages = buildDeps ++ gpuiLibs ++ mcLibs ++ [
+    pkgs.oxfmt
+    pkgs.cargo-llvm-cov
+  ];
 
   languages = {
     rust = {
       enable = true;
       channel = "stable";
-    };
-
-    javascript = {
-      enable = true;
-      npm = {
-        enable = true;
-      };
+      # cargo-llvm-cov
+      components = [
+        "rustc"
+        "cargo"
+        "clippy"
+        "rustfmt"
+        "rust-analyzer"
+        "llvm-tools-preview"
+      ];
     };
   };
 
-  env = {
-    XDG_DATA_DIRS = "${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}:$XDG_DATA_DIRS";
-    GIO_MODULE_DIR = "${pkgs.glib-networking}/lib/gio/modules";
-    LD_LIBRARY_PATH = "${lib.makeLibraryPath mcLibs}:$LD_LIBRARY_PATH";
-  };
+  env.LD_LIBRARY_PATH = lib.makeLibraryPath (gpuiLibs ++ mcLibs);
 }

@@ -14,33 +14,35 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: 'macos-latest' # for Arm based macs (M1 and above).
-            args: '--target aarch64-apple-darwin'
-          - platform: 'macos-latest' # for Intel based macs.
-            args: '--target x86_64-apple-darwin'
           - platform: 'ubuntu-22.04'
-            args: ''
+            target: 'x86_64-unknown-linux-gnu'
+            formats: 'deb,appimage'
+            updater: 'linux-x86_64'
           - platform: 'windows-latest'
-            args: ''
+            target: 'x86_64-pc-windows-msvc'
+            formats: 'nsis'
+            updater: 'windows-x86_64'
+          - platform: 'macos-latest' # for Arm based macs (M1 and above).
+            target: 'aarch64-apple-darwin'
+            formats: 'app,dmg'
+            updater: 'macos-aarch64'
+          - platform: 'macos-latest' # for Intel based macs.
+            target: 'x86_64-apple-darwin'
+            formats: 'app,dmg'
+            updater: 'macos-x86_64'
 
     runs-on: ${{ matrix.platform }}
+    env:
+      # the `cargo build` in the packager hook builds for this target too
+      CARGO_BUILD_TARGET: ${{ matrix.target }}
+      OUT_DIR: target/${{ matrix.target }}/release
     steps:
-      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
-        id: app-token
-        with:
-          client-id: ${{ secrets.COMMIT_BOT_CLIENT_ID }}
-          private-key: ${{ secrets.COMMIT_BOT_PRIVATE_KEY }}
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-
-      - name: setup node
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-        with:
-          node-version: lts/*
 
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: ${{ matrix.target }}
 
       - name: refresh apt index (ubuntu only)
         if: matrix.platform == 'ubuntu-22.04'
@@ -50,56 +52,101 @@ jobs:
         if: matrix.platform == 'ubuntu-22.04'
         uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # latest
         with:
-          packages: libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-          version: 1.2
+          # gpui build deps + libfuse2 for linuxdeploy (AppImage)
+          packages: pkg-config libfontconfig1-dev libfreetype-dev libxkbcommon-dev libxkbcommon-x11-dev libxcb1-dev libwayland-dev libfuse2
+          version: 1.3
 
-      - name: install frontend dependencies
-        uses: bahmutov/npm-install@v1
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-packager@0.11.8
 
       - name: Cache cargo and rust files
         id: rust_cache
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           cache-on-failure: true
-          shared-key: 'app_release_cache-${{ matrix.platform }}'
-
-      - name: Merge tauri config non Windows
-        if: github.event_name != 'pull_request' && matrix.platform != 'windows-latest'
-        shell: bash
-        run: |
-          JSON_FILE="app/src-tauri/tauri.conf.json"
-          jq -s 'reduce .[] as $item ({}; . * $item)' "$JSON_FILE" "$JSON_FILE.release" > "$JSON_FILE.result"
-          mv "$JSON_FILE.result" "$JSON_FILE"
-          cat "$JSON_FILE"
-
-      - name: Merge tauri config Windows
-        if: github.event_name != 'pull_request' && matrix.platform == 'windows-latest'
-        shell: pwsh
-        run: |
-          $JSON_FILE = "app/src-tauri/tauri.conf.json"
-          jq -s 'reduce .[] as $item ({}; . * $item)' "$JSON_FILE" "$JSON_FILE.release" | Out-File -FilePath "$JSON_FILE.result" -Encoding utf8NoBOM
-          Move-Item -Path "$JSON_FILE.result" -Destination $JSON_FILE -Force
-          Get-Content $JSON_FILE
+          shared-key: 'app_release_cache-${{ matrix.target }}'
 
       - name: Build app
         if: github.event_name == 'pull_request'
-        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-        with:
-          projectPath: 'app'
-          args: ${{ matrix.args }}
+        shell: bash
+        run: cargo packager --release --target ${{ matrix.target }} -f ${{ matrix.formats }}
 
-      - name: Build and release app
+      - name: Build and sign app
         if: github.event_name != 'pull_request'
-        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          CARGO_PACKAGER_SIGN_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          # empty when the key has no password, an empty value skips the password prompt
+          CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: cargo packager --release --target ${{ matrix.target }} -f ${{ matrix.formats }}
+
+      - name: Upload to the release
+        if: github.event_name != 'pull_request'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+          UPDATER: ${{ matrix.updater }}
+        run: |
+          set -euo pipefail
+          cd "$OUT_DIR"
+          # the updater bundle: AppImage, nsis setup.exe or the zipped .app (named per arch)
+          case "$UPDATER" in
+            linux-*) bundle=$(ls *.AppImage); format=appimage ;;
+            windows-*) bundle=$(ls *-setup.exe); format=nsis ;;
+            macos-*)
+              mv Proton.app.tar.gz "Proton_${UPDATER#macos-}.app.tar.gz"
+              mv Proton.app.tar.gz.sig "Proton_${UPDATER#macos-}.app.tar.gz.sig"
+              bundle="Proton_${UPDATER#macos-}.app.tar.gz"; format=app ;;
+          esac
+          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}"
+          jq -n --arg key "$UPDATER" --arg url "$base/$bundle" --arg sig "$(cat "$bundle.sig")" --arg format "$format" \
+            '{($key): {url: $url, signature: $sig, format: $format}}' > "$GITHUB_WORKSPACE/updater-$UPDATER.json"
+          # old Tauri deb installs look up `linux-x86_64-deb` and install it with dpkg.
+          # cargo-packager-updater has no deb format and rejects the whole manifest on an unknown
+          # one, so the entry is tagged appimage. gpui deb installs read it too and install the
+          # verified bytes with `pkexec dpkg -i` (crates/ui/src/updater.rs), the format is unused.
+          if [[ $UPDATER == linux-* ]]; then
+            deb=$(ls *.deb)
+            jq --arg key "$UPDATER-deb" --arg url "$base/$deb" --arg sig "$(cat "$deb.sig")" \
+              '. + {($key): {url: $url, signature: $sig, format: "appimage"}}' \
+              "$GITHUB_WORKSPACE/updater-$UPDATER.json" > tmp.json && mv tmp.json "$GITHUB_WORKSPACE/updater-$UPDATER.json"
+          fi
+          files=$(ls *.deb *.AppImage *-setup.exe *.dmg *.app.tar.gz *.sig 2>/dev/null || true)
+          gh release upload "$TAG" $files --clobber
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: github.event_name != 'pull_request'
         with:
-          projectPath: 'app'
-          releaseId: ${{ github.event.release.id }}
-          includeUpdaterJson: true
-          updaterJsonPreferNsis: true
-          args: ${{ matrix.args }}
+          name: updater-${{ matrix.updater }}
+          path: updater-${{ matrix.updater }}.json
+
+  # latest.json for cargo-packager-updater (and the old Tauri updater, it reads the same
+  # shape with `darwin-*` keys)
+  updater-json:
+    if: github.event_name != 'pull_request'
+    needs: release-app
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: updater-*
+          merge-multiple: true
+
+      - name: Upload latest.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+          NOTES: ${{ github.event.release.body }}
+        run: |
+          set -euo pipefail
+          jq -s --arg version "${TAG#v}" --arg notes "$NOTES" --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
+            add as $p
+            | ($p | with_entries(select(.key | startswith("macos-")) | .key |= sub("^macos"; "darwin"))) as $darwin
+            | {version: $version, notes: $notes, pub_date: $date, platforms: ($p + $darwin)}
+          ' updater-*.json > latest.json
+          cat latest.json
+          gh release upload "$TAG" latest.json --clobber --repo "$GITHUB_REPOSITORY"

@@ -1,11 +1,11 @@
 # Proton Minecraft Launcher
 
-A modern, fast, and feature-rich Minecraft launcher built with Tauri, Rust, and SvelteKit. Proton provides a clean interface for managing your Minecraft installations, profiles, and mods with support for multiple mod loaders.
+A modern, fast, and feature-rich Minecraft launcher built in Rust with [gpui](https://www.gpui.rs/). Proton provides a clean interface for managing your Minecraft installations, profiles, and mods with support for multiple mod loaders.
 
 [![GitHub Release](https://img.shields.io/github/v/release/ProfiiDev/proton?style=flat-square)](https://github.com/ProfiiDev/proton/releases/latest)
 [![GitHub Issues](https://img.shields.io/github/issues/ProfiiDev/proton?style=flat-square)](https://github.com/ProfiiDev/proton/issues)
 [![GitHub License](https://img.shields.io/github/license/ProfiiDev/proton?style=flat-square)](https://github.com/ProfiiDev/proton/blob/main/LICENSE)
-[![Build Status](https://img.shields.io/github/actions/workflow/status/ProfiiDev/proton/release.yml?branch=main&style=flat-square)](https://github.com/ProfiiDev/proton/actions)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/ProfiiDev/proton/app-release.yml?branch=main&style=flat-square)](https://github.com/ProfiiDev/proton/actions)
 ![Proton Screenshot](docs/screenshot.png)
 
 ## ✨ Features
@@ -28,13 +28,11 @@ A modern, fast, and feature-rich Minecraft launcher built with Tauri, Rust, and 
 - **Quick Play**: Automatically detect and quickly access your favorite servers and worlds
 - **Java Management**: Automatic Java installation and version management with ability for custom RAM limits and JVM arguments
 - **Detailed Logging**: Comprehensive logging system for troubleshooting
+- **Content**: Browse and install mods, resource packs and shaders from Modrinth and CurseForge
+- **Modpacks**: Install, update and export (.mrpack) modpacks
 
 ### Upcoming Features 🚧
 
-- **Mod Management**: Download and install mods from Modrinth and CurseForge
-- **Resource Pack Browser**: Browse and install resource packs
-- **Shader Pack Support**: Easy shader installation and management
-- **Modpack Installation**: One-click modpack installation from popular platforms
 - **Themes**: Customizable themes for better user experience
 - **Import/Export**: Easy profile and settings migration
 
@@ -116,51 +114,48 @@ Proton includes an built-in auto-updater that will notify you when new versions 
 
 ## 🛠️ Development
 
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the crate map, startup flow and where everything lives.
+
 ### Prerequisites
 
-- **Devenv** (latest stable)
-- **Direnv** (for automatic environment loading)
+- **Devenv** (latest stable) and optionally **Direnv**, or any Rust toolchain plus the gpui Linux libraries (wayland, xkbcommon, vulkan, fontconfig)
+- **just**
 
 ### Development Setup
 
 ```bash
-# Clone the repository
 git clone https://github.com/ProfiiDev/proton.git
 cd proton
+direnv allow   # or: devenv shell
 
-# Optional: Allow direnv
-direnv allow
-# Or manually enter the shell
-devenv shell
+cargo run      # start the app
+```
 
-# Install dependencies
-npm install
+### Common Tasks
 
-# Start development app
-cd app && npm run tauri dev
+```bash
+just test                  # cargo nextest run --workspace
+just lint                  # clippy, warnings are errors
+just fmt                   # cargo fmt (json/md/yaml: oxfmt)
+just package deb,appimage  # release packages via cargo-packager
+nix build                  # Nix package (result/bin/proton)
 ```
 
 ### Project Structure
 
 ```
 proton/
-├── app/                    # Frontend (SvelteKit + TypeScript)
-│   ├── src/               # Svelte components and pages for app UI
-│   ├── src-tauri/         # Tauri Rust backend
-│   └── static/            # Static assets
-├── .github/workflows/     # CI/CD workflows
-└── devenv.nix            # Development environment config
-```
-
-### Building
-
-```bash
-# Build for specific platform
-cd app && npm run tauri build
-
-# Build for different architectures (macOS)
-npm run tauri build -- --target aarch64-apple-darwin
-npm run tauri build -- --target x86_64-apple-darwin
+├── src/main.rs            # app bootstrap
+├── crates/
+│   ├── ui/                # app shell, router and pages (gpui)
+│   ├── components/        # theme, assets, shared widgets
+│   ├── skin_render/       # wgpu skin renderer
+│   ├── account/ config/ content/ profiles/ versions/
+│   └── store/ reqwest/ utils/
+├── assets/                # theme, fonts, icons
+├── fixtures/              # test data dir and its generator
+├── packaging/             # Nix package, icons and desktop file
+└── devenv.nix             # dev environment
 ```
 
 ### Contributing
@@ -178,8 +173,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-- Built with [Tauri](https://tauri.app/)
-- UI components powered by [SvelteKit](https://kit.svelte.dev/), [TailwindCSS](https://tailwindcss.com/) and [ShadcnSvelte](https://shadcn-svelte.com/)
+- Built with [gpui](https://www.gpui.rs/) and [gpui-kit](https://crates.io/crates/gpui-kit)
 - Icons from [Lucide](https://lucide.dev/)
 
 ## ⭐ Support

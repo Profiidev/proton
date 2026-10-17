@@ -1,0 +1,3 @@
+version:4440
+resourcePacks:["vanilla","file/Fresh Animations.zip","file/Faithful 32x.zip"]
+lang:en_us

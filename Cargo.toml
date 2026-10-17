@@ -1,3 +1,133 @@
 [workspace]
-members = ["app/src-tauri"]
 resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.2.15"
+edition = "2024"
+repository = "https://github.com/Profiidev/proton"
+license = "MIT"
+
+[workspace.dependencies]
+proton_utils = { path = "crates/utils" }
+proton_store = { path = "crates/store" }
+proton_config = { path = "crates/config" }
+proton_versions = { path = "crates/versions" }
+proton_account = { path = "crates/account" }
+proton_profiles = { path = "crates/profiles" }
+proton_content = { path = "crates/content" }
+proton_components = { path = "crates/components" }
+proton_reqwest = { path = "crates/reqwest" }
+proton_ui = { path = "crates/ui" }
+gpui-kit = "0.7.3"
+futures = "0.3.34"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+flume = "0.12.0"
+open = "5.4.4"
+url = { version = "2.5.8", features = ["serde"] }
+tempfile = "3.27.0"
+include_dir = "0.7.4"
+interprocess = "2.4.5"
+
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+dirs = "7.0.0"
+anyhow = "1.0.104"
+thiserror = "2.0.21"
+chrono = { version = "0.4.45", features = ["serde"] }
+reqwest = { version = "0.13.5", features = [
+  "json",
+  "multipart",
+  "stream",
+  "form"
+] }
+tokio = { version = "1.53.3", features = ["full"] }
+base64 = "0.23.1"
+image = "0.25.10"
+uuid = { version = "1.28.0", features = ["v4"] }
+sha1 = "0.11.0"
+hex = "0.4.3"
+notify = "8.2.0"
+async-trait = "0.1.92"
+serde-xml-rs = "0.8.2"
+async_zip = { version = "0.0.19", features = [
+  "chrono",
+  "tokio-fs",
+  "deflate",
+  "bzip2",
+  "zstd",
+  "deflate64"
+] }
+tokio-util = { version = "0.7.20", features = ["compat"] }
+sysinfo = "0.39.6"
+futures-util = "0.3.34"
+sha2 = "0.11.1"
+pulldown-cmark = { version = "0.13.4", default-features = false, features = [
+  "html"
+] }
+ammonia = "4.2.3"
+cargo-packager-updater = "0.2.3"
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
+strip = true
+
+# root gpui binary
+[package]
+name = "proton"
+description = "Minecraft launcher"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+
+# `cargo packager --release` (CI: .github/workflows/app-release.yml)
+[package.metadata.packager]
+product-name = "Proton"
+identifier = "io.profidev.proton"
+category = "Game"
+authors = ["ProfiiDev"]
+# matches the Tauri NSIS manufacturer (identifier segment) so its registry keys carry over
+publisher = "profidev"
+before-packaging-command = "cargo build --release --bin proton"
+icons = [
+  "packaging/icons/32x32.png",
+  "packaging/icons/128x128.png",
+  "packaging/icons/128x128@2x.png",
+  "packaging/icons/icon.icns",
+  "packaging/icons/icon.ico"
+]
+
+[package.metadata.packager.deb]
+desktop-template = "packaging/proton.desktop"
+depends = [
+  "libxkbcommon0",
+  "libxkbcommon-x11-0",
+  "libwayland-client0",
+  "libvulkan1",
+  "libfontconfig1",
+  "libfreetype6",
+  "libxcb1"
+]
+
+[package.metadata.packager.nsis]
+installer-icon = "packaging/icons/icon.ico"
+
+[[bin]]
+name = "proton"
+path = "src/main.rs"
+
+[dependencies]
+proton_components.workspace = true
+proton_reqwest.workspace = true
+proton_ui.workspace = true
+gpui-kit.workspace = true
+proton_utils.workspace = true
+proton_config.workspace = true
+proton_versions.workspace = true
+proton_account.workspace = true
+proton_profiles.workspace = true
+proton_content.workspace = true
+tracing.workspace = true

@@ -1,0 +1,21 @@
+[package]
+name = "proton_components"
+description = "Shared UI components, assets and theme of Proton"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[features]
+# exposes test_view to other crates' tests
+test-support = ["gpui-kit/test-support"]
+
+[dependencies]
+anyhow.workspace = true
+proton_utils.workspace = true
+gpui-kit.workspace = true
+include_dir.workspace = true
+chrono.workspace = true
+
+[dev-dependencies]
+gpui-kit = { workspace = true, features = ["test-support"] }

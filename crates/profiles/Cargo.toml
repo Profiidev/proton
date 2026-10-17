@@ -1,0 +1,32 @@
+[package]
+name = "proton_profiles"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+chrono.workspace = true
+tokio.workspace = true
+image.workspace = true
+uuid.workspace = true
+tracing.workspace = true
+notify.workspace = true
+sysinfo.workspace = true
+flume.workspace = true
+open.workspace = true
+url.workspace = true
+gpui-kit.workspace = true
+proton_utils.workspace = true
+proton_store.workspace = true
+proton_config.workspace = true
+proton_versions.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+proton_utils = { workspace = true, features = ["test-support"] }
+proton_versions = { workspace = true, features = ["test-support"] }
+gpui-kit = { workspace = true, features = ["test-support"] }

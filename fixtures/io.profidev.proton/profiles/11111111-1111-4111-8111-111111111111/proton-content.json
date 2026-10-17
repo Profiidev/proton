@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "kind": "resourcepack",
+      "fileName": "Faithful 32x.zip",
+      "sha1": "6f257fa0a8ee4d7b4b393b93a0bd9233ea44a667",
+      "fingerprint": 11537983,
+      "manual": false,
+      "fromPack": false,
+      "installedAt": "2026-10-01T12:00:00.000000000+00:00",
+      "source": "modrinth",
+      "projectId": "FTBCIDcX",
+      "versionId": "fxtFaith",
+      "name": "Faithful 32x",
+      "iconUrl": null,
+      "versionNumber": "1.21.8-r1",
+      "channel": "release",
+      "dependencyOf": [],
+      "pending": false
+    },
+    {
+      "kind": "resourcepack",
+      "fileName": "Fresh Animations.zip",
+      "sha1": "a6115edb141072bfc93da5d5edb03703b5f851e4",
+      "fingerprint": 15552916,
+      "manual": false,
+      "fromPack": false,
+      "installedAt": "2026-10-01T12:00:00.000000000+00:00",
+      "source": "modrinth",
+      "projectId": "50dA9Sha",
+      "versionId": "fxtFresh",
+      "name": "Fresh Animations",
+      "iconUrl": null,
+      "versionNumber": "1.9.2",
+      "channel": "release",
+      "dependencyOf": [],
+      "pending": false
+    },
+    {
+      "kind": "resourcepack",
+      "fileName": "My Own Pack.zip",
+      "sha1": "a56e7dbf9347264cd015000db380a76ffa59d2bc",
+      "fingerprint": 10595622,
+      "manual": true,
+      "fromPack": false,
+      "installedAt": null,
+      "source": null,
+      "projectId": null,
+      "versionId": null,
+      "name": null,
+      "iconUrl": null,
+      "versionNumber": null,
+      "channel": null,
+      "dependencyOf": [],
+      "pending": false
+    }
+  ]
+}
