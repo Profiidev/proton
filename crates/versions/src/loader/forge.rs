@@ -609,7 +609,11 @@ fn neoforge_version_pair(version_string: &str) -> Result<(String, String)> {
       version_string
     ));
   }
-  let mc_version = format!("1.{}.{}", parts[0], parts[1]);
+  // "21.0.1" is minecraft "1.21", there is no "1.21.0"
+  let mc_version = match parts[1] {
+    "0" => format!("1.{}", parts[0]),
+    minor => format!("1.{}.{minor}", parts[0]),
+  };
   let neoforge_version = parts[2..].join(".");
   Ok((mc_version, neoforge_version))
 }
