@@ -220,8 +220,18 @@ fn jvm_args(args: &LaunchArgs, version: &Version, classpath: &str) -> Vec<String
   let mut jvm_args = Vec::new();
 
   for arg in &version.arguments.jvm {
-    if let Argument::String(arg) = arg {
-      jvm_args.push(args.replace_vars(version, arg, classpath));
+    match arg {
+      Argument::String(arg) => jvm_args.push(args.replace_vars(version, arg, classpath)),
+      // os gated, e.g. -XstartOnFirstThread on macOS
+      Argument::Object(arg) if arg.rules.iter().all(check_rule) => match &arg.value {
+        ArgumentValue::List(list) => jvm_args.extend(
+          list
+            .iter()
+            .map(|s| args.replace_vars(version, s, classpath)),
+        ),
+        ArgumentValue::String(s) => jvm_args.push(args.replace_vars(version, s, classpath)),
+      },
+      Argument::Object(_) => {}
     }
   }
 
