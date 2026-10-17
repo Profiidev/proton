@@ -408,7 +408,298 @@ fn home_entries(
 
 #[cfg(test)]
 mod tests {
+  use std::time::Duration;
+
+  use chrono::TimeDelta;
+  use proton_utils::rt;
+
   use super::*;
+  use crate::{
+    config::QuickPlayType,
+    tests::{profile, quick_play, sh},
+  };
+
+  /// Store file and data dir in a temp dir, the store file holds `profiles` when given
+  fn setup(
+    profiles: Option<serde_json::Value>,
+  ) -> (PathBuf, flume::Receiver<ProfilesMsg>, ProfileStore) {
+    let dir = tempfile::tempdir().unwrap().keep();
+    if let Some(profiles) = profiles {
+      let json = serde_json::json!({ "profiles": profiles });
+      std::fs::write(dir.join("store.json"), json.to_string()).unwrap();
+    }
+    proton_store::init_at(dir.join("store.json"));
+    let data_dir = dir.join("data");
+    std::fs::create_dir_all(&data_dir).unwrap();
+    let (tx, rx) = flume::unbounded();
+    let store = ProfileStore::new(data_dir.clone(), tx).unwrap();
+    (data_dir, rx, store)
+  }
+
+  fn saved_paths() -> HashMap<String, PathBuf> {
+    proton_store::store().get_or_default("profiles").unwrap()
+  }
+
+  async fn create(store: &mut ProfileStore, name: &str) -> String {
+    store
+      .create_profile(name.into(), None, "1.21".into(), LoaderType::Vanilla, None)
+      .await
+      .unwrap()
+  }
+
+  fn update(id: &str, version: &str, loader_version: Option<&str>) -> ProfileUpdate {
+    ProfileUpdate {
+      id: id.into(),
+      name: "Renamed".into(),
+      version: version.into(),
+      loader_version: loader_version.map(Into::into),
+      use_local_game: true,
+      game: None,
+      use_local_jvm: false,
+      jvm: None,
+    }
+  }
+
+  #[test]
+  fn new_migrates_old_absolute_paths() {
+    let dir = tempfile::tempdir().unwrap().keep();
+    let data_dir = dir.join("data");
+    let outside = dir.join("outside");
+    for d in [
+      data_dir.join("profiles/inside"),
+      data_dir.join("profiles/moved"),
+      outside.join("kept"),
+      data_dir.join("profiles/relative"),
+    ] {
+      std::fs::create_dir_all(d).unwrap();
+    }
+    std::fs::write(
+      dir.join("store.json"),
+      serde_json::json!({ "profiles": {
+        "inside": data_dir.join("profiles/inside"),
+        // the old data dir is gone, the profile was moved along with the new one
+        "moved": "/gone/old-data/profiles/moved",
+        // a profile outside the data dir that still exists stays where it is
+        "kept": outside.join("kept"),
+        "relative": "profiles/relative",
+        // nothing on disk, the watcher fails and the entry is dropped
+        "missing": "profiles/missing",
+      }})
+      .to_string(),
+    )
+    .unwrap();
+    proton_store::init_at(dir.join("store.json"));
+    let (tx, _rx) = flume::unbounded();
+    let store = ProfileStore::new(data_dir.clone(), tx).unwrap();
+
+    let expected = HashMap::from([
+      ("inside".to_string(), PathBuf::from("profiles/inside")),
+      ("moved".into(), PathBuf::from("profiles/moved")),
+      ("kept".into(), outside.join("kept")),
+      ("relative".into(), PathBuf::from("profiles/relative")),
+    ]);
+    assert_eq!(saved_paths(), expected);
+    for (id, path) in &expected {
+      assert_eq!(&store.profile_info(id).unwrap().path, path);
+    }
+    assert!(store.profile_info("missing").is_err());
+  }
+
+  #[test]
+  fn new_fails_on_a_garbled_profiles_key() {
+    let dir = tempfile::tempdir().unwrap().keep();
+    std::fs::write(dir.join("store.json"), r#"{"profiles":5}"#).unwrap();
+    proton_store::init_at(dir.join("store.json"));
+    let (tx, _rx) = flume::unbounded();
+    assert!(ProfileStore::new(dir.join("data"), tx).is_err());
+  }
+
+  #[test]
+  fn profiles_are_created_listed_oldest_first_and_removed() {
+    let (data_dir, _rx, mut store) = setup(None);
+    rt::block_on(async {
+      let first = create(&mut store, "First").await;
+      let second = create(&mut store, "Second").await;
+      let names: Vec<_> = store
+        .list_profiles()
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|p| p.name)
+        .collect();
+      assert_eq!(names, ["First", "Second"]);
+      assert_eq!(saved_paths().len(), 2);
+      assert_eq!(
+        store.get_profile_path(&first).unwrap(),
+        data_dir.join(PROFILE_DIR).join(&first)
+      );
+
+      store.remove_profile(&first).await.unwrap();
+      assert!(!data_dir.join(PROFILE_DIR).join(&first).exists());
+      assert_eq!(saved_paths().into_keys().collect::<Vec<_>>(), [second]);
+      for err in [
+        store.remove_profile(&first).await.unwrap_err(),
+        store.profile(&first).await.unwrap_err(),
+        store.get_profile_path(&first).unwrap_err(),
+      ] {
+        assert!(matches!(err.downcast_ref(), Some(ProfileError::NotFound)));
+      }
+    });
+  }
+
+  #[test]
+  fn update_needs_a_new_download_only_when_the_game_changes() {
+    let (_, _rx, mut store) = setup(None);
+    rt::block_on(async {
+      let id = create(&mut store, "P").await;
+      let cases = [
+        // same version and loader: the files stay valid
+        ("1.21", None, false),
+        ("1.20.1", None, true),
+        ("1.20.1", Some("0.15"), true),
+      ];
+      for (version, loader_version, reset) in cases {
+        let mut p = store.profile(&id).await.unwrap();
+        p.downloaded = true;
+        p.update(store.data_dir()).await.unwrap();
+        store
+          .update_profile(update(&id, version, loader_version))
+          .await
+          .unwrap();
+        let p = store.profile(&id).await.unwrap();
+        assert_eq!(p.downloaded, !reset, "{version} {loader_version:?}");
+        assert_eq!((p.name.as_str(), p.version.as_str()), ("Renamed", version));
+        assert!(p.use_local_game);
+      }
+      let err = store
+        .update_profile(update("nope", "1.21", None))
+        .await
+        .unwrap_err();
+      assert!(matches!(err.downcast_ref(), Some(ProfileError::NotFound)));
+    });
+  }
+
+  #[test]
+  fn insert_profile_registers_a_dir_written_elsewhere() {
+    let (data_dir, _rx, mut store) = setup(None);
+    let p = profile("imported");
+    // the watcher needs the dir
+    assert!(store.insert_profile(&p).is_err());
+    std::fs::create_dir_all(data_dir.join(p.relative_to_data())).unwrap();
+    rt::block_on(p.update(&data_dir)).unwrap();
+    store.insert_profile(&p).unwrap();
+    assert_eq!(
+      rt::block_on(store.profile("imported")).unwrap().id,
+      "imported"
+    );
+    assert_eq!(saved_paths()["imported"], p.relative_to_data());
+    assert_eq!(
+      store.mods_dirs(),
+      [("imported".into(), data_dir.join("profiles/imported/mods"))]
+    );
+  }
+
+  #[test]
+  fn list_home_prunes_deleted_worlds_on_disk() {
+    let (_, _rx, mut store) = setup(None);
+    rt::block_on(async {
+      let id = create(&mut store, "P").await;
+      let mut p = store.profile(&id).await.unwrap();
+      p.quick_play = vec![
+        quick_play("deleted", QuickPlayType::Singleplayer),
+        quick_play("server", QuickPlayType::Multiplayer),
+      ];
+      p.update(store.data_dir()).await.unwrap();
+
+      let (profiles, _, _) = store.list_home().await.unwrap();
+      assert_eq!(profiles[0].quick_play.len(), 1);
+      // written back, not only filtered
+      assert_eq!(store.profile(&id).await.unwrap().quick_play.len(), 1);
+    });
+  }
+
+  #[test]
+  fn home_entries_are_newest_first_and_capped_at_twelve() {
+    let base = Utc::now() - TimeDelta::days(1);
+    let mut profiles = Vec::new();
+    for i in 0..10 {
+      let mut p = profile(&format!("p{i}"));
+      p.favorite = true;
+      p.last_played = Some(base + TimeDelta::minutes(i));
+      let mut q = quick_play(&format!("q{i}"), QuickPlayType::Multiplayer);
+      q.last_played_time = base + TimeDelta::minutes(i) + TimeDelta::seconds(30);
+      q.favorite = i % 2 == 0;
+      p.quick_play = vec![q];
+      profiles.push(p);
+    }
+    // never played sorts as now, so it comes first
+    let mut fresh = profile("fresh");
+    fresh.favorite = true;
+    profiles.push(fresh);
+
+    let entries = home_entries(&profiles, |p| p.favorite, |q| q.favorite);
+    let ids: Vec<_> = entries
+      .iter()
+      .map(|e| match &e.quick_play {
+        Some(q) => q.id.clone(),
+        None => e.profile.id.clone(),
+      })
+      .collect();
+    assert_eq!(
+      ids,
+      [
+        "fresh", "p9", "q8", "p8", "p7", "q6", "p6", "p5", "q4", "p4", "p3", "q2"
+      ]
+    );
+    assert!(home_entries(&profiles, |_| false, |_| false).is_empty());
+  }
+
+  #[test]
+  fn instances_are_tracked_until_they_stop() {
+    let (_, rx, mut store) = setup(None);
+    rt::block_on(async {
+      let id = create(&mut store, "P").await;
+      let p = store.profile(&id).await.unwrap();
+      assert!(!store.is_running(&id).await);
+      store
+        .add_instance(sh("sleep 30"), &p, "acc".into())
+        .await
+        .unwrap();
+      store
+        .add_instance(sh("sleep 30"), &p, "acc".into())
+        .await
+        .unwrap();
+      assert!(store.is_running(&id).await);
+      let memory = store.instances_memory().await;
+      assert_eq!(memory.len(), 2);
+      assert!(memory.values().all(|m| *m > 0));
+
+      let err = store.stop_instance(&id, "nope").await.unwrap_err();
+      assert!(matches!(err.downcast_ref(), Some(InstanceError::NotFound)));
+      assert!(store.stop_instance("other", "nope").await.is_err());
+      // another profile's stop leaves these running
+      store.stop_all_instances(Some("other")).await;
+      let first = memory.keys().next().unwrap().clone();
+      store.stop_instance(&id, &first).await.unwrap();
+      let removed = loop {
+        if let ProfilesMsg::InstanceRemoved(i) = rx.recv_async().await.unwrap() {
+          break i;
+        }
+      };
+      assert_eq!(removed, first);
+      assert!(store.is_running(&id).await);
+
+      store.stop_all_instances(None).await;
+      tokio::time::timeout(Duration::from_secs(5), async {
+        while store.is_running(&id).await {
+          tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+      })
+      .await
+      .unwrap();
+      assert!(store.instances_memory().await.is_empty());
+    });
+  }
 
   #[test]
   fn count_mod_jars_counts_only_jar_files() {

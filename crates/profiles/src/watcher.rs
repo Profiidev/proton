@@ -104,7 +104,92 @@ fn is_content(profile: &Path, path: &Path) -> bool {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::TMP_DIR;
+  use crate::{
+    TMP_DIR,
+    config::QuickPlayType,
+    tests::{profile, quick_play},
+  };
+
+  async fn next(rx: &flume::Receiver<ProfilesMsg>) -> Option<ProfilesMsg> {
+    tokio::time::timeout(Duration::from_secs(5), rx.recv_async())
+      .await
+      .ok()?
+      .ok()
+  }
+
+  #[test]
+  fn quick_play_file_is_merged_into_the_profile() {
+    let dir = tempfile::tempdir().unwrap().keep();
+    let config = path!(&dir, PROFILE_CONFIG);
+    let (tx, rx) = flume::unbounded();
+    rt::block_on(async {
+      write_file(&config, &profile("p")).await.unwrap();
+      let stop = watch_profile(dir.clone(), "p".into(), tx).unwrap();
+      let entries = vec![quick_play("s", QuickPlayType::Multiplayer)];
+      write_file(&path!(&dir, QUICK_PLAY), &entries)
+        .await
+        .unwrap();
+
+      let msg = next(&rx).await;
+      assert!(
+        matches!(&msg, Some(ProfilesMsg::QuickPlayFileChanged(id)) if id == "p"),
+        "{msg:?}"
+      );
+      let merged: Profile = read_parse_file(&config).await.unwrap();
+      assert_eq!(merged.quick_play, entries);
+      stop.notify_one();
+    });
+  }
+
+  #[test]
+  fn content_changes_are_throttled_and_stop_ends_the_watch() {
+    let dir = tempfile::tempdir().unwrap().keep();
+    std::fs::create_dir_all(dir.join("mods")).unwrap();
+    let (tx, rx) = flume::unbounded();
+    rt::block_on(async {
+      let stop = watch_profile(dir.clone(), "p".into(), tx).unwrap();
+      // a burst of writes, the limiter folds it into few messages
+      for i in 0..20 {
+        tokio::fs::write(dir.join(format!("mods/{i}.jar")), "x")
+          .await
+          .unwrap();
+      }
+      let msg = next(&rx).await;
+      assert!(
+        matches!(&msg, Some(ProfilesMsg::ContentChanged(id)) if id == "p"),
+        "{msg:?}"
+      );
+      tokio::time::sleep(Duration::from_millis(700)).await;
+      assert!(rx.len() <= 1, "{} extra messages", rx.len());
+
+      stop.notify_one();
+      // once stopped the loop drops the sender
+      while next(&rx).await.is_some() {}
+      assert!(rx.is_disconnected());
+    });
+  }
+
+  #[test]
+  fn a_broken_quick_play_file_is_ignored() {
+    let dir = tempfile::tempdir().unwrap().keep();
+    let (tx, rx) = flume::unbounded();
+    rt::block_on(async {
+      write_file(&path!(&dir, PROFILE_CONFIG), &profile("p"))
+        .await
+        .unwrap();
+      let _stop = watch_profile(dir.clone(), "p".into(), tx).unwrap();
+      tokio::fs::write(dir.join(QUICK_PLAY), "{").await.unwrap();
+      tokio::time::sleep(Duration::from_millis(300)).await;
+      assert!(rx.is_empty());
+    });
+  }
+
+  #[test]
+  fn watching_a_missing_dir_fails() {
+    let (tx, _rx) = flume::unbounded();
+    let dir = tempfile::tempdir().unwrap();
+    assert!(watch_profile(dir.path().join("missing"), "p".into(), tx).is_err());
+  }
 
   #[test]
   fn detects_content_paths() {

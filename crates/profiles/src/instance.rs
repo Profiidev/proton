@@ -234,3 +234,178 @@ async fn drain<R: AsyncBufRead + Unpin>(lines: &mut Lines<R>, out: &mut Vec<Stri
   })
   .await;
 }
+
+#[cfg(test)]
+mod tests {
+  use std::time::Instant;
+
+  use super::*;
+  use crate::tests::{profile, sh};
+
+  /// Messages until the run list arrives, which is the last thing an instance sends
+  async fn until_runs(rx: &flume::Receiver<ProfilesMsg>) -> Vec<ProfilesMsg> {
+    let mut msgs = Vec::new();
+    while let Ok(Ok(msg)) = timeout(Duration::from_secs(10), rx.recv_async()).await {
+      let done = matches!(msg, ProfilesMsg::Runs(..));
+      msgs.push(msg);
+      if done {
+        return msgs;
+      }
+    }
+    panic!("no runs message, got {msgs:?}");
+  }
+
+  fn lines(msgs: &[ProfilesMsg]) -> Vec<String> {
+    msgs
+      .iter()
+      .filter_map(|m| match m {
+        ProfilesMsg::InstanceLines(_, l) => Some(l.clone()),
+        _ => None,
+      })
+      .flatten()
+      .collect()
+  }
+
+  fn crashed(msgs: &[ProfilesMsg]) -> bool {
+    msgs
+      .iter()
+      .any(|m| matches!(m, ProfilesMsg::InstanceCrashed { .. }))
+  }
+
+  fn setup() -> (
+    PathBuf,
+    Instances,
+    flume::Sender<ProfilesMsg>,
+    flume::Receiver<ProfilesMsg>,
+  ) {
+    let (tx, rx) = flume::unbounded();
+    (
+      tempfile::tempdir().unwrap().keep(),
+      Default::default(),
+      tx,
+      rx,
+    )
+  }
+
+  #[test]
+  fn exit_codes_decide_the_crash_event_and_the_log_is_kept() {
+    for (script, crash) in [
+      ("echo out; echo err >&2; exit 0", false),
+      ("echo out; echo err >&2; exit 3", true),
+      // killed by a signal has no exit code, still a crash
+      ("echo out; echo err >&2; kill -9 $$", true),
+    ] {
+      let (dir, instances, tx, rx) = setup();
+      let p = profile("p");
+      let msgs = rt::block_on(async {
+        Instance::create(sh(script), &dir, &p, "acc".into(), &instances, &tx)
+          .await
+          .unwrap();
+        until_runs(&rx).await
+      });
+
+      let ProfilesMsg::InstanceAdded(info) = &msgs[0] else {
+        panic!("added first, got {msgs:?}");
+      };
+      assert_eq!(
+        (info.profile_id.as_str(), info.account_name.as_str()),
+        ("p", "acc")
+      );
+      let mut got = lines(&msgs);
+      // stdout and stderr race, only the set is fixed
+      got.sort();
+      assert_eq!(got, ["err", "out"], "{script}");
+      assert_eq!(crashed(&msgs), crash, "{script}");
+      assert!(
+        msgs
+          .iter()
+          .any(|m| matches!(m, ProfilesMsg::InstanceRemoved(id) if *id == info.id))
+      );
+      assert!(rt::block_on(instances.lock())["p"].is_empty());
+
+      let log = std::fs::read_to_string(run_log_file(
+        &ProfileInfo::log_dir(&dir, "p"),
+        info.launched_at,
+      ))
+      .unwrap();
+      let mut saved: Vec<_> = log.lines().collect();
+      saved.sort();
+      assert_eq!(saved, ["err", "out"]);
+    }
+  }
+
+  #[test]
+  fn stop_kills_the_game_without_a_crash() {
+    let (dir, instances, tx, rx) = setup();
+    let p = profile("p");
+    let msgs = rt::block_on(async {
+      Instance::create(
+        sh("echo up; sleep 30"),
+        &dir,
+        &p,
+        "acc".into(),
+        &instances,
+        &tx,
+      )
+      .await
+      .unwrap();
+      let list = instances.lock().await;
+      let instance = &list["p"][0];
+      assert!(instance.pid() > 0);
+      // sent before the pump waits, the permit is kept
+      instance.stop();
+      drop(list);
+      until_runs(&rx).await
+    });
+    assert!(!crashed(&msgs));
+    assert!(
+      msgs
+        .iter()
+        .any(|m| matches!(m, ProfilesMsg::InstanceRemoved(_)))
+    );
+  }
+
+  #[test]
+  fn a_child_holding_the_pipe_open_does_not_block_the_exit() {
+    let (dir, instances, tx, rx) = setup();
+    let p = profile("p");
+    let start = Instant::now();
+    let msgs = rt::block_on(async {
+      // the background sleep inherits stdout, so the pipe stays open after exit
+      Instance::create(
+        sh("echo last; sleep 5 & exit 0"),
+        &dir,
+        &p,
+        "acc".into(),
+        &instances,
+        &tx,
+      )
+      .await
+      .unwrap();
+      until_runs(&rx).await
+    });
+    assert!(start.elapsed() < Duration::from_secs(10));
+    assert_eq!(lines(&msgs), ["last"]);
+  }
+
+  #[test]
+  fn a_child_without_piped_output_is_rejected() {
+    let (dir, instances, tx, rx) = setup();
+    let err = rt::block_on(async {
+      let child = tokio::process::Command::new("sh")
+        .args(["-c", "exit 0"])
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+      Instance::create(child, &dir, &profile("p"), "acc".into(), &instances, &tx)
+        .await
+        .unwrap_err()
+    });
+    assert!(matches!(
+      err.downcast_ref(),
+      Some(InstanceError::InvalidProcessState)
+    ));
+    assert!(rt::block_on(instances.lock()).is_empty());
+    assert!(rx.is_empty());
+  }
+}

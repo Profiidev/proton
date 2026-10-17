@@ -8,7 +8,47 @@ use std::{
 use gpui_kit::{self as gpui, TestAppContext};
 
 use super::*;
-use crate::{PROFILE_LOGS, store::ProfilesMsg};
+use crate::{
+  PROFILE_LOGS,
+  config::{ProfileInfo, QuickPlayType},
+  store::ProfilesMsg,
+};
+
+/// A profile as an old version wrote it, without the fields added later
+pub(crate) const OLD_PROFILE: &str = r#"{"id":"x","name":"x","created_at":"2024-01-01T00:00:00Z","last_played":null,
+  "quick_play":[{"id":"w","name":"W","lastPlayedTime":"2024-01-01T00:00:00Z","type":"singleplayer"}],
+  "version":"1.21","loader":"Vanilla","loader_version":null,"downloaded":true,
+  "use_local_game":false,"game":null,"use_local_jvm":false,"jvm":null}"#;
+
+/// [`OLD_PROFILE`] with this id and no quick play entries
+pub(crate) fn profile(id: &str) -> Profile {
+  let mut profile: Profile = serde_json::from_str(OLD_PROFILE).unwrap();
+  profile.id = id.into();
+  profile.quick_play.clear();
+  profile
+}
+
+pub(crate) fn quick_play(id: &str, r#type: QuickPlayType) -> QuickPlayInfo {
+  QuickPlayInfo {
+    id: id.into(),
+    name: id.into(),
+    last_played_time: Utc::now(),
+    favorite: false,
+    history: false,
+    r#type,
+  }
+}
+
+/// A fake game: `sh -c script` with piped output, call inside the tokio runtime
+pub(crate) fn sh(script: &str) -> tokio::process::Child {
+  tokio::process::Command::new("sh")
+    .args(["-c", script])
+    .stdout(std::process::Stdio::piped())
+    .stderr(std::process::Stdio::piped())
+    .kill_on_drop(true)
+    .spawn()
+    .unwrap()
+}
 
 /// Fresh store and data dir per test, never the real ones
 fn init_test(cx: &mut TestAppContext) -> PathBuf {
@@ -169,11 +209,7 @@ async fn non_zero_exit_emits_crash(cx: &mut TestAppContext) {
 
 #[test]
 fn mark_played_updates_history() {
-  let json = r#"{"id":"x","name":"x","created_at":"2024-01-01T00:00:00Z","last_played":null,
-    "quick_play":[{"id":"w","name":"W","lastPlayedTime":"2024-01-01T00:00:00Z","type":"singleplayer"}],
-    "version":"1.21","loader":"Vanilla","loader_version":null,"downloaded":true,
-    "use_local_game":false,"game":null,"use_local_jvm":false,"jvm":null}"#;
-  let mut profile: Profile = serde_json::from_str(json).unwrap();
+  let mut profile: Profile = serde_json::from_str(OLD_PROFILE).unwrap();
   let now = Utc::now();
   let quick_play = profile.quick_play[0].clone();
 
@@ -214,4 +250,336 @@ async fn init_loads_in_the_background_and_early_calls_wait(cx: &mut TestAppConte
     assert!(*profiles.loaded.read(cx));
     assert_eq!(profiles.profiles.read(cx)[0].name, "Early");
   });
+}
+
+/// Runs the gpui side until `done` holds, tokio work lands in between
+fn wait_until(
+  cx: &mut TestAppContext,
+  what: &str,
+  mut done: impl FnMut(&mut TestAppContext) -> bool,
+) {
+  let start = Instant::now();
+  loop {
+    cx.run_until_parked();
+    if done(cx) {
+      return;
+    }
+    assert!(
+      start.elapsed() < Duration::from_secs(10),
+      "timed out: {what}"
+    );
+    std::thread::sleep(Duration::from_millis(20));
+  }
+}
+
+async fn create(profiles: &Profiles, name: &str) -> String {
+  profiles
+    .create(name.into(), None, "1.21".into(), LoaderType::Vanilla, None)
+    .await
+    .unwrap()
+}
+
+#[gpui::test]
+fn listener_ignores_messages_for_unknown_entities(cx: &mut TestAppContext) {
+  init_test(cx);
+  let profiles = cx.update(|cx| cx.profiles().clone());
+  let tx = profiles.handle.tx.clone();
+  let loaded = count_notifies(cx, &profiles.loaded);
+  let instances = count_notifies(cx, &profiles.instances);
+
+  // nobody asked for these lists or logs yet, so there is nothing to update
+  tx.send(ProfilesMsg::QuickPlay("x".into(), vec![])).unwrap();
+  tx.send(ProfilesMsg::Runs("x".into(), vec![Utc::now()]))
+    .unwrap();
+  tx.send(ProfilesMsg::InstanceLines("x".into(), vec!["l".into()]))
+    .unwrap();
+  // removing an unknown instance still notifies, harmless
+  tx.send(ProfilesMsg::InstanceRemoved("x".into())).unwrap();
+  // already loaded, write_changed keeps it quiet
+  tx.send(ProfilesMsg::Profiles {
+    profiles: vec![],
+    favorites: vec![],
+    history: vec![],
+  })
+  .unwrap();
+  cx.run_until_parked();
+
+  assert_eq!(loaded.get(), 0);
+  assert_eq!(instances.get(), 1);
+  let lazy = cx.update(|cx| {
+    let l = profiles.lazy.read(cx);
+    (l.quick_play.len(), l.runs.len(), l.logs.len())
+  });
+  assert_eq!(lazy, (0, 0, 0));
+}
+
+#[gpui::test]
+fn listener_turns_content_changes_into_events(cx: &mut TestAppContext) {
+  init_test(cx);
+  let profiles = cx.update(|cx| cx.profiles().clone());
+  let events = Rc::new(RefCell::new(Vec::new()));
+  let seen = events.clone();
+  cx.update(|cx| {
+    cx.subscribe(&profiles.events, move |_, e: &ProfilesEvent, _| {
+      seen.borrow_mut().push(e.clone())
+    })
+    .detach()
+  });
+  let tx = profiles.handle.tx.clone();
+  tx.send(ProfilesMsg::ContentChanged("p".into())).unwrap();
+  tx.send(ProfilesMsg::InstanceCrashed {
+    profile_name: "P".into(),
+  })
+  .unwrap();
+  cx.run_until_parked();
+  assert_eq!(
+    *events.borrow(),
+    [
+      ProfilesEvent::ContentChanged("p".into()),
+      ProfilesEvent::InstanceCrashed {
+        profile_name: "P".into()
+      }
+    ]
+  );
+}
+
+#[gpui::test]
+async fn quick_play_and_runs_load_lazily_once(cx: &mut TestAppContext) {
+  cx.executor().allow_parking();
+  let data_dir = init_test(cx);
+  let profiles = cx.update(|cx| cx.profiles().clone());
+  let id = create(&profiles, "P").await;
+
+  let launched = Utc::now();
+  let log_dir = ProfileInfo::log_dir(&data_dir, &id);
+  std::fs::create_dir_all(&log_dir).unwrap();
+  std::fs::write(profile::run_log_file(&log_dir, launched), "line").unwrap();
+  {
+    let entry = quick_play("srv", QuickPlayType::Multiplayer);
+    let handle = profiles.handle.clone();
+    let pid = id.clone();
+    rt::block_on(async move {
+      let store = handle.store.lock().await;
+      let mut profile = store.profile(&pid).await.unwrap();
+      profile.quick_play = vec![entry];
+      profile.update(store.data_dir()).await.unwrap();
+    });
+  }
+
+  let quick = cx.update(|cx| profiles.quick_play(&id, cx));
+  let runs = cx.update(|cx| profiles.runs(&id, cx));
+  wait_until(cx, "lazy lists", |cx| {
+    cx.update(|cx| quick.read(cx).len() == 1 && runs.read(cx).len() == 1)
+  });
+  // the second call reuses the entity
+  assert_eq!(cx.update(|cx| profiles.quick_play(&id, cx)), quick);
+  assert_eq!(cx.update(|cx| profiles.runs(&id, cx)), runs);
+  assert_eq!(profiles.logs(id.clone(), launched).await.unwrap(), ["line"]);
+
+  profiles.clear_logs(id.clone()).await.unwrap();
+  cx.run_until_parked();
+  assert!(cx.update(|cx| runs.read(cx).is_empty()));
+}
+
+#[gpui::test]
+async fn favorites_and_quick_play_edits_reach_the_home_lists(cx: &mut TestAppContext) {
+  cx.executor().allow_parking();
+  init_test(cx);
+  let profiles = cx.update(|cx| cx.profiles().clone());
+  let id = create(&profiles, "P").await;
+  let entry = quick_play("srv", QuickPlayType::Multiplayer);
+  {
+    let handle = profiles.handle.clone();
+    let (pid, entry) = (id.clone(), entry.clone());
+    rt::block_on(async move {
+      let store = handle.store.lock().await;
+      let mut profile = store.profile(&pid).await.unwrap();
+      profile.quick_play = vec![entry];
+      profile.update(store.data_dir()).await.unwrap();
+    });
+  }
+  let quick = cx.update(|cx| profiles.quick_play(&id, cx));
+
+  profiles.set_favorite(id.clone(), None, true).await.unwrap();
+  profiles
+    .set_favorite(id.clone(), Some(entry.clone()), true)
+    .await
+    .unwrap();
+  cx.run_until_parked();
+  let favorites = cx.update(|cx| profiles.favorites.read(cx).clone());
+  assert_eq!(favorites.len(), 2);
+  assert!(cx.update(|cx| quick.read(cx)[0].favorite));
+
+  profiles.remove_quick_play(id.clone(), entry).await.unwrap();
+  cx.run_until_parked();
+  assert!(cx.update(|cx| quick.read(cx).is_empty()));
+  let favorites = cx.update(|cx| profiles.favorites.read(cx).clone());
+  assert_eq!(favorites.len(), 1);
+  assert!(favorites[0].quick_play.is_none());
+}
+
+#[gpui::test]
+async fn quick_play_file_change_refreshes_the_lists(cx: &mut TestAppContext) {
+  cx.executor().allow_parking();
+  let data_dir = init_test(cx);
+  let profiles = cx.update(|cx| cx.profiles().clone());
+  let id = create(&profiles, "P").await;
+  let quick = cx.update(|cx| profiles.quick_play(&id, cx));
+  cx.run_until_parked();
+
+  // the game writes its quick play file, the watcher merges it
+  let entries = vec![quick_play("srv", QuickPlayType::Multiplayer)];
+  let file = data_dir
+    .join(PROFILE_DIR)
+    .join(&id)
+    .join(proton_versions::paths::QUICK_PLAY);
+  std::fs::write(file, serde_json::to_string(&entries).unwrap()).unwrap();
+  wait_until(cx, "merged quick play", |cx| {
+    cx.update(|cx| quick.read(cx).len() == 1)
+  });
+  let list = cx.update(|cx| profiles.profiles.read(cx).clone());
+  assert_eq!(list[0].quick_play.len(), 1);
+}
+
+#[gpui::test]
+async fn edits_icons_and_removal_go_through_the_store(cx: &mut TestAppContext) {
+  cx.executor().allow_parking();
+  let data_dir = init_test(cx);
+  let profiles = cx.update(|cx| cx.profiles().clone());
+  let id = create(&profiles, "P").await;
+  cx.run_until_parked();
+  let count = count_notifies(cx, &profiles.profiles);
+
+  profiles
+    .update(crate::config::ProfileUpdate {
+      id: id.clone(),
+      name: "Renamed".into(),
+      version: "1.20".into(),
+      loader_version: None,
+      use_local_game: false,
+      game: None,
+      use_local_jvm: false,
+      jvm: None,
+    })
+    .await
+    .unwrap();
+  cx.run_until_parked();
+  assert_eq!(
+    cx.update(|cx| profiles.profiles.read(cx)[0].name.clone()),
+    "Renamed"
+  );
+
+  assert_eq!(profiles.icon(id.clone()).await.unwrap(), None);
+  assert!(
+    profiles
+      .update_icon(id.clone(), b"x".to_vec())
+      .await
+      .is_err()
+  );
+  let mut png = std::io::Cursor::new(Vec::new());
+  image::RgbaImage::new(2, 2)
+    .write_to(&mut png, image::ImageFormat::Png)
+    .unwrap();
+  let png = png.into_inner();
+  profiles.update_icon(id.clone(), png.clone()).await.unwrap();
+  assert_eq!(profiles.icon(id.clone()).await.unwrap(), Some(png));
+  cx.run_until_parked();
+  // update and the new icon both reload the list
+  assert_eq!(count.get(), 2);
+
+  std::fs::create_dir_all(data_dir.join(PROFILE_DIR).join(&id).join("mods")).unwrap();
+  std::fs::write(data_dir.join(PROFILE_DIR).join(&id).join("mods/a.jar"), "").unwrap();
+  let mods = profiles.mods_count().await.unwrap();
+  assert_eq!(mods.get(&id), Some(&1));
+
+  profiles.remove(id.clone()).await.unwrap();
+  cx.run_until_parked();
+  assert!(cx.update(|cx| profiles.profiles.read(cx).is_empty()));
+  // every call on a removed profile reports it
+  assert!(profiles.icon(id.clone()).await.is_err());
+  assert!(profiles.clear_logs(id.clone()).await.is_err());
+  assert!(profiles.logs(id.clone(), Utc::now()).await.is_err());
+  assert!(profiles.remove(id.clone()).await.is_err());
+  assert!(profiles.set_favorite(id.clone(), None, true).await.is_err());
+  assert!(profiles.open_path(id).await.is_err());
+}
+
+#[gpui::test]
+async fn instances_stop_one_by_one_or_all_together(cx: &mut TestAppContext) {
+  cx.executor().allow_parking();
+  init_test(cx);
+  let profiles = cx.update(|cx| cx.profiles().clone());
+  let a = create(&profiles, "A").await;
+  let b = create(&profiles, "B").await;
+  for id in [&a, &a, &b] {
+    let handle = profiles.handle.clone();
+    let id = id.clone();
+    rt::block_on(async move {
+      let store = handle.store.lock().await;
+      let profile = store.profile(&id).await.unwrap();
+      store
+        .add_instance(sh("sleep 30"), &profile, "acc".into())
+        .await
+        .unwrap();
+    });
+  }
+  cx.run_until_parked();
+  let running = |cx: &mut TestAppContext| cx.update(|cx| profiles.instances.read(cx).clone());
+  assert_eq!(running(cx).len(), 3);
+  assert_eq!(profiles.instances_memory().await.unwrap().len(), 3);
+
+  let first = running(cx).into_iter().find(|i| i.profile_id == a).unwrap();
+  assert!(
+    profiles
+      .stop_instance(b.clone(), first.id.clone())
+      .await
+      .is_err()
+  );
+  profiles
+    .stop_instance(a.clone(), first.id.clone())
+    .await
+    .unwrap();
+  wait_until(cx, "one stopped", |cx| running(cx).len() == 2);
+
+  profiles.stop_all(Some(b.clone())).await.unwrap();
+  wait_until(cx, "b stopped", |cx| {
+    running(cx).iter().all(|i| i.profile_id == a)
+  });
+  assert_eq!(running(cx).len(), 1);
+  profiles.stop_all(None).await.unwrap();
+  wait_until(cx, "all stopped", |cx| running(cx).is_empty());
+  // killed games are no crashes, so no events but the run logs
+  assert!(profiles.instances_memory().await.unwrap().is_empty());
+}
+
+#[gpui::test]
+async fn world_icons_and_server_status_resolve_through_the_service(cx: &mut TestAppContext) {
+  cx.executor().allow_parking();
+  let data_dir = init_test(cx);
+  cx.update(proton_config::init);
+  let profiles = cx.update(|cx| cx.profiles().clone());
+  let id = create(&profiles, "P").await;
+  let world = data_dir.join(PROFILE_DIR).join(&id).join("saves/w");
+  std::fs::create_dir_all(&world).unwrap();
+  std::fs::write(world.join("icon.png"), "icon").unwrap();
+
+  let entry = quick_play("w", QuickPlayType::Singleplayer);
+  let icon = cx
+    .update(|cx| profiles.quick_play_icon(cx, id.clone(), entry.clone()))
+    .await
+    .unwrap();
+  assert_eq!(icon, Some(b"icon".to_vec()));
+  let missing = cx.update(|cx| profiles.quick_play_icon(cx, "nope".into(), entry));
+  assert!(missing.await.is_err());
+
+  let server = proton_utils::test_http::FakeServer::start();
+  server.route(
+    "GET",
+    "/api.mcstatus.io/v2/status/java/a.b",
+    200,
+    r#"{"online":true,"players":{"online":1,"max":2}}"#,
+  );
+  let status = Profiles::server_status("a.b".into()).await.unwrap();
+  assert_eq!((status.online, status.players_online), (true, 1));
+  assert!(Profiles::server_status("c.d".into()).await.is_none());
 }
