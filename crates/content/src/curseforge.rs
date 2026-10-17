@@ -598,7 +598,13 @@ impl Mod {
         .map(|a| a.name)
         .unwrap_or_default(),
       description: self.summary,
-      icon_url: self.logo.map(|l| l.thumbnail_url.unwrap_or(l.url)),
+      // some logos come with an empty thumbnail but a valid full url
+      icon_url: self.logo.and_then(|l| {
+        [l.thumbnail_url, Some(l.url)]
+          .into_iter()
+          .flatten()
+          .find(|s| !s.is_empty())
+      }),
       categories: self.categories.into_iter().map(|c| c.name).collect(),
       loaders,
       game_versions,
@@ -743,5 +749,21 @@ mod tests {
     assert_eq!(info.files[0].url, None);
     assert_eq!(info.files[0].sha1, "sha");
     assert_eq!(info.dependencies[0].project_id, "9");
+  }
+
+  #[test]
+  fn empty_logo_thumbnail_falls_back() {
+    let logo = |thumb: &str, url: &str| {
+      let m: Mod = serde_json::from_value(json!({
+        "id": 1, "slug": "s", "name": "n", "summary": "", "links": {"websiteUrl": ""},
+        "downloadCount": 0.0, "categories": [], "classId": 4471, "authors": [],
+        "logo": {"thumbnailUrl": thumb, "url": url}, "dateModified": ""
+      }))
+      .unwrap();
+      m.into_summary().icon_url
+    };
+    assert_eq!(logo("", "full"), Some("full".into()));
+    assert_eq!(logo("thumb", "full"), Some("thumb".into()));
+    assert_eq!(logo("", ""), None);
   }
 }
