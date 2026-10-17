@@ -287,6 +287,7 @@ fn download_and_install(update: &Update, tx: flume::Sender<Progress>) -> anyhow:
 }
 
 /// `bytes` are signature checked by `download_extended`
+// ponytail: untested, it needs root (pkexec dpkg -i); test with a fake `pkexec` early on PATH
 fn install_deb(bytes: &[u8]) -> anyhow::Result<()> {
   let path = std::env::temp_dir().join(format!("proton-update-{}.deb", std::process::id()));
   std::fs::write(&path, bytes)?;
@@ -319,6 +320,8 @@ fn remove_progress_toast(cx: &mut App) {
 }
 
 /// Starts the updated binary and quits, the new process waits for our socket to go away
+// ponytail: only the failed relaunch is tested, success quits the test process; a fake binary
+// plus a quit hook would cover it
 fn restart(binary: PathBuf, cx: &mut App) {
   match std::process::Command::new(&binary)
     .env(RESTART_ENV, "1")
@@ -364,41 +367,29 @@ pub fn check_on_start(cx: &mut App) {
 
 #[cfg(test)]
 mod tests {
-  use std::{
-    io::{Read, Write},
-    net::TcpListener,
+  use std::{cell::RefCell, rc::Rc};
+
+  use gpui_kit::{
+    self as gpui, AnyWindowHandle, IntoElement, TestAppContext, div, test::TestWindowExt,
   };
+  use proton_components::test_view;
+  use proton_utils::test_http::FakeServer;
 
   use super::*;
+  use crate::pages::profiles::tests::poll;
 
-  /// Serves `body` as the endpoint once, returns its url
-  fn serve(body: String) -> String {
-    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-    let addr = listener.local_addr().unwrap();
-    std::thread::spawn(move || {
-      let (mut conn, _) = listener.accept().unwrap();
-      let _ = conn.read(&mut [0; 4096]);
-      let res = format!(
-        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
-        body.len()
-      );
-      conn.write_all(res.as_bytes()).unwrap();
-    });
-    format!("http://{addr}/latest.json")
-  }
-
-  /// The shape `app-release.yml` writes
-  fn latest_json(version: &str) -> String {
+  /// The shape `app-release.yml` writes, every platform downloading `bundle`
+  fn latest_json(version: &str, notes: &str, bundle: &str) -> String {
     let platform = |format: &str| {
       serde_json::json!({
-        "url": "https://github.com/Profiidev/proton/releases/download/v9/Proton.bin",
+        "url": bundle,
         "signature": "c2ln",
         "format": format,
       })
     };
     serde_json::json!({
       "version": version,
-      "notes": "Fixes",
+      "notes": notes,
       "pub_date": "2026-10-16T12:00:00Z",
       "platforms": {
         "linux-x86_64": platform("appimage"),
@@ -415,9 +406,28 @@ mod tests {
     .to_string()
   }
 
+  /// A server answering `/latest.json` with `version`, the bundle at `/Proton.AppImage`
+  fn release(version: &str, notes: &str) -> (FakeServer, String) {
+    let server = FakeServer::start();
+    let bundle = format!("{}/Proton.AppImage", server.origin());
+    server.route(
+      "GET",
+      "/latest.json",
+      200,
+      latest_json(version, notes, &bundle),
+    );
+    let endpoint = format!("{}/latest.json", server.origin());
+    (server, endpoint)
+  }
+
+  fn paths(server: &FakeServer) -> Vec<String> {
+    server.calls().into_iter().map(|c| c.path).collect()
+  }
+
   #[test]
   fn newer_release_is_an_update() {
-    let update = fetch(&serve(latest_json("v99.0.0"))).unwrap().unwrap();
+    let (_server, endpoint) = release("v99.0.0", "Fixes");
+    let update = fetch(&endpoint).unwrap().unwrap();
     assert_eq!(update.version, "99.0.0");
     assert_eq!(update.body.as_deref(), Some("Fixes"));
     assert_eq!(update.signature, "c2ln");
@@ -425,14 +435,25 @@ mod tests {
 
   #[test]
   fn same_or_older_release_is_none() {
-    let current = env!("CARGO_PKG_VERSION");
-    assert!(fetch(&serve(latest_json(current))).unwrap().is_none());
-    assert!(fetch(&serve(latest_json("0.0.1"))).unwrap().is_none());
+    for version in [env!("CARGO_PKG_VERSION"), "0.0.1"] {
+      let (_server, endpoint) = release(version, "");
+      assert!(fetch(&endpoint).unwrap().is_none(), "{version}");
+    }
   }
 
   #[test]
-  fn garbage_is_an_error() {
-    assert!(fetch(&serve("{\"version\":\"nope\"}".into())).is_err());
+  fn garbage_missing_or_failing_endpoints_are_errors() {
+    let server = FakeServer::start();
+    server.route("GET", "/bad.json", 200, "{\"version\":\"nope\"}");
+    server.route("GET", "/html.json", 200, "<html>");
+    server.route("GET", "/down.json", 503, "busy");
+    for path in ["/bad.json", "/html.json", "/down.json", "/missing.json"] {
+      assert!(
+        fetch(&format!("{}{path}", server.origin())).is_err(),
+        "{path}"
+      );
+    }
+    assert!(fetch("not a url").is_err());
   }
 
   #[test]
@@ -455,5 +476,293 @@ mod tests {
       Path::new("/usr/bin/proton"),
       "/usr/bin/proton-other\n"
     ));
+  }
+
+  #[test]
+  fn tests_run_unmanaged_and_appimage_is_a_bundle() {
+    // the test binary is neither the deb binary nor an AppImage
+    unsafe { std::env::remove_var("APPIMAGE") };
+    assert_eq!(install_kind(), Install::Unmanaged);
+    unsafe { std::env::set_var("APPIMAGE", "/tmp/Proton.AppImage") };
+    assert_eq!(install_kind(), Install::Bundle);
+  }
+
+  /// A window for the toasts, the updater pointed at `endpoint`
+  fn open(cx: &mut TestAppContext, endpoint: &str) -> AnyWindowHandle {
+    cx.executor().allow_parking();
+    let dir = tempfile::tempdir().unwrap().keep();
+    proton_store::init_at(dir.join("store.json"));
+    let (handle, _) = test_view::open(cx, |_, _| div().into_any_element());
+    let endpoint = endpoint.to_string();
+    cx.update(|cx| {
+      proton_config::init(cx);
+      crate::init(cx);
+      cx.updater().update(cx, |u, _| u.endpoint = endpoint);
+    });
+    handle
+  }
+
+  /// Every state the updater notified with
+  fn record(cx: &mut TestAppContext) -> Rc<RefCell<Vec<UpdateState>>> {
+    let states = Rc::new(RefCell::new(vec![]));
+    let seen = states.clone();
+    cx.update(|cx| {
+      cx.observe(&cx.updater(), move |u, cx| {
+        seen.borrow_mut().push(u.read(cx).state.clone())
+      })
+      .detach()
+    });
+    states
+  }
+
+  fn state(cx: &mut TestAppContext) -> UpdateState {
+    cx.update(|cx| cx.updater().read(cx).state.clone())
+  }
+
+  /// Toasts shown, after the closing ones finished their exit
+  fn toasts(cx: &mut TestAppContext, handle: AnyWindowHandle) -> usize {
+    cx.executor().advance_clock(Duration::from_secs(1));
+    cx.run_until_parked();
+    cx.update_window(handle, |_, window, cx| window.notifications(cx).len())
+      .unwrap()
+  }
+
+  async fn check(cx: &mut TestAppContext) -> anyhow::Result<Option<SharedString>> {
+    cx.update(|cx| cx.updater().update(cx, |u, cx| u.check(cx)))
+      .await
+  }
+
+  fn available(version: &str, notes: Option<&str>) -> UpdateState {
+    UpdateState::Available {
+      version: version.to_string().into(),
+      notes: notes.map(|n| n.to_string().into()),
+    }
+  }
+
+  #[gpui::test]
+  async fn check_moves_through_checking_and_keeps_the_update(cx: &mut TestAppContext) {
+    let (_server, endpoint) = release("v99.0.0", "Fixes");
+    open(cx, &endpoint);
+    let states = record(cx);
+    assert_eq!(check(cx).await.unwrap().as_deref(), Some("99.0.0"));
+    assert_eq!(
+      *states.borrow(),
+      [UpdateState::Checking, available("99.0.0", Some("Fixes"))]
+    );
+    assert!(cx.update(|cx| cx.updater().read(cx).pending.is_some()));
+  }
+
+  #[gpui::test]
+  async fn empty_notes_are_none_and_failures_keep_their_message(cx: &mut TestAppContext) {
+    let (server, endpoint) = release("v99.0.0", "");
+    open(cx, &endpoint);
+    check(cx).await.unwrap();
+    assert_eq!(state(cx), available("99.0.0", None));
+
+    server.route("GET", "/latest.json", 500, "down");
+    assert!(check(cx).await.is_err());
+    let UpdateState::Error(message) = state(cx) else {
+      panic!("{:?}", state(cx))
+    };
+    assert!(!message.is_empty());
+  }
+
+  #[gpui::test]
+  fn same_state_does_not_notify(cx: &mut TestAppContext) {
+    open(cx, "http://127.0.0.1:9/latest.json");
+    let states = record(cx);
+    cx.update(|cx| {
+      cx.updater()
+        .update(cx, |u, cx| u.set(UpdateState::Idle, cx))
+    });
+    cx.run_until_parked();
+    assert!(states.borrow().is_empty());
+  }
+
+  #[gpui::test]
+  fn install_without_a_pending_update_does_nothing(cx: &mut TestAppContext) {
+    let handle = open(cx, "http://127.0.0.1:9/latest.json");
+    cx.update(install);
+    cx.run_until_parked();
+    assert_eq!(state(cx), UpdateState::Idle);
+    assert_eq!(toasts(cx, handle), 0);
+  }
+
+  /// Installs the pending update and waits until it is offered again
+  fn install_and_fail(cx: &mut TestAppContext) {
+    cx.update(install);
+    poll(cx, |cx| {
+      matches!(cx.updater().read(cx).state, UpdateState::Available { .. })
+    });
+    cx.run_until_parked();
+  }
+
+  #[gpui::test]
+  async fn unmanaged_installs_refuse_without_downloading(cx: &mut TestAppContext) {
+    unsafe { std::env::remove_var("APPIMAGE") };
+    let (server, endpoint) = release("v99.0.0", "Fixes");
+    let handle = open(cx, &endpoint);
+    check(cx).await.unwrap();
+    let states = record(cx);
+    install_and_fail(cx);
+    assert_eq!(
+      *states.borrow(),
+      [
+        UpdateState::Downloading {
+          version: "99.0.0".into(),
+          percent: Some(0)
+        },
+        available("99.0.0", Some("Fixes")),
+      ]
+    );
+    assert_eq!(paths(&server), ["/latest.json"]);
+    // the progress toast is gone, "Failed to download update" stays
+    assert_eq!(toasts(cx, handle), 1);
+  }
+
+  #[gpui::test]
+  async fn bad_signature_is_rejected_after_the_download(cx: &mut TestAppContext) {
+    let dir = tempfile::tempdir().unwrap();
+    let appimage = dir.path().join("Proton.AppImage");
+    std::fs::write(&appimage, "old").unwrap();
+    unsafe { std::env::set_var("APPIMAGE", &appimage) };
+    let (server, endpoint) = release("v99.0.0", "Fixes");
+    server.route("GET", "/Proton.AppImage", 200, vec![7u8; 64 * 1024]);
+    let handle = open(cx, &endpoint);
+    check(cx).await.unwrap();
+    let states = record(cx);
+    install_and_fail(cx);
+
+    let states = states.borrow();
+    let downloading = |p| UpdateState::Downloading {
+      version: "99.0.0".into(),
+      percent: Some(p),
+    };
+    assert_eq!(states.first(), Some(&downloading(0)));
+    assert!(states.contains(&downloading(100)), "{states:?}");
+    // progress only goes up, the signature check runs after "installing"
+    let percents: Vec<u8> = states
+      .iter()
+      .filter_map(|s| match s {
+        UpdateState::Downloading {
+          percent: Some(p), ..
+        } => Some(*p),
+        _ => None,
+      })
+      .collect();
+    assert!(percents.is_sorted(), "{percents:?}");
+    assert_eq!(
+      &states[states.len() - 2..],
+      [
+        UpdateState::Installing {
+          version: "99.0.0".into()
+        },
+        available("99.0.0", Some("Fixes")),
+      ]
+    );
+    assert_eq!(paths(&server), ["/latest.json", "/Proton.AppImage"]);
+    // the bundle was not touched
+    assert_eq!(std::fs::read_to_string(&appimage).unwrap(), "old");
+    assert_eq!(toasts(cx, handle), 1);
+  }
+
+  #[gpui::test]
+  async fn failed_download_never_installs(cx: &mut TestAppContext) {
+    let dir = tempfile::tempdir().unwrap();
+    unsafe { std::env::set_var("APPIMAGE", dir.path().join("Proton.AppImage")) };
+    // no bundle route: 404
+    let (server, endpoint) = release("v99.0.0", "");
+    let handle = open(cx, &endpoint);
+    check(cx).await.unwrap();
+    let states = record(cx);
+    install_and_fail(cx);
+    assert!(
+      !states
+        .borrow()
+        .iter()
+        .any(|s| matches!(s, UpdateState::Installing { .. })),
+      "{states:?}"
+    );
+    assert_eq!(paths(&server), ["/latest.json", "/Proton.AppImage"]);
+    assert_eq!(toasts(cx, handle), 1);
+  }
+
+  #[gpui::test]
+  fn failed_relaunch_asks_for_a_manual_restart(cx: &mut TestAppContext) {
+    let handle = open(cx, "http://127.0.0.1:9/latest.json");
+    cx.update(|cx| restart(PathBuf::from("/nonexistent/proton"), cx));
+    cx.run_until_parked();
+    assert_eq!(toasts(cx, handle), 1);
+  }
+
+  #[gpui::test]
+  fn startup_offers_the_update_and_opens_about(cx: &mut TestAppContext) {
+    let (_server, endpoint) = release("v99.0.0", "Fixes");
+    let handle = open(cx, &endpoint);
+    cx.update(check_on_start);
+    poll(cx, |cx| {
+      matches!(cx.updater().read(cx).state, UpdateState::Available { .. })
+    });
+    cx.run_until_parked();
+    assert_eq!(toasts(cx, handle), 1);
+    cx.update_window(handle, |_, window, cx| {
+      window.render_frame(cx);
+      window.click("update", cx);
+    })
+    .unwrap();
+    cx.run_until_parked();
+    assert_eq!(
+      cx.update(|cx| cx.route()),
+      Route::Settings(SettingsTab::About)
+    );
+    // not installed without asking
+    assert_eq!(state(cx), available("99.0.0", Some("Fixes")));
+  }
+
+  #[gpui::test]
+  fn startup_with_auto_update_installs_right_away(cx: &mut TestAppContext) {
+    unsafe { std::env::remove_var("APPIMAGE") };
+    let (_server, endpoint) = release("v99.0.0", "Fixes");
+    let handle = open(cx, &endpoint);
+    cx.update(|cx| proton_config::update(cx, |s| s.auto_update = true));
+    let states = record(cx);
+    cx.update(check_on_start);
+    poll(cx, |_| {
+      states
+        .borrow()
+        .iter()
+        .filter(|s| matches!(s, UpdateState::Available { .. }))
+        .count()
+        == 2
+    });
+    cx.run_until_parked();
+    assert!(
+      states
+        .borrow()
+        .iter()
+        .any(|s| matches!(s, UpdateState::Downloading { .. }))
+    );
+    // only the failure toast (unmanaged test binary), no offer
+    assert_eq!(toasts(cx, handle), 1);
+  }
+
+  #[gpui::test]
+  fn startup_stays_quiet_when_up_to_date_or_failing(cx: &mut TestAppContext) {
+    let (server, endpoint) = release(env!("CARGO_PKG_VERSION"), "");
+    let handle = open(cx, &endpoint);
+    cx.update(check_on_start);
+    poll(cx, |cx| {
+      cx.updater().read(cx).state == UpdateState::UpToDate
+    });
+    cx.run_until_parked();
+    assert_eq!(toasts(cx, handle), 0);
+
+    server.route("GET", "/latest.json", 500, "down");
+    cx.update(check_on_start);
+    poll(cx, |cx| {
+      matches!(cx.updater().read(cx).state, UpdateState::Error(_))
+    });
+    cx.run_until_parked();
+    assert_eq!(toasts(cx, handle), 0);
   }
 }

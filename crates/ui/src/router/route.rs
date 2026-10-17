@@ -437,6 +437,49 @@ pub(crate) mod tests {
   }
 
   #[test]
+  fn project_and_profile_query_edge_cases() {
+    let cases = [
+      // no id: back to the list
+      ("/discover/project?kind=shader", Route::Discover(Kind::Mod)),
+      ("/discover/project?id=", Route::Discover(Kind::Mod)),
+      // unknown kind / source fall back like the old page
+      (
+        "/discover/project?id=P&kind=nope&source=nope",
+        Route::Project {
+          id: "P".into(),
+          kind: Kind::Mod,
+          source: Source::Modrinth,
+        },
+      ),
+      ("/profiles/info?id=undefined", Route::Profiles),
+      (
+        "/profiles/info/logs?other=1&id=a+b%2Fc",
+        Route::Profile {
+          id: "a b/c".into(),
+          tab: ProfileTab::Logs,
+        },
+      ),
+      (
+        "/instances/info/logs?id=%",
+        Route::InstanceLogs { id: "%".into() },
+      ),
+    ];
+    for (url, route) in cases {
+      assert_eq!(Route::from_url(url), Some(route), "{url}");
+    }
+    let profile = Route::Profile {
+      id: "x".into(),
+      tab: ProfileTab::Logs,
+    };
+    assert_eq!(profile.profile_id(), Some("x"));
+    assert_eq!(Route::InstanceLogs { id: "x".into() }.profile_id(), None);
+    for kind in Kind::ALL {
+      assert_eq!(Kind::from_query(kind.query()), Some(*kind));
+    }
+    assert_eq!(Kind::from_query("mods"), None);
+  }
+
+  #[test]
   fn percent_coding() {
     assert_eq!(encode("a b/ü"), "a%20b%2F%C3%BC");
     assert_eq!(decode("a%20b%2F%C3%BC"), "a b/ü");

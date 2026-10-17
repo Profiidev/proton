@@ -2,6 +2,7 @@ use gpui_kit::{
   Context, Entity, FontWeight, InteractiveElement, IntoElement, ParentElement, Render,
   StatefulInteractiveElement, Styled, Subscription, Window,
   assets::IconName,
+  base::TestSupportExt,
   component::{
     ActiveTheme, Icon,
     button::{Button, ButtonVariants},
@@ -137,6 +138,7 @@ impl Render for InstancesPage {
             .child(
               div()
                 .id("profile-link")
+                .test_support()
                 .cursor_pointer()
                 .text_base()
                 .font_weight(FontWeight::MEDIUM)

@@ -111,3 +111,86 @@ fn shell_data_mirrors_offline_only_on_change(cx: &mut TestAppContext) {
   cx.run_until_parked();
   assert_eq!(notes.get(), 1);
 }
+
+#[gpui::test]
+fn saved_window_bounds_restore_when_they_touch_a_display(cx: &mut TestAppContext) {
+  init_test(cx);
+  let display = cx.update(|cx| cx.displays()[0].bounds());
+  let state = |x, y, width, height, maximized| WindowState {
+    x,
+    y,
+    width,
+    height,
+    maximized,
+  };
+  let restore = |saved: Option<WindowState>, cx: &mut TestAppContext| {
+    cx.update(|cx| {
+      proton_config::update(cx, |s| s.window = saved);
+      restored_bounds(cx)
+    })
+  };
+  let centered = |w: f32, h: f32, cx: &mut TestAppContext| {
+    cx.update(|cx| Bounds::centered(None, size(px(w), px(h)), cx))
+  };
+
+  // nothing saved: the default size, centered
+  let expected = WindowBounds::Windowed(centered(1300., 800., cx));
+  assert_eq!(restore(None, cx), expected);
+
+  let on_screen = state(10., 20., 900., 700., false);
+  assert_eq!(
+    restore(Some(on_screen), cx),
+    WindowBounds::Windowed(Bounds::new(
+      point(px(10.), px(20.)),
+      size(px(900.), px(700.))
+    ))
+  );
+  assert_eq!(
+    restore(Some(state(10., 20., 900., 700., true)), cx),
+    WindowBounds::Maximized(Bounds::new(
+      point(px(10.), px(20.)),
+      size(px(900.), px(700.))
+    ))
+  );
+
+  // a display that is gone: the saved size, centered
+  let far = f32::from(display.size.width) * 4.;
+  let expected = WindowBounds::Windowed(centered(900., 700., cx));
+  assert_eq!(
+    restore(Some(state(far, far, 900., 700., false)), cx),
+    expected
+  );
+
+  // too small (or garbage) sizes are raised to the minimum
+  let tiny = restore(Some(state(10., 20., 10., -5., false)), cx);
+  assert_eq!(
+    tiny,
+    WindowBounds::Windowed(Bounds::new(
+      point(px(10.), px(20.)),
+      size(px(600.), px(400.))
+    ))
+  );
+}
+
+#[gpui::test]
+fn bridge_mirrors_names_and_only_profiles_with_updates(cx: &mut TestAppContext) {
+  use proton_content::ContentUpdates;
+  crate::pages::profiles::tests::init_fixture(cx);
+  crate::pages::profiles::tests::poll(cx, |cx| *cx.profiles().loaded.read(cx));
+  let data = cx.update(|cx| cx.shell_data());
+  let names = data.read_with(cx, |d, _| d.names.profiles.len());
+  assert_eq!(names, 4);
+
+  let updates = cx.update(|cx| cx.global::<Content>().updates.clone());
+  updates.update(cx, |u, cx| {
+    *u = ContentUpdates(HashMap::from([("empty".to_string(), vec![])]));
+    cx.notify();
+  });
+  cx.run_until_parked();
+  // a profile whose list emptied gets no chip
+  assert!(data.read_with(cx, |d, _| d.content_updates.is_empty()));
+
+  cx.update(|cx| proton_config::update(cx, |s| s.hide_window_controls = true));
+  cx.run_until_parked();
+  assert!(data.read_with(cx, |d, _| d.hide_window_controls));
+}

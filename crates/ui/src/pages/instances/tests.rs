@@ -306,3 +306,257 @@ async fn profile_instances_tab_shows_its_running_instance(cx: &mut TestAppContex
   });
   assert!(page.read_with(cx, |p, _| p.rows.is_empty()));
 }
+
+fn click(handle: AnyWindowHandle, cx: &mut TestAppContext, f: impl FnOnce(&mut Window, &mut App)) {
+  cx.update_window(handle, |_, window, cx| {
+    window.render_frame(cx);
+    f(window, cx);
+  })
+  .unwrap();
+  cx.run_until_parked();
+}
+
+fn confirm(handle: AnyWindowHandle, cx: &mut TestAppContext) {
+  use gpui_kit::component::WindowExt;
+  click(handle, cx, |w, cx| {
+    assert!(w.has_active_dialog(cx));
+    w.within("dialog").click("ok", cx);
+  });
+}
+
+fn running(cx: &mut TestAppContext) -> usize {
+  cx.update(|cx| cx.profiles().instances.read(cx).len())
+}
+
+#[gpui::test]
+async fn stop_buttons_confirm_first(cx: &mut TestAppContext) {
+  use gpui_kit::component::WindowExt;
+  cx.executor().allow_parking();
+  let (handle, slot) = setup(cx);
+  let page = show(handle, &slot, cx, |_, cx| InstancesPage::new(cx));
+  let profiles = cx.update(|cx| cx.profiles().clone());
+  let first = spawn_instance(&profiles, cx).await;
+  spawn_instance(&profiles, cx).await;
+  wait(cx, "two listed", |cx| running(cx) == 2);
+  test_view::draw(handle, cx);
+  assert_eq!(page.read_with(cx, |p, _| p.row_count()), 2);
+
+  // cancelling the dialog keeps the game running
+  click(handle, cx, |w, cx| {
+    w.within(first.clone()).click("stop", cx)
+  });
+  click(handle, cx, |w, cx| w.within("dialog").click("close", cx));
+  assert_eq!(running(cx), 2);
+
+  click(handle, cx, |w, cx| {
+    w.within(first.clone()).click("stop", cx)
+  });
+  confirm(handle, cx);
+  wait(cx, "one stopped", |cx| running(cx) == 1);
+  assert!(cx.update(|cx| cx.profiles().instances.read(cx)[0].id != first));
+
+  click(handle, cx, |w, cx| w.click("stop-all", cx));
+  confirm(handle, cx);
+  wait(cx, "all stopped", |cx| running(cx) == 0);
+  test_view::draw(handle, cx);
+  // the empty state links to the profiles
+  click(handle, cx, |w, cx| {
+    assert!(w.try_find("stop-all").is_none());
+    w.click("profiles-link", cx)
+  });
+  assert_eq!(cx.update(|cx| cx.route()), Route::Profiles);
+  assert!(
+    cx.update_window(handle, |_, w, cx| w.notifications(cx).is_empty())
+      .unwrap()
+  );
+}
+
+#[gpui::test]
+async fn profile_name_opens_its_instances_tab(cx: &mut TestAppContext) {
+  cx.executor().allow_parking();
+  let (handle, slot) = setup(cx);
+  show(handle, &slot, cx, |_, cx| InstancesPage::new(cx));
+  let profiles = cx.update(|cx| cx.profiles().clone());
+  spawn_instance(&profiles, cx).await;
+  test_view::draw(handle, cx);
+  click(handle, cx, |w, cx| {
+    w.within(VANILLA).click("profile-link", cx)
+  });
+  assert_eq!(
+    cx.update(|cx| cx.route()),
+    Route::Profile {
+      id: VANILLA.into(),
+      tab: ProfileTab::Instances
+    }
+  );
+  profiles.stop_all(None).await.unwrap();
+  wait(cx, "instance gone", |cx| running(cx) == 0);
+}
+
+#[gpui::test]
+async fn console_of_a_gone_instance_leaves_for_the_list(cx: &mut TestAppContext) {
+  cx.executor().allow_parking();
+  let (handle, slot) = setup(cx);
+  let gone = Route::InstanceLogs { id: "gone".into() };
+  cx.update(|cx| cx.navigate(gone.clone()));
+  show(handle, &slot, cx, |window, cx| {
+    InstanceLogsPage::new("gone".into(), window, cx)
+  });
+  cx.run_until_parked();
+  // replaced, not pushed: back does not return to the dead console
+  assert_eq!(cx.update(|cx| cx.route()), Route::Instances);
+  let router = cx.update(|cx| cx.router());
+  assert!(!router.read_with(cx, |r, _| r.can_forward()));
+
+  // a console left on another route does not redirect
+  cx.update(|cx| cx.navigate(Route::Profiles));
+  show(handle, &slot, cx, |window, cx| {
+    InstanceLogsPage::new("gone".into(), window, cx)
+  });
+  cx.run_until_parked();
+  assert_eq!(cx.update(|cx| cx.route()), Route::Profiles);
+}
+
+#[gpui::test]
+async fn console_stop_ends_the_instance_and_leaves(cx: &mut TestAppContext) {
+  cx.executor().allow_parking();
+  let (handle, slot) = setup(cx);
+  let profiles = cx.update(|cx| cx.profiles().clone());
+  let id = spawn_instance(&profiles, cx).await;
+  cx.update(|cx| cx.navigate(Route::InstanceLogs { id: id.clone() }));
+  let page_id = id.clone();
+  show(handle, &slot, cx, move |window, cx| {
+    InstanceLogsPage::new(page_id, window, cx)
+  });
+  click(handle, cx, |w, cx| w.click("stop", cx));
+  confirm(handle, cx);
+  wait(cx, "instance gone", |cx| running(cx) == 0);
+  test_view::draw(handle, cx);
+  cx.run_until_parked();
+  assert_eq!(cx.update(|cx| cx.route()), Route::Instances);
+}
+
+#[test]
+fn sibling_labels_add_the_account_when_known() {
+  use chrono::TimeZone;
+  use proton_versions::loader::LoaderType;
+  let info = |account: &str| InstanceInfo {
+    id: account.into(),
+    launched_at: Utc.timestamp_opt(0, 0).unwrap(),
+    profile_name: "p".into(),
+    profile_id: "p".into(),
+    version: "1.21".into(),
+    loader: LoaderType::Vanilla,
+    account_name: account.into(),
+  };
+  let siblings = [info("Steve"), info(""), info("Ünïcode")];
+  let cases = [
+    (0, "Instance 1 · Steve"),
+    (1, "Instance 2"),
+    (2, "Instance 3 · Ünïcode"),
+    // a stale index (the instance just exited) still gets a label
+    (7, "Instance 8"),
+  ];
+  for (ix, label) in cases {
+    assert_eq!(console::sibling_label(&siblings, ix), label);
+  }
+  assert!(group_by_profile(&[]).is_empty());
+  assert_eq!(running_summary(0, 0), "0 games running across 0 profiles.");
+}
+
+#[test]
+fn memory_is_polled_only_on_instance_lists() {
+  let cases = [
+    (Route::Instances, true),
+    (
+      Route::Profile {
+        id: "p".into(),
+        tab: ProfileTab::Instances,
+      },
+      true,
+    ),
+    (
+      Route::Profile {
+        id: "p".into(),
+        tab: ProfileTab::Logs,
+      },
+      false,
+    ),
+    (Route::InstanceLogs { id: "i".into() }, false),
+    (Route::Home, false),
+  ];
+  for (route, polls) in cases {
+    assert_eq!(shows_instances(&route), polls, "{route:?}");
+  }
+}
+
+#[gpui::test]
+async fn tick_polls_memory_while_the_list_shows_a_game(cx: &mut TestAppContext) {
+  cx.executor().allow_parking();
+  setup(cx);
+  let tick = cx.update(|cx| tick(cx));
+  let now = |cx: &mut TestAppContext| tick.read_with(cx, |t, _| t.now);
+  let start = now(cx);
+  // nothing runs: no poll
+  cx.update(|cx| cx.navigate(Route::Instances));
+  cx.executor().advance_clock(POLL);
+  cx.run_until_parked();
+  assert_eq!(now(cx), start);
+
+  let profiles = cx.update(|cx| cx.profiles().clone());
+  let id = spawn_instance(&profiles, cx).await;
+  // another page: no poll either
+  cx.update(|cx| cx.navigate(Route::Home));
+  cx.executor().advance_clock(POLL);
+  cx.run_until_parked();
+  assert_eq!(now(cx), start);
+
+  cx.update(|cx| cx.navigate(Route::Instances));
+  cx.executor().advance_clock(POLL);
+  wait(cx, "polled", |cx| now(cx) != start);
+  // the fake game's memory is read
+  wait(cx, "memory", |cx| {
+    cx.executor().advance_clock(POLL);
+    tick.read_with(cx, |t, _| t.memory.contains_key(&id))
+  });
+
+  profiles.stop_all(None).await.unwrap();
+  wait(cx, "instance gone", |cx| running(cx) == 0);
+}
+
+#[gpui::test]
+async fn clearing_the_runs_empties_the_log(cx: &mut TestAppContext) {
+  cx.executor().allow_parking();
+  let (handle, slot) = setup(cx);
+  let page = show(handle, &slot, cx, |window, cx| {
+    ProfileLogsPage::new(VANILLA.into(), window, cx)
+  });
+  let log = page.read_with(cx, |p, _| p.log().clone());
+  let visible = |cx: &mut TestAppContext| log.read_with(cx, |l, _| l.visible_len());
+  wait(cx, "run loaded", |cx| visible(cx) == 13);
+
+  click(handle, cx, |w, cx| w.click("runs", cx));
+  // two runs, a separator, "Clear runs"
+  click(handle, cx, |w, cx| w.within("popup-menu").click(3, cx));
+  confirm(handle, cx);
+  wait(cx, "runs cleared", |cx| visible(cx) == 0);
+  let runs = cx.update(|cx| {
+    let profiles = cx.profiles().clone();
+    profiles.runs(VANILLA, cx)
+  });
+  assert!(runs.read_with(cx, |r, _| r.is_empty()));
+}
+
+#[gpui::test]
+async fn profile_without_runs_shows_an_empty_log(cx: &mut TestAppContext) {
+  cx.executor().allow_parking();
+  let (handle, slot) = setup(cx);
+  // the forge fixture profile never ran
+  let page = show(handle, &slot, cx, |window, cx| {
+    ProfileLogsPage::new("33333333-3333-4333-8333-333333333333".into(), window, cx)
+  });
+  cx.run_until_parked();
+  let log = page.read_with(cx, |p, _| p.log().clone());
+  assert_eq!(log.read_with(cx, |l, _| l.visible_len()), 0);
+  test_view::draw(handle, cx);
+}

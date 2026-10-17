@@ -171,3 +171,52 @@ impl Render for AboutPage {
     )
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn version_line_names_every_update_state() {
+    let v = env!("CARGO_PKG_VERSION");
+    let next = || SharedString::from("9.9.9");
+    let cases = [
+      (UpdateState::Idle, format!("Version {v}")),
+      (UpdateState::Checking, format!("Version {v}")),
+      (UpdateState::UpToDate, format!("Version {v} · up to date")),
+      (
+        UpdateState::Available {
+          version: next(),
+          notes: None,
+        },
+        format!("Version {v} · 9.9.9 available"),
+      ),
+      (
+        UpdateState::Downloading {
+          version: next(),
+          percent: Some(42),
+        },
+        format!("Version {v} · downloading 9.9.9 (42%)"),
+      ),
+      // no content length, no percent
+      (
+        UpdateState::Downloading {
+          version: next(),
+          percent: None,
+        },
+        format!("Version {v} · downloading 9.9.9"),
+      ),
+      (
+        UpdateState::Installing { version: next() },
+        format!("Version {v} · installing 9.9.9"),
+      ),
+      (
+        UpdateState::Error("boom".into()),
+        format!("Version {v} · update check failed"),
+      ),
+    ];
+    for (state, line) in cases {
+      assert_eq!(version_line(&state), line, "{state:?}");
+    }
+  }
+}

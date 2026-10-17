@@ -177,4 +177,34 @@ mod tests {
       ]
     );
   }
+
+  #[gpui::test]
+  fn history_keeps_the_last_hundred_and_replace_with_the_same_route_is_silent(
+    cx: &mut TestAppContext,
+  ) {
+    cx.update(|cx| init(cx, Route::Home));
+    let changes = Rc::new(RefCell::new(0));
+    let count = changes.clone();
+    let _sub = cx.update(|cx| Router::on_change(cx, move |_, _| *count.borrow_mut() += 1));
+    let router = cx.update(|cx| cx.router());
+    router.update(cx, |r, cx| r.replace(Route::Home, cx));
+    cx.run_until_parked();
+    assert_eq!(*changes.borrow(), 0);
+
+    let logs = |i: usize| Route::InstanceLogs { id: i.to_string() };
+    for i in 0..HISTORY + 20 {
+      cx.update(|cx| cx.navigate(logs(i)));
+    }
+    let mut steps = 0;
+    while router.read_with(cx, |r, _| r.can_back()) {
+      router.update(cx, |r, cx| r.back(cx));
+      steps += 1;
+    }
+    assert_eq!(steps, HISTORY);
+    // the oldest pages (Home first) fell off
+    assert_eq!(cx.update(|cx| cx.route()), logs(19));
+    // forward walks all the way back
+    router.update(cx, |r, cx| r.forward(cx));
+    assert_eq!(cx.update(|cx| cx.route()), logs(20));
+  }
 }

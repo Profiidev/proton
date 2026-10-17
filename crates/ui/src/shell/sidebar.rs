@@ -385,6 +385,16 @@ impl SimpleSidebar {
       cx.notify();
     }
   }
+
+  #[cfg(test)]
+  pub(crate) fn items(&self) -> &[NavItem] {
+    &self.items
+  }
+
+  #[cfg(test)]
+  pub(crate) fn active(&self) -> Option<usize> {
+    self.active
+  }
 }
 
 impl Render for SimpleSidebar {
