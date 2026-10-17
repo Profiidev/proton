@@ -9,6 +9,7 @@ pub mod content;
 pub mod pages;
 pub mod router;
 pub mod shell;
+pub mod updater;
 
 use gpui_kit::App;
 
@@ -16,4 +17,5 @@ use gpui_kit::App;
 pub fn init(cx: &mut App) {
   router::init(cx, router::Route::Home);
   shell::init(cx);
+  updater::init(cx);
 }

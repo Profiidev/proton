@@ -2,18 +2,18 @@
 # Captures fixtures/gpui/<slug>.png for every route of the gpui app, inside its own headless sway,
 # so it works with a locked session and several invocations can run in parallel.
 # Usage: fixtures/scripts/screenshots.sh [slug-filter]   e.g. `just screenshots settings`
-# Env: PROTON_BIN (default target/release/proton-gpui), WAIT (seconds after the window maps, default 6: toasts autohide after 5s + 0.4s transition),
+# Env: PROTON_BIN (default target/release/proton), WAIT (seconds after the window maps, default 6: toasts autohide after 5s + 0.4s transition),
 #      OUT (default fixtures/gpui)
 set -euo pipefail
 [[ -n ${TRACE:-} ]] && set -x
 
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-BIN=${PROTON_BIN:-$ROOT/target/release/proton-gpui}
+BIN=${PROTON_BIN:-$ROOT/target/release/proton}
 OUT=${OUT:-$ROOT/fixtures/gpui}
 WAIT=${WAIT:-6}
 FILTER=${1:-}
 
-[[ -x $BIN ]] || (cd "$ROOT" && cargo build --release --bin proton-gpui)
+[[ -x $BIN ]] || (cd "$ROOT" && cargo build --release --bin proton)
 mkdir -p "$OUT"
 
 # sway/grim/swaymsg + the runtime libs gpui dlopens, all from nixpkgs (cached after the first run)

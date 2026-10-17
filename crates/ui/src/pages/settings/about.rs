@@ -12,99 +12,41 @@ use gpui_kit::{
 use proton_components::widgets::form::SwitchTile;
 use proton_config::SettingsExt;
 
+use crate::updater::{UpdateState, UpdaterExt};
+
 use super::{heading, offline_guard, page, ring_card, toast};
 
-/// Looks for a newer release, `Some(version)` when there is one.
-// ponytail: stub until Phase 4 wires cargo-packager-updater (signed latest.json on GitHub
-// releases); the UI states below already follow the old updater flow
-pub async fn check_update() -> anyhow::Result<Option<String>> {
-  Ok(None)
-}
-
-/// Downloads and installs `version`, then restarts.
-// ponytail: stub, see `check_update`
-pub async fn install_update(version: String) -> anyhow::Result<()> {
-  anyhow::bail!("Updater not available yet ({version})")
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum UpdateState {
-  Idle,
-  Checking,
-  UpToDate,
-  Available(String),
-  Installing(String),
-}
-
-pub struct AboutPage {
-  pub(super) update: UpdateState,
-}
+pub struct AboutPage;
 
 impl AboutPage {
   pub fn new(cx: &mut Context<Self>) -> Self {
     cx.observe(&cx.settings().settings.clone(), |_, _, cx| cx.notify())
       .detach();
-    Self {
-      update: UpdateState::Idle,
-    }
+    cx.observe(&cx.updater(), |_, _, cx| cx.notify()).detach();
+    Self
   }
 
   fn check(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-    if self.update == UpdateState::Checking || offline_guard("check for updates", window, cx) {
+    if offline_guard("check for updates", window, cx) {
       return;
     }
-    self.update = UpdateState::Checking;
-    cx.notify();
-    let task = check_update();
-    cx.spawn_in(window, async move |this, cx| {
+    let task = cx.updater().update(cx, |u, cx| u.check(cx));
+    cx.spawn_in(window, async move |_, cx| {
       let res = task.await;
-      this
-        .update_in(cx, |this, window, cx| {
-          this.update = match res {
-            Ok(Some(v)) => UpdateState::Available(v),
-            Ok(None) => {
-              toast(window, cx, NotificationType::Info, "No updates available");
-              UpdateState::UpToDate
-            }
-            Err(e) => {
-              tracing::error!("Update check failed: {e:#}");
-              toast(
-                window,
-                cx,
-                NotificationType::Error,
-                "Failed to check for updates",
-              );
-              UpdateState::Idle
-            }
-          };
-          cx.notify();
-        })
-        .ok();
-    })
-    .detach();
-  }
-
-  fn install(&mut self, version: String, window: &mut Window, cx: &mut Context<Self>) {
-    self.update = UpdateState::Installing(version.clone());
-    cx.notify();
-    let task = install_update(version.clone());
-    cx.spawn_in(window, async move |this, cx| {
-      let res = task.await;
-      this
-        .update_in(cx, |this, window, cx| {
-          if let Err(e) = res {
-            tracing::error!("Update failed: {e:#}");
-            toast(
-              window,
-              cx,
-              NotificationType::Error,
-              "Failed to download update",
-            );
-          }
-          this.update = UpdateState::Available(version);
-          cx.notify();
-        })
-        .ok();
+      cx.update(|window, cx| match res {
+        Ok(Some(_)) => {}
+        Ok(None) => toast(window, cx, NotificationType::Info, "No updates available"),
+        Err(e) => {
+          tracing::error!("Update check failed: {e:#}");
+          toast(
+            window,
+            cx,
+            NotificationType::Error,
+            "Failed to check for updates",
+          );
+        }
+      })
+      .ok();
     })
     .detach();
   }
@@ -113,11 +55,16 @@ impl AboutPage {
 fn version_line(state: &UpdateState) -> SharedString {
   let version = env!("CARGO_PKG_VERSION");
   match state {
-    UpdateState::Available(v) | UpdateState::Installing(v) => {
-      format!("Version {version} · {v} available")
-    }
+    UpdateState::Available { version: v, .. } => format!("Version {version} · {v} available"),
+    UpdateState::Downloading {
+      version: v,
+      percent: Some(p),
+    } => format!("Version {version} · downloading {v} ({p}%)"),
+    UpdateState::Downloading { version: v, .. } => format!("Version {version} · downloading {v}"),
+    UpdateState::Installing { version: v } => format!("Version {version} · installing {v}"),
     UpdateState::UpToDate => format!("Version {version} · up to date"),
-    _ => format!("Version {version}"),
+    UpdateState::Error(_) => format!("Version {version} · update check failed"),
+    UpdateState::Idle | UpdateState::Checking => format!("Version {version}"),
   }
   .into()
 }
@@ -126,17 +73,22 @@ impl Render for AboutPage {
   fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
     let settings = cx.settings().get(cx);
     let (auto_update, hide_controls) = (settings.auto_update, settings.hide_window_controls);
-    let button = match &self.update {
-      UpdateState::Available(v) | UpdateState::Installing(v) => {
-        let version = v.clone();
+    let state = cx.updater().read(cx).state.clone();
+    let notes = match &state {
+      UpdateState::Available { notes, .. } => notes.clone(),
+      _ => None,
+    };
+    let button = match &state {
+      UpdateState::Available { version: v, .. }
+      | UpdateState::Downloading { version: v, .. }
+      | UpdateState::Installing { version: v } => {
+        let busy = !matches!(state, UpdateState::Available { .. });
         Button::new("install-update")
           .primary()
           .label(format!("Install {v}"))
-          .loading(matches!(self.update, UpdateState::Installing(_)))
-          .disabled(matches!(self.update, UpdateState::Installing(_)))
-          .on_click(
-            cx.listener(move |this, _, window, cx| this.install(version.clone(), window, cx)),
-          )
+          .loading(busy)
+          .disabled(busy)
+          .on_click(|_, _, cx| crate::updater::install(cx))
       }
       state => Button::new("check-updates")
         .outline()
@@ -174,8 +126,16 @@ impl Render for AboutPage {
                   .text_xs()
                   .line_height(px(16.))
                   .text_color(cx.theme().muted_foreground)
-                  .child(version_line(&self.update)),
-              ),
+                  .child(version_line(&state)),
+              )
+              .children(notes.map(|n| {
+                div()
+                  .pt_1()
+                  .text_xs()
+                  .line_height(px(16.))
+                  .text_color(cx.theme().muted_foreground)
+                  .child(n)
+              })),
           )
           .child(button)
           .into_any_element(),

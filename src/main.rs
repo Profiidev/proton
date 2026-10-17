@@ -6,7 +6,19 @@ fn main() {
   proton_utils::dir::migrate();
   proton_utils::log::init();
 
-  let listener = match single_instance::acquire(&single_instance::default_path()) {
+  let path = single_instance::default_path();
+  let mut acquired = single_instance::acquire(&path);
+  // after an update restart the old process may still hold the socket for a moment
+  if std::env::var_os(proton_ui::updater::RESTART_ENV).is_some() {
+    for _ in 0..50 {
+      if !matches!(acquired, Ok(None)) {
+        break;
+      }
+      std::thread::sleep(std::time::Duration::from_millis(100));
+      acquired = single_instance::acquire(&path);
+    }
+  }
+  let listener = match acquired {
     Ok(Some(listener)) => Some(listener),
     Ok(None) => {
       tracing::info!("Proton is already running, focused its window");

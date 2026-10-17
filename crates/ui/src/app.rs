@@ -178,6 +178,7 @@ fn startup(cx: &mut App) {
   let online = cx.offline().try_reconnect();
   cx.spawn(async move |cx| {
     if online.await {
+      cx.update(crate::updater::check_on_start);
       cx.update(refresh_manifests).await;
     } else {
       cx.update(|cx| {
@@ -203,7 +204,6 @@ fn startup(cx: &mut App) {
     }
   })
   .detach();
-  // ponytail: no update check until the Phase 4 updater exists (BEHAVIOR §2 "Updater flow")
 }
 
 const DEFAULT_SIZE: (f32, f32) = (1300., 800.);

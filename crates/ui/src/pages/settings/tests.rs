@@ -225,9 +225,19 @@ fn java_env_needs_key_and_value(cx: &mut TestAppContext) {
 #[gpui::test]
 fn about_checks_updates_and_saves(cx: &mut TestAppContext) {
   let handle = open(cx, SettingsTab::About);
+  // nothing listens there: the check fails fast, offline-safe
+  cx.update(|cx| {
+    crate::updater::UpdaterExt::updater(cx).update(cx, |u, _| {
+      u.endpoint = "http://127.0.0.1:9/latest.json".into()
+    })
+  });
   act(cx, handle, |w, cx| w.click("check-updates", cx));
-  settle(cx, |_| true);
-  // stub updater: "No updates available"
+  settle(cx, |cx| {
+    let state = &crate::updater::UpdaterExt::updater(cx).read(cx).state;
+    matches!(state, crate::updater::UpdateState::Error(_))
+  });
+  cx.run_until_parked();
+  // "Failed to check for updates"
   assert_eq!(toasts(cx, handle), 1);
   act(cx, handle, |w, cx| w.click("auto-update", cx));
   cx.update(|cx| assert!(cx.settings().get(cx).auto_update));

@@ -78,22 +78,55 @@ pulldown-cmark = { version = "0.13.4", default-features = false, features = [
   "html",
 ] }
 ammonia = "4.2.3"
+cargo-packager-updater = "0.2.3"
 
 [profile.release]
 codegen-units = 1
 lto = "fat"
 strip = true
 
-# step 0c: root gpui binary (renamed to `proton` once the tauri crate is gone)
+# root gpui binary
 [package]
-name = "proton-gpui"
+name = "proton"
+description = "Minecraft launcher"
 version.workspace = true
 edition.workspace = true
 repository.workspace = true
 license.workspace = true
 
+# `cargo packager --release` (CI: .github/workflows/app-release.yml)
+[package.metadata.packager]
+product-name = "Proton"
+identifier = "io.profidev.proton"
+category = "Game"
+authors = ["ProfiiDev"]
+publisher = "ProfiiDev"
+before-packaging-command = "cargo build --release --bin proton"
+icons = [
+  "packaging/icons/32x32.png",
+  "packaging/icons/128x128.png",
+  "packaging/icons/128x128@2x.png",
+  "packaging/icons/icon.icns",
+  "packaging/icons/icon.ico",
+]
+
+[package.metadata.packager.deb]
+desktop-template = "packaging/proton.desktop"
+depends = [
+  "libxkbcommon0",
+  "libxkbcommon-x11-0",
+  "libwayland-client0",
+  "libvulkan1",
+  "libfontconfig1",
+  "libfreetype6",
+  "libxcb1",
+]
+
+[package.metadata.packager.nsis]
+installer-icon = "packaging/icons/icon.ico"
+
 [[bin]]
-name = "proton-gpui"
+name = "proton"
 path = "src/main.rs"
 
 [dependencies]
