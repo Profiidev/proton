@@ -23,7 +23,7 @@ pub mod target_picker;
 
 use std::{collections::HashMap, sync::Arc};
 
-use gpui_kit::{App, AppContext, Entity, Global, Image, ImageFormat, ImageSource};
+use gpui_kit::{App, AppContext, Entity, Global, Image, ImageSource};
 use proton_content::model::{ContentKind, ProjectSummary, Source};
 use proton_profiles::ProfilesExt;
 use proton_utils::log::ErrorLogExt;
@@ -121,8 +121,7 @@ pub fn profile_icon(id: &str, cx: &mut App) -> Option<ImageSource> {
   let id = id.to_string();
   cx.spawn(async move |cx| {
     if let Ok(Some(bytes)) = load.await.log_err() {
-      // profile icons are stored as png
-      let image = Arc::new(Image::from_bytes(ImageFormat::Png, bytes));
+      let image = crate::pages::profiles::icon_image(bytes);
       icons.update(cx, |i, cx| {
         i.0.insert(id, Some(image));
         cx.notify();

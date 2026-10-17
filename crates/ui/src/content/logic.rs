@@ -36,13 +36,20 @@ impl Compat {
   }
 }
 
-pub fn loader_label(loader: LoaderType) -> String {
-  format!("{loader:?}")
+/// `LoaderType` as the web app printed it
+pub fn loader_name(loader: LoaderType) -> &'static str {
+  match loader {
+    LoaderType::Vanilla => "Vanilla",
+    LoaderType::Fabric => "Fabric",
+    LoaderType::Quilt => "Quilt",
+    LoaderType::Forge => "Forge",
+    LoaderType::NeoForge => "NeoForge",
+  }
 }
 
 /// Whether a mod for `loaders` (lowercase ids) runs on the profile's loader
 pub fn loader_compatible(loader: LoaderType, loaders: &[String]) -> Compat {
-  let name = loader_label(loader);
+  let name = loader_name(loader);
   if loaders.iter().any(|l| *l == name.to_lowercase()) {
     return Compat::ok();
   }
@@ -323,7 +330,7 @@ pub fn default_version<'a>(
 pub fn profile_note(profile: &Profile, compat: &Compat) -> String {
   let mut parts = vec![format!(
     "{} {}",
-    loader_label(profile.loader),
+    loader_name(profile.loader),
     profile.version
   )];
   if profile.modpack.is_some() {

@@ -5743,7 +5743,6 @@ dependencies = [
  "gpui-kit",
  "include_dir",
  "proton_utils",
- "tracing",
 ]
 
 [[package]]
@@ -5883,7 +5882,6 @@ dependencies = [
  "proton_store",
  "proton_utils",
  "proton_versions",
- "serde",
  "serde_json",
  "tempfile",
  "tokio",

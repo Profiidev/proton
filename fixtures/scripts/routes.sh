@@ -1,4 +1,4 @@
-# Shared route table for screenshots.sh (sourced); reference.sh was removed with the Tauri app.
+# Shared route table for screenshots.sh (sourced).
 # shellcheck disable=SC2034
 V=11111111-1111-4111-8111-111111111111
 F=22222222-2222-4222-8222-222222222222

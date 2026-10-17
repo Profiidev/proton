@@ -12,6 +12,7 @@ use gpui_kit::{
   InteractiveElement, IntoElement, ParentElement, Pixels, Render, SharedString,
   StatefulInteractiveElement, Styled, Subscription, Task, TestSupportExt, Window,
   assets::IconName,
+  base::animation::ease_out_cubic,
   component::{
     ActiveTheme, Icon,
     button::{Button, ButtonVariants},
@@ -22,13 +23,10 @@ use gpui_kit::{
   prelude::FluentBuilder,
   px,
 };
-use proton_components::{
-  animation::ease_out_cubic,
-  widgets::{
-    form::{filled, icon_label},
-    format::relative_time,
-    profile::ProfileCard,
-  },
+use proton_components::widgets::{
+  form::{filled, icon_label},
+  format::relative_time,
+  profile::ProfileCard,
 };
 use proton_profiles::{
   ProfilesExt,
@@ -36,8 +34,8 @@ use proton_profiles::{
 };
 use proton_versions::{VersionsExt, loader::LoaderType};
 
-pub use create::{CreateTab, TabBuilder, set_create_tab};
-pub use meta::{ProfileMeta, profile_meta};
+pub use create::CreateTab;
+pub use meta::{ProfileMeta, icon_image, profile_meta};
 
 use crate::{
   actions::{launch, toast_error},
@@ -59,18 +57,7 @@ pub fn register(cx: &mut App) {
 
 // ---- helpers shared with the home page ----
 
-/// `LoaderType` as the web app printed it
-pub fn loader_name(loader: LoaderType) -> &'static str {
-  match loader {
-    LoaderType::Vanilla => "Vanilla",
-    LoaderType::Fabric => "Fabric",
-    LoaderType::Quilt => "Quilt",
-    LoaderType::Forge => "Forge",
-    LoaderType::NeoForge => "NeoForge",
-  }
-}
-
-pub use crate::content::logic::plural;
+pub use crate::content::logic::{loader_name, plural};
 
 /// `compareProfiles`: played first by last played desc, then never played by created desc
 pub fn compare_profiles(a: &Profile, b: &Profile) -> Ordering {

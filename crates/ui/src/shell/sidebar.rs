@@ -4,14 +4,18 @@ use gpui_kit::{
   AnyView, App, Bounds, Context, Div, Entity, InteractiveElement, IntoElement, ParentElement,
   Pixels, Render, SharedString, StatefulInteractiveElement, Styled, Window,
   assets::IconName,
-  base::TestSupportExt,
+  base::{
+    TestSupportExt,
+    motion::{Transition, transition},
+  },
   canvas,
   component::{ActiveTheme, Icon, Sizable, StyledExt},
-  div, hsla, point,
+  div, point,
   prelude::FluentBuilder,
-  px, rgb, size,
+  px, size,
 };
-use proton_components::animation::{animation_duration, glide::Glide};
+
+use proton_components::widgets::colors;
 
 use crate::{
   router::{Kind, Route, RouterExt},
@@ -39,36 +43,57 @@ type Rows = Rc<RefCell<Vec<Option<Bounds<Pixels>>>>>;
 /// Rows are measured during prepaint; until then the active row paints its own background.
 #[derive(Default)]
 struct Indicator {
-  glide: Glide<2>,
+  /// bumped when the pill hides, so it reappears in place instead of sliding
+  generation: usize,
+  shown: bool,
   rows: Rows,
 }
 
 impl Indicator {
   /// Where to draw the pill this frame (relative to the nav), `None` while unmeasured
-  fn frame(
+  fn frame<T: 'static>(
     &mut self,
     active: Option<usize>,
     count: usize,
     window: &mut Window,
-    cx: &App,
+    cx: &mut Context<T>,
   ) -> Option<Bounds<Pixels>> {
-    let mut rows = self.rows.borrow_mut();
-    rows.resize(count + 1, None);
-    let (Some(nav), Some(row)) = (rows[0], active.and_then(|i| rows[i + 1])) else {
-      self.glide.reset();
+    let measured = {
+      let mut rows = self.rows.borrow_mut();
+      rows.resize(count + 1, None);
+      rows[0].zip(active.and_then(|i| rows[i + 1]))
+    };
+    let Some((nav, row)) = measured else {
+      self.hide();
       return None;
     };
-    let y = (row.origin.y - nav.origin.y).as_f32();
-    let ([y, h], moving) = self
-      .glide
-      .value([y, row.size.height.as_f32()], animation_duration(SLIDE, cx));
-    if moving {
-      window.request_animation_frame();
-    }
+    self.shown = true;
+    let id = SharedString::from(format!("pill-{}-{}", cx.entity_id(), self.generation));
+    let y = transition(
+      (id.clone(), "y"),
+      row.origin.y - nav.origin.y,
+      Transition::new(SLIDE),
+      window,
+      cx,
+    );
+    let h = transition(
+      (id, "h"),
+      row.size.height,
+      Transition::new(SLIDE),
+      window,
+      cx,
+    );
     Some(Bounds::new(
-      point(row.origin.x - nav.origin.x, px(y)),
-      size(row.size.width, px(h)),
+      point(row.origin.x - nav.origin.x, y),
+      size(row.size.width, h),
     ))
+  }
+
+  fn hide(&mut self) {
+    if self.shown {
+      self.shown = false;
+      self.generation += 1;
+    }
   }
 
   /// Records the bounds of `row` (`None` = the pill layer), re-rendering the view when they moved
@@ -313,7 +338,7 @@ impl Render for Sidebar {
 }
 
 fn running_pill(count: usize) -> Div {
-  let green = rgb(0x22c55e);
+  let green = colors::green_500();
   div()
     .ml_auto()
     .flex()
@@ -322,7 +347,7 @@ fn running_pill(count: usize) -> Div {
     .h_5()
     .px_2()
     .rounded_full()
-    .bg(hsla(142. / 360., 0.71, 0.45, 0.15))
+    .bg(green.opacity(0.15))
     .text_xs()
     .font_medium()
     .text_color(green)
@@ -352,7 +377,7 @@ impl SimpleSidebar {
   /// appearance starts without sliding.
   pub fn set(&mut self, items: Vec<NavItem>, active: Option<usize>, cx: &mut Context<Self>) {
     if active.is_none() {
-      self.indicator.glide.reset();
+      self.indicator.hide();
     }
     if items != self.items || active != self.active {
       self.items = items;
@@ -367,7 +392,7 @@ impl Render for SimpleSidebar {
     let pill = self
       .indicator
       .frame(self.active, self.items.len(), window, cx);
-    let amber = rgb(0xf59e0b);
+    let amber = colors::amber_500();
     let rows: Vec<_> = self
       .items
       .iter()
@@ -393,7 +418,7 @@ impl Render for SimpleSidebar {
               .h_5()
               .px(px(6.))
               .rounded_full()
-              .bg(hsla(38. / 360., 0.92, 0.5, 0.15))
+              .bg(amber.opacity(0.15))
               .text_xs()
               .font_medium()
               .text_color(amber)

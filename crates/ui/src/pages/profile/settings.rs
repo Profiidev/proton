@@ -1,7 +1,7 @@
 use gpui_kit::{
-  AnyView, App, AppContext, Context, Entity, ImageSource, InteractiveElement, IntoElement,
-  ParentElement, PathPromptOptions, Render, SharedString, StatefulInteractiveElement, Styled,
-  Subscription, WeakEntity, Window,
+  AnyView, App, AppContext, Context, Entity, InteractiveElement, IntoElement, ParentElement,
+  PathPromptOptions, Render, SharedString, StatefulInteractiveElement, Styled, Subscription,
+  WeakEntity, Window,
   assets::IconName,
   component::{
     ActiveTheme,
@@ -26,7 +26,8 @@ use proton_profiles::{
 };
 use proton_versions::{VersionsExt, loader::LoaderType};
 
-use super::{find_profile, load_icon, quick_play::tabs, update_of};
+use super::{find_profile, quick_play::tabs, update_of};
+use crate::pages::profiles::{ProfileMeta, profile_meta};
 use crate::{
   actions::{toast, toast_error},
   pages::settings::forms::{GameSettingsForm, JavaSettingsForm, memory_of_total},
@@ -44,13 +45,13 @@ pub struct SettingsPage {
   id: String,
   tab: ProfileSettingsTab,
   profile: Option<Profile>,
-  icon: Option<ImageSource>,
+  meta: Entity<ProfileMeta>,
   pub(super) name: Entity<InputState>,
   versions: Entity<VersionSelect>,
   loader_versions: Entity<VersionSelect>,
   game_form: Entity<GameSettingsForm>,
   java_form: Entity<JavaSettingsForm>,
-  _subscriptions: [Subscription; 3],
+  _subscriptions: [Subscription; 4],
 }
 
 impl SettingsPage {
@@ -130,7 +131,9 @@ impl SettingsPage {
     });
     let profiles = cx.profiles().profiles.clone();
     let settings = cx.settings().settings.clone();
+    let meta = profile_meta(cx);
     let subscriptions = [
+      cx.observe(&meta, |_, _, cx| cx.notify()),
       cx.observe_in(&profiles, window, |this, _, window, cx| {
         this.sync_profile(window, cx)
       }),
@@ -147,7 +150,7 @@ impl SettingsPage {
       id,
       tab,
       profile: None,
-      icon: None,
+      meta,
       name,
       versions,
       loader_versions,
@@ -192,16 +195,6 @@ impl SettingsPage {
       f.set_settings(jvm, window, cx);
       f.set_disabled(jvm_disabled, cx);
     });
-    // ponytail: re-reads the icon on every profiles change, one small file
-    let load = load_icon(self.id.clone(), cx);
-    cx.spawn(async move |this, cx| {
-      let icon = load.await;
-      this.update(cx, |this, cx| {
-        this.icon = icon;
-        cx.notify();
-      })
-    })
-    .detach();
     cx.notify();
   }
 
@@ -357,7 +350,7 @@ impl SettingsPage {
               .overflow_hidden()
               .bg(theme.muted)
               .child(
-                ProfileIcon::new(self.icon.clone())
+                ProfileIcon::new(self.meta.read(cx).icon(&self.id))
                   .size(px(64.))
                   .fallback_size(px(32.)),
               ),

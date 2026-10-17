@@ -121,7 +121,7 @@ impl Render for TargetPicker {
                   .flex_shrink(0.01)
                   .truncate()
                   .text_color(muted)
-                  .child(format!("{} {}", logic::loader_label(p.loader), p.version)),
+                  .child(format!("{} {}", logic::loader_name(p.loader), p.version)),
               ),
             None => el.child(div().text_color(muted).child("No profile to install to")),
           })
@@ -185,7 +185,7 @@ impl Render for TargetPicker {
                           .child(div().truncate().text_sm().child(p.name.clone()))
                           .child(div().text_xs().text_color(muted).child(format!(
                             "{} {}",
-                            logic::loader_label(p.loader),
+                            logic::loader_name(p.loader),
                             p.version
                           ))),
                       ),

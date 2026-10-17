@@ -375,7 +375,7 @@ impl Render for ModpackInstallDialog {
           .gap(px(6.))
           .child(div().text_color(muted).child(format!(
             "{} · Minecraft {}",
-            logic::loader_label(plan.loader),
+            logic::loader_name(plan.loader),
             plan.minecraft
           )))
           .child(

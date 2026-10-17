@@ -23,7 +23,7 @@ Stack: Rust 2024, cargo workspace (`crates/*` plus the root `proton` bin), gpui-
 | `account` (`proton_account`)         | Microsoft login, accounts, skins and capes                              | `Accounts`/`AccountsExt`, `auth`, `mc_auth`, `info`, `store`, `skin_store`, `AccountsHandle`                                                                                   | utils, store, config                     |
 | `profiles` (`proton_profiles`)       | Profiles, running instances, logs, quick play, file watcher             | `Profiles`/`ProfilesExt`, `ProfilesHandle`, `config::Profile`, `instance`, `store::ProfileStore`, `watcher`, `server`                                                          | utils, store, config, versions           |
 | `content` (`proton_content`)         | Modrinth/CurseForge search, install, modpacks, update checks            | `Content`/`ContentExt`, `service`, `provider`, `modrinth`, `curseforge`, `install`, `modpack`, `updates`, `store::Manifest`, `render`                                          | utils, store, config, versions, profiles |
-| `components` (`proton_components`)   | Theme, assets, fonts, shared widgets, animation helpers, test helpers   | `assets` (`THEME`, `LINE_HEIGHT`, `open_window`, `load`), `widgets/*`, `card`, `animation`, `render_count`, `test_view`                                                        | utils                                    |
+| `components` (`proton_components`)   | Theme, assets, fonts, shared widgets, test helpers                      | `assets` (`THEME`, `LINE_HEIGHT`, `open_window`, `load`), `widgets/*`, `render_count`, `test_view`                                                                             | utils                                    |
 | `skin_render` (`proton_skin_render`) | Offscreen wgpu player model renderer + gpui views                       | `Renderer`, `SkinViewer`, `MiniSkinViewer`, `SkinTextures`                                                                                                                     | -                                        |
 | `ui` (`proton_ui`)                   | Shell, router, pages, startup glue, updater                             | `app`, `shell`, `router`, `pages/*`, `content` (dialogs), `actions`, `updater`                                                                                                 | all of the above                         |
 | root `proton` (`src/main.rs`)        | Binary: init order, single instance                                     | `main`                                                                                                                                                                         | ui + every service                       |
@@ -104,7 +104,7 @@ Read `crates/utils/PATTERNS.md`; it is the source of truth. In short:
 
 - **`shell/`** – `Shell` is the window root: `Header` (logo, breadcrumbs, drag region, cached) and
   its sibling `HeaderActions` (downloads chip, offline badge, window controls) so download ticks
-  never re-render the header; `Sidebar` (main nav, sliding `Glide` pill, compact below 768px,
+  never re-render the header; `Sidebar` (main nav, pill sliding with gpui-base `transition`, compact below 768px,
   footer from `set_sidebar_footer`); `SimpleSidebar` for the settings/profile sub-navs;
   `DownloadsPanel` (one entity per row). Pages are cached per route (`CACHED_PAGES` = 8, LRU)
   and switch without a transition. An uncached page shows a spinner and builds on the next
@@ -115,21 +115,20 @@ Read `crates/utils/PATTERNS.md`; it is the source of truth. In short:
   restores. `Router` keeps back/forward history (mouse back/forward buttons work);
   `breadcrumbs.rs` builds the header trail from `Names`.
 - **`shell::PageFactory`** – page registry: `PageFactory::register(cx, matches, build)`, first
-  match wins. Hooks so pages never import each other's internals:
-  `PageFactory::set_profile_header`, `PageFactory::set_sidebar_footer`,
-  `pages::profiles::create::set_create_tab` (create dialog tabs),
-  `pages::profile::set_menu_action` (profile header menu: duplicate, export, change version).
+  match wins. `PageFactory::set_profile_header` and `PageFactory::set_sidebar_footer` keep the
+  shell (and its tests) free of the profile and account services. The create dialog tabs and
+  the profile header menu call `crate::content` directly.
 - **`pages/`** (each `register`s in `pages::register_all`):
 
-  | Module      | Routes                                                                                   |
-  | ----------- | ---------------------------------------------------------------------------------------- |
-  | `home`      | `Route::Home`                                                                            |
-  | `profiles`  | `Route::Profiles`, create dialog (`create.rs`), shared tiles/meta used by home           |
-  | `profile`   | profile header, `ProfileTab::QuickPlay(_)`, `ProfileTab::Settings(_)`                    |
-  | `content`   | `ProfileTab::Content(_)` (mods, resource packs, shaders list + drop zone)                |
-  | `instances` | `Route::Instances`, `Route::InstanceLogs`, `ProfileTab::Instances`, `ProfileTab::Logs`   |
-  | `discover`  | `Route::Discover(_)`, `Route::Project { .. }`; `register_hooks` wires create tabs + menu |
-  | `settings`  | `Route::Settings(_)` (accounts, skins, capes, minecraft, java, about), account selector  |
+  | Module      | Routes                                                                                  |
+  | ----------- | --------------------------------------------------------------------------------------- |
+  | `home`      | `Route::Home`                                                                           |
+  | `profiles`  | `Route::Profiles`, create dialog (`create.rs`), shared tiles/meta used by home          |
+  | `profile`   | profile header, `ProfileTab::QuickPlay(_)`, `ProfileTab::Settings(_)`                   |
+  | `content`   | `ProfileTab::Content(_)` (mods, resource packs, shaders list + drop zone)               |
+  | `instances` | `Route::Instances`, `Route::InstanceLogs`, `ProfileTab::Instances`, `ProfileTab::Logs`  |
+  | `discover`  | `Route::Discover(_)`, `Route::Project { .. }`                                           |
+  | `settings`  | `Route::Settings(_)` (accounts, skins, capes, minecraft, java, about), account selector |
 
 - **`content/`** – dialogs shared across pages: `InstallDialog`, `ModpackInstallDialog`,
   `ManualDownloads` (restricted CurseForge files), `TargetPicker` + remembered install target,
@@ -142,13 +141,13 @@ Read `crates/utils/PATTERNS.md`; it is the source of truth. In short:
   `SwitchTile`, `ImageInput`, `filled`, `icon_label`, `alert`), `format.rs` (time, counts,
   sizes), `instance.rs` (`InstanceRow`), `logs.rs` (virtualized `LogWindow`), `profile.rs`
   (`ProfileIcon`, `QuickPlayIcon`, `ProfileCard`), `slider.rs` (shadcn `Slider`), `tabs.rs`
-  (`segmented_tabs`), `mod.rs` (`chip`, `label`, `input_tile`, Tailwind `colors`); `card.rs`.
+  (`segmented_tabs`), `mod.rs` (`chip`, `label`, `input_tile`, Tailwind `colors`).
 - **Theme:** `assets/themes/shadcn-zinc-blue.json`, applied as `THEME` ("shadcn Zinc Blue
   Dark", always dark) in `components/src/assets.rs`. Geist fonts from `assets/fonts`, mono font
   picked from installed Menlo/Monaco/Consolas/Liberation Mono. `LINE_HEIGHT` 1.4 is set on the
   kit root by `assets::open_window` so overlays inherit it.
-- **Animation:** `components::animation` (`animation_duration` honours reduce motion,
-  `ease_*_cubic`, `glide::Glide`, `smooth_retarget::SmoothRetarget`).
+- **Animation:** gpui-kit's `Animation` with `base::animation::ease_out_cubic`; value transitions
+  (sidebar pill) use `base::motion::transition`, which honours reduce motion.
 
 ## Where do I change X?
 
@@ -236,8 +235,7 @@ and `latest.json` shape, NSIS `publisher` keeps the registry keys. Users upgrade
 `ponytail:` comments mark deliberate shortcuts with a known ceiling (grep for them):
 
 - **UI/shell:** page cache size and page roots rendering every frame (`shell/mod.rs`), capped
-  router history (`router/mod.rs`), profile icon re-read on profile changes
-  (`pages/profile/{header,settings}.rs`), offline toast duration (`app.rs`), window border
+  router history (`router/mod.rs`), offline toast duration (`app.rs`), window border
   (`app.rs`), single instance race (`app/single_instance.rs`), manual downloads polling every 2s
   (`content/manual.rs`), HTML paragraph workaround (`pages/discover/project.rs`).
 - **Content:** search offset split between providers (`provider.rs`), refresh ordering and kept
@@ -265,7 +263,8 @@ gpui / gpui-kit quirks:
   exact heights.
 - **Window:** client-side decorations everywhere; kit draws a 1px border + shadow on floating
   windows. Tiling compositors report tiled as maximized, so Linux never saves `maximized`.
-- **Tests:** animations use the wall clock, so test setup calls `cx.set_reduce_motion(true)`.
+- **Tests:** kit animations use the wall clock (motion transitions the executor clock), so test
+  setup calls `cx.set_reduce_motion(true)`.
 - **Caching views:** a `.cached()` view re-renders its whole subtree when it notifies. Keep page
   roots shallow, put live parts (logs, progress) into their own child entities.
 

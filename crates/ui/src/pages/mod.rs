@@ -14,7 +14,6 @@ pub mod settings;
 pub fn register_all(cx: &mut App) {
   content::register(cx);
   discover::register(cx);
-  discover::register_hooks(cx);
   home::register(cx);
   instances::register(cx);
   profile::register(cx);

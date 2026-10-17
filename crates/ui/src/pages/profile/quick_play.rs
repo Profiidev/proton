@@ -9,6 +9,7 @@ use gpui_kit::{
   Styled, Subscription, Window,
   assets::IconName,
   base::TestSupportExt,
+  base::animation::ease_out_cubic,
   component::{
     ActiveTheme, Icon,
     button::{Button, ButtonVariants},
@@ -17,15 +18,12 @@ use gpui_kit::{
   prelude::FluentBuilder,
   px,
 };
-use proton_components::{
-  animation::ease_out_cubic,
-  widgets::{
-    colors,
-    form::{filled, icon_label, open_destroy_dialog},
-    format::format_datetime,
-    profile::QuickPlayIcon,
-    tabs::segmented_tabs,
-  },
+use proton_components::widgets::{
+  colors,
+  form::{filled, icon_label, open_destroy_dialog},
+  format::format_datetime,
+  profile::QuickPlayIcon,
+  tabs::segmented_tabs,
 };
 use proton_profiles::{
   Profiles, ProfilesExt,

@@ -76,7 +76,7 @@ pub fn profile_meta(cx: &mut App) -> Entity<ProfileMeta> {
 }
 
 /// Detects png/jpeg (the only formats the icon picker accepts) so gpui can decode it
-fn image(bytes: Vec<u8>) -> Arc<Image> {
+pub fn icon_image(bytes: Vec<u8>) -> Arc<Image> {
   let format = if bytes.starts_with(&[0xff, 0xd8]) {
     ImageFormat::Jpeg
   } else {
@@ -129,11 +129,17 @@ fn reload(meta: &Entity<ProfileMeta>, cx: &mut App) {
     entity.update(cx, |meta, cx| {
       let mut changed = false;
       if !same(&meta.icons, &next_icons) {
-        meta.icons = next_icons.into_iter().map(|(k, v)| (k, image(v))).collect();
+        meta.icons = next_icons
+          .into_iter()
+          .map(|(k, v)| (k, icon_image(v)))
+          .collect();
         changed = true;
       }
       if !same(&meta.quick_play_icons, &next_qp) {
-        meta.quick_play_icons = next_qp.into_iter().map(|(k, v)| (k, image(v))).collect();
+        meta.quick_play_icons = next_qp
+          .into_iter()
+          .map(|(k, v)| (k, icon_image(v)))
+          .collect();
         changed = true;
       }
       if meta.mods != mods {

@@ -24,7 +24,6 @@ serde_json.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
 gpui-kit.workspace = true
-serde.workspace = true
 image.workspace = true
 url.workspace = true
 cargo-packager-updater.workspace = true
@@ -32,10 +31,6 @@ cargo-packager-updater.workspace = true
 [dev-dependencies]
 gpui-kit = { workspace = true, features = ["test-support"] }
 proton_components = { workspace = true, features = ["test-support"] }
-proton_store.workspace = true
-proton_config.workspace = true
-proton_versions.workspace = true
-serde_json.workspace = true
 tempfile.workspace = true
 tokio.workspace = true
 base64.workspace = true

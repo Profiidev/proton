@@ -99,7 +99,7 @@ fn mirror<T: 'static>(cx: &mut App, entity: Entity<T>, f: impl Fn(&T, &mut Shell
   cx.observe(&entity, apply).detach();
 }
 
-fn bridge(cx: &mut App) {
+pub(crate) fn bridge(cx: &mut App) {
   mirror(cx, cx.offline().offline.clone(), |v, d| d.offline = *v);
   mirror(cx, cx.settings().settings.clone(), |s, d| {
     d.hide_window_controls = s.hide_window_controls

@@ -101,7 +101,8 @@ fn idle_pages_request_no_frames(cx: &mut TestAppContext) {
   ] {
     cx.update(|cx| cx.navigate(route.clone()));
     let mut frames = 0;
-    // animations run on the wall clock; deliver frames until nothing asks for another
+    // kit animations run on the wall clock, motion transitions on the executor clock; deliver
+    // frames until nothing asks for another
     let start = std::time::Instant::now();
     loop {
       draw(handle, cx);
@@ -117,6 +118,8 @@ fn idle_pages_request_no_frames(cx: &mut TestAppContext) {
         "{route:?} keeps animating ({frames} frames)"
       );
       std::thread::sleep(std::time::Duration::from_millis(16));
+      cx.executor()
+        .advance_clock(std::time::Duration::from_millis(16));
     }
     // still idle a while later
     std::thread::sleep(std::time::Duration::from_millis(50));

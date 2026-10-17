@@ -496,7 +496,7 @@ impl DiscoverPage {
         None => "No profile selected".to_string(),
         Some(t) if self.kind == ContentKind::Mod => format!(
           "{} {}, from {}",
-          logic::loader_label(t.loader),
+          logic::loader_name(t.loader),
           t.version,
           t.name
         ),

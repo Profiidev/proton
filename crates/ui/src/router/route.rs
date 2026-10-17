@@ -1,8 +1,6 @@
-use serde::{Deserialize, Serialize};
-
 /// Every page of the app. [`Route::to_url`] / [`Route::from_url`] speak the
 /// old SvelteKit URLs, so a URL saved by the Tauri app still restores.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Route {
   Home,
   Profiles,
@@ -23,7 +21,7 @@ pub enum Route {
   Settings(SettingsTab),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ProfileTab {
   QuickPlay(QuickPlayTab),
   /// Never [`Kind::Modpack`]
@@ -33,21 +31,21 @@ pub enum ProfileTab {
   Settings(ProfileSettingsTab),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum QuickPlayTab {
   Singleplayer,
   Multiplayer,
   Realms,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ProfileSettingsTab {
   General,
   Minecraft,
   Java,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SettingsTab {
   Accounts,
   Skins,
@@ -58,7 +56,7 @@ pub enum SettingsTab {
 }
 
 /// Content kind as it appears in URLs
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Kind {
   Mod,
   Modpack,
@@ -66,7 +64,7 @@ pub enum Kind {
   Shader,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Source {
   Modrinth,
   CurseForge,
@@ -321,8 +319,6 @@ pub(crate) mod tests {
     for route in routes {
       let url = route.to_url();
       assert_eq!(Route::from_url(&url), Some(route.clone()), "{url}");
-      let json = serde_json::to_string(&route).unwrap();
-      assert_eq!(serde_json::from_str::<Route>(&json).unwrap(), route);
     }
   }
 

@@ -586,7 +586,7 @@ impl ProjectPage {
         match (filtered, target) {
           (true, Some(t)) => format!(
             "None made for {} {}. Show all versions to see the rest.",
-            logic::loader_label(t.loader),
+            logic::loader_name(t.loader),
             t.version
           ),
           _ => "This project has no files to install.".into(),

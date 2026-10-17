@@ -6,7 +6,10 @@ use gpui_kit::{
 };
 
 use super::*;
-use crate::router::{ProfileSettingsTab, QuickPlayTab, RouterExt};
+use crate::{
+  router::{ProfileSettingsTab, QuickPlayTab, RouterExt},
+  shell::ShellDataExt,
+};
 
 /// Vanilla Survival: favorite, 2 worlds and 2 servers
 const VANILLA: &str = "11111111-1111-4111-8111-111111111111";
@@ -46,6 +49,7 @@ fn open<V: 'static + gpui::Render>(
     proton_versions::init(cx);
     proton_profiles::init_at(cx, data.clone()).unwrap();
     crate::init(cx);
+    crate::app::bridge(cx);
     register(cx);
     gpui_kit::open_window(WindowOptions::default(), cx, |window, cx| {
       cx.new(|cx| build(window, cx))

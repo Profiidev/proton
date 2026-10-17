@@ -1,10 +1,10 @@
 //! "Create profile" dialog: the Custom form plus the From modpack / Import file tabs, whose
-//! bodies the content pages plug in with [`set_create_tab`].
+//! bodies come from `crate::content`.
 
 use std::path::Path;
 
 use gpui_kit::{
-  AnyView, App, AppContext, Context, Entity, FontWeight, Global, InteractiveElement, IntoElement,
+  AnyView, App, AppContext, Context, Entity, FontWeight, InteractiveElement, IntoElement,
   ParentElement, Render, SharedString, StatefulInteractiveElement, Styled, Subscription,
   TestSupportExt, Window,
   component::{
@@ -26,7 +26,10 @@ use proton_utils::log::ErrorLogExt;
 use proton_versions::{VersionsExt, loader::LoaderType};
 
 use super::loader_name;
-use crate::actions::toast_error;
+use crate::{
+  actions::toast_error,
+  content::{FromModpackTab, ImportFileTab, ModpackInstallDialog, ProjectRef},
+};
 
 pub const LOADERS: [LoaderType; 5] = [
   LoaderType::Vanilla,
@@ -41,29 +44,6 @@ pub enum CreateTab {
   Custom,
   FromModpack,
   ImportFile,
-}
-
-/// Builds a tab body each time the tab is selected (dropped when it is left)
-pub type TabBuilder = fn(&mut Window, &mut App) -> AnyView;
-
-#[derive(Default)]
-struct CreateTabs {
-  modpack: Option<TabBuilder>,
-  import: Option<TabBuilder>,
-}
-
-impl Global for CreateTabs {}
-
-/// Plugs in the body of the "From modpack" or "Import file" tab. To hand over to the
-/// modpack install dialog, the body calls `window.close_dialog(cx)` first.
-/// [`CreateTab::Custom`] is built in and ignored here.
-pub fn set_create_tab(cx: &mut App, tab: CreateTab, builder: TabBuilder) {
-  let tabs = cx.default_global::<CreateTabs>();
-  match tab {
-    CreateTab::FromModpack => tabs.modpack = Some(builder),
-    CreateTab::ImportFile => tabs.import = Some(builder),
-    CreateTab::Custom => {}
-  }
 }
 
 /// Opens the dialog on the Custom tab
@@ -159,14 +139,34 @@ impl CreateDialog {
     if tab == self.tab {
       return;
     }
-    let tabs = cx.default_global::<CreateTabs>();
-    let builder = match tab {
-      CreateTab::Custom => None,
-      CreateTab::FromModpack => tabs.modpack,
-      CreateTab::ImportFile => tabs.import,
-    };
+    // a tab body is built each time it is selected, to hand over to the modpack install
+    // dialog it closes this dialog first
     self.tab = tab;
-    self.body = builder.map(|b| b(window, cx));
+    self.body = match tab {
+      CreateTab::Custom => None,
+      CreateTab::FromModpack => Some(
+        cx.new(|cx| {
+          FromModpackTab::new(
+            |project, window, cx| {
+              window.close_dialog(cx);
+              ModpackInstallDialog::open(ProjectRef::from(&project), window, cx);
+            },
+            window,
+            cx,
+          )
+        })
+        .into(),
+      ),
+      CreateTab::ImportFile => Some(
+        cx.new(|_| {
+          ImportFileTab::new(|plan, window, cx| {
+            window.close_dialog(cx);
+            ModpackInstallDialog::open_plan(plan, window, cx);
+          })
+        })
+        .into(),
+      ),
+    };
     cx.notify();
   }
 
@@ -469,20 +469,9 @@ impl Render for CreateDialog {
       cx,
     );
 
-    let body = match self.tab {
-      CreateTab::Custom => self.render_custom(cx).into_any_element(),
-      _ => match self.body.clone() {
-        Some(view) => view.into_any_element(),
-        None => div()
-          .h(px(320.))
-          .flex()
-          .items_center()
-          .justify_center()
-          .text_sm()
-          .text_color(muted_fg)
-          .child("Not available yet")
-          .into_any_element(),
-      },
+    let body = match self.body.clone() {
+      Some(view) => view.into_any_element(),
+      None => self.render_custom(cx).into_any_element(),
     };
 
     let submitting = self.submitting;

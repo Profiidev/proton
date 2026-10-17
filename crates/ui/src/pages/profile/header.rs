@@ -1,5 +1,5 @@
 use gpui_kit::{
-  Anchor, App, ClickEvent, Context, FontWeight, ImageSource, InteractiveElement, IntoElement,
+  Anchor, App, ClickEvent, Context, Entity, FontWeight, InteractiveElement, IntoElement,
   ParentElement, Render, SharedString, StatefulInteractiveElement, Styled, Subscription, Window,
   assets::IconName,
   component::{
@@ -22,7 +22,9 @@ use proton_config::OfflineExt;
 use proton_content::Content;
 use proton_profiles::{ProfilesExt, config::Profile};
 
-use super::{MenuAction, find_profile, load_icon, run_menu_action};
+use super::find_profile;
+use crate::content::{ModpackInstallDialog, export_mrpack, open_duplicate_dialog};
+use crate::pages::profiles::{ProfileMeta, profile_meta};
 use crate::{
   actions::{launch, toast, toast_error},
   router::{Route, RouterExt},
@@ -32,7 +34,7 @@ use crate::{
 pub struct ProfileHeader {
   id: String,
   profile: Option<Profile>,
-  icon: Option<ImageSource>,
+  meta: Entity<ProfileMeta>,
   running: usize,
   pack_update: Option<String>,
   _subscriptions: Vec<Subscription>,
@@ -41,7 +43,9 @@ pub struct ProfileHeader {
 impl ProfileHeader {
   pub fn new(id: String, _: &mut Window, cx: &mut Context<Self>) -> Self {
     let profiles = cx.profiles().clone();
+    let meta = profile_meta(cx);
     let mut subscriptions = vec![
+      cx.observe(&meta, |_, _, cx| cx.notify()),
       cx.observe(&profiles.profiles, |this, _, cx| this.sync_profile(cx)),
       cx.observe(&profiles.instances, |this, _, cx| this.sync_running(cx)),
     ];
@@ -53,7 +57,7 @@ impl ProfileHeader {
     let mut this = Self {
       id,
       profile: None,
-      icon: None,
+      meta,
       running: 0,
       pack_update: None,
       _subscriptions: subscriptions,
@@ -74,16 +78,6 @@ impl ProfileHeader {
       }
       return;
     }
-    // ponytail: re-reads the icon on every profiles change, one small file
-    let load = load_icon(self.id.clone(), cx);
-    cx.spawn(async move |this, cx| {
-      let icon = load.await;
-      this.update(cx, |this, cx| {
-        this.icon = icon;
-        cx.notify();
-      })
-    })
-    .detach();
     cx.notify();
   }
 
@@ -258,9 +252,7 @@ impl Render for ProfileHeader {
                 .font_weight(FontWeight::MEDIUM)
                 .child(Icon::new(IconName::CircleArrowUp).size_3())
                 .child(format!("Pack update {v}"))
-                .on_click(move |_, w, cx| {
-                  run_menu_action(MenuAction::ChangeVersion, id.clone(), w, cx)
-                }),
+                .on_click(move |_, w, cx| ModpackInstallDialog::open_change(&id, w, cx)),
             )
           }),
       )
@@ -364,18 +356,18 @@ impl Render for ProfileHeader {
                   .on_click(move |_, _, cx| repair(b.clone(), n1.clone(), cx)),
               )
               .when(modpack, |menu| {
-                menu.item(item("Change pack version", IconName::RefreshCw).on_click(
-                  move |_, w, cx| run_menu_action(MenuAction::ChangeVersion, c.clone(), w, cx),
-                ))
+                menu.item(
+                  item("Change pack version", IconName::RefreshCw)
+                    .on_click(move |_, w, cx| ModpackInstallDialog::open_change(&c, w, cx)),
+                )
               })
               .item(
-                item("Duplicate profile", IconName::Copy).on_click(move |_, w, cx| {
-                  run_menu_action(MenuAction::Duplicate, d.clone(), w, cx)
-                }),
+                item("Duplicate profile", IconName::Copy)
+                  .on_click(move |_, w, cx| open_duplicate_dialog(d.clone(), w, cx)),
               )
               .item(
                 item("Export as .mrpack", IconName::Download)
-                  .on_click(move |_, w, cx| run_menu_action(MenuAction::Export, e.clone(), w, cx)),
+                  .on_click(move |_, w, cx| export_mrpack(e.clone(), w, cx)),
               )
               .item(
                 PopupMenuItem::element(move |_, _| {
@@ -405,7 +397,7 @@ impl Render for ProfileHeader {
           .overflow_hidden()
           .bg(theme.muted)
           .child(
-            ProfileIcon::new(self.icon.clone())
+            ProfileIcon::new(self.meta.read(cx).icon(&self.id))
               .size(px(80.))
               .fallback_size(px(40.)),
           ),

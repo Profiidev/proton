@@ -1,10 +1,5 @@
 {
-  "ignorePatterns": [
-    "node_modules/**/*",
-    ".github/**/*",
-    "fixtures/data/**/*",
-    "**/testdata/**/*"
-  ],
+  "ignorePatterns": [".github/**/*", "fixtures/data/**/*", "**/testdata/**/*"],
   "printWidth": 80,
   "singleQuote": true,
   "trailingComma": "none"
