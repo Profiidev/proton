@@ -258,8 +258,9 @@ gpui / gpui-kit quirks:
 - **No letter-spacing** in gpui: Tailwind `tracking-*` cannot be reproduced.
 - **Buttons:** kit buttons paint their full box; shadcn filled buttons paint 30px of 32px. Use
   `widgets::form::filled` / `filled_icon` and `icon_label` for the shadcn icon + label spacing.
-- **Rings:** no `ring-*`; emulated with a border plus `-1px` margin (`pages/settings/mod.rs`
-  `ring_card`, `widgets/instance.rs`, `widgets/logs.rs`) or a box shadow (home continue card).
+- **Rings:** no `ring-*`; emulated with a plain border (`pages/settings/mod.rs` `ring_card`,
+  `widgets/instance.rs`), a `-1px` overhang (`widgets/logs.rs`) or a box shadow (home continue
+  card). No `-1px` margin on cards: scroll parents clip the overhanging border.
 - **Line height:** gpui defaults to 1.618; `LINE_HEIGHT` 1.4 on the kit root, some text pins
   exact heights.
 - **Window:** client-side decorations everywhere; kit draws a 1px border + shadow on floating

@@ -97,7 +97,6 @@ fn heading(title: &'static str, subtitle: Option<SharedString>, cx: &App) -> Div
 fn ring_card(cx: &App) -> Div {
   let theme = cx.theme();
   div()
-    .m(px(-1.))
     .rounded(px(14.))
     .border_1()
     .border_color(theme.foreground.opacity(0.1))
