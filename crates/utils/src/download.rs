@@ -42,8 +42,17 @@ pub async fn download_and_parse_file_no_hash<R: DeserializeOwned>(
   url: Url,
   force: bool,
 ) -> Result<R> {
-  let bytes = download_file_no_hash(client, path, url, force).await?;
-  Ok(serde_json::from_slice(&bytes)?)
+  if !force && let Ok(bytes) = fs::read(path).await {
+    return Ok(serde_json::from_slice(&bytes)?);
+  }
+
+  debug!("Downloading file: {}", url.as_str());
+  let res = client.get(url).send().await?.error_for_status()?;
+  let bytes = res.bytes().await?;
+  // parse before writing, junk (e.g. a captive portal page) must not replace a good cache
+  let parsed = serde_json::from_slice(&bytes)?;
+  write(path, &bytes).await?;
+  Ok(parsed)
 }
 
 pub async fn download_file(
@@ -288,6 +297,25 @@ mod tests {
       false,
     ));
     assert!(res.unwrap_err().is::<serde_json::Error>());
+  }
+
+  #[test]
+  fn forced_refresh_with_junk_keeps_the_cached_json() {
+    let server = FakeServer::start();
+    server.route("GET", "/portal", 200, "<html>log in to the wifi</html>");
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("manifest.json");
+    std::fs::write(&path, JSON).unwrap();
+
+    let res: Result<Item> = rt::block_on(download_and_parse_file_no_hash(
+      &default_client(),
+      &path,
+      url(&server, "/portal"),
+      true,
+    ));
+    assert!(res.is_err());
+    // the next offline start still reads the good cache
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), JSON);
   }
 
   #[test]
