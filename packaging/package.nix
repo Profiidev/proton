@@ -116,8 +116,7 @@ rustPlatform.buildRustPackage {
   postFixup = ''
     patchelf --add-rpath ${lib.makeLibraryPath gpuiLibs} $out/bin/proton
     wrapProgram $out/bin/proton \
-      --prefix LD_LIBRARY_PATH : ${lib.makeLibraryPath mcLibs} \
-      --set __NV_DISABLE_EXPLICIT_SYNC 1
+      --prefix LD_LIBRARY_PATH : ${lib.makeLibraryPath mcLibs}
   '';
 
   meta = {
