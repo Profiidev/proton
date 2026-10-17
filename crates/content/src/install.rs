@@ -655,6 +655,16 @@ pub async fn find_manual(dirs: Vec<PathBuf>, files: Vec<ManualFile>) -> HashMap<
         continue;
       };
       let name = entry.file_name();
+      // a finished but not yet renamed browser download hashes right, then vanishes
+      let partial = std::path::Path::new(&name)
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| {
+          ["part", "crdownload", "download"].contains(&e.to_ascii_lowercase().as_str())
+        });
+      if partial {
+        continue;
+      }
       // only hash files that could match, browsers write partial downloads under other names
       let candidates: Vec<_> = files
         .iter()
@@ -1018,6 +1028,7 @@ mod tests {
     let dir = temp_dir("find-manual");
     std::fs::write(dir.join("a (1).jar"), b"aaa").unwrap();
     std::fs::write(dir.join("b.jar"), b"not b").unwrap();
+    std::fs::write(dir.join("c.jar.part"), b"ccc").unwrap();
     let file = |id: &str, bytes: &[u8]| ManualFile {
       source: Source::CurseForge,
       project_id: id.into(),
@@ -1030,7 +1041,7 @@ mod tests {
     };
     let found = find_manual(
       vec![dir.clone(), dir.join("missing")],
-      vec![file("a", b"aaa"), file("b", b"bbb")],
+      vec![file("a", b"aaa"), file("b", b"bbb"), file("c", b"ccc")],
     )
     .await;
     assert_eq!(found.len(), 1);
