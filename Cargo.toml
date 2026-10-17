@@ -1,8 +1,6 @@
 [workspace]
 resolver = "3"
 members = ["crates/*"]
-# the tauri app stays on disk as reference until Phase 4, it no longer builds
-exclude = ["app/src-tauri"]
 
 [workspace.package]
 version = "0.2.14"
@@ -32,15 +30,6 @@ tempfile = "3.27.0"
 include_dir = "0.7.4"
 interprocess = "2.4.5"
 
-tauri = { version = "2.12.4", features = [] }
-tauri-build = { version = "2", features = [] }
-tauri-plugin-opener = "2.7.2"
-tauri-plugin-log = "2.10.1"
-tauri-plugin-process = "2.4.0"
-tauri-plugin-dialog = "2.8.3"
-tauri-plugin-single-instance = "2.5.4"
-tauri-plugin-updater = "2.14.0"
-tauri-plugin-window-state = "2.5.0"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 dirs = "7.0.0"
@@ -51,7 +40,7 @@ reqwest = { version = "0.13.5", features = [
   "json",
   "multipart",
   "stream",
-  "form",
+  "form"
 ] }
 tokio = { version = "1.53.3", features = ["full"] }
 base64 = "0.23.1"
@@ -68,14 +57,14 @@ async_zip = { version = "0.0.19", features = [
   "deflate",
   "bzip2",
   "zstd",
-  "deflate64",
+  "deflate64"
 ] }
 tokio-util = { version = "0.7.20", features = ["compat"] }
 sysinfo = "0.39.6"
 futures-util = "0.3.34"
 sha2 = "0.11.1"
 pulldown-cmark = { version = "0.13.4", default-features = false, features = [
-  "html",
+  "html"
 ] }
 ammonia = "4.2.3"
 cargo-packager-updater = "0.2.3"
@@ -108,7 +97,7 @@ icons = [
   "packaging/icons/128x128.png",
   "packaging/icons/128x128@2x.png",
   "packaging/icons/icon.icns",
-  "packaging/icons/icon.ico",
+  "packaging/icons/icon.ico"
 ]
 
 [package.metadata.packager.deb]
@@ -120,7 +109,7 @@ depends = [
   "libvulkan1",
   "libfontconfig1",
   "libfreetype6",
-  "libxcb1",
+  "libxcb1"
 ]
 
 [package.metadata.packager.nsis]

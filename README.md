@@ -1,6 +1,6 @@
 # Proton Minecraft Launcher
 
-A modern, fast, and feature-rich Minecraft launcher built with Tauri, Rust, and SvelteKit. Proton provides a clean interface for managing your Minecraft installations, profiles, and mods with support for multiple mod loaders.
+A modern, fast, and feature-rich Minecraft launcher built in Rust with [gpui](https://www.gpui.rs/). Proton provides a clean interface for managing your Minecraft installations, profiles, and mods with support for multiple mod loaders.
 
 [![GitHub Release](https://img.shields.io/github/v/release/ProfiiDev/proton?style=flat-square)](https://github.com/ProfiiDev/proton/releases/latest)
 [![GitHub Issues](https://img.shields.io/github/issues/ProfiiDev/proton?style=flat-square)](https://github.com/ProfiiDev/proton/issues)
@@ -118,49 +118,46 @@ Proton includes an built-in auto-updater that will notify you when new versions 
 
 ### Prerequisites
 
-- **Devenv** (latest stable)
-- **Direnv** (for automatic environment loading)
+- **Devenv** (latest stable) and optionally **Direnv**, or any Rust toolchain plus the gpui Linux libraries (wayland, xkbcommon, vulkan, fontconfig)
+- **just**
 
 ### Development Setup
 
 ```bash
-# Clone the repository
 git clone https://github.com/ProfiiDev/proton.git
 cd proton
+direnv allow   # or: devenv shell
 
-# Optional: Allow direnv
-direnv allow
-# Or manually enter the shell
-devenv shell
+cargo run      # start the app
+```
 
-# Install dependencies
-npm install
+### Common Tasks
 
-# Start development app
-cd app && npm run tauri dev
+```bash
+just test                  # cargo nextest run --workspace
+just lint                  # clippy, warnings are errors
+just fmt                   # cargo fmt (json/md/yaml: oxfmt)
+just screenshots [route]   # screenshot every route into fixtures/gpui (headless sway)
+just compare [route]       # diff fixtures/gpui against the frozen fixtures/reference
+just package deb,appimage  # release packages via cargo-packager
+nix build                  # Nix package (result/bin/proton)
 ```
 
 ### Project Structure
 
 ```
 proton/
-├── app/                    # Frontend (SvelteKit + TypeScript)
-│   ├── src/               # Svelte components and pages for app UI
-│   ├── src-tauri/         # Tauri Rust backend
-│   └── static/            # Static assets
-├── .github/workflows/     # CI/CD workflows
-└── devenv.nix            # Development environment config
-```
-
-### Building
-
-```bash
-# Build for specific platform
-cd app && npm run tauri build
-
-# Build for different architectures (macOS)
-npm run tauri build -- --target aarch64-apple-darwin
-npm run tauri build -- --target x86_64-apple-darwin
+├── src/main.rs            # app bootstrap
+├── crates/
+│   ├── ui/                # app shell, router and pages (gpui)
+│   ├── components/        # theme, assets, shared widgets
+│   ├── skin_render/       # wgpu skin renderer
+│   ├── account/ config/ content/ profiles/ versions/
+│   └── store/ reqwest/ utils/
+├── assets/                # theme, fonts, icons
+├── fixtures/              # screenshot data, scripts and references
+├── packaging/             # icons and desktop file
+└── nix/, devenv.nix       # Nix package and dev environment
 ```
 
 ### Contributing
@@ -178,8 +175,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-- Built with [Tauri](https://tauri.app/)
-- UI components powered by [SvelteKit](https://kit.svelte.dev/), [TailwindCSS](https://tailwindcss.com/) and [ShadcnSvelte](https://shadcn-svelte.com/)
+- Built with [gpui](https://www.gpui.rs/) and [gpui-kit](https://crates.io/crates/gpui-kit)
 - Icons from [Lucide](https://lucide.dev/)
 
 ## ⭐ Support
