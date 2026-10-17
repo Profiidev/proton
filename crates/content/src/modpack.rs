@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha512};
 use tokio::{
   fs,
-  io::{AsyncReadExt, BufReader},
+  io::{AsyncReadExt, AsyncWriteExt, BufReader},
   select,
   sync::Notify,
 };
@@ -889,7 +889,8 @@ async fn write_mrpack(
       .await?;
   }
   progress(DownloadCheckStatus::ContentFiles(total, total));
-  zip.close().await?;
+  // tokio finishes pending writes in the background unless flushed, readers would see a cut file
+  zip.close().await?.into_inner().flush().await?;
   Ok(())
 }
 
