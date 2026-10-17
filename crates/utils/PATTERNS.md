@@ -1,6 +1,6 @@
 # Service crate patterns
 
-Reference: `crates/config` (offline + settings). Corona (`crates/power`) uses the same shape.
+Reference: `crates/config` (offline + settings). `account`, `profiles`, `versions` and `content` use the same shape.
 
 ## Layout
 
@@ -39,8 +39,7 @@ cx.spawn(async move |cx| {
   toasts go on a separate `EventEmitter` entity, so toast subscribers are not woken by state.
 - Progress: send ticks through the same channel, keep one entity per row, throttle with
   `future::UpdateLimiter`.
-- After a mutation the service refreshes its own entity. `UpdateType`/`update_data` are gone
-  (only a no-op shim in `tauri_compat` remains until you remove your calls).
+- After a mutation the service refreshes its own entity (the Tauri `update_data` events are gone).
 
 ## Calling tokio code from gpui
 

@@ -1,3 +1,6 @@
+//! Helpers shared by every crate: app dirs, the tokio runtime ([`rt`]), logging, downloads,
+//! `write_changed`. No gpui state.
+
 pub mod dir;
 pub mod download;
 pub mod entity;

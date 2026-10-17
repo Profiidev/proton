@@ -1,3 +1,6 @@
+//! Settings (`cx.settings()`, [`update`]) and the online/offline state (`cx.offline()`). The
+//! reference service for `crates/utils/PATTERNS.md`.
+
 use gpui_kit::{App, AppContext, Entity, EventEmitter, Global};
 use proton_utils::{entity::WriteChangedExt, log::ErrorLogExt, rt};
 

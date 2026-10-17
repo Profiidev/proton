@@ -1,3 +1,5 @@
+//! Window root: header, sidebar, page cache and the [`ShellData`] the services push into.
+
 mod downloads;
 mod header;
 mod pages;

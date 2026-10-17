@@ -105,7 +105,8 @@ jobs:
             '{($key): {url: $url, signature: $sig, format: $format}}' > "$GITHUB_WORKSPACE/updater-$UPDATER.json"
           # old Tauri deb installs look up `linux-x86_64-deb` and install it with dpkg.
           # cargo-packager-updater has no deb format and rejects the whole manifest on an unknown
-          # one, so the entry is tagged appimage; the gpui app never reads this key.
+          # one, so the entry is tagged appimage. gpui deb installs read it too and install the
+          # verified bytes with `pkexec dpkg -i` (crates/ui/src/updater.rs), the format is unused.
           if [[ $UPDATER == linux-* ]]; then
             deb=$(ls *.deb)
             jq --arg key "$UPDATER-deb" --arg url "$base/$deb" --arg sig "$(cat "$deb.sig")" \

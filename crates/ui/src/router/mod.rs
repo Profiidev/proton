@@ -1,3 +1,5 @@
+//! The [`Route`] enum (old SvelteKit URLs in and out), back/forward history and breadcrumbs.
+
 mod breadcrumbs;
 mod route;
 #[cfg(test)]

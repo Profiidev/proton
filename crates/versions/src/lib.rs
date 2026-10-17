@@ -1,3 +1,6 @@
+//! Versions service: manifests, Java/Minecraft/loader downloads, game launch and the downloads
+//! panel model (`cx.versions()`).
+
 use meta::{Action, Arch, Os, OsName, Rule};
 
 use crate::meta::Features;

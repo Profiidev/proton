@@ -1,3 +1,6 @@
+//! Account service: Microsoft login, accounts, skins and capes. `cx.accounts()`; the tokio half
+//! is [`AccountsHandle`], see `crates/utils/PATTERNS.md`.
+
 use anyhow::Result;
 use gpui_kit::{App, AppContext, Entity, Global};
 use proton_config::OfflineExt;

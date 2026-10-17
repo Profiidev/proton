@@ -1,3 +1,6 @@
+//! The HTTP client gpui loads images and other URLs with: reqwest plus an on-disk cache in
+//! `<cache>/io.profidev.proton/http` that follows `Cache-Control`.
+
 use std::io;
 
 use reqwest_client::ReqwestClient;

@@ -1,3 +1,6 @@
+//! Theme, fonts and assets ([`assets`]), shared props-only widgets ([`widgets`]), animation
+//! helpers and test helpers ([`render_count`], `test_view`). No service state.
+
 pub mod animation;
 pub mod assets;
 pub mod card;

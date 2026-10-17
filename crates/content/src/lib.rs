@@ -1,3 +1,6 @@
+//! Content service: Modrinth/CurseForge search, installs, modpacks and update checks
+//! (`cx.content()`). Methods live in `service.rs`, the tokio half is [`updates::ContentHandle`].
+
 use std::collections::HashMap;
 
 use gpui_kit::{App, AppContext, Entity, Global};

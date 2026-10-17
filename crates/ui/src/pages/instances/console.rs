@@ -26,7 +26,7 @@ const MODES: [(&str, &[&str]); 3] = [
 
 /// `/instances/info/logs?id=`: live console of a running instance. A notify re-renders every
 /// ancestor view, so this root stays tiny: new lines re-render only the [`LogWindow`] and this
-/// root, never the cached [`ConsoleBar`].
+/// root, never the cached `ConsoleBar`.
 pub struct InstanceLogsPage {
   id: String,
   bar: Entity<ConsoleBar>,

@@ -1,3 +1,6 @@
+//! Profiles service: profiles, running instances and their logs, quick play, the profile file
+//! watcher (`cx.profiles()`). The tokio half is [`ProfilesHandle`].
+
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use anyhow::Result;

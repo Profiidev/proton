@@ -116,6 +116,8 @@ Proton includes an built-in auto-updater that will notify you when new versions 
 
 ## 🛠️ Development
 
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the crate map, startup flow and where everything lives.
+
 ### Prerequisites
 
 - **Devenv** (latest stable) and optionally **Direnv**, or any Rust toolchain plus the gpui Linux libraries (wayland, xkbcommon, vulkan, fontconfig)
