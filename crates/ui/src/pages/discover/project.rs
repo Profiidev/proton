@@ -20,6 +20,7 @@ use gpui_kit::{
   prelude::FluentBuilder,
   px,
 };
+use proton_components::widgets::form::{filled, icon_label};
 use proton_components::widgets::tabs::segmented_tabs;
 use proton_components::widgets::{chip, colors, content::ProjectIcon, format::relative_time};
 use proton_content::{
@@ -105,15 +106,10 @@ impl ProjectPage {
         }
       });
     }));
-    let known = cx.versions().clone().version_list(LoaderType::Vanilla, cx);
-    tasks.push(cx.spawn(async move |this, cx| {
-      if let Ok(list) = known.await {
-        let _ = this.update(cx, |this, cx| {
-          this.known = list;
-          cx.notify();
-        });
-      }
-    }));
+    // the manifests may still be loading: retry once they are there
+    let lists = cx.versions().versions.clone();
+    let mut subs = subs;
+    subs.push(cx.observe(&lists, |this, _, cx| this.load_known(cx)));
     let mut this = Self {
       id,
       kind,
@@ -133,6 +129,7 @@ impl ProjectPage {
       _versions: None,
       _subs: subs,
     };
+    this.load_known(cx);
     if kind == ContentKind::Modpack {
       this.load_all(cx);
     }
@@ -224,6 +221,22 @@ impl ProjectPage {
     cx.notify();
   }
 
+  /// Vanilla versions newest first, for sorting game versions
+  fn load_known(&mut self, cx: &mut Context<Self>) {
+    if !self.known.is_empty() || cx.versions().store(cx).is_err() {
+      return;
+    }
+    let known = cx.versions().clone().version_list(LoaderType::Vanilla, cx);
+    self._tasks.push(cx.spawn(async move |this, cx| {
+      if let Ok(list) = known.await {
+        let _ = this.update(cx, |this, cx| {
+          this.known = list;
+          cx.notify();
+        });
+      }
+    }));
+  }
+
   fn load_all(&mut self, cx: &mut Context<Self>) {
     if self.all_versions.is_some() {
       return;
@@ -262,22 +275,124 @@ impl ProjectPage {
   }
 }
 
-/// The project description, http(s) links open in the browser
-pub fn description_view(body: &str) -> impl IntoElement {
-  div().children(
-    description_chunks(body)
-      .into_iter()
-      .enumerate()
-      .map(|(ix, chunk)| {
-        TextView::html(("description-text", ix), chunk)
-          .selectable(true)
-          .on_link_click(|url, _, _, cx| {
-            if url.starts_with("http") {
-              cx.open_url(url);
-            }
-          })
-      }),
-  )
+fn open_http(url: &str, cx: &mut App) {
+  if url.starts_with("http") {
+    cx.open_url(url);
+  }
+}
+
+/// The project description (`.prose-content`: text-sm leading-relaxed), http(s) links open in
+/// the browser
+pub fn description_view(body: &str, cx: &App) -> impl IntoElement {
+  let border = cx.theme().border;
+  div()
+    .flex()
+    .flex_col()
+    .text_sm()
+    .line_height(px(22.))
+    .children(
+      description_blocks(body)
+        .into_iter()
+        .enumerate()
+        .map(|(ix, block)| match block {
+          DescBlock::Html(html) => TextView::html(("description-text", ix), html)
+            .selectable(true)
+            .on_link_click(|url, _, _, cx| open_http(url, cx))
+            .into_any_element(),
+          DescBlock::Rule => div()
+            .pt(px(14.))
+            .pb(px(12.))
+            .child(div().h(px(1.)).bg(border))
+            .into_any_element(),
+          // natural size like the browser, gpui-kit's TextView sizes images without
+          // width/height attributes to the line height
+          DescBlock::Images(images) => div()
+            .id(("description-images", ix))
+            .flex()
+            .flex_wrap()
+            .items_end()
+            .gap(px(4.))
+            .mt_3()
+            .children(images.into_iter().enumerate().map(|(i, (href, src))| {
+              div()
+                .id(i)
+                .max_w_full()
+                .when_some(href, |el, href| {
+                  el.cursor_pointer()
+                    .on_click(move |_, _, cx| open_http(&href, cx))
+                })
+                .child(img(ImageSource::from(src)).max_w_full())
+            }))
+            .into_any_element(),
+        }),
+    )
+}
+
+#[derive(Debug, PartialEq)]
+enum DescBlock {
+  Html(String),
+  /// `<hr>`, which gpui-kit's HTML parser drops
+  Rule,
+  /// A paragraph of nothing but (linked) images: (link, src)
+  Images(Vec<(Option<String>, String)>),
+}
+
+fn description_blocks(body: &str) -> Vec<DescBlock> {
+  let mut blocks = vec![];
+  for chunk in description_chunks(body) {
+    let mut html = String::new();
+    let flush = |html: &mut String, blocks: &mut Vec<DescBlock>| {
+      if !html.trim().is_empty() {
+        blocks.push(DescBlock::Html(std::mem::take(html)));
+      }
+      html.clear();
+    };
+    let mut rest = chunk.as_str();
+    while !rest.is_empty() {
+      let (node, _) = top_level_node(rest);
+      rest = &rest[node.len()..];
+      if node.starts_with("<hr") {
+        flush(&mut html, &mut blocks);
+        blocks.push(DescBlock::Rule);
+      } else if let Some(images) = image_paragraph(node) {
+        flush(&mut html, &mut blocks);
+        blocks.push(DescBlock::Images(images));
+      } else {
+        html.push_str(node);
+      }
+    }
+    flush(&mut html, &mut blocks);
+  }
+  blocks
+}
+
+/// `<p>` holding only images, optionally each in a link
+fn image_paragraph(node: &str) -> Option<Vec<(Option<String>, String)>> {
+  let inner = node.strip_prefix("<p>")?.strip_suffix("</p>")?;
+  let attr = |tag: &str, name: &str| {
+    let start = tag.find(&format!("{name}=\""))? + name.len() + 2;
+    let len = tag[start..].find('"')?;
+    Some(tag[start..start + len].replace("&amp;", "&"))
+  };
+  let (mut images, mut href, mut rest) = (vec![], None, inner);
+  while let Some(start) = rest.find('<') {
+    if !rest[..start].trim().is_empty() {
+      return None;
+    }
+    let end = rest[start..].find('>')? + start + 1;
+    let tag = &rest[start..end];
+    if tag.starts_with("<a ") {
+      href = attr(tag, "href");
+    } else if tag == "</a>" {
+      href = None;
+    } else if tag.starts_with("<img") {
+      images.push((href.clone(), attr(tag, "src")?));
+    } else {
+      return None;
+    }
+    rest = &rest[end..];
+  }
+  (rest.trim().is_empty() && !images.is_empty()).then_some(images)
 }
 
 /// Block tags gpui-kit's HTML parser starts a block at
@@ -564,7 +679,7 @@ impl ProjectPage {
       .flex()
       .flex_col()
       .gap_3()
-      .pt_2()
+      .pt_4() // Tabs.Root gap-2 + pt-2
       .when_some(target.filter(|_| !is_pack), |el, t| {
         el.child(
           Switch::new("show-all")
@@ -586,7 +701,7 @@ impl ProjectPage {
   fn gallery_tab(&self, detail: &ProjectDetail, cx: &App) -> AnyElement {
     if detail.gallery.is_empty() {
       return div()
-        .pt_3()
+        .pt_5()
         .child(empty(
           "No screenshots",
           "This project has no gallery images.".into(),
@@ -597,7 +712,7 @@ impl ProjectPage {
     let muted = cx.theme().muted_foreground;
     let bg = cx.theme().muted;
     div()
-      .pt_3()
+      .pt_5()
       .flex()
       .flex_wrap()
       .gap_2()
@@ -830,11 +945,11 @@ impl Render for ProjectPage {
             cx.listener(move |this, _, window, cx| this.install(Some(id.clone()), window, cx)),
           )
       }
-      (None, Some(_)) => Button::new("install")
-        .secondary()
-        .disabled(true)
-        .icon(IconName::Check)
-        .label("Installed"),
+      (None, Some(_)) => icon_label(
+        Button::new("install").secondary().disabled(true),
+        IconName::Check,
+        "Installed",
+      ),
       (None, None) => Button::new("install")
         .primary()
         .label("Install")
@@ -869,6 +984,7 @@ impl Render for ProjectPage {
                 div()
                   .truncate()
                   .text_xl()
+                  .line_height(px(28.))
                   .font_weight(FontWeight::SEMIBOLD)
                   .child(summary.name.clone()),
               )
@@ -884,6 +1000,7 @@ impl Render for ProjectPage {
             div()
               .max_w(px(560.))
               .text_sm()
+              .line_height(px(20.))
               .text_color(muted)
               .child(summary.description.clone()),
           )
@@ -902,12 +1019,13 @@ impl Render for ProjectPage {
           .w(px(220.))
           .gap_2()
           .children(self.picker.clone())
-          .child(button.w_full())
+          .child(filled(button.w_full()))
           .when_some(entry.as_ref().zip(target.as_ref()), |el, (e, t)| {
             el.child(
               div()
                 .text_center()
                 .text_xs()
+                .line_height(px(16.))
                 .text_color(muted)
                 .child(format!(
                   "Installed in {}: {}",
@@ -926,9 +1044,9 @@ impl Render for ProjectPage {
     let content = match self.tab {
       TabKind::Description => div()
         .id("description")
-        .pt_3()
+        .pt_5() // Tabs.Root gap-2 + pt-3
         .max_w(px(640.))
-        .child(description_view(&detail.body))
+        .child(description_view(&detail.body, cx))
         .test_support()
         .into_any_element(),
       TabKind::Versions => self.versions_tab(target.as_ref(), entry.as_ref(), cx),
@@ -949,7 +1067,7 @@ impl Render for ProjectPage {
             .flex_1()
             .min_w_0()
             .h_full()
-            .child(div().flex_none().child(segmented_tabs(
+            .child(div().flex().flex_none().child(segmented_tabs(
               "project-tabs",
               ["Description", "Versions", "Gallery"],
               tab_ix,
@@ -1060,8 +1178,8 @@ pub(crate) mod tests {
 
   struct Desc(String);
   impl Render for Desc {
-    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-      div().w(px(800.)).child(description_view(&self.0))
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+      div().w(px(800.)).child(description_view(&self.0, cx))
     }
   }
 
@@ -1107,6 +1225,29 @@ pub(crate) mod tests {
         "<ul><li><code>d</code></li></ul>"
       ]
     );
+  }
+
+  #[test]
+  fn blocks_split_rules_and_image_rows() {
+    let html = proton_content::render::markdown(include_str!("testdata/sodium.md"));
+    let blocks = description_blocks(&html);
+    assert!(matches!(&blocks[0], DescBlock::Html(h) if h.contains("thousands of hours")));
+    assert_eq!(
+      blocks[1],
+      DescBlock::Images(vec![
+        (
+          Some("https://caffeinemc.net/donate".into()),
+          "https://cdn.modrinth.com/data/cached_images/b888841adf2a7d4d76c5274d634c205ee88e9e20.png".into()
+        ),
+        (
+          Some("https://caffeinemc.net/discord".into()),
+          "https://cdn.modrinth.com/data/cached_images/de7f2f606702569cd98fc1f6a0b29dbf817dd870.png".into()
+        ),
+      ])
+    );
+    assert_eq!(blocks[2], DescBlock::Rule);
+    // text with an image stays html
+    assert_eq!(image_paragraph("<p>a <img src=\"x\"></p>"), None);
   }
 
   /// Real project bodies (saved from the Modrinth API) render without panicking

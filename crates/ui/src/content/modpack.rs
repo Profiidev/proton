@@ -6,7 +6,6 @@ use gpui_kit::{
   assets::IconName,
   component::{
     ActiveTheme, Disableable, Sizable, WindowExt,
-    alert::Alert,
     button::{Button, ButtonVariants},
     checkbox::Checkbox,
     dialog::{DialogDescription, DialogFooter},
@@ -19,6 +18,7 @@ use gpui_kit::{
   px,
 };
 use proton_components::widgets::{chip, content::ProjectIcon, form::VersionSelect};
+use proton_components::widgets::{colors, content::alert, form::filled};
 use proton_config::SettingsExt;
 use proton_content::{
   ContentError, ContentExt,
@@ -426,18 +426,26 @@ impl Render for ModpackInstallDialog {
           if let Some(max) = max {
             text += &format!(" Your system has {}, so nothing needs changing.", gb(max));
           }
-          Alert::info("memory", text)
-            .title("Memory is set up for you")
-            .icon(IconName::Info)
+          alert(
+            Some(IconName::Info),
+            "Memory is set up for you",
+            text,
+            None,
+            cx,
+          )
         } else {
           let text = format!(
             "The pack asks for {}, but your system only has {}. The game may run slowly or crash.",
             gb(mb),
             gb(max.unwrap_or(0))
           );
-          Alert::warning("memory", text)
-            .title("Not enough memory for this pack")
-            .icon(IconName::TriangleAlert)
+          alert(
+            Some(IconName::TriangleAlert),
+            "Not enough memory for this pack",
+            text,
+            Some(colors::yellow_500()),
+            cx,
+          )
         }
       });
 
@@ -535,12 +543,13 @@ impl Render for ModpackInstallDialog {
               .flex_col()
               .gap_2()
               .child(
-                Alert::new(
-                  "manual",
+                alert(
+                  Some(IconName::CircleAlert),
+                  format!("{} need a manual download", logic::plural(n, "file")),
                   "CurseForge only allows these from its website. Download each one, it is picked up automatically.",
-                )
-                .title(format!("{} need a manual download", logic::plural(n, "file")))
-                .icon(IconName::CircleAlert),
+                  None,
+                  cx,
+                ),
               )
               .child(manual),
           )
@@ -564,9 +573,7 @@ impl Render for ModpackInstallDialog {
               .on_click(|_, window, cx| window.close_dialog(cx)),
           )
           .child(
-            Button::new("install")
-              .primary()
-              .label(label)
+            filled(Button::new("install").primary().label(label))
               .disabled(!can)
               .on_click(cx.listener(|this, _, window, cx| this.install(window, cx))),
           ),

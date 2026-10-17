@@ -4,13 +4,12 @@ use std::{collections::HashSet, rc::Rc, time::Duration};
 
 use chrono::{DateTime, Utc};
 use gpui_kit::{
-  AnyElement, App, AppContext, Context, Entity, FontWeight, ImageSource, InteractiveElement,
-  IntoElement, ListAlignment, ListState, ParentElement, Render, SharedString, Styled, Subscription,
-  Task, WeakEntity, Window,
+  AnyElement, App, AppContext, Context, ElementId, Entity, FontWeight, ImageSource,
+  InteractiveElement, IntoElement, ListAlignment, ListState, ParentElement, Render, SharedString,
+  StatefulInteractiveElement, Styled, Subscription, Task, TestSupportExt, WeakEntity, Window,
   assets::IconName,
   component::{
     ActiveTheme, Disableable, Icon, IndexPath, Sizable,
-    alert::Alert,
     button::Button,
     checkbox::Checkbox,
     input::{Input, InputEvent, InputState},
@@ -25,7 +24,7 @@ use gpui_kit::{
   px,
 };
 use proton_components::widgets::{
-  content::{CardAction, ProjectCard},
+  content::{CardAction, ProjectCard, alert},
   form::VersionSelect,
 };
 use proton_content::{
@@ -49,7 +48,7 @@ use crate::{
 /// Runs a search; the page uses the content service, tests count calls
 pub type SearchFn = Rc<dyn Fn(SearchQuery, &mut App) -> Task<anyhow::Result<SearchResult>>>;
 
-const DEBOUNCE: Duration = Duration::from_millis(250);
+const DEBOUNCE: Duration = Duration::from_millis(300);
 const ANY_VERSION: &str = "Any version";
 const SORTS: [(SearchSort, &str); 4] = [
   (SearchSort::Relevance, "Relevance"),
@@ -100,6 +99,7 @@ pub struct DiscoverPage {
   search: Entity<InputState>,
   sort: Entity<SelectState<SearchableVec<SharedString>>>,
   game_version: Entity<VersionSelect>,
+  game_versions_loaded: bool,
   picker: Option<Entity<TargetPicker>>,
   groups: Vec<CategoryGroup>,
   /// Query of the shown results, None before the first search
@@ -203,18 +203,11 @@ impl DiscoverPage {
     }));
     cx.content().clone().load_categories(kind, cx).detach();
     if kind != ContentKind::Shader {
-      let versions = cx.versions().clone().version_list(LoaderType::Vanilla, cx);
-      let select = game_version.clone();
-      cx.spawn_in(window, async move |_, cx| {
-        if let Ok(list) = versions.await {
-          let mut options = vec![SharedString::from(ANY_VERSION)];
-          options.extend(list.into_iter().map(SharedString::from));
-          let _ = select.update_in(cx, |s, window, cx| {
-            s.set_options(options, Some(ANY_VERSION.into()), window, cx)
-          });
-        }
-      })
-      .detach();
+      // the manifests may still be loading: retry once they are there
+      let lists = cx.versions().versions.clone();
+      subs.push(cx.observe_in(&lists, window, |this, _, window, cx| {
+        this.load_game_versions(window, cx)
+      }));
     }
 
     let list = ListState::new(1, ListAlignment::Top, px(800.));
@@ -232,6 +225,7 @@ impl DiscoverPage {
       search,
       sort,
       game_version,
+      game_versions_loaded: false,
       picker,
       groups: vec![],
       query: None,
@@ -248,11 +242,37 @@ impl DiscoverPage {
       _more: None,
       _subs: subs,
     };
+    if kind != ContentKind::Shader {
+      this.load_game_versions(window, cx);
+    }
     this.refresh(cx);
     this
   }
 
-  /// Search text typed; searches 250ms after the last keystroke
+  /// Fills the "Game version" select once the vanilla list is known
+  fn load_game_versions(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    if self.game_versions_loaded || cx.versions().store(cx).is_err() {
+      return;
+    }
+    self.game_versions_loaded = true;
+    let versions = cx.versions().clone().version_list(LoaderType::Vanilla, cx);
+    let select = self.game_version.clone();
+    cx.spawn_in(window, async move |this, cx| match versions.await {
+      Ok(list) => {
+        let mut options = vec![SharedString::from(ANY_VERSION)];
+        options.extend(list.into_iter().map(SharedString::from));
+        let _ = select.update_in(cx, |s, window, cx| {
+          s.set_options(options, Some(ANY_VERSION.into()), window, cx)
+        });
+      }
+      Err(_) => {
+        let _ = this.update(cx, |this, _| this.game_versions_loaded = false);
+      }
+    })
+    .detach();
+  }
+
+  /// Search text typed; searches 300ms after the last keystroke
   pub fn query_changed(&mut self, text: String, cx: &mut Context<Self>) {
     // replacing the task cancels the pending timer
     self._debounce = Some(cx.spawn(async move |this, cx| {
@@ -406,8 +426,34 @@ fn group(label: impl Into<SharedString>, options: Vec<AnyElement>) -> impl IntoE
     .flex()
     .flex_col()
     .gap(px(6.))
-    .child(div().font_weight(FontWeight::MEDIUM).child(label.into()))
+    .child(
+      div()
+        .line_height(px(20.))
+        .font_weight(FontWeight::MEDIUM)
+        .child(label.into()),
+    )
     .children(options)
+}
+
+/// shadcn `Label` (`leading-none`) around a `Checkbox`: a 16px row, the whole row toggles
+fn check_row(
+  id: impl Into<ElementId>,
+  checked: bool,
+  label: impl Into<SharedString>,
+  on_toggle: impl Fn(&bool, &mut Window, &mut App) + 'static,
+) -> AnyElement {
+  div()
+    .id(id)
+    .flex()
+    .items_center()
+    .gap_2()
+    .h(px(16.))
+    .cursor_pointer()
+    .on_click(move |_, window, cx| on_toggle(&!checked, window, cx))
+    .child(Checkbox::new("box").checked(checked))
+    .child(label.into())
+    .test_support()
+    .into_any_element()
 }
 
 fn skeleton_card(cx: &App) -> impl IntoElement {
@@ -467,16 +513,26 @@ impl DiscoverPage {
             div()
               .flex()
               .flex_col()
+              .flex_1()
+              .min_w_0()
               .gap(px(2.))
               .child(
                 div()
+                  .line_height(px(14.))
                   .font_weight(FontWeight::MEDIUM)
                   .child("Compatible only"),
               )
-              .child(div().text_xs().text_color(muted).child(sub)),
+              .child(
+                div()
+                  .text_xs()
+                  .line_height(px(15.))
+                  .text_color(muted)
+                  .child(sub),
+              ),
           )
           .child(
             Switch::new("compatible")
+              .flex_none()
               .checked(self.filters.compatible)
               .disabled(target.is_none())
               .on_click(cx.listener(|this, on: &bool, _, cx| {
@@ -492,14 +548,15 @@ impl DiscoverPage {
     let sources = [Source::Modrinth, Source::CurseForge]
       .into_iter()
       .map(|s| {
-        Checkbox::new(SharedString::from(format!("source-{s:?}")))
-          .checked(self.filters.sources.contains(&s))
-          .label(logic::source_label(s))
-          .on_click(cx.listener(move |this, on: &bool, _, cx| {
+        check_row(
+          SharedString::from(format!("source-{s:?}")),
+          self.filters.sources.contains(&s),
+          logic::source_label(s),
+          cx.listener(move |this, on: &bool, _, cx| {
             toggle(&mut this.filters.sources, s, *on);
             this.refresh(cx);
-          }))
-          .into_any_element()
+          }),
+        )
       })
       .collect();
     sections.push(group("Source", sources).into_any_element());
@@ -509,14 +566,15 @@ impl DiscoverPage {
         .iter()
         .map(|(id, label)| {
           let id = id.to_string();
-          Checkbox::new(SharedString::from(format!("loader-{id}")))
-            .checked(self.filters.loaders.contains(&id))
-            .label(*label)
-            .on_click(cx.listener(move |this, on: &bool, _, cx| {
+          check_row(
+            SharedString::from(format!("loader-{id}")),
+            self.filters.loaders.contains(&id),
+            *label,
+            cx.listener(move |this, on: &bool, _, cx| {
               toggle(&mut this.filters.loaders, id.clone(), *on);
               this.refresh(cx);
-            }))
-            .into_any_element()
+            }),
+          )
         })
         .collect();
       sections.push(group("Loader", loaders).into_any_element());
@@ -538,14 +596,15 @@ impl DiscoverPage {
         .iter()
         .map(|name| {
           let name = name.clone();
-          Checkbox::new(SharedString::from(format!("cat-{}-{name}", g.header)))
-            .checked(self.filters.categories.contains(&name))
-            .label(logic::tag_label(&name))
-            .on_click(cx.listener(move |this, on: &bool, _, cx| {
+          check_row(
+            SharedString::from(format!("cat-{}-{name}", g.header)),
+            self.filters.categories.contains(&name),
+            logic::tag_label(&name),
+            cx.listener(move |this, on: &bool, _, cx| {
               toggle(&mut this.filters.categories, name.clone(), *on);
               this.refresh(cx);
-            }))
-            .into_any_element()
+            }),
+          )
         })
         .collect();
       sections.push(group(g.label.clone(), options).into_any_element());
@@ -558,36 +617,38 @@ impl DiscoverPage {
       ]
       .into_iter()
       .map(|(env, label)| {
-        Checkbox::new(label)
-          .checked(self.filters.environment == Some(env))
-          .label(label)
-          .on_click(cx.listener(move |this, on: &bool, _, cx| {
+        check_row(
+          label,
+          self.filters.environment == Some(env),
+          label,
+          cx.listener(move |this, on: &bool, _, cx| {
             this.filters.environment = on.then_some(env);
             this.refresh(cx);
-          }))
-          .into_any_element()
+          }),
+        )
       })
       .collect();
       sections.push(group("Runs on", envs).into_any_element());
     }
 
-    div()
-      .id("filters")
-      .flex_none()
-      .w(px(232.))
-      .max_h_full()
-      .mb_6()
-      .flex()
-      .flex_col()
-      .gap(px(18.))
-      .p_4()
-      .rounded(px(14.))
-      .border_1()
-      .border_color(theme.foreground.opacity(0.1))
-      .bg(theme.popover)
-      .text_sm()
-      .overflow_y_scrollbar()
-      .children(sections)
+    // `max-h-[calc(100%-1.5rem)]`: the wrapper's bottom padding is the 1.5rem
+    div().flex_none().h_full().pb_6().child(
+      div()
+        .id("filters")
+        .w(px(232.))
+        .max_h_full()
+        .flex()
+        .flex_col()
+        .gap(px(18.))
+        .p(px(15.)) // ring-inset takes no space, the border does
+        .rounded(px(14.))
+        .border_1()
+        .border_color(theme.foreground.opacity(0.1))
+        .bg(theme.popover)
+        .text_sm()
+        .overflow_y_scrollbar()
+        .children(sections),
+    )
   }
 
   fn render_item(
@@ -604,7 +665,17 @@ impl DiscoverPage {
   fn item(&mut self, ix: usize, _: &mut Window, cx: &mut Context<Self>) -> AnyElement {
     let (_, _, noun) = texts(self.kind);
     let shader = self.kind == ContentKind::Shader && self.installed.is_some();
-    let wrap = |el: AnyElement| div().pb(px(10.)).child(el).into_any_element();
+    // the list spans the cards' outside ring (1px left/top, 2px right); alerts sit inside it
+    let wrap = |el: AnyElement| div().pb(px(8.)).child(el).into_any_element();
+    let wrap_inset = |el: AnyElement| {
+      div()
+        .pt(px(1.))
+        .pb(px(9.))
+        .pl(px(1.))
+        .pr(px(2.))
+        .child(el)
+        .into_any_element()
+    };
     let mut ix = ix;
     if shader {
       if ix == 0 {
@@ -614,28 +685,36 @@ impl DiscoverPage {
           .installed_mods(cx)
           .is_some_and(|m| logic::shader_ready(&m));
         let alert = if ready {
-          Alert::new(
-            "shader-alert",
+          alert(
+            None,
+            format!("{name} is ready for shaders"),
             "Iris Shaders and Sodium are already installed. On profiles without them, Proton adds both when you install a shader.",
+            None,
+            cx,
           )
-          .title(format!("{name} is ready for shaders"))
         } else {
-          Alert::new(
-            "shader-alert",
+          alert(
+            None,
+            "Shaders need Iris and Sodium",
             format!("Proton adds both to {name} when you install a shader."),
+            None,
+            cx,
           )
-          .title("Shaders need Iris and Sodium")
         };
-        return wrap(alert.into_any_element());
+        return wrap_inset(alert.id("shader-alert").into_any_element());
       }
       ix -= 1;
     }
     if let Some(w) = self.warnings.get(ix) {
-      return wrap(
-        Alert::warning(("warning", ix), w.clone())
-          .title("Some results are missing")
-          .icon(IconName::TriangleAlert)
-          .into_any_element(),
+      return wrap_inset(
+        alert(
+          Some(IconName::TriangleAlert),
+          "Some results are missing",
+          w.clone(),
+          None,
+          cx,
+        )
+        .into_any_element(),
       );
     }
     ix -= self.warnings.len();
@@ -665,6 +744,9 @@ impl DiscoverPage {
         )
       };
       return div()
+        .mt(px(1.))
+        .ml(px(1.))
+        .mr(px(2.))
         .flex()
         .flex_col()
         .items_center()
@@ -848,6 +930,9 @@ impl Render for DiscoverPage {
               .relative()
               .flex_1()
               .min_w_0()
+              .mt(px(-1.))
+              .ml(px(-1.))
+              .mr(px(-2.))
               .h_full()
               .child(
                 list(self.list.clone(), move |ix, window, cx| {
@@ -869,6 +954,32 @@ mod tests {
 
   use super::*;
   use crate::pages::discover::project::tests::init_services;
+
+  #[gpui::test]
+  fn filter_row_click_toggles_a_source(cx: &mut TestAppContext) {
+    use gpui_kit::test::TestWindowExt;
+    init_services(cx);
+    let seen: Rc<RefCell<Vec<Vec<Source>>>> = Rc::default();
+    let log = seen.clone();
+    let search: SearchFn = Rc::new(move |q, _| {
+      log.borrow_mut().push(q.sources.clone());
+      Task::ready(Ok(SearchResult {
+        hits: vec![],
+        total: 0,
+        warnings: vec![],
+      }))
+    });
+    let (_, cx) =
+      cx.add_window_view(|window, cx| DiscoverPage::with_search(Kind::Modpack, search, window, cx));
+    cx.run_until_parked();
+    // the label, not only the box, toggles (shadcn Label around the Checkbox)
+    cx.update(|window, cx| {
+      window.render_frame(cx);
+      window.click_at("source-Modrinth", gpui_kit::point(px(40.), px(8.)), cx);
+    });
+    cx.run_until_parked();
+    assert_eq!(seen.borrow().last().unwrap(), &[Source::CurseForge]);
+  }
 
   #[gpui::test]
   fn typing_debounces_into_one_search(cx: &mut TestAppContext) {
@@ -893,7 +1004,7 @@ mod tests {
       cx.executor().advance_clock(Duration::from_millis(100));
     }
     cx.run_until_parked();
-    // still inside the 250ms window of the last keystroke
+    // still inside the 300ms window of the last keystroke
     assert_eq!(seen.borrow().len(), 1);
     cx.executor().advance_clock(DEBOUNCE);
     cx.run_until_parked();

@@ -30,7 +30,9 @@ use gpui_kit::{
   prelude::FluentBuilder,
   px, uniform_list,
 };
+use proton_components::widgets::content::{alert, radio_dot};
 use proton_components::widgets::form::open_destroy_dialog;
+use proton_components::widgets::form::{filled, icon_label};
 use proton_components::widgets::tabs::segmented_tabs;
 use proton_content::{
   ContentExt, InstalledContent,
@@ -526,18 +528,26 @@ impl ContentPage {
       .child(
         Button::new("check-updates")
           .outline()
-          .icon(IconName::RefreshCw)
-          .loading(self.checking)
-          .disabled(self.checking)
-          .label("Check for updates")
+          .map(|b| {
+            if self.checking {
+              // the kit draws its spinner in the icon slot
+              b.icon(IconName::RefreshCw)
+                .loading(true)
+                .disabled(true)
+                .label("Check for updates")
+            } else {
+              icon_label(b, IconName::RefreshCw, "Check for updates")
+            }
+          })
           .on_click(cx.listener(|this, _, _, cx| this.check_updates(cx))),
       )
       .child(
-        Button::new("add")
-          .primary()
-          .icon(IconName::Plus)
-          .label(format!("Add {noun}s"))
-          .on_click(cx.listener(|this, _, _, cx| this.add(cx))),
+        filled(icon_label(
+          Button::new("add").primary(),
+          IconName::Plus,
+          format!("Add {noun}s"),
+        ))
+        .on_click(cx.listener(|this, _, _, cx| this.add(cx))),
       )
   }
 
@@ -546,7 +556,6 @@ impl ContentPage {
     if n == 0 {
       return None;
     }
-    let theme = cx.theme();
     let (loader, version) = cx
       .profiles()
       .profiles
@@ -555,39 +564,22 @@ impl ContentPage {
       .find(|p| p.id == self.profile)
       .map(|p| (format!("{:?}", p.loader), p.version.clone()))
       .unwrap_or_default();
+    let title = format!("{} can be updated", plural(n, word(self.kind)));
+    let text = format!("Newer versions compatible with {loader} {version} are available.");
+    // `Alert.Action`: absolute top-2 right-2, the alert keeps pr-18 free
     Some(
-      div()
-        .flex()
-        .items_center()
-        .gap_3()
-        .px_4()
-        .py_3()
-        .rounded(px(10.))
-        .border_1()
-        .border_color(theme.border)
-        .bg(theme.popover)
-        .child(Icon::new(IconName::CircleArrowUp).size_4())
+      alert(Some(IconName::CircleArrowUp), title, text, None, cx)
+        .relative()
+        .pr(px(72.))
         .child(
-          div()
-            .flex()
-            .flex_col()
-            .flex_1()
-            .text_sm()
-            .child(
-              div()
-                .font_weight(FontWeight::MEDIUM)
-                .child(format!("{} can be updated", plural(n, word(self.kind)))),
-            )
-            .child(div().text_color(theme.muted_foreground).child(format!(
-              "Newer versions compatible with {loader} {version} are available."
-            ))),
-        )
-        .child(
-          Button::new("update-all")
-            .primary()
-            .small()
-            .label("Update all")
-            .on_click(cx.listener(|this, _, _, cx| this.update(None, cx))),
+          div().absolute().top_2().right_2().child(
+            Button::new("update-all")
+              .primary()
+              .small()
+              .h_7()
+              .label("Update all")
+              .on_click(cx.listener(|this, _, _, cx| this.update(None, cx))),
+          ),
         ),
     )
   }
@@ -650,9 +642,8 @@ impl ContentPage {
         .child(
           Button::new("bulk-remove")
             .outline()
-            .icon(IconName::Trash)
             .text_color(cx.theme().danger)
-            .label("Remove")
+            .map(|b| icon_label(b, IconName::Trash, "Remove"))
             .on_click(cx.listener(|this, _, window, cx| {
               let files = this.selected.iter().cloned().collect();
               this.ask_remove(files, window, cx)
@@ -669,6 +660,7 @@ impl ContentPage {
     let header_text = |text: &'static str| {
       div()
         .text_xs()
+        .line_height(px(16.))
         .text_color(theme.muted_foreground)
         .child(text)
     };
@@ -696,6 +688,7 @@ impl ContentPage {
           .flex_1()
           .pl(px(52.))
           .text_xs()
+          .line_height(px(16.))
           .text_color(theme.muted_foreground)
           .child(plural(visible.len(), noun)),
       )
@@ -782,12 +775,19 @@ impl ContentPage {
             .child("None (shaders off)"),
         )
         .child(
-          div().w_32().flex_none().flex().justify_end().child(
-            Radio::new("toggle")
-              .checked(self.summary.no_shader)
-              .accessibility_label("Turn shaders off")
-              .on_click(cx.listener(|this, _, window, cx| this.set_shader(None, window, cx))),
-          ),
+          div()
+            .w_32()
+            .flex_none()
+            .flex()
+            .justify_end()
+            .child(radio_dot(
+              Radio::new("toggle")
+                .checked(self.summary.no_shader)
+                .accessibility_label("Turn shaders off")
+                .on_click(cx.listener(|this, _, window, cx| this.set_shader(None, window, cx))),
+              self.summary.no_shader,
+              cx,
+            )),
         )
         .child(div().size_7().flex_none())
     });

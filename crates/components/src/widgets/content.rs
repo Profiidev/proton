@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use chrono::{DateTime, Utc};
 use gpui_kit::{
-  App, ElementId, FontWeight, ImageSource, InteractiveElement, IntoElement, ObjectFit,
+  App, Div, ElementId, FontWeight, Hsla, ImageSource, InteractiveElement, IntoElement, ObjectFit,
   ParentElement, Pixels, RenderOnce, SharedString, StatefulInteractiveElement, Styled, StyledImage,
   TestSupportExt, Window,
   assets::IconName,
@@ -62,6 +62,7 @@ impl RenderOnce for ProjectIcon {
         .into_any_element()
     };
     div()
+      .relative()
       .flex()
       .flex_none()
       .items_center()
@@ -78,7 +79,89 @@ impl RenderOnce for ProjectIcon {
           .into_any_element(),
         None => fallback(),
       })
+      // shadcn Avatar: `after:border after:border-border` drawn over the image
+      .child(
+        div()
+          .absolute()
+          .inset_0()
+          .rounded(self.radius)
+          .border_1()
+          .border_color(theme.border),
+      )
   }
+}
+
+/// shadcn `Alert`: `rounded-lg border bg-card px-2.5 py-2 text-sm`, optional 16px icon,
+/// medium title over a muted description; `color` tints all of it like `variant="destructive"`
+pub fn alert(
+  icon: Option<IconName>,
+  title: impl Into<SharedString>,
+  description: impl IntoElement,
+  color: Option<Hsla>,
+  cx: &App,
+) -> Div {
+  let theme = cx.theme();
+  let fg = color.unwrap_or(theme.foreground);
+  let desc = color.map_or(theme.muted_foreground, |c| c.opacity(0.9));
+  div()
+    .flex()
+    .gap_2()
+    .w_full()
+    .px(px(10.))
+    .py_2()
+    .rounded(px(10.))
+    .border_1()
+    .border_color(theme.border)
+    .bg(theme.popover)
+    .text_sm()
+    .line_height(px(20.))
+    .text_color(fg)
+    .when_some(icon, |this, icon| {
+      this.child(
+        Icon::new(icon)
+          .size_4()
+          .flex_none()
+          .mt(px(2.))
+          .text_color(fg),
+      )
+    })
+    .child(
+      div()
+        .flex()
+        .flex_col()
+        .flex_1()
+        .min_w_0()
+        .gap(px(2.))
+        .child(div().font_weight(FontWeight::MEDIUM).child(title.into()))
+        .child(div().text_color(desc).child(description)),
+    )
+}
+
+/// shadcn radio look for a kit `Radio` without label (16px): checked paints a primary disc
+/// with a `primary-foreground` dot over the kit's check mark. The overlay has no hitbox, clicks
+/// still reach the radio.
+pub fn radio_dot(radio: impl IntoElement, checked: bool, cx: &App) -> Div {
+  let theme = cx.theme();
+  div()
+    .relative()
+    .flex()
+    .flex_none()
+    .child(radio)
+    .when(checked, |el| {
+      el.child(
+        div()
+          .absolute()
+          .top_0()
+          .left_0()
+          .size_4()
+          .flex()
+          .items_center()
+          .justify_center()
+          .rounded_full()
+          .bg(theme.primary)
+          .child(div().size_2().rounded_full().bg(theme.primary_foreground)),
+      )
+    })
 }
 
 /// Install button state of a [`ProjectCard`]
@@ -201,6 +284,7 @@ impl RenderOnce for ProjectCard {
             clickable("name")
               .truncate()
               .text_base()
+              .line_height(px(24.))
               .font_weight(FontWeight::MEDIUM)
               .hover(|s| s.underline())
               .child(self.name)
@@ -210,6 +294,7 @@ impl RenderOnce for ProjectCard {
             div()
               .truncate()
               .text_xs()
+              .line_height(px(16.))
               .text_color(muted_fg)
               .child(self.byline),
           ),
@@ -217,6 +302,7 @@ impl RenderOnce for ProjectCard {
       .child(
         div()
           .text_sm()
+          .line_height(px(20.))
           .text_color(muted_fg)
           .line_clamp(2)
           .child(self.description),
@@ -230,6 +316,8 @@ impl RenderOnce for ProjectCard {
           .children(self.tags.into_iter().map(|t| chip(t, cx))),
       );
 
+    // shadcn `sm`: h-7, rounded-md; filled variants keep a transparent 1px border (26px fill)
+    let filled = self.action != CardAction::Update;
     let button = match self.action {
       CardAction::Installed => Button::new("install")
         .secondary()
@@ -252,7 +340,9 @@ impl RenderOnce for ProjectCard {
           })
           .when_some(f, |b, f| b.on_click(move |_, w, cx| f(w, cx)))
       }
-    };
+    }
+    .h_full()
+    .rounded(px(if filled { 7. } else { 8. }));
 
     let side = div()
       .flex()
@@ -262,11 +352,13 @@ impl RenderOnce for ProjectCard {
       .items_end()
       .gap_2()
       .text_xs()
+      .line_height(px(16.))
       .text_color(muted_fg)
       .child(
         div()
           .flex()
           .items_center()
+          .h(px(14.))
           .gap_1()
           .child(
             Icon::new(IconName::Download)
@@ -276,13 +368,15 @@ impl RenderOnce for ProjectCard {
           .child(format_count(self.downloads)),
       )
       .when_some(self.updated, |this, t| {
-        this.child(
-          div()
-            .text_right()
-            .child(format!("Updated {}", relative_time(t, Utc::now()))),
-        )
+        this.child(div().child(format!("Updated {}", relative_time(t, Utc::now()))))
       })
-      .child(button);
+      .child(
+        div()
+          .w_full()
+          .h(px(28.))
+          .when(filled, |this| this.py(px(1.)))
+          .child(button),
+      );
 
     div()
       .id(self.id)
@@ -293,7 +387,8 @@ impl RenderOnce for ProjectCard {
       .py(px(14.))
       .rounded(px(14.))
       .border_1()
-      .border_color(fg.opacity(0.1))
+      // the page behind the card renders black in both apps
+      .border_color(gpui_kit::black().blend(fg.opacity(0.1)))
       .bg(theme.popover)
       .child(
         clickable("icon")

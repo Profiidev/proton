@@ -89,34 +89,7 @@ pub fn alert(
   description: impl Into<SharedString>,
   cx: &App,
 ) -> gpui_kit::Div {
-  let theme = cx.theme();
-  div()
-    .flex()
-    .items_start()
-    .gap_2()
-    .px(px(10.))
-    .py_2()
-    .rounded(px(10.))
-    .border_1()
-    .border_color(theme.border)
-    .bg(theme.popover)
-    .text_sm()
-    .line_height(px(20.))
-    .child(div().flex_none().pt(px(2.)).child(Icon::new(icon).size_4()))
-    .child(
-      div()
-        .flex()
-        .flex_col()
-        .flex_1()
-        .min_w_0()
-        .gap_0p5()
-        .child(div().font_weight(FontWeight::MEDIUM).child(title.into()))
-        .child(
-          div()
-            .text_color(theme.muted_foreground)
-            .child(description.into()),
-        ),
-    )
+  super::content::alert(Some(icon), title, description.into(), None, cx)
 }
 
 type Versions = SelectState<SearchableVec<SharedString>>;

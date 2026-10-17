@@ -100,7 +100,8 @@ impl Render for TargetPicker {
         div()
           .flex()
           .items_center()
-          .gap_2()
+          .gap(px(6.))
+          .flex_1()
           .min_w_0()
           .map(|el| match &current {
             Some(p) => el
@@ -109,16 +110,20 @@ impl Render for TargetPicker {
                   .size(px(24.))
                   .fallback_size(px(16.)),
               )
-              .child(div().text_color(muted).child("Installing to"))
-              .child(div().truncate().child(p.name.clone()))
-              .child(div().text_color(muted).child(format!(
-                "{} {}",
-                logic::loader_label(p.loader),
-                p.version
-              ))),
+              .child(div().flex_none().text_color(muted).child("Installing to"))
+              // the name gives way first, then the loader (the web app let it overflow)
+              .child(div().min_w_0().truncate().child(p.name.clone()))
+              .child(
+                div()
+                  .min_w_0()
+                  .flex_shrink(0.01)
+                  .truncate()
+                  .text_color(muted)
+                  .child(format!("{} {}", logic::loader_label(p.loader), p.version)),
+              ),
             None => el.child(div().text_color(muted).child("No profile to install to")),
           })
-          .child(Icon::new(IconName::ChevronDown).small()),
+          .child(Icon::new(IconName::ChevronDown).small().flex_none()),
       );
 
     let search = self.search.clone();

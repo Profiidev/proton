@@ -18,7 +18,10 @@ use gpui_kit::{
   prelude::FluentBuilder,
   px,
 };
-use proton_components::widgets::{chip, colors, content::ProjectIcon};
+use proton_components::widgets::{
+  chip, colors,
+  content::{ProjectIcon, radio_dot},
+};
 use proton_content::model::{ContentKind, Installed};
 
 use super::{
@@ -144,7 +147,7 @@ impl Render for ContentRow {
     });
 
     let toggle = if kind == ContentKind::Shader {
-      Radio::new("toggle")
+      let radio = Radio::new("toggle")
         .checked(entry.active == Some(true))
         .accessibility_label(format!("Use {name}"))
         .on_click({
@@ -153,8 +156,8 @@ impl Render for ContentRow {
             let file = file.clone();
             let _ = page.update(cx, |p, cx| p.set_shader(Some(file), window, cx));
           }
-        })
-        .into_any_element()
+        });
+      radio_dot(radio, entry.active == Some(true), cx).into_any_element()
     } else {
       Switch::new("toggle")
         .checked(entry.enabled)
@@ -175,6 +178,7 @@ impl Render for ContentRow {
     let menu = Button::new("menu")
       .ghost()
       .small()
+      .size_7() // shadcn icon-sm
       .icon(IconName::Ellipsis)
       .accessibility_label("More actions")
       .dropdown_menu_with_anchor(gpui_kit::Anchor::TopRight, move |menu, _, _| {
@@ -242,6 +246,7 @@ impl Render for ContentRow {
               .child(
                 div()
                   .truncate()
+                  .line_height(px(24.))
                   .font_weight(FontWeight::MEDIUM)
                   .child(name.clone()),
               )
@@ -254,6 +259,7 @@ impl Render for ContentRow {
             div()
               .truncate()
               .text_xs()
+              .line_height(px(16.))
               .text_color(theme.muted_foreground)
               .child(file.clone()),
           ),
@@ -265,6 +271,7 @@ impl Render for ContentRow {
           .flex_none()
           .w(px(144.))
           .text_xs()
+          .line_height(px(16.))
           .child(
             div()
               .truncate()
@@ -284,6 +291,9 @@ impl Render for ContentRow {
           .w(px(104.))
           .flex()
           .flex_none()
+          // the web chip is inline-flex on a 24px line: baseline aligned, 1.5px low
+          .h(px(24.))
+          .pt(px(3.5))
           .child(chip(source_label(entry.source), cx)),
       )
       .child(

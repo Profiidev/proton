@@ -6,8 +6,7 @@ use gpui_kit::{
   TestSupportExt, Window,
   assets::IconName,
   component::{
-    ActiveTheme, Disableable, Icon, Sizable, WindowExt,
-    alert::Alert,
+    ActiveTheme, Disableable, Sizable, WindowExt,
     button::{Button, ButtonVariants},
     dialog::{DialogDescription, DialogFooter},
     input::{Input, InputEvent, InputState},
@@ -19,6 +18,8 @@ use gpui_kit::{
   prelude::FluentBuilder,
   px,
 };
+use proton_components::widgets::content::{alert, radio_dot};
+use proton_components::widgets::form::{filled, icon_label};
 use proton_components::widgets::{
   chip, colors, form::VersionSelect, input_tile, profile::ProfileIcon,
 };
@@ -125,9 +126,14 @@ pub fn plan_view(plan: &InstallPlan, cx: &App) -> AnyElement {
         .map(|c| format!("{}: {}", c.name, c.reason))
         .collect();
       el.child(
-        Alert::error("plan-conflicts", lines.join("\n"))
-          .title("Conflicts with installed content")
-          .icon(IconName::CircleAlert),
+        alert(
+          Some(IconName::CircleAlert),
+          "Conflicts with installed content",
+          div().flex().flex_col().children(lines),
+          Some(theme.danger),
+          cx,
+        )
+        .id("plan-conflicts"),
       )
     })
     .into_any_element()
@@ -476,11 +482,13 @@ impl Render for InstallDialog {
                 this.sync(window, cx);
               }))
           })
-          .child(
+          .child(radio_dot(
             Radio::new(SharedString::from(format!("radio-{}", p.id)))
               .checked(checked)
               .disabled(!compat.ok),
-          )
+            checked,
+            cx,
+          ))
           .child(ProfileIcon::new(icon).size(px(36.)).fallback_size(px(20.)))
           .child(
             div()
@@ -522,10 +530,15 @@ impl Render for InstallDialog {
             "Check your connection and try again.",
           )
         };
-        Alert::error("plan-error", text)
-          .title(title)
-          .icon(IconName::CircleAlert)
-          .into_any_element()
+        alert(
+          Some(IconName::CircleAlert),
+          title,
+          text,
+          Some(cx.theme().danger),
+          cx,
+        )
+        .id("plan-error")
+        .into_any_element()
       }
       PlanState::Ready(plan) => plan_view(plan, cx),
     };
@@ -574,12 +587,13 @@ impl Render for InstallDialog {
               .on_click(|_, window, cx| window.close_dialog(cx)),
           )
           .child(
-            Button::new("install")
-              .primary()
-              .icon(Icon::new(IconName::Download))
-              .label(format!("Install to {target_name}"))
-              .disabled(!can_install)
-              .on_click(cx.listener(|this, _, window, cx| this.install(window, cx))),
+            filled(icon_label(
+              Button::new("install").primary(),
+              IconName::Download,
+              format!("Install to {target_name}"),
+            ))
+            .disabled(!can_install)
+            .on_click(cx.listener(|this, _, window, cx| this.install(window, cx))),
           ),
       )
   }
