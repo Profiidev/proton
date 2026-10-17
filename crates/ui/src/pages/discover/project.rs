@@ -386,7 +386,8 @@ fn image_paragraph(node: &str) -> Option<Vec<(Option<String>, String)>> {
     } else if tag == "</a>" {
       href = None;
     } else if tag.starts_with("<img") {
-      images.push((href.clone(), attr(tag, "src")?));
+      // browsers encode raw spaces (shields.io badges), the http client rejects them
+      images.push((href.clone(), attr(tag, "src")?.replace(' ', "%20")));
     } else {
       return None;
     }
@@ -1254,6 +1255,10 @@ pub(crate) mod tests {
     assert_eq!(blocks[2], DescBlock::Rule);
     // text with an image stays html
     assert_eq!(image_paragraph("<p>a <img src=\"x\"></p>"), None);
+    assert_eq!(
+      image_paragraph("<p><img src=\"https://x/?m=a b\"></p>"),
+      Some(vec![(None, "https://x/?m=a%20b".into())])
+    );
   }
 
   /// Real project bodies (saved from the Modrinth API) render without panicking
