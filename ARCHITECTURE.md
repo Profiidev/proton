@@ -176,7 +176,7 @@ Read `crates/utils/PATTERNS.md`; it is the source of truth. In short:
 | Data dirs / store keys               | `utils/src/dir.rs`, `crates/store`                                                                                                                            |
 | Updater / release                    | `ui/src/updater.rs`, `pages/settings/about.rs`, `.github/workflows/app-release.yml`, `release-trigger.yml`                                                    |
 | Packaging (deb, AppImage, nsis, dmg) | root `Cargo.toml` `[package.metadata.packager]`, `packaging/`, `just package`                                                                                 |
-| Nix package / dev shell              | `flake.nix`, `nix/package.nix`, `devenv.nix`                                                                                                                  |
+| Nix package / dev shell              | `flake.nix`, `packaging/package.nix`, `devenv.nix`                                                                                                            |
 | CI                                   | `.github/workflows/` (`tests.yml`, `checks.yml`, `app-release.yml`, `cachix.yml`)                                                                             |
 | Test fixture data                    | `fixtures/io.profidev.proton` (regenerate with `fixtures/gen_data.py`)                                                                                        |
 

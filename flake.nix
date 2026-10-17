@@ -32,7 +32,7 @@
       {
         packages = rec {
           default = proton;
-          proton = pkgs.callPackage ./nix/package.nix { };
+          proton = pkgs.callPackage ./packaging/package.nix { };
         };
       }
     );
