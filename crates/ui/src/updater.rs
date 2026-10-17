@@ -2,7 +2,10 @@
 //! `.github/workflows/app-release.yml`), bundles signed with the old Tauri updater key.
 //! Port of the old `+layout.svelte` updater flow (BEHAVIOR §2 "Updater flow").
 
-use std::{path::PathBuf, time::Duration};
+use std::{
+  path::{Path, PathBuf},
+  time::Duration,
+};
 
 use cargo_packager_updater::{Config, Update, UpdaterBuilder, semver::Version, url::Url};
 use gpui_kit::{
@@ -75,17 +78,55 @@ pub fn init(cx: &mut App) {
   cx.set_global(GlobalUpdater(updater));
 }
 
+/// Binary the deb package installs
+const DEB_BINARY: &str = "/usr/bin/proton";
+/// dpkg's file list of the `proton` package
+const DPKG_LIST: &str = "/var/lib/dpkg/info/proton.list";
+
+/// How this build updates itself
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Install {
+  /// Replace the AppImage (Windows/macOS take the same path through cargo-packager)
+  Bundle,
+  /// Download the signed .deb and install it with `pkexec dpkg -i`, like the old Tauri app
+  Deb,
+  /// Managed elsewhere (nix, cargo run), refuse to self update
+  Unmanaged,
+}
+
+/// True when `exe` is the file the proton deb installed, `dpkg_list` is its dpkg file list
+fn deb_owns(exe: &Path, dpkg_list: &str) -> bool {
+  exe == Path::new(DEB_BINARY) && dpkg_list.lines().any(|l| l == DEB_BINARY)
+}
+
+fn install_kind() -> Install {
+  if !cfg!(target_os = "linux") || std::env::var_os("APPIMAGE").is_some() {
+    return Install::Bundle;
+  }
+  let exe = std::env::current_exe().unwrap_or_default();
+  let list = std::fs::read_to_string(DPKG_LIST).unwrap_or_default();
+  if deb_owns(&exe, &list) {
+    Install::Deb
+  } else {
+    Install::Unmanaged
+  }
+}
+
 fn builder(endpoint: &str) -> anyhow::Result<cargo_packager_updater::Updater> {
   let config = Config {
     endpoints: vec![Url::parse(endpoint)?],
     pubkey: PUBKEY.into(),
     ..Default::default()
   };
-  Ok(
-    UpdaterBuilder::new(Version::parse(env!("CARGO_PKG_VERSION"))?, config)
-      .timeout(Duration::from_secs(30))
-      .build()?,
-  )
+  let mut builder = UpdaterBuilder::new(Version::parse(env!("CARGO_PKG_VERSION"))?, config)
+    .timeout(Duration::from_secs(30));
+  // `linux-x86_64-deb` in latest.json (app-release.yml), the same entry old Tauri debs read
+  if install_kind() == Install::Deb
+    && let Some(target) = cargo_packager_updater::target()
+  {
+    builder = builder.target(format!("{target}-deb"));
+  }
+  Ok(builder.build()?)
 }
 
 /// The newer release at `endpoint`, `None` when this build is up to date (blocking)
@@ -210,13 +251,16 @@ enum Progress {
 
 /// Blocking download + signature check + install, returns the binary to relaunch
 fn download_and_install(update: &Update, tx: flume::Sender<Progress>) -> anyhow::Result<PathBuf> {
-  // a deb/nix install would get the AppImage written over its binary, only AppImages self update
-  #[cfg(target_os = "linux")]
-  let relaunch = std::env::var_os("APPIMAGE")
-    .map(PathBuf::from)
-    .ok_or_else(|| anyhow::anyhow!("Only the AppImage updates itself, use your package manager"))?;
-  #[cfg(not(target_os = "linux"))]
-  let relaunch = std::env::current_exe()?;
+  let kind = install_kind();
+  let relaunch = match kind {
+    Install::Deb => PathBuf::from(DEB_BINARY),
+    Install::Bundle => std::env::var_os("APPIMAGE")
+      .map(PathBuf::from)
+      .map_or_else(std::env::current_exe, Ok)?,
+    Install::Unmanaged => {
+      anyhow::bail!("This install is not self updating, use your package manager")
+    }
+  };
 
   let done = std::cell::Cell::new(0usize);
   let last = std::cell::Cell::new(None::<u8>);
@@ -233,9 +277,28 @@ fn download_and_install(update: &Update, tx: flume::Sender<Progress>) -> anyhow:
       let _ = tx.send(Progress::Installing);
     },
   )?;
-  // windows: runs the nsis installer and exits the process
-  update.install(bytes)?;
+  if kind == Install::Deb {
+    install_deb(&bytes)?;
+  } else {
+    // windows: runs the nsis installer and exits the process
+    update.install(bytes)?;
+  }
   Ok(relaunch)
+}
+
+/// `bytes` are signature checked by `download_extended`
+fn install_deb(bytes: &[u8]) -> anyhow::Result<()> {
+  let path = std::env::temp_dir().join(format!("proton-update-{}.deb", std::process::id()));
+  std::fs::write(&path, bytes)?;
+  let status = std::process::Command::new("pkexec")
+    .args(["dpkg", "-i"])
+    .arg(&path)
+    .status();
+  let _ = std::fs::remove_file(&path);
+  let status =
+    status.map_err(|e| anyhow::anyhow!("pkexec is needed to install the update: {e}"))?;
+  anyhow::ensure!(status.success(), "dpkg failed: {status}");
+  Ok(())
 }
 
 struct UpdateToast;
@@ -379,5 +442,17 @@ mod tests {
       .unwrap();
     let key = String::from_utf8(key).unwrap();
     assert!(key.starts_with("untrusted comment: minisign public key"));
+  }
+
+  #[test]
+  fn deb_detection_needs_the_binary_and_its_dpkg_entry() {
+    let list = "/.\n/usr\n/usr/bin\n/usr/bin/proton\n/usr/share/applications/proton.desktop\n";
+    assert!(deb_owns(Path::new("/usr/bin/proton"), list));
+    assert!(!deb_owns(Path::new("/usr/bin/proton"), ""));
+    assert!(!deb_owns(Path::new("/nix/store/x/bin/proton"), list));
+    assert!(!deb_owns(
+      Path::new("/usr/bin/proton"),
+      "/usr/bin/proton-other\n"
+    ));
   }
 }
