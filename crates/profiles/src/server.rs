@@ -23,6 +23,8 @@ pub async fn server_status(address: &str) -> Option<ServerStatus> {
     .timeout(Duration::from_secs(5))
     .send()
     .await
+    .ok()?
+    .error_for_status()
     .ok()?;
   parse_server_status(&resp.text().await.ok()?)
 }
@@ -55,7 +57,7 @@ mod tests {
 
   #[test]
   fn server_status_maps_each_response() {
-    let cases: [(u16, &str, Option<ServerStatus>); 5] = [
+    let cases: [(u16, &str, Option<ServerStatus>); 7] = [
       (
         200,
         r#"{"online":true,"players":{"online":3,"max":10}}"#,
@@ -64,8 +66,10 @@ mod tests {
       (200, r#"{"online":false}"#, status(false, 0, 0)),
       (200, "<html>", None),
       (200, "", None),
-      // the status code is not checked, an error body has no `online`
       (500, r#"{"error":"boom"}"#, None),
+      // an error status is never a status, even when its body parses
+      (500, r#"{"online":true}"#, None),
+      (404, r#"{"online":false}"#, None),
     ];
     for (code, body, expected) in cases {
       let server = FakeServer::start();
