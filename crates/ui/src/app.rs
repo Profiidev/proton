@@ -111,14 +111,28 @@ pub(crate) fn bridge(cx: &mut App) {
     d.running = list.len();
   });
   if let Some(content) = cx.try_global::<Content>() {
-    mirror(cx, content.updates.clone(), |updates, d| {
-      d.content_updates = updates
+    let (updates, profiles) = (content.updates.clone(), cx.profiles().profiles.clone());
+    let watch = (updates.clone(), profiles.clone());
+    let apply = move |cx: &mut App| {
+      let list = profiles.read(cx);
+      let counts = updates
+        .read(cx)
         .0
         .iter()
+        // modpack profiles only announce pack updates, the content rows still offer each one
+        .filter(|(id, _)| !list.iter().any(|p| &p.id == *id && p.modpack.is_some()))
         .map(|(id, list)| (id.clone(), list.len()))
         .filter(|(_, n)| *n > 0)
         .collect::<HashMap<_, _>>();
-    });
+      let data = cx.shell_data();
+      let mut next = data.read(cx).clone();
+      next.content_updates = counts;
+      data.write_changed(cx, next);
+    };
+    apply(cx);
+    let again = apply.clone();
+    cx.observe(&watch.0, move |_, cx| apply(cx)).detach();
+    cx.observe(&watch.1, move |_, cx| again(cx)).detach();
   }
 
   cx.subscribe(&cx.shell_data(), |_, ShellEvent::Reconnect, cx| {

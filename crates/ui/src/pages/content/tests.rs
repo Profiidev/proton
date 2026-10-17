@@ -11,9 +11,12 @@ use gpui_kit::{
 use proton_components::test_view;
 
 use super::*;
+use crate::shell::ShellDataExt;
 
 const FABRIC: &str = "22222222-2222-4222-8222-222222222222";
 const FABRIC_API: &str = "fabric-api-0.129.0+1.21.8.jar";
+/// the Fabulously Optimized modpack profile
+const PACK: &str = "44444444-4444-4444-8444-444444444444";
 
 fn copy_dir(from: &Path, to: &Path) {
   std::fs::create_dir_all(to).unwrap();
@@ -325,7 +328,7 @@ fn updates_show_the_alert_and_count_on_the_tab(cx: &mut TestAppContext) {
   use proton_content::model::{Channel, UpdateInfo, VersionInfo};
 
   let (handle, page, _) = open(cx);
-  cx.update(super::feed_update_counts);
+  cx.update(crate::app::bridge);
   let update = |profile: &str| UpdateInfo {
     profile: profile.into(),
     kind: ContentKind::Mod,
@@ -351,10 +354,11 @@ fn updates_show_the_alert_and_count_on_the_tab(cx: &mut TestAppContext) {
   cx.update(|cx| {
     let updates = cx.content().updates.clone();
     updates.update(cx, |u, cx| {
-      // a profile without updates gets no count
+      // a profile without updates and a modpack profile get no count
       u.0 = [
         (FABRIC.into(), vec![update(FABRIC)]),
         ("empty".into(), vec![]),
+        (PACK.into(), vec![update(PACK)]),
       ]
       .into();
       cx.notify();
