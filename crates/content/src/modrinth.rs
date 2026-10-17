@@ -66,7 +66,7 @@ impl Modrinth {
     Ok(versions.into_iter().map(Version::into_info).collect())
   }
 
-  /// Filter tags for a kind, grouped by their `header` on the frontend
+  /// Filter tags for a kind, grouped by their `header` in the UI
   pub async fn categories(&self, kind: ContentKind) -> Result<Vec<Category>> {
     let tags: Vec<Tag> = self
       .http
@@ -373,7 +373,6 @@ impl Hit {
         self.slug.as_deref().unwrap_or(&self.project_id),
       ),
       id: self.project_id,
-      slug: self.slug,
       kind: kind(&self.project_type),
       name: self.title,
       author: self.author,
@@ -424,7 +423,6 @@ impl Project {
       source: Source::Modrinth,
       url: web_url(&self.project_type, self.slug.as_deref().unwrap_or(&self.id)),
       id: self.id,
-      slug: self.slug,
       kind: kind(&self.project_type),
       name: self.title,
       author,

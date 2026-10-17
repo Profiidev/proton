@@ -3,7 +3,6 @@
 
 pub mod animation;
 pub mod assets;
-pub mod card;
 pub mod widgets;
 
 /// Render counters for perf tests. Views call [`render_count::hit`] at the top of `render`;

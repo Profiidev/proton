@@ -7,12 +7,15 @@ use sysinfo::System;
 
 pub const SETTINGS_KEY: &str = "settings";
 
-/// Total system memory in MB
+/// Total system memory in MB, 8 GB when it cannot be read
 pub fn system_max_mem() -> u64 {
   static MAX_MEM: LazyLock<u64> = LazyLock::new(|| {
     let mut system = System::new();
     system.refresh_memory();
-    system.total_memory() / 1024 / 1024
+    match system.total_memory() / 1024 / 1024 {
+      0 => 8192,
+      mb => mb,
+    }
   });
   *MAX_MEM
 }
@@ -24,9 +27,6 @@ pub fn mem_fits(mb: u64) -> bool {
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq)]
 pub struct Settings {
-  #[serde(default)]
-  pub system_max_mem: u64,
-  pub sidebar_width: Option<f32>,
   /// The last route, the UI owns the format. The tauri app stored a full URL here.
   pub url: Option<String>,
   #[serde(default)]
@@ -122,8 +122,10 @@ mod tests {
 
   #[test]
   fn settings_without_auto_update_default_false() {
-    let settings: Settings =
-      serde_json::from_str(r#"{"system_max_mem":0,"minecraft":{"show_snapshots":true}}"#).unwrap();
+    let settings: Settings = serde_json::from_str(
+      r#"{"system_max_mem":0,"sidebar_width":null,"minecraft":{"show_snapshots":true}}"#,
+    )
+    .unwrap();
     assert!(!settings.auto_update);
     assert!(!settings.hide_window_controls);
     assert!(settings.minecraft.show_snapshots);

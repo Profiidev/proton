@@ -527,7 +527,6 @@ struct FingerprintMatch {
 #[serde(rename_all = "camelCase")]
 struct Mod {
   id: u64,
-  slug: String,
   name: String,
   summary: String,
   links: Links,
@@ -588,7 +587,6 @@ impl Mod {
     ProjectSummary {
       source: Source::CurseForge,
       id: self.id.to_string(),
-      slug: Some(self.slug),
       kind: kind(self.class_id),
       name: self.name,
       author: self

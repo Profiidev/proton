@@ -100,13 +100,6 @@ impl AccountsHandle {
     res
   }
 
-  pub async fn refresh(&self, id: &str) -> Result<()> {
-    let mut store = self.store.lock().await;
-    let res = store.refresh(id).await.log_err();
-    self.publish(&store);
-    res
-  }
-
   pub async fn remove(&self, id: &str) -> Result<()> {
     let mut store = self.store.lock().await;
     let res = store.remove_account(id).log_err();

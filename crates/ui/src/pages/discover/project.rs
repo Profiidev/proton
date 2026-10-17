@@ -615,10 +615,7 @@ impl ProjectPage {
           list.iter().enumerate().map(|(ix, v)| {
             let installed = entry.is_some_and(|e| e.version_id.as_deref() == Some(&v.id));
             let id = v.id.clone();
-            let channel = serde_json::to_value(v.channel)
-              .ok()
-              .and_then(|c| c.as_str().map(logic::tag_label))
-              .unwrap_or_default();
+            let channel = logic::tag_label(v.channel.as_str());
             let loaders: Vec<String> = v.loaders.iter().map(|l| logic::tag_label(l)).collect();
             let published = v
               .published_at
@@ -802,7 +799,7 @@ impl ProjectPage {
             .gap_1()
             .cursor_pointer()
             .hover(|s| s.underline())
-            .child(logic::source_label(summary.source))
+            .child(summary.source.name())
             .child(Icon::new(IconName::ExternalLink).size(px(14.)))
             .on_click(move |_, _, cx| cx.open_url(&url)),
         ),

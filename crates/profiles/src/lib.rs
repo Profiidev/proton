@@ -75,11 +75,11 @@ pub struct ProfilesHandle {
 impl ProfilesHandle {
   /// Reloads the profile list and the home lists. Needs the tokio runtime.
   pub async fn refresh(&self) -> Result<()> {
-    let mut store = self.store.lock().await;
+    let (profiles, favorites, history) = self.store.lock().await.list_home().await?;
     let msg = ProfilesMsg::Profiles {
-      profiles: store.list_profiles().await?,
-      favorites: store.list_favorites().await?,
-      history: store.list_history().await?,
+      profiles,
+      favorites,
+      history,
     };
     let _ = self.tx.send(msg);
     Ok(())
@@ -369,7 +369,7 @@ impl Profiles {
       {
         let store = h.store.lock().await;
         let mut info = store.profile(&profile).await?;
-        info.remove_quick_play(quick_play).await?;
+        info.remove_quick_play(quick_play);
         info.update(store.data_dir()).await?;
       }
       h.refresh_quick_play(&profile).await?;
@@ -416,7 +416,7 @@ impl Profiles {
       {
         let store = h.store.lock().await;
         let mut info = store.profile(&profile).await?;
-        info.set_favorite(quick_play, favorite).await?;
+        info.set_favorite(quick_play, favorite);
         info.update(store.data_dir()).await?;
       }
       h.refresh().await?;
@@ -545,14 +545,8 @@ pub fn init(cx: &mut App) {
 /// [`init`] with an explicit data dir that loads synchronously, for tests
 pub fn init_at(cx: &mut App, data_dir: PathBuf) -> Result<()> {
   let (tx, rx) = flume::unbounded();
-  let mut store = ProfileStore::new(data_dir, tx)?;
-  let (profiles, favorites, history) = rt::block_on(async {
-    anyhow::Ok((
-      store.list_profiles().await?,
-      store.list_favorites().await?,
-      store.list_history().await?,
-    ))
-  })?;
+  let store = ProfileStore::new(data_dir, tx)?;
+  let (profiles, favorites, history) = rt::block_on(store.list_home())?;
   let service = service(cx, rx, store, true);
   service.profiles.update(cx, |p, _| *p = profiles);
   service.favorites.update(cx, |f, _| *f = favorites);

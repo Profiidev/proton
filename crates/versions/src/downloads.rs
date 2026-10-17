@@ -1,4 +1,4 @@
-//! One row of the downloads panel, port of `app/src/lib/downloads.ts`. No gpui.
+//! One row of the downloads panel. No gpui.
 
 use std::time::Instant;
 

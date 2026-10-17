@@ -17,9 +17,7 @@ use crate::{
   paths::{JavaVersionPath, MCPath, MCVersionPath},
 };
 use proton_utils::{
-  dir::data_dir,
-  download::default_client,
-  download::{download_and_parse_file_no_hash, download_and_parse_file_no_hash_force},
+  dir::data_dir, download::default_client, download::download_and_parse_file_no_hash,
   file::file_hash,
 };
 
@@ -81,34 +79,8 @@ pub fn cancel(id: usize) {
 impl McVersionStore {
   /// Reads the cached manifests, downloads them when missing
   pub async fn new(downloads: DownloadsHandle) -> Result<McVersionStore> {
-    let client = default_client();
-    let data_dir = data_dir()?;
-    let mc_manifest_path = MCPath::new(&data_dir).mc_manifest();
-    let java_manifest_path =
-      JavaVersionPath::new(&data_dir, Component::Unknown, String::new()).java_manifest();
-
-    let (mc_manifest, java_manifest) = join!(
-      download_and_parse_file_no_hash(
-        &client,
-        &mc_manifest_path,
-        MC_VERSION_MANIFEST_URL
-          .parse()
-          .expect("Failed to parse mc version url")
-      ),
-      download_and_parse_file_no_hash(
-        &client,
-        &java_manifest_path,
-        JAVA_VERSION_MANIFEST_URL
-          .parse()
-          .expect("Failed to parse java version url")
-      ),
-    );
-
-    Ok(Self::from_manifests(
-      mc_manifest?,
-      java_manifest?,
-      downloads,
-    ))
+    let (mc, java) = Self::load_manifests(&default_client(), false).await?;
+    Ok(Self::from_manifests(mc, java, downloads))
   }
 
   pub fn from_manifests(
@@ -124,38 +96,37 @@ impl McVersionStore {
     }
   }
 
-  /// Downloads the manifests even when cached
-  pub async fn download_manifests(client: &Client) -> Result<(Manifest, JavaVersions)> {
+  /// The mc/java manifests, `force` downloads them even when cached
+  pub async fn load_manifests(client: &Client, force: bool) -> Result<(Manifest, JavaVersions)> {
     let data_dir = data_dir()?;
     let mc_manifest_path = MCPath::new(&data_dir).mc_manifest();
     let java_manifest_path =
       JavaVersionPath::new(&data_dir, Component::Unknown, String::new()).java_manifest();
 
     let (mc_manifest, java_manifest) = join!(
-      download_and_parse_file_no_hash_force(
+      download_and_parse_file_no_hash(
         client,
         &mc_manifest_path,
         MC_VERSION_MANIFEST_URL
           .parse()
-          .expect("Failed to parse mc version url")
+          .expect("Failed to parse mc version url"),
+        force
       ),
-      download_and_parse_file_no_hash_force(
+      download_and_parse_file_no_hash(
         client,
         &java_manifest_path,
         JAVA_VERSION_MANIFEST_URL
           .parse()
-          .expect("Failed to parse java version url")
+          .expect("Failed to parse java version url"),
+        force
       )
     );
     Ok((mc_manifest?, java_manifest?))
   }
 
-  /// Returns whether something changed
-  pub fn update_manifests(&mut self, mc_manifest: Manifest, java_manifest: JavaVersions) -> bool {
-    let update = *self.mc_manifest != mc_manifest || *self.java_manifest != java_manifest;
+  pub fn update_manifests(&mut self, mc_manifest: Manifest, java_manifest: JavaVersions) {
     self.mc_manifest = Arc::new(mc_manifest);
     self.java_manifest = Arc::new(java_manifest);
-    update
   }
 
   pub async fn check_or_download(
@@ -283,9 +254,5 @@ impl McVersionStore {
     } else {
       Ok(vec![])
     }
-  }
-
-  pub fn downloads(&self) -> &DownloadsHandle {
-    &self.downloads
   }
 }

@@ -17,7 +17,6 @@ use gpui_kit::{
     dialog::{DialogDescription, DialogFooter},
     select::{SearchableVec, Select, SelectEvent, SelectState},
     switch::Switch,
-    tooltip::Tooltip,
   },
   div, img,
   prelude::FluentBuilder,
@@ -83,17 +82,6 @@ pub fn icon_label(button: Button, icon: IconName, label: impl Into<SharedString>
       .child(Icon::new(icon).size_4())
       .child(label),
   )
-}
-
-/// shadcn `Alert`: bg-card, rounded-lg border, `px-2.5 py-2`, 16px icon beside a medium
-/// title and a muted description
-pub fn alert(
-  icon: IconName,
-  title: impl Into<SharedString>,
-  description: impl Into<SharedString>,
-  cx: &App,
-) -> gpui_kit::Div {
-  super::content::alert(Some(icon), title, description.into(), None, cx)
 }
 
 type Versions = SelectState<SearchableVec<SharedString>>;
@@ -293,79 +281,6 @@ impl RenderOnce for SwitchTile {
           ),
       )
       .test_support()
-  }
-}
-
-/// Label with a tooltip on the left, switch on the right
-#[derive(IntoElement)]
-pub struct SwitchTooltip {
-  id: ElementId,
-  label: SharedString,
-  tooltip: SharedString,
-  checked: bool,
-  disabled: bool,
-  on_change: Option<Handler<bool>>,
-}
-
-impl SwitchTooltip {
-  pub fn new(
-    id: impl Into<ElementId>,
-    label: impl Into<SharedString>,
-    tooltip: impl Into<SharedString>,
-  ) -> Self {
-    Self {
-      id: id.into(),
-      label: label.into(),
-      tooltip: tooltip.into(),
-      checked: false,
-      disabled: false,
-      on_change: None,
-    }
-  }
-
-  pub fn checked(mut self, checked: bool) -> Self {
-    self.checked = checked;
-    self
-  }
-
-  pub fn disabled(mut self, disabled: bool) -> Self {
-    self.disabled = disabled;
-    self
-  }
-
-  pub fn on_change(mut self, f: impl Fn(&bool, &mut Window, &mut App) + 'static) -> Self {
-    self.on_change = Some(Rc::new(f));
-    self
-  }
-}
-
-impl RenderOnce for SwitchTooltip {
-  fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
-    let tooltip = self.tooltip;
-    div()
-      .id(self.id)
-      .flex()
-      .items_center()
-      .text_sm()
-      .font_weight(FontWeight::MEDIUM)
-      .child(
-        div()
-          .id("label")
-          .when(self.disabled, |d| d.text_color(cx.theme().muted_foreground))
-          .child(self.label)
-          .tooltip(move |window, cx| Tooltip::new(tooltip.clone()).build(window, cx)),
-      )
-      .child(
-        Switch::new("switch")
-          .cursor_pointer()
-          .ml_auto()
-          .checked(self.checked)
-          .disabled(self.disabled)
-          .when(self.disabled, |b| b.cursor_default())
-          .when_some(self.on_change, |s, f| {
-            s.on_change(move |v, w, cx| f(v, w, cx))
-          }),
-      )
   }
 }
 
@@ -637,7 +552,7 @@ mod tests {
     let (handle, _) = test_view::open(cx, {
       let value = value.clone();
       move |_, _| {
-        let (a, b) = (value.clone(), value.clone());
+        let a = value.clone();
         div()
           .w(px(500.))
           .child(
@@ -646,11 +561,6 @@ mod tests {
               .on_change(move |v, _, _| a.set(*v)),
           )
           .child(SwitchTile::new("off", "Disabled", "Nothing").disabled(true))
-          .child(
-            SwitchTooltip::new("tip", "Label", "Tooltip")
-              .checked(b.get())
-              .on_change(move |v, _, _| b.set(*v)),
-          )
           .into_any_element()
       }
     });
@@ -664,10 +574,8 @@ mod tests {
       window.render_frame(cx);
       window.click("tile", cx);
       assert_eq!(window.within("tile").find("switch").checked(), Some(false));
-      window.within("tip").click("switch", cx);
     })
     .unwrap();
-    assert!(value.get());
   }
 
   #[gpui::test]

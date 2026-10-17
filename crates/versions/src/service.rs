@@ -22,13 +22,6 @@ pub struct VersionLists {
   loader_versions: HashMap<(LoaderType, String, bool), Vec<String>>,
 }
 
-impl VersionLists {
-  /// None until the cached manifests are read or the first refresh succeeded
-  pub fn store(&self) -> Option<&McVersionStore> {
-    self.store.as_ref()
-  }
-}
-
 /// The downloads panel list. Notifies only on add/remove, each row is its own entity.
 #[derive(Default)]
 pub struct Downloads {
@@ -132,11 +125,9 @@ impl Versions {
       let client = default_client();
       let loader_client = client.clone();
       let (mc, java) =
-        rt::spawn(async move { McVersionStore::download_manifests(&client).await }).await??;
+        rt::spawn(async move { McVersionStore::load_manifests(&client, true).await }).await??;
       entity.update(cx, |lists, _| match &mut lists.store {
-        Some(store) => {
-          store.update_manifests(mc, java);
-        }
+        Some(store) => store.update_manifests(mc, java),
         None => lists.store = Some(McVersionStore::from_manifests(mc, java, handle)),
       });
 

@@ -1,15 +1,17 @@
 [package]
 name = "proton_skin_render"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
-anyhow = "1"
+anyhow.workspace = true
 bytemuck = { version = "1", features = ["derive"] }
 glam = "0.30"
 gpui-kit = { version = "0.7.3", default-features = false }
 image = { version = "0.25", default-features = false, features = ["png"] }
 pollster = "0.4"
+tracing.workspace = true
 # same major + features as gpui-pre-wgpu so the workspace builds a single wgpu
 wgpu = { version = "29", default-features = false, features = [
   "std",

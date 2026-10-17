@@ -2,13 +2,13 @@ use std::{path::PathBuf, pin::Pin, time::Duration};
 
 use anyhow::Result;
 use futures_util::StreamExt;
-use reqwest::Client;
+use reqwest::{Client, Response};
 use serde::de::DeserializeOwned;
-use tokio::fs::{self, File};
+use tokio::fs;
 use tracing::debug;
 use url::Url;
 
-use crate::file::{FileError, hash_bytes};
+use crate::file::{FileError, bytes_hash};
 
 pub fn default_client() -> Client {
   Client::builder()
@@ -17,66 +17,33 @@ pub fn default_client() -> Client {
     .unwrap()
 }
 
-pub async fn download_file_no_hash(client: &Client, path: &PathBuf, url: Url) -> Result<Vec<u8>> {
-  if File::open(path).await.is_ok() {
-    return Ok(fs::read(path).await?);
-  }
-
-  debug!("Downloading file: {}", url.as_str());
-  let bytes = client
-    .get(url)
-    .send()
-    .await?
-    .error_for_status()?
-    .bytes()
-    .await?;
-
-  if let Some(parent) = path.parent() {
-    fs::create_dir_all(parent).await?;
-  }
-  fs::write(path, &bytes).await?;
-
-  Ok(bytes.to_vec())
-}
-
-pub async fn download_file_no_hash_force(
+/// Downloads `url` to `path` and returns the bytes. Without `force` an existing file is read
+/// instead.
+pub async fn download_file_no_hash(
   client: &Client,
   path: &PathBuf,
   url: Url,
+  force: bool,
 ) -> Result<Vec<u8>> {
-  debug!("Downloading file: {}", url.as_str());
-  let bytes = client
-    .get(url)
-    .send()
-    .await?
-    .error_for_status()?
-    .bytes()
-    .await?;
-
-  if let Some(parent) = path.parent() {
-    fs::create_dir_all(parent).await?;
+  if !force && let Ok(bytes) = fs::read(path).await {
+    return Ok(bytes);
   }
-  fs::write(path, &bytes).await?;
 
-  Ok(bytes.to_vec())
-}
-
-pub async fn download_and_parse_file_no_hash_force<R: DeserializeOwned>(
-  client: &Client,
-  path: &PathBuf,
-  url: Url,
-) -> Result<R> {
-  let bytes = download_file_no_hash_force(client, path, url).await?;
-  Ok(serde_json::from_slice(&bytes)?)
+  debug!("Downloading file: {}", url.as_str());
+  let res = client.get(url).send().await?.error_for_status()?;
+  let bytes = res.bytes().await?.to_vec();
+  write(path, &bytes).await?;
+  Ok(bytes)
 }
 
 pub async fn download_and_parse_file_no_hash<R: DeserializeOwned>(
   client: &Client,
   path: &PathBuf,
   url: Url,
+  force: bool,
 ) -> Result<R> {
-  let data = download_file_no_hash(client, path, url).await?;
-  Ok(serde_json::from_slice(&data)?)
+  let bytes = download_file_no_hash(client, path, url, force).await?;
+  Ok(serde_json::from_slice(&bytes)?)
 }
 
 pub async fn download_file(
@@ -87,26 +54,12 @@ pub async fn download_file(
   progress: Box<dyn Fn(usize) + Send + 'static>,
 ) -> Result<Vec<u8>> {
   let res = client.get(url).send().await?.error_for_status()?;
-  let size = res.content_length().unwrap_or_default() as usize;
-  let mut stream = res.bytes_stream();
-
-  let mut bytes = Vec::with_capacity(size);
-  while let Some(chunk) = stream.next().await {
-    let chunk = chunk?;
-    progress(chunk.len());
-    bytes.extend_from_slice(&chunk);
-  }
-
-  if !hash_bytes(hash, &bytes)? {
+  let bytes = read_body(res, progress).await?;
+  if bytes_hash(&bytes) != hash {
     return Err(FileError::HashMismatch.into());
   }
-
-  if let Some(parent) = path.parent() {
-    fs::create_dir_all(parent).await?;
-  }
-  fs::write(path, &bytes).await?;
-
-  Ok(bytes.to_vec())
+  write(path, &bytes).await?;
+  Ok(bytes)
 }
 
 pub async fn download_and_parse_file<R: DeserializeOwned>(
@@ -117,6 +70,27 @@ pub async fn download_and_parse_file<R: DeserializeOwned>(
 ) -> Result<R> {
   let data = download_file(client, path, url, hash, Box::new(|_| {})).await?;
   Ok(serde_json::from_slice(&data)?)
+}
+
+/// Streams the body, reporting each chunk's size
+async fn read_body(res: Response, progress: impl Fn(usize)) -> Result<Vec<u8>> {
+  let mut bytes = Vec::with_capacity(res.content_length().unwrap_or_default() as usize);
+  let mut stream = res.bytes_stream();
+  while let Some(chunk) = stream.next().await {
+    let chunk = chunk?;
+    progress(chunk.len());
+    bytes.extend_from_slice(&chunk);
+  }
+  Ok(bytes)
+}
+
+/// Writes `bytes`, creating the parent dirs
+async fn write(path: &PathBuf, bytes: &[u8]) -> Result<()> {
+  if let Some(parent) = path.parent() {
+    fs::create_dir_all(parent).await?;
+  }
+  fs::write(path, bytes).await?;
+  Ok(())
 }
 
 pub type DownloadFileSizeFuture = Box<
@@ -138,21 +112,8 @@ pub async fn download_file_size(
   Ok((
     Box::new(move |progress| {
       Box::pin(async move {
-        let mut stream = res.bytes_stream();
-
-        let mut bytes = Vec::with_capacity(size);
-        while let Some(chunk) = stream.next().await {
-          let chunk = chunk?;
-          progress(chunk.len());
-          bytes.extend_from_slice(&chunk);
-        }
-
-        if let Some(parent) = path.parent() {
-          fs::create_dir_all(parent).await?;
-        }
-        fs::write(path, &bytes).await?;
-
-        Ok(())
+        let bytes = read_body(res, progress).await?;
+        write(&path, &bytes).await
       })
     }),
     size,

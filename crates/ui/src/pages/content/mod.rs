@@ -2,7 +2,6 @@
 
 mod logic;
 mod row;
-pub mod target;
 #[cfg(test)]
 mod tests;
 
@@ -424,7 +423,7 @@ impl ContentPage {
   }
 
   fn add(&mut self, cx: &mut Context<Self>) {
-    target::set(cx, self.profile.clone());
+    crate::content::set_target(cx, Some(self.profile.clone()));
     cx.navigate(Route::Discover(route_kind(self.kind)));
   }
 

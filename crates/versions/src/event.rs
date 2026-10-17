@@ -10,15 +10,13 @@ use std::{
   time::Duration,
 };
 
-use serde::Serialize;
-
 use proton_utils::future::UpdateLimiter;
 
 /// Progress ticks of one download are delivered at most this often
 const DEBOUNCE: Duration = Duration::from_millis(50);
 
 /// format always (done, total)
-#[derive(Serialize, Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum DownloadCheckStatus {
   VersionManifestCheck,
   VersionManifestDownload,

@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 
-use anyhow::Result;
+use anyhow::{Result, bail};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 use tracing::debug;
 
 use proton_utils::{download::default_client, log::ErrorLogExt};
@@ -85,14 +84,6 @@ impl AccountStore {
     let store = proton_store::store();
     store.set(Self::ACCOUNT_KEY, &self.accounts)?;
     store.set(Self::ACTIVE_ACCOUNT_KEY, &self.active)
-  }
-
-  pub async fn refresh(&mut self, id: &str) -> Result<()> {
-    //ignore result to prevent inconsistent saved data
-    let _ = self.refresh_token(id).await.log_err();
-    let _ = self.refresh_profile(id).await.log_err();
-    self.save()?;
-    Ok(())
   }
 
   pub async fn refresh_all(&mut self) -> Result<()> {
@@ -200,7 +191,7 @@ impl AccountStore {
       return Ok(());
     }
 
-    Err(CapeChangeError::Other.into())
+    bail!("Cape change error: unknown account {account}")
   }
 }
 
@@ -208,10 +199,4 @@ impl AccountStore {
 #[serde(rename_all = "camelCase")]
 struct CapeChangeReq {
   cape_id: String,
-}
-
-#[derive(Error, Debug)]
-enum CapeChangeError {
-  #[error("Cape change error")]
-  Other,
 }

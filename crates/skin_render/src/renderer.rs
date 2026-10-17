@@ -11,6 +11,9 @@ const COLOR: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
 const DEPTH: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 const SAMPLES: u32 = 4;
 
+/// skinview3d zoom, the web viewers use 0.8
+const ZOOM: f32 = 0.8;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RenderParams {
   /// Output size in physical pixels.
@@ -19,8 +22,6 @@ pub struct RenderParams {
   /// Camera orbit around the player in radians; 0/0 = front view, PI = back view.
   pub yaw: f32,
   pub pitch: f32,
-  /// skinview3d zoom (the web viewers use 0.8).
-  pub zoom: f32,
   pub model: ModelType,
   pub back: BackEquipment,
   pub animation: Animation,
@@ -35,7 +36,6 @@ impl Default for RenderParams {
       height: 400,
       yaw: 0.0,
       pitch: 0.0,
-      zoom: 0.8,
       model: ModelType::Classic,
       back: BackEquipment::Cape,
       animation: Animation::None,
@@ -204,7 +204,7 @@ impl Renderer {
 
     // camera like skinview3d: fov 50, distance from zoom, orbiting the origin
     let fov = 50f32.to_radians();
-    let dist = (4.5 + 16.5 / (fov / 2.0).tan() / p.zoom).clamp(10.0, 256.0);
+    let dist = (4.5 + 16.5 / (fov / 2.0).tan() / ZOOM).clamp(10.0, 256.0);
     let pitch = p.pitch.clamp(-1.55, 1.55);
     let eye = dist
       * Vec3::new(

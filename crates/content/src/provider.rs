@@ -106,11 +106,7 @@ fn merge(sort: SearchSort, results: Vec<(Source, Result<SearchPage>)>) -> Result
     match result {
       Ok(page) => pages.push(page),
       Err(err) => {
-        let name = match source {
-          Source::Modrinth => "Modrinth",
-          Source::CurseForge => "CurseForge",
-        };
-        warnings.push(format!("{name} search failed: {err}"));
+        warnings.push(format!("{} search failed: {err}", source.name()));
         error = Some(err);
       }
     }
@@ -170,7 +166,6 @@ mod tests {
     ProjectSummary {
       source,
       id: id.into(),
-      slug: None,
       kind: ContentKind::Mod,
       name: id.into(),
       author: String::new(),
@@ -246,7 +241,10 @@ mod tests {
     )
     .unwrap();
     assert_eq!(ids(&r), ["m1"]);
-    assert_eq!(r.warnings, ["CurseForge search failed: RateLimited"]);
+    assert_eq!(
+      r.warnings,
+      ["CurseForge search failed: Rate limited by the provider"]
+    );
   }
 
   #[test]

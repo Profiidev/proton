@@ -82,17 +82,30 @@ fn profile(id: &str) -> Profile {
   .unwrap()
 }
 
-fn update(profile: &str, kind: &str) -> proton_content::model::UpdateInfo {
-  serde_json::from_value(serde_json::json!({
-    "profile": profile, "kind": kind, "fileName": "x.jar", "source": "modrinth",
-    "projectId": "p", "name": "X", "current": "1",
-    "latest": {
-      "source": "modrinth", "projectId": "p", "id": "v", "name": "v", "versionNumber": "2",
-      "channel": "release", "gameVersions": [], "loaders": [], "publishedAt": "",
-      "files": [], "dependencies": []
-    }
-  }))
-  .unwrap()
+fn update(profile: &str, kind: ContentKind) -> proton_content::model::UpdateInfo {
+  use proton_content::model::{Channel, Source, UpdateInfo, VersionInfo};
+  UpdateInfo {
+    profile: profile.into(),
+    kind,
+    file_name: "x.jar".into(),
+    source: Source::Modrinth,
+    project_id: "p".into(),
+    name: "X".into(),
+    current: "1".into(),
+    latest: VersionInfo {
+      source: Source::Modrinth,
+      project_id: "p".into(),
+      id: "v".into(),
+      name: "v".into(),
+      version_number: "2".into(),
+      channel: Channel::Release,
+      game_versions: vec![],
+      loaders: vec![],
+      published_at: String::new(),
+      files: vec![],
+      dependencies: vec![],
+    },
+  }
 }
 
 // port of `updates_banner` in app/src/tests/unit/lib/content.test.ts
@@ -106,9 +119,12 @@ fn updates_banner_counts_and_names() {
 
   let updates = ContentUpdates(
     [
-      ("b".into(), vec![update("b", "mod"), update("b", "mod")]),
-      ("c".into(), vec![update("c", "mod")]),
-      ("gone".into(), vec![update("g", "mod")]),
+      (
+        "b".into(),
+        vec![update("b", ContentKind::Mod), update("b", ContentKind::Mod)],
+      ),
+      ("c".into(), vec![update("c", ContentKind::Mod)]),
+      ("gone".into(), vec![update("g", ContentKind::Mod)]),
     ]
     .into(),
   );
@@ -117,7 +133,7 @@ fn updates_banner_counts_and_names() {
   assert_eq!(b.description, "P b and P c have newer compatible versions.");
   assert_eq!(b.target.to_url(), "/profiles/info/content/mods?id=b");
 
-  let mixed = ContentUpdates([("a".into(), vec![update("a", "shader")])].into());
+  let mixed = ContentUpdates([("a".into(), vec![update("a", ContentKind::Shader)])].into());
   let b = updates_banner(&mixed, &list).unwrap();
   assert_eq!(b.title, "1 update available");
   assert_eq!(b.description, "P a has newer compatible versions.");

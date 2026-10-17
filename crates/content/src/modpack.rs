@@ -353,8 +353,8 @@ async fn read_pack(path: &Path) -> Result<Pack> {
   Err(ContentError::InvalidPack.into())
 }
 
-/// Remote packs are cached per version until installed, install re-opens the cached file and
-/// downloads it again when it is gone or does not match the sha1. Returns (archive, version id).
+/// Remote packs are cached per version, a cached file is reused while it matches the sha1.
+/// Returns (archive, version id).
 async fn fetch_archive(
   providers: &Providers,
   cache: &Path,
@@ -389,7 +389,7 @@ async fn fetch_archive(
   let archive = path(&version.id)?;
   // the cached file is only used while it still matches
   if let Ok(bytes) = fs::read(&archive).await
-    && spawn_blocking(move || bytes_hash(&bytes)).await?? == file.sha1
+    && spawn_blocking(move || bytes_hash(&bytes)).await? == file.sha1
   {
     return Ok((archive, version.id));
   }
@@ -408,22 +408,6 @@ async fn fetch_archive(
   )
   .await?;
   Ok((archive, version.id))
-}
-
-/// Local path of the pack archive
-pub async fn archive(providers: &Providers, cache: &Path, source: &PackSource) -> Result<PathBuf> {
-  match source {
-    PackSource::Path { path } => Ok(path.clone()),
-    PackSource::Remote {
-      source,
-      project_id,
-      version_id,
-    } => Ok(
-      fetch_archive(providers, cache, *source, project_id, version_id.as_deref())
-        .await?
-        .0,
-    ),
-  }
 }
 
 /// Resolves CurseForge file ids in bulk. Restricted files become (path, manual file).
@@ -479,7 +463,6 @@ async fn resolve_curseforge(
             sha1: file.sha1.clone(),
             size: file.size,
             download_url: format!("{project_url}/download/{}", version.id),
-            project_url,
           },
         ))
       }
@@ -493,7 +476,7 @@ fn count(counts: &mut PackCounts, path: &str) {
     Some("mods") => counts.mods += 1,
     Some("resourcepacks") => counts.resourcepacks += 1,
     Some("shaderpacks") => counts.shaders += 1,
-    _ => counts.other += 1,
+    _ => {}
   }
 }
 
@@ -555,6 +538,8 @@ pub async fn plan(providers: &Providers, cache: &Path, source: PackSource) -> Re
     manual: manual.into_iter().map(|m| m.1).collect(),
     counts,
     recommended_memory_mb: pack.memory,
+    archive,
+    overrides: pack.overrides,
   })
 }
 
@@ -654,7 +639,7 @@ async fn extract_overrides(
     fs::write(&path, &bytes).await?;
     if content_file(&rel).is_some() {
       let (sha1, fingerprint) =
-        spawn_blocking(move || Ok::<_, anyhow::Error>((bytes_hash(&bytes)?, fingerprint(&bytes))))
+        spawn_blocking(move || Ok::<_, anyhow::Error>((bytes_hash(&bytes), fingerprint(&bytes))))
           .await??;
       content.push((rel, sha1, fingerprint));
     }
@@ -668,14 +653,12 @@ async fn extract_overrides(
 pub async fn install_files(
   providers: &Providers,
   dir: &Path,
-  archive: &Path,
   plan: &PackPlan,
   id: usize,
   cancel: &Notify,
   progress: Progress,
 ) -> Result<bool> {
   let run = async {
-    let pack = read_pack(archive).await?;
     let tmp = dir.join(TMP_DIR).join(id.to_string());
     let mut fetches = Vec::new();
     for file in &plan.files {
@@ -702,14 +685,17 @@ pub async fn install_files(
 
     // a version change replaces the old pack files, only after the new ones are downloaded
     // ponytail: old pack files outside the content folders stay, track them when packs leave junk
-    let mut manifest = store::load(dir).await;
-    for entry in manifest.entries.iter().filter(|e| e.from_pack) {
+    for entry in store::load(dir)
+      .await
+      .entries
+      .iter()
+      .filter(|e| e.from_pack)
+    {
       let path = store::disk_path(dir, entry.kind, &entry.file_name)?;
       if path.exists() {
         fs::remove_file(path).await?;
       }
     }
-    manifest.entries.retain(|e| !e.from_pack);
 
     let total = plan.files.len();
     let mut entries = Vec::new();
@@ -728,7 +714,7 @@ pub async fn install_files(
     let _ = fs::remove_dir_all(dir.join(TMP_DIR)).await;
 
     for (rel, sha1, fingerprint) in
-      extract_overrides(archive, &pack.overrides, dir, &progress).await?
+      extract_overrides(&plan.archive, &plan.overrides, dir, &progress).await?
     {
       if let Some((kind, name)) = content_file(&rel) {
         entries.retain(|e| e.kind != kind || e.file_name != name);
@@ -738,14 +724,16 @@ pub async fn install_files(
 
     // names and icons, best effort, failed lookups stay pending for the next scan
     store::identify(providers, entries.iter_mut().collect()).await;
+    let _lock = store::lock().await;
+    let mut manifest = store::load(dir).await;
     // content the user added stays unless the pack now ships the same file
     manifest.entries.retain(|e| {
-      !entries
-        .iter()
-        .any(|n| n.kind == e.kind && n.file_name == e.file_name)
+      !e.from_pack
+        && !entries
+          .iter()
+          .any(|n| n.kind == e.kind && n.file_name == e.file_name)
     });
     manifest.entries.extend(entries);
-    let _lock = store::lock().await;
     store::save(dir, &manifest).await
   };
 
@@ -813,7 +801,7 @@ async fn index_files(providers: &Providers, dir: &Path) -> Result<(Vec<IndexFile
     let bytes = fs::read(dir.join(&rel)).await?;
     let (sha1, sha512, size) = spawn_blocking(move || {
       Ok::<_, anyhow::Error>((
-        bytes_hash(&bytes)?,
+        bytes_hash(&bytes),
         hex::encode(Sha512::digest(&bytes)),
         bytes.len() as u64,
       ))
@@ -1095,7 +1083,7 @@ mod tests {
     write_zip(&bad_pack, &[(INDEX, bad.to_string().as_bytes())]).await;
     assert_eq!(
       read_pack(&bad_pack).await.unwrap_err().to_string(),
-      "InvalidPack"
+      "Not a supported modpack"
     );
 
     let manifest = json!({
@@ -1208,17 +1196,9 @@ mod tests {
     .await
     .unwrap();
     let progress: Progress = Arc::new(|_| {});
-    let done = install_files(
-      &Providers::new(),
-      &dir,
-      &zip,
-      &plan,
-      0,
-      &Notify::new(),
-      progress,
-    )
-    .await
-    .unwrap();
+    let done = install_files(&Providers::new(), &dir, &plan, 0, &Notify::new(), progress)
+      .await
+      .unwrap();
     assert!(done);
     assert!(!mods.join("old.jar.disabled").exists());
     assert!(mods.join("user.jar").exists() && mods.join("new.jar").exists());

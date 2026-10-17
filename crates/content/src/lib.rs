@@ -41,23 +41,23 @@ pub use proton_profiles::{MANIFEST, TMP_DIR};
 
 #[derive(Error, Debug)]
 pub enum ContentError {
-  #[error("Incompatible")]
+  #[error("Not compatible with this profile")]
   Incompatible,
-  #[error("NeedsManualDownload")]
+  #[error("File must be downloaded manually")]
   NeedsManualDownload,
-  #[error("Network")]
+  #[error("Network error")]
   Network,
-  #[error("RateLimited")]
+  #[error("Rate limited by the provider")]
   RateLimited,
-  #[error("HashMismatch")]
+  #[error("Downloaded file is corrupt")]
   HashMismatch,
-  #[error("Unsupported")]
+  #[error("Not supported")]
   Unsupported,
-  #[error("Running")]
+  #[error("Stop the game first")]
   Running,
-  #[error("NotFound")]
+  #[error("Not found")]
   NotFound,
-  #[error("InvalidPack")]
+  #[error("Not a supported modpack")]
   InvalidPack,
 }
 

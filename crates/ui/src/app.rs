@@ -274,7 +274,7 @@ fn open_main_window(cx: &mut App) -> anyhow::Result<AnyWindowHandle> {
     }),
     window_decorations: Some(WindowDecorations::Client),
     window_min_size: Some(size(px(MIN_SIZE.0), px(MIN_SIZE.1))),
-    app_id: Some("io.profidev.proton".into()),
+    app_id: Some(proton_utils::dir::IDENTIFIER.into()),
     ..Default::default()
   };
   let (handle, _) = proton_components::assets::open_window(options, cx, |window, cx| {

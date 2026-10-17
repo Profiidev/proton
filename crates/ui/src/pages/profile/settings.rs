@@ -15,7 +15,8 @@ use gpui_kit::{
 };
 use proton_components::widgets::label;
 use proton_components::widgets::{
-  form::{SwitchTile, VersionSelect, alert},
+  content::alert,
+  form::{SwitchTile, VersionSelect},
   profile::ProfileIcon,
 };
 use proton_config::{SettingsExt, settings::system_max_mem};
@@ -82,13 +83,7 @@ impl SettingsPage {
       })
     });
     let global = cx.settings().get(cx);
-    let max_mem = match global.system_max_mem {
-      0 => match system_max_mem() {
-        0 => 8192,
-        mb => mb,
-      },
-      mb => mb,
-    };
+    let max_mem = system_max_mem();
     let initial_game = global.minecraft.game_settings.clone();
     let initial_jvm = global.minecraft.jvm_settings.clone();
     let game_form = cx.new(|cx| {
@@ -414,9 +409,10 @@ impl SettingsPage {
       .when(modded, |el| {
         el.child(
           alert(
-            IconName::TriangleAlert,
+            Some(IconName::TriangleAlert),
             "Changing the version can break mods",
             "Mods built for another version may fail to load.",
+            None,
             cx,
           )
           .id("version-warning"),

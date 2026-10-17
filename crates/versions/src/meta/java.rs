@@ -1,12 +1,11 @@
 use std::{collections::HashMap, fmt::Display};
 
-use serde::{Deserialize, Serialize};
-use serde_json::{Value, value::Serializer};
+use serde::Deserialize;
 use url::Url;
 
 use super::Rule;
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct JavaVersion {
   pub component: Component,
@@ -23,7 +22,7 @@ impl Default for JavaVersion {
   }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Copy)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq, Copy)]
 #[serde(rename_all = "kebab-case")]
 pub enum Component {
   JavaRuntimeAlpha,
@@ -39,33 +38,36 @@ pub enum Component {
 
 impl Display for Component {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    let value = serde_json::to_value(self).unwrap();
-    let Value::String(value) = value.serialize(Serializer).unwrap() else {
-      unreachable!()
-    };
-
-    write!(f, "{value}")
+    f.write_str(match self {
+      Self::JavaRuntimeAlpha => "java-runtime-alpha",
+      Self::JavaRuntimeBeta => "java-runtime-beta",
+      Self::JavaRuntimeDelta => "java-runtime-delta",
+      Self::JavaRuntimeEpsilon => "java-runtime-epsilon",
+      Self::JavaRuntimeGamma => "java-runtime-gamma",
+      Self::JavaRuntimeGammaSnapshot => "java-runtime-gamma-snapshot",
+      Self::JreLegacy => "jre-legacy",
+      Self::Unknown => "unknown",
+    })
   }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Library {
   pub name: String,
   pub url: Option<Url>,
   pub downloads: Option<Download>,
-  pub natives: Option<serde_json::Value>,
   pub rules: Option<Vec<Rule>>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Download {
   pub artifact: Option<Artifact>,
   pub classifiers: Option<Classifiers>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub struct Classifiers {
   pub natives_linux: Option<Artifact>,
@@ -73,7 +75,7 @@ pub struct Classifiers {
   pub natives_windows: Option<Artifact>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Artifact {
   pub url: Url,
@@ -82,7 +84,7 @@ pub struct Artifact {
   pub size: usize,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct JavaVersions {
   pub linux: PlatformVersion,
@@ -94,7 +96,7 @@ pub struct JavaVersions {
   pub windows_x86: PlatformVersion,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct PlatformVersion {
   pub java_runtime_alpha: Vec<Version>,
@@ -106,21 +108,21 @@ pub struct PlatformVersion {
   pub jre_legacy: Vec<Version>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Version {
   pub manifest: super::minecraft::Download,
   pub version: VersionName,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct VersionName {
   pub name: String,
   pub released: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "snake_case", tag = "type")]
 #[allow(clippy::large_enum_variant, clippy::enum_variant_names)]
 pub enum File {
@@ -134,14 +136,14 @@ pub enum File {
   },
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub struct Downloads {
   pub raw: super::minecraft::Download,
   pub lzma: Option<super::minecraft::Download>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Files {
   pub files: HashMap<String, File>,

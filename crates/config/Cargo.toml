@@ -6,7 +6,6 @@ license.workspace = true
 
 [dependencies]
 serde.workspace = true
-serde_json.workspace = true
 anyhow.workspace = true
 tokio.workspace = true
 tracing.workspace = true
@@ -17,5 +16,6 @@ proton_utils.workspace = true
 proton_store.workspace = true
 
 [dev-dependencies]
+serde_json.workspace = true
 tempfile.workspace = true
 gpui-kit = { workspace = true, features = ["test-support"] }

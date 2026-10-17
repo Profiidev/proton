@@ -20,17 +20,6 @@ use super::{
 
 const SUBTITLE: &str = "Defaults for every profile. Profiles can override them.";
 
-/// `settings.system_max_mem ?? 8192`: the store value when set, else the detected memory
-fn max_mem(cx: &gpui_kit::App) -> u64 {
-  match cx.settings().get(cx).system_max_mem {
-    0 => match system_max_mem() {
-      0 => 8192,
-      mb => mb,
-    },
-    mb => mb,
-  }
-}
-
 pub struct MinecraftPage {
   game: Entity<GameSettingsForm>,
   _sub: Subscription,
@@ -193,7 +182,7 @@ impl JavaPage {
   pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
     let settings = cx.settings().settings.clone();
     let initial = settings.read(cx).minecraft.jvm_settings.clone();
-    let max = max_mem(cx);
+    let max = system_max_mem();
     let java = cx.new(|cx| {
       JavaSettingsForm::new(
         initial,

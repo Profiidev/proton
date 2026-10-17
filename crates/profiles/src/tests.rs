@@ -36,9 +36,7 @@ fn info(id: &str) -> InstanceInfo {
     profile_id: "pid".into(),
     version: "1.21".into(),
     loader: LoaderType::Vanilla,
-    loader_version: None,
-    account_name: None,
-    account_id: None,
+    account_name: String::new(),
   }
 }
 
@@ -135,9 +133,7 @@ async fn non_zero_exit_emits_crash(cx: &mut TestAppContext) {
       .spawn()?;
     let store = handle.store.lock().await;
     let profile = store.profile(&profile_id).await?;
-    store
-      .add_instance(child, &profile, "acc".into(), "uuid".into())
-      .await
+    store.add_instance(child, &profile, "acc".into()).await
   })
   .await
   .unwrap()

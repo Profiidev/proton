@@ -108,11 +108,9 @@ impl Entry {
       enabled,
       manual: self.manual,
       from_pack: self.from_pack,
-      installed_at: self.installed_at.clone(),
       source: self.source,
       project_id: self.project_id.clone(),
       version_id: self.version_id.clone(),
-      sha1: self.sha1.clone(),
       name: self.name.clone(),
       icon_url: self.icon_url.clone(),
       version_number: self.version_number.clone(),
@@ -207,7 +205,7 @@ pub fn disk_path(dir: &Path, kind: ContentKind, name: &str) -> Result<PathBuf> {
 
 fn hash_file(path: PathBuf) -> Result<(String, u32)> {
   let bytes = std::fs::read(path)?;
-  Ok((bytes_hash(&bytes)?, fingerprint(&bytes)))
+  Ok((bytes_hash(&bytes), fingerprint(&bytes)))
 }
 
 /// Reconciles the content folder with the manifest: new files are hashed once and identified on

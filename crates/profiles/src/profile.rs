@@ -19,6 +19,7 @@ use crate::{
 use proton_utils::path;
 use proton_utils::{
   dir::list_dirs_in_dir,
+  download::default_client,
   file::{bytes_hash, last_modified_ago, read_parse_file, write_file},
 };
 use proton_versions::{loader::LoaderType, paths::MCVersionPath};
@@ -120,11 +121,7 @@ impl Profile {
     Ok(())
   }
 
-  pub async fn set_favorite(
-    &mut self,
-    quick_play: Option<QuickPlayInfo>,
-    favorite: bool,
-  ) -> Result<()> {
+  pub fn set_favorite(&mut self, quick_play: Option<QuickPlayInfo>, favorite: bool) {
     if let Some(quick_play) = quick_play {
       if let Some(item) = self.quick_play.iter_mut().find(|q| *q == &quick_play) {
         item.favorite = favorite;
@@ -132,8 +129,6 @@ impl Profile {
     } else {
       self.favorite = favorite;
     }
-
-    Ok(())
   }
 
   pub async fn list_saves(&self, data_dir: &PathBuf) -> Result<Vec<String>> {
@@ -171,14 +166,10 @@ impl Profile {
     Ok((self.quick_play.clone(), self.quick_play.len() < prev_len))
   }
 
-  pub async fn remove_quick_play(&mut self, quick_play: QuickPlayInfo) -> Result<()> {
-    let index = self.quick_play.iter().position(|q| q == &quick_play);
-
-    if let Some(index) = index {
-      let _ = self.quick_play.remove(index);
+  pub fn remove_quick_play(&mut self, quick_play: QuickPlayInfo) {
+    if let Some(index) = self.quick_play.iter().position(|q| q == &quick_play) {
+      self.quick_play.remove(index);
     }
-
-    Ok(())
   }
 
   pub async fn quick_play_icon(
@@ -205,7 +196,7 @@ impl Profile {
         if !dir.exists() {
           fs::create_dir_all(&dir).await?;
         }
-        let icon_hash = bytes_hash(quick_play.id.as_bytes())?;
+        let icon_hash = bytes_hash(quick_play.id.as_bytes());
         let icon_path = path!(dir, format!("{}.png", icon_hash));
 
         // if the icon was fetched less than an hour ago, use the cached version
@@ -221,7 +212,7 @@ impl Profile {
 
         debug!("Fetching server icon for {}", quick_play.id);
         let url = format!("{}/{}", ICON_BASE_URL, quick_play.id);
-        if let Ok(resp) = reqwest::get(&url).await
+        if let Ok(resp) = default_client().get(&url).send().await
           && resp.status().is_success()
           && let Ok(bytes) = resp.bytes().await
         {

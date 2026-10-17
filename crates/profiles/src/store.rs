@@ -11,7 +11,6 @@ use crate::{
   PROFILE_CONFIG, PROFILE_DIR,
   config::{
     PlayHistoryFavoriteInfo, Profile, ProfileError, ProfileInfo, ProfileUpdate, QuickPlayInfo,
-    QuickPlayType,
   },
   instance::{Instance, InstanceError, InstanceInfo, Instances},
   watcher::watch_profile,
@@ -237,7 +236,7 @@ impl ProfileStore {
     })
     .await?;
 
-    self.add_instance(child, &profile, info.name, info.id).await
+    self.add_instance(child, &profile, info.name).await
   }
 
   /// Tracks a started game process as an instance of `profile`
@@ -246,91 +245,40 @@ impl ProfileStore {
     child: tokio::process::Child,
     profile: &Profile,
     account_name: String,
-    account_id: String,
   ) -> Result<()> {
     Instance::create(
       child,
       &self.data_dir,
       profile,
       account_name,
-      account_id,
       &self.instances,
       &self.tx,
     )
     .await
   }
 
-  pub async fn list_history(&mut self) -> Result<Vec<PlayHistoryFavoriteInfo>> {
-    self
-      .list_home_entries(
-        |profile| profile.last_played_non_quick_play.is_some(),
-        |quick_play| quick_play.history,
-      )
-      .await
-  }
-
-  pub async fn list_favorites(&mut self) -> Result<Vec<PlayHistoryFavoriteInfo>> {
-    self
-      .list_home_entries(|profile| profile.favorite, |quick_play| quick_play.favorite)
-      .await
-  }
-
-  async fn list_home_entries(
-    &mut self,
-    profile_access: impl Fn(&Profile) -> bool,
-    quick_play_access: impl Fn(&QuickPlayInfo) -> bool,
-  ) -> Result<Vec<PlayHistoryFavoriteInfo>> {
-    let mut entries = Vec::new();
-    let keys = self.profiles.keys().cloned().collect::<Vec<_>>();
-    for profile in keys {
-      let mut profile_info = self.profile(&profile).await?;
-      if profile_access(&profile_info) {
-        entries.push(PlayHistoryFavoriteInfo {
-          profile: profile_info.clone(),
-          quick_play: None,
-        });
-      }
-
-      // drop singleplayer entries whose world was deleted
-      let saves = profile_info.list_saves(&self.data_dir).await?;
-      let before = profile_info.quick_play.len();
-      profile_info
-        .quick_play
-        .retain(|q| q.r#type != QuickPlayType::Singleplayer || saves.contains(&q.id));
-      if profile_info.quick_play.len() < before {
-        profile_info.update(&self.data_dir).await?;
-      }
-
-      for quick_play in &profile_info.quick_play {
-        if quick_play_access(quick_play) {
-          entries.push(PlayHistoryFavoriteInfo {
-            profile: profile_info.clone(),
-            quick_play: Some(quick_play.clone()),
-          });
-        }
+  /// All profiles (oldest first), the home favorites and the home history. Drops singleplayer
+  /// quick play entries whose world was deleted.
+  pub async fn list_home(
+    &self,
+  ) -> Result<(
+    Vec<Profile>,
+    Vec<PlayHistoryFavoriteInfo>,
+    Vec<PlayHistoryFavoriteInfo>,
+  )> {
+    let mut profiles = self.list_profiles().await?;
+    for profile in &mut profiles {
+      if profile.list_quick_play(&self.data_dir).await?.1 {
+        profile.update(&self.data_dir).await?;
       }
     }
-
-    entries.sort_unstable_by_key(|i| {
-      if let Some(quick_play) = &i.quick_play {
-        quick_play.last_played_time
-      } else {
-        i.profile.last_played.unwrap_or(Utc::now())
-      }
-    });
-    entries.reverse();
-    entries.truncate(12);
-
-    Ok(entries)
-  }
-
-  pub async fn list_instances(&self) -> Vec<InstanceInfo> {
-    let instances = self.instances.lock().await;
-    instances
-      .values()
-      .flatten()
-      .map(|i| i.info().clone())
-      .collect()
+    let favorites = home_entries(&profiles, |p| p.favorite, |q| q.favorite);
+    let history = home_entries(
+      &profiles,
+      |p| p.last_played_non_quick_play.is_some(),
+      |q| q.history,
+    );
+    Ok((profiles, favorites, history))
   }
 
   /// Memory used per instance id, polled by the UI
@@ -425,6 +373,37 @@ pub fn count_mod_jars(dir: &Path) -> usize {
         .is_some_and(|ext| ext.eq_ignore_ascii_case("jar"))
     })
     .count()
+}
+
+/// The 12 latest profiles and quick play entries matching `profile_access` / `quick_play_access`
+fn home_entries(
+  profiles: &[Profile],
+  profile_access: impl Fn(&Profile) -> bool,
+  quick_play_access: impl Fn(&QuickPlayInfo) -> bool,
+) -> Vec<PlayHistoryFavoriteInfo> {
+  let mut entries = Vec::new();
+  for profile in profiles {
+    if profile_access(profile) {
+      entries.push(PlayHistoryFavoriteInfo {
+        profile: profile.clone(),
+        quick_play: None,
+      });
+    }
+    for quick_play in profile.quick_play.iter().filter(|q| quick_play_access(q)) {
+      entries.push(PlayHistoryFavoriteInfo {
+        profile: profile.clone(),
+        quick_play: Some(quick_play.clone()),
+      });
+    }
+  }
+
+  entries.sort_unstable_by_key(|i| match &i.quick_play {
+    Some(quick_play) => quick_play.last_played_time,
+    None => i.profile.last_played.unwrap_or(Utc::now()),
+  });
+  entries.reverse();
+  entries.truncate(12);
+  entries
 }
 
 #[cfg(test)]

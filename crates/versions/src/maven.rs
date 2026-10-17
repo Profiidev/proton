@@ -1,4 +1,4 @@
-use std::{path::PathBuf, str::FromStr};
+use std::path::PathBuf;
 
 use anyhow::Result;
 use url::Url;
@@ -99,13 +99,5 @@ impl MavenArtifact {
         .unwrap_or_default(),
       self.ext
     ))?)
-  }
-}
-
-impl FromStr for MavenArtifact {
-  type Err = anyhow::Error;
-
-  fn from_str(s: &str) -> Result<Self> {
-    MavenArtifact::new(s)
   }
 }

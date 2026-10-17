@@ -301,20 +301,9 @@ pub fn short_list(list: &[String], n: usize) -> String {
   }
 }
 
-pub fn source_label(source: Source) -> &'static str {
-  match source {
-    Source::Modrinth => "Modrinth",
-    Source::CurseForge => "CurseForge",
-  }
-}
-
 /// `0.5.8 (release)`
 pub fn version_label(v: &VersionInfo) -> String {
-  let channel = serde_json::to_value(v.channel)
-    .ok()
-    .and_then(|c| c.as_str().map(str::to_string))
-    .unwrap_or_default();
-  format!("{} ({channel})", v.version_number)
+  format!("{} ({})", v.version_number, v.channel.as_str())
 }
 
 /// `id` when listed, else the newest release, else the newest version (lists are newest first)
@@ -342,12 +331,6 @@ pub fn profile_note(profile: &Profile, compat: &Compat) -> String {
   }
   parts.extend(compat.note.clone());
   parts.join(" · ")
-}
-
-/// Whether the pack's recommended memory fits the available memory, both in MB. Leaves 2 GB
-/// for the OS like the backend.
-pub fn memory_fits(recommended: u64, available: Option<u64>) -> bool {
-  available.is_none_or(|a| recommended + 2048 <= a)
 }
 
 /// `1 mod`, `2 mods`
@@ -413,7 +396,6 @@ pub(crate) mod tests {
     ProjectSummary {
       source: Source::Modrinth,
       id: id.into(),
-      slug: None,
       kind: ContentKind::Mod,
       name: id.into(),
       author: "a".into(),
@@ -447,11 +429,22 @@ pub(crate) mod tests {
   }
 
   fn installed(project: &str) -> Installed {
-    serde_json::from_value(serde_json::json!({
-      "kind": "mod", "fileName": format!("{project}.jar"), "enabled": true, "manual": false,
-      "fromPack": false, "projectId": project, "sha1": "", "dependencyOf": []
-    }))
-    .unwrap()
+    Installed {
+      kind: ContentKind::Mod,
+      file_name: format!("{project}.jar"),
+      enabled: true,
+      manual: false,
+      from_pack: false,
+      source: None,
+      project_id: Some(project.into()),
+      version_id: None,
+      name: None,
+      icon_url: None,
+      version_number: None,
+      dependency_of: vec![],
+      order: None,
+      active: None,
+    }
   }
 
   fn s(v: &[&str]) -> Vec<String> {
@@ -557,11 +550,16 @@ pub(crate) mod tests {
     let installed: HashSet<String> = ["p".to_string()].into();
     assert_eq!(card_action("n", &installed, &[]), CardAction::Install);
     assert_eq!(card_action("p", &installed, &[]), CardAction::Installed);
-    let update: UpdateInfo = serde_json::from_value(serde_json::json!({
-      "profile": "x", "kind": "mod", "fileName": "f", "source": "modrinth", "projectId": "p",
-      "name": "P", "current": "1", "latest": version("2", Channel::Release)
-    }))
-    .unwrap();
+    let update = UpdateInfo {
+      profile: "x".into(),
+      kind: ContentKind::Mod,
+      file_name: "f".into(),
+      source: Source::Modrinth,
+      project_id: "p".into(),
+      name: "P".into(),
+      current: "1".into(),
+      latest: version("2", Channel::Release),
+    };
     assert_eq!(card_action("p", &installed, &[update]), CardAction::Update);
   }
 
@@ -664,10 +662,5 @@ pub(crate) mod tests {
       profile_note(&p, &Compat::no("Not here".into())),
       "Fabric 1.21 · modpack, edits may be replaced on update · Not here"
     );
-
-    assert!(memory_fits(4096, Some(8192)));
-    assert!(!memory_fits(7168, Some(8192)));
-    assert!(!memory_fits(8192, Some(4096)));
-    assert!(memory_fits(8192, None));
   }
 }

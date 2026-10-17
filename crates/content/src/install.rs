@@ -19,14 +19,14 @@ use super::{
   curseforge::{cdn_url, fingerprint},
   model::{
     Channel, Conflict, ContentKind, DependencyKind, InstallPlan, ManualFile, OptionalRef, PickRef,
-    PlanItem, PlanReason, ProjectRef, ProjectSummary, Source, VersionInfo,
+    PlanItem, ProjectRef, ProjectSummary, Source, VersionInfo,
   },
   modpack::mrpack_host,
   provider::{ContentProvider, Providers, profile_loaders},
   store::{self, Entry, safe_name},
 };
 use proton_profiles::config::Profile;
-use proton_utils::{download::download_file, file::FileError, future::FuturePool};
+use proton_utils::{download::download_file, file::FileError, future::run_pool};
 use proton_versions::{event::DownloadCheckStatus, loader::LoaderType};
 
 /// Iris on Modrinth, shaders need it
@@ -187,7 +187,6 @@ pub async fn plan_install<'p>(
           file_name: file.file_name.clone(),
           sha1: file.sha1.clone(),
           size: file.size,
-          project_url: project.url.clone(),
           download_url: format!("{}/download/{}", project.url, version.id),
         });
         continue;
@@ -197,11 +196,6 @@ pub async fn plan_install<'p>(
         name: project.name.clone(),
         icon_url: project.icon_url.clone(),
         kind: project.kind,
-        reason: if requested {
-          PlanReason::Requested
-        } else {
-          PlanReason::Dependency
-        },
         dependency_of: want.dependency_of.clone(),
         replaces: replaces.get(&want.project_id).cloned(),
         version,
@@ -331,7 +325,7 @@ pub async fn execute_install(
 #[error("RollbackFailed")]
 struct RollbackFailed;
 
-/// Plans come back from the frontend, so they are checked again before anything is downloaded
+/// Provider data is untrusted: names stay in the content dir, downloads on known hosts
 pub fn check_plan(plan: &InstallPlan) -> Result<()> {
   for item in &plan.items {
     let file = item.version.primary_file().ok_or(ContentError::NotFound)?;
@@ -462,7 +456,7 @@ pub async fn fetch_all(
   }
 
   let mut fingerprints = vec![0; count];
-  for res in FuturePool::new(futures).run(None).await {
+  for res in run_pool(futures, |_, _| {}).await {
     let (i, fingerprint) = res??;
     fingerprints[i] = fingerprint;
   }
@@ -623,7 +617,8 @@ pub async fn adopt_file(dir: &Path, file: &ManualFile, path: &Path) -> Result<Co
   let name = safe_name(&file.file_name)?.to_string();
   let source = path.to_path_buf();
   let sha1 =
-    spawn_blocking(move || proton_utils::file::bytes_hash(&std::fs::read(source)?)).await??;
+    spawn_blocking(move || std::fs::read(source).map(|b| proton_utils::file::bytes_hash(&b)))
+      .await??;
   if sha1 != file.sha1 {
     return Err(ContentError::HashMismatch.into());
   }
@@ -674,8 +669,7 @@ pub async fn find_manual(dirs: Vec<PathBuf>, files: Vec<ManualFile>) -> HashMap<
       if !meta.is_file() || candidates.is_empty() {
         continue;
       }
-      let Ok(Ok(sha1)) = std::fs::read(entry.path()).map(|b| proton_utils::file::bytes_hash(&b))
-      else {
+      let Ok(sha1) = std::fs::read(entry.path()).map(|b| proton_utils::file::bytes_hash(&b)) else {
         continue;
       };
       for file in candidates.into_iter().filter(|f| f.sha1 == sha1) {
@@ -756,7 +750,6 @@ mod tests {
     ProjectSummary {
       source: Source::Modrinth,
       id: id.into(),
-      slug: None,
       kind,
       name: format!("{id} name"),
       author: String::new(),
@@ -886,7 +879,6 @@ mod tests {
     };
     let plan = plan(&stub, LoaderType::Fabric, &[], &["a"]).await.unwrap();
     assert_eq!(ids(&plan), ["a", "b"]);
-    assert_eq!(plan.items[1].reason, PlanReason::Dependency);
     assert_eq!(plan.items[1].dependency_of.as_deref(), Some("a"));
     assert_eq!(plan.total_bytes, 20);
   }
@@ -980,7 +972,7 @@ mod tests {
     let plan = plan(&stub, LoaderType::Quilt, &[], &["a"]).await.unwrap();
     assert_eq!(plan.items[0].version.id, "a22");
     let err = plan_err(&stub, LoaderType::Vanilla, &["a"]).await;
-    assert_eq!(err, "Incompatible");
+    assert_eq!(err, "Not compatible with this profile");
   }
 
   async fn plan_err(stub: &Stub, loader: LoaderType, picks: &[&str]) -> String {
@@ -1004,11 +996,11 @@ mod tests {
     };
     assert_eq!(
       plan_err(&stub, LoaderType::Forge, &["s"]).await,
-      "Incompatible"
+      "Not compatible with this profile"
     );
     assert_eq!(
       plan_err(&stub, LoaderType::Vanilla, &["s"]).await,
-      "Incompatible"
+      "Not compatible with this profile"
     );
     let plan = plan(&stub, LoaderType::NeoForge, &[], &["s"])
       .await
@@ -1034,9 +1026,8 @@ mod tests {
       project_id: id.into(),
       file_id: id.into(),
       file_name: format!("{id}.jar"),
-      sha1: proton_utils::file::bytes_hash(bytes).unwrap(),
+      sha1: proton_utils::file::bytes_hash(bytes),
       size: bytes.len() as u64,
-      project_url: String::new(),
       download_url: String::new(),
     };
     let found = find_manual(
@@ -1086,7 +1077,7 @@ mod tests {
   }
 
   #[test]
-  fn ipc_plans_are_rechecked() {
+  fn plans_are_checked() {
     let plan = |url: &str, name: &str, kind: ContentKind| {
       let mut v = version("a", "a1", "fabric", &[]);
       v.files[0].url = Some(url.into());
@@ -1098,7 +1089,6 @@ mod tests {
           icon_url: None,
           kind,
           version: v,
-          reason: PlanReason::Requested,
           dependency_of: None,
           replaces: None,
         }],
@@ -1167,7 +1157,7 @@ mod tests {
 
     let mut good = version("a", "a1", "fabric", &[]);
     good.files[0].url = Some(format!("{base}/a1.jar"));
-    good.files[0].sha1 = proton_utils::file::bytes_hash(b"new").unwrap();
+    good.files[0].sha1 = proton_utils::file::bytes_hash(b"new");
     let mut bad = version("b", "b1", "fabric", &[]);
     bad.files[0].url = Some(format!("{base}/b1.jar"));
     let item = |version: VersionInfo, replaces: Option<&str>| PlanItem {
@@ -1175,7 +1165,6 @@ mod tests {
       icon_url: None,
       kind: ContentKind::Mod,
       version,
-      reason: PlanReason::Requested,
       dependency_of: None,
       replaces: replaces.map(String::from),
     };
@@ -1193,7 +1182,7 @@ mod tests {
     let progress: Progress = Arc::new(|_| {});
 
     let err = execute_install(&providers, &dir, &plan, 1, &notify, progress.clone()).await;
-    assert_eq!(err.unwrap_err().to_string(), "HashMismatch");
+    assert_eq!(err.unwrap_err().to_string(), "Downloaded file is corrupt");
     let names: Vec<_> = std::fs::read_dir(dir.join("mods"))
       .unwrap()
       .map(|e| e.unwrap().file_name())

@@ -8,7 +8,7 @@ use std::{
 
 use anyhow::Result;
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use tokio::{fs, process::Command};
 use tracing::debug;
 use url::Url;
@@ -29,7 +29,7 @@ use crate::{
 };
 use proton_utils::path;
 use proton_utils::{
-  download::download_file_no_hash_force,
+  download::download_file_no_hash,
   file::{read_parse_file, read_parse_xml_file},
 };
 
@@ -97,7 +97,7 @@ impl Loader for ForgeLikeLoader {
   async fn download_metadata(&self, client: &Client, version_path: &MCVersionPath) -> Result<()> {
     let url = Url::parse(&self.index_url)?;
     let path = self.index(version_path);
-    download_file_no_hash_force(client, &path, url).await?;
+    download_file_no_hash(client, &path, url, true).await?;
 
     Ok(())
   }
@@ -290,7 +290,7 @@ impl LoaderVersion for ForgeLikeLoaderVersion {
 
     let url = Url::parse(&self.installer_url(version_path).await?)?;
     let path = installer_path.join(INSTALLER_PATH);
-    download_file_no_hash_force(client, &path, url).await?;
+    download_file_no_hash(client, &path, url, true).await?;
 
     let profile_path = installer_path.join(INSTALLER_PROFILE_PATH);
     extract_and_save_file_from_zip(&path, INSTALLER_PROFILE_PATH, &profile_path).await?;
@@ -550,7 +550,6 @@ fn default_data(
     "SIDE".to_string(),
     DataEntry {
       client: "client".to_string(),
-      server: "server".to_string(),
     },
   );
 
@@ -558,7 +557,6 @@ fn default_data(
     "MINECRAFT_VERSION".to_string(),
     DataEntry {
       client: mc_version.to_string(),
-      server: mc_version.to_string(),
     },
   );
 
@@ -566,7 +564,6 @@ fn default_data(
     "MINECRAFT_JAR".to_string(),
     DataEntry {
       client: version_path.client_jar().to_string_lossy().into_owned(),
-      server: String::new(),
     },
   );
 
@@ -574,7 +571,6 @@ fn default_data(
     "ROOT".to_string(),
     DataEntry {
       client: version_path.base_path().to_string_lossy().into_owned(),
-      server: String::new(),
     },
   );
 
@@ -582,7 +578,6 @@ fn default_data(
     "LIBRARY_DIR".to_string(),
     DataEntry {
       client: mc_path.library_path().to_string_lossy().into_owned(),
-      server: String::new(),
     },
   );
 }
@@ -621,109 +616,99 @@ fn neoforge_version_pair(version_string: &str) -> Result<(String, String)> {
 
 type VersionIndex = HashMap<String, Vec<String>>;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
 struct NeoForgeIndex {
   versioning: NeoForgeVersioning,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
 struct NeoForgeVersioning {
   versions: NeoForgeVersions,
-  latest: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
 struct NeoForgeVersions {
   version: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
 struct ForgeInstallerProfile {
-  //spec: usize,
-  //profile: String,
-  //version: String,
-  //minecraft: String,
   data: HashMap<String, DataEntry>,
   processors: Vec<Processor>,
   libraries: Vec<Library>,
   json: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
 struct DataEntry {
   client: String,
-  server: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
 struct Processor {
   sides: Option<Vec<String>>,
   jar: String,
   classpath: Vec<String>,
   args: Vec<String>,
-  outputs: Option<HashMap<String, String>>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
 struct Library {
   name: String,
   downloads: Downloads,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
 struct Downloads {
   artifact: Artifact,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
 struct Artifact {
   path: String,
   #[serde(deserialize_with = "deserialize_url_option")]
   url: Option<Url>,
   sha1: Option<String>,
-  //size: u64,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 struct ForgeVersion {
-  id: String,
   main_class: String,
   libraries: Vec<Library>,
   arguments: Option<Arguments>,
   minecraft_arguments: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 struct ForgeVersionManifestOld {
   install: ForgeInstallOld,
   version_info: ForgeVersionOld,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 struct ForgeInstallOld {
   path: String,
   file_path: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 struct ForgeVersionOld {
-  id: String,
   main_class: String,
   minecraft_arguments: String,
   libraries: Vec<LibraryOld>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
 struct LibraryOld {
   name: String,
   url: Option<Url>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
 struct Arguments {
   game: Option<Vec<String>>,
   jvm: Option<Vec<String>>,
@@ -779,7 +764,6 @@ impl ForgeVersionManifestOld {
     }
 
     Ok(ForgeVersion {
-      id: self.version_info.id,
       main_class: self.version_info.main_class,
       libraries,
       minecraft_arguments: Some(self.version_info.minecraft_arguments),

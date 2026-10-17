@@ -5,20 +5,16 @@ use anyhow::Result;
 use gpui_kit::{App, AppContext, Entity, Global};
 use proton_config::OfflineExt;
 use proton_utils::rt;
-use url::Url;
 
 pub use crate::handle::{AccountId, AccountList, AccountsHandle, LoginState};
-use crate::{
-  skin_store::{Cape, Skin},
-  store::LaunchInfo,
-};
+use crate::{skin_store::Skin, store::LaunchInfo};
 
 pub mod auth;
 mod handle;
 pub mod info;
 mod listener;
-pub mod mc_auth;
-pub mod skin_store;
+mod mc_auth;
+mod skin_store;
 pub mod store;
 
 #[derive(Clone)]
@@ -84,14 +80,8 @@ impl Accounts {
   }
 
   service_fn!(refresh_all() -> (), |h| h.refresh_all());
-  service_fn!(refresh(id: AccountId) -> (), |h| h.refresh(&id));
   service_fn!(remove(id: AccountId) -> (), |h| h.remove(&id));
   service_fn!(set_active(id: AccountId) -> (), |h| h.set_active(&id));
-  service_fn!(
-    /// Downloads (or loads the cached) skin png
-    get_skin(url: Url) -> Skin, |h| h.get_skin(url));
-  service_fn!(get_cape(url: Url) -> Cape, |h| h.get_cape(url));
-  service_fn!(add_skin(png: Vec<u8>) -> Skin, |h| h.add_skin(png));
   service_fn!(remove_skin(id: String) -> (), |h| h.remove_skin(&id));
   service_fn!(change_skin(id: String) -> (), |h| h.change_skin(&id));
   service_fn!(

@@ -25,7 +25,7 @@ use proton_components::widgets::{
 };
 use proton_content::{
   ContentError, ContentExt,
-  model::{InstallPlan, PickRef, PlanReason, VersionInfo},
+  model::{InstallPlan, PickRef, VersionInfo},
 };
 use proton_profiles::{ProfilesExt, config::Profile};
 
@@ -52,7 +52,7 @@ pub fn plan_rows(plan: &InstallPlan) -> Vec<(String, String, bool)> {
       plan
         .items
         .iter()
-        .filter(|i| i.reason == PlanReason::Dependency)
+        .filter(|i| i.dependency_of.is_some())
         .map(|i| {
           (
             i.name.clone(),
@@ -623,7 +623,6 @@ mod tests {
           icon_url: None,
           kind: ContentKind::Mod,
           version: version("1", Channel::Release),
-          reason: PlanReason::Requested,
           dependency_of: None,
           replaces: None,
         },
@@ -632,7 +631,6 @@ mod tests {
           icon_url: None,
           kind: ContentKind::Mod,
           version: version("2", Channel::Release),
-          reason: PlanReason::Dependency,
           dependency_of: Some("iris".into()),
           replaces: None,
         },

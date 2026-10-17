@@ -19,7 +19,7 @@ use gpui_kit::{
 };
 use proton_components::widgets::{chip, content::ProjectIcon, form::VersionSelect};
 use proton_components::widgets::{colors, content::alert, form::filled};
-use proton_config::SettingsExt;
+use proton_config::settings::{mem_fits, system_max_mem};
 use proton_content::{
   ContentError, ContentExt,
   model::{PackPlan, PackSource, Source, VersionInfo},
@@ -419,13 +419,13 @@ impl Render for ModpackInstallDialog {
       .and_then(|p| p.recommended_memory_mb)
       .filter(|_| self.profile.is_none())
       .map(|mb| {
-        let max = cx.settings().get(cx).system_max_mem;
-        let max = (max > 0).then_some(max);
-        if logic::memory_fits(mb, max) {
-          let mut text = format!("The pack asks for {}.", gb(mb));
-          if let Some(max) = max {
-            text += &format!(" Your system has {}, so nothing needs changing.", gb(max));
-          }
+        let max = system_max_mem();
+        if mem_fits(mb) {
+          let text = format!(
+            "The pack asks for {}. Your system has {}, so nothing needs changing.",
+            gb(mb),
+            gb(max)
+          );
           alert(
             Some(IconName::Info),
             "Memory is set up for you",
@@ -437,7 +437,7 @@ impl Render for ModpackInstallDialog {
           let text = format!(
             "The pack asks for {}, but your system only has {}. The game may run slowly or crash.",
             gb(mb),
-            gb(max.unwrap_or(0))
+            gb(max)
           );
           alert(
             Some(IconName::TriangleAlert),

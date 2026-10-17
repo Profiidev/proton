@@ -22,10 +22,6 @@ pub fn cache_dir() -> Result<PathBuf> {
   app_dir(dirs::cache_dir())
 }
 
-pub fn config_dir() -> Result<PathBuf> {
-  app_dir(dirs::config_dir())
-}
-
 /// `<local data>/io.profidev.proton/logs`, on macOS `~/Library/Logs/io.profidev.proton`
 pub fn log_dir() -> Result<PathBuf> {
   #[cfg(target_os = "macos")]
@@ -55,7 +51,7 @@ pub fn migrate() {
   }
 }
 
-pub async fn list_dirs_in_dir_path(path: PathBuf) -> io::Result<Vec<PathBuf>> {
+async fn list_dirs_in_dir_path(path: PathBuf) -> io::Result<Vec<PathBuf>> {
   let mut dirs = Vec::new();
   let mut stream = fs::read_dir(path).await?;
   while let Some(entry) = stream.next_entry().await? {

@@ -197,7 +197,7 @@ impl ConsoleBar {
 
 /// `Instance 2 · Steve`: numbered per profile in launch order
 pub(super) fn sibling_label(siblings: &[InstanceInfo], ix: usize) -> String {
-  match siblings.get(ix).and_then(|s| s.account_name.as_deref()) {
+  match siblings.get(ix).map(|s| s.account_name.as_str()) {
     Some(account) if !account.is_empty() => format!("Instance {} · {account}", ix + 1),
     _ => format!("Instance {}", ix + 1),
   }

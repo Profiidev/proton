@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use url::Url;
 
 use crate::{
@@ -13,7 +13,7 @@ use crate::{
 };
 use proton_utils::path;
 use proton_utils::{
-  download::{download_and_parse_file_no_hash_force, download_file_no_hash_force},
+  download::{download_and_parse_file_no_hash, download_file_no_hash},
   file::read_parse_file,
 };
 
@@ -60,11 +60,11 @@ impl Loader for FabricLikeLoader {
   async fn download_metadata(&self, client: &Client, version_path: &MCVersionPath) -> Result<()> {
     let url = Url::parse(&format!("{}/loader", self.base_url))?;
     let path = self.loader(version_path);
-    download_file_no_hash_force(client, &path, url).await?;
+    download_file_no_hash(client, &path, url, true).await?;
 
     let url = Url::parse(&format!("{}/game", self.base_url))?;
     let path = self.game(version_path);
-    download_file_no_hash_force(client, &path, url).await?;
+    download_file_no_hash(client, &path, url, true).await?;
     Ok(())
   }
 
@@ -112,12 +112,12 @@ impl Loader for FabricLikeLoader {
   }
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize)]
 struct LoaderVersionMeta {
   version: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Deserialize)]
 struct GameVersionMeta {
   version: String,
   stable: bool,
@@ -172,7 +172,7 @@ impl LoaderVersion for FabricLikeLoaderVersion {
       self.base_url, self.mc_version, self.loader_version
     ))?;
     let path = self.meta_path(version_path);
-    let meta: FabricVersionMeta = download_and_parse_file_no_hash_force(client, &path, url).await?;
+    let meta: FabricVersionMeta = download_and_parse_file_no_hash(client, &path, url, true).await?;
 
     let libraries = match meta.launcher_meta {
       FabricLauncherMeta::V1(FabricLauncherMetaV1 { libraries, .. }) => libraries,
@@ -265,7 +265,7 @@ impl LoaderVersion for FabricLikeLoaderVersion {
   }
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct FabricVersionMeta {
   loader: MavenLib,
@@ -274,48 +274,46 @@ struct FabricVersionMeta {
   launcher_meta: FabricLauncherMeta,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize)]
 struct MavenLib {
   maven: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Deserialize)]
 #[serde(untagged)]
 enum FabricLauncherMeta {
   V1(FabricLauncherMetaV1),
   V2(FabricLauncherMetaV2),
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct FabricLauncherMetaV1 {
   libraries: FabricLibraries,
   main_class: String,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct FabricLauncherMetaV2 {
   libraries: FabricLibraries,
   main_class: FabricMainClass,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize)]
 struct FabricLibraries {
   client: Vec<FabricLibrary>,
-  server: Vec<FabricLibrary>,
   common: Vec<FabricLibrary>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize)]
 struct FabricLibrary {
   name: String,
   url: Option<Url>,
   sha1: Option<String>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize)]
 struct FabricMainClass {
   client: String,
-  server: String,
 }

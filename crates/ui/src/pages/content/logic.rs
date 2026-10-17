@@ -36,11 +36,7 @@ pub fn word(kind: ContentKind) -> &'static str {
 pub use crate::content::logic::{plural, route_kind};
 
 pub fn source_label(source: Option<Source>) -> &'static str {
-  match source {
-    Some(Source::Modrinth) => "Modrinth",
-    Some(Source::CurseForge) => "CurseForge",
-    None => "Manual",
-  }
+  source.map_or("Manual", Source::name)
 }
 
 pub fn extension(kind: ContentKind) -> &'static str {
@@ -190,11 +186,9 @@ pub(crate) fn row(file_name: &str) -> Installed {
     enabled: true,
     manual: false,
     from_pack: false,
-    installed_at: None,
     source: None,
     project_id: None,
     version_id: None,
-    sha1: String::new(),
     name: None,
     icon_url: None,
     version_number: None,

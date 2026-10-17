@@ -24,7 +24,7 @@ use crate::{
   meta::{java::PlatformVersion, minecraft::ManifestVersion},
   paths::{JavaVersionPath, MCPath, MCVersionPath},
 };
-use proton_utils::future::FuturePool;
+use proton_utils::future::run_pool;
 
 mod assets;
 mod java;
@@ -33,9 +33,9 @@ mod manifest;
 
 #[derive(Error, Debug)]
 pub enum DownloadError {
-  #[error("NotFound")]
+  #[error("Version not found")]
   NotFound,
-  #[error("NotSupported")]
+  #[error("Not supported on this system")]
   NotSupported,
 }
 
@@ -125,13 +125,10 @@ where
   F: Future<Output = Result<Option<O>>> + Send + 'static,
   O: Send + 'static,
 {
-  let pool = FuturePool::new(futures);
-
-  let res = pool
-    .run_cb(None, |done, total| {
-      handle.status(update_id, status(done, total))
-    })
-    .await;
+  let res = run_pool(futures, |done, total| {
+    handle.status(update_id, status(done, total))
+  })
+  .await;
 
   let mut futures = Vec::new();
   for result in res {
@@ -175,9 +172,7 @@ where
 
   handle.status(update_id, status(0, total_size));
 
-  let pool = FuturePool::new(futures);
-  let results = pool.run(None).await;
-  for result in results {
+  for result in run_pool(futures, |_, _| {}).await {
     result??;
   }
 

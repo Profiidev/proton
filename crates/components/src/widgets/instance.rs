@@ -28,7 +28,7 @@ pub struct InstanceRow {
   uptime: SharedString,
   account: Option<SharedString>,
   memory_used: Option<u64>,
-  /// `settings.system_max_mem` in MB
+  /// total system memory in MB
   memory_total_mb: Option<u64>,
   card: bool,
   on_console: Option<Callback>,

@@ -10,6 +10,8 @@ use std::{
 };
 
 use proton_utils::log::ErrorLogExt;
+
+use crate::OfflineEvent;
 use tokio::net::TcpStream;
 use tracing::{debug, info};
 
@@ -17,9 +19,7 @@ use tracing::{debug, info};
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum OfflineMsg {
   Offline(bool),
-  /// First reconnect before the startup refresh succeeded, the app refreshes the manifests
-  Reconnected,
-  ManifestRefreshError,
+  Event(OfflineEvent),
 }
 
 /// Clone it into tokio tasks. The atomics make reads instant and checks not block each other.
@@ -63,7 +63,7 @@ impl OfflineHandle {
     if online {
       info!("Reconnected to the internet");
       if !self.init.swap(true, Ordering::SeqCst) {
-        self.send(OfflineMsg::Reconnected);
+        self.send(OfflineMsg::Event(OfflineEvent::Reconnected));
       }
     } else {
       info!("Offline state detected");
@@ -77,7 +77,7 @@ impl OfflineHandle {
   }
 
   pub fn manifest_refresh_failed(&self) {
-    self.send(OfflineMsg::ManifestRefreshError);
+    self.send(OfflineMsg::Event(OfflineEvent::ManifestRefreshError));
   }
 
   fn send(&self, msg: OfflineMsg) {
@@ -124,7 +124,7 @@ mod tests {
       msgs,
       [
         Offline(true),
-        Reconnected,
+        Event(OfflineEvent::Reconnected),
         Offline(false),
         Offline(true),
         Offline(false)
@@ -138,6 +138,10 @@ mod tests {
     handle.set_init();
     handle.report(false);
     handle.report(true);
-    assert!(!rx.try_iter().any(|m| m == OfflineMsg::Reconnected));
+    assert!(
+      !rx
+        .try_iter()
+        .any(|m| m == OfflineMsg::Event(OfflineEvent::Reconnected))
+    );
   }
 }

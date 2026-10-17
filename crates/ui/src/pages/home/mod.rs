@@ -13,7 +13,8 @@ use gpui_kit::{
 };
 use proton_components::widgets::{
   chip,
-  form::{alert, filled, icon_label},
+  content::alert,
+  form::{filled, icon_label},
   format::running_label,
   profile::{ProfileExternalLink, ProfileIcon},
 };
@@ -110,17 +111,23 @@ pub fn pack_banner(updates: &ModpackUpdates, profiles: &[Profile]) -> Option<Ban
 }
 
 fn banner(id: &'static str, b: Banner, button: &'static str, cx: &App) -> impl IntoElement {
-  alert(IconName::CircleArrowUp, b.title, b.description, cx)
-    .id(id)
-    .child(
-      div().self_center().mr(px(2.)).child(
-        Button::new((id, 0usize))
-          .cursor_pointer()
-          .outline()
-          .label(button)
-          .on_click(move |_, _, cx| cx.navigate(b.target.clone())),
-      ),
-    )
+  alert(
+    Some(IconName::CircleArrowUp),
+    b.title,
+    b.description,
+    None,
+    cx,
+  )
+  .id(id)
+  .child(
+    div().self_center().mr(px(2.)).child(
+      Button::new((id, 0usize))
+        .cursor_pointer()
+        .outline()
+        .label(button)
+        .on_click(move |_, _, cx| cx.navigate(b.target.clone())),
+    ),
+  )
 }
 
 /// Most recently played profile

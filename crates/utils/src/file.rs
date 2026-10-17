@@ -39,18 +39,9 @@ pub async fn file_hash(hash: &str, path: &PathBuf) -> Result<bool> {
   Ok(hash == found_hash)
 }
 
-pub fn hash_bytes(hash: &str, bytes: &[u8]) -> Result<bool> {
-  let mut hasher = Sha1::new();
-  hasher.update(bytes);
-  let found_hash = hex::encode(hasher.finalize());
-  Ok(hash == found_hash)
-}
-
-pub fn bytes_hash(bytes: &[u8]) -> Result<String> {
-  let mut hasher = Sha1::new();
-  hasher.update(bytes);
-  let found_hash = hex::encode(hasher.finalize());
-  Ok(found_hash)
+/// Hex sha1 of `bytes`
+pub fn bytes_hash(bytes: &[u8]) -> String {
+  hex::encode(Sha1::digest(bytes))
 }
 
 pub async fn read_parse_file<R: DeserializeOwned>(path: &PathBuf) -> Result<R> {

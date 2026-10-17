@@ -63,7 +63,7 @@ they send through the handle.
 - Code without a gpui context: `Settings::load()?` (reads `store.json`).
 - Store: `proton_store::store().get_or_default(KEY)?`, `.set(KEY, &v)?` (saves atomically),
   `.delete(KEY)?`. Same file and format as the tauri app.
-- Paths: `proton_utils::dir::{data_dir, cache_dir, config_dir, log_dir, download_dir}()?`
+- Paths: `proton_utils::dir::{data_dir, cache_dir, log_dir, download_dir}()?`
   replace `handle.path().app_*_dir()?` one to one.
 
 ## Errors and logs

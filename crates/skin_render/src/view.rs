@@ -26,7 +26,6 @@ pub struct SkinViewer {
   model: ModelType,
   back: BackEquipment,
   animation: Animation,
-  auto_rotate: bool,
   size: Size<Pixels>,
   yaw: f32,
   pitch: f32,
@@ -52,7 +51,6 @@ impl SkinViewer {
       model: ModelType::Classic,
       back: BackEquipment::Cape,
       animation: Animation::Idle,
-      auto_rotate: false,
       size: size(px(212.0), px(280.0)),
       yaw: 0.0,
       pitch: 0.0,
@@ -88,19 +86,13 @@ impl SkinViewer {
     cx.notify();
   }
 
-  /// skinview3d `autoRotate` (1 rad/s); off in the web app.
-  pub fn set_auto_rotate(&mut self, auto_rotate: bool, cx: &mut Context<Self>) {
-    self.auto_rotate = auto_rotate;
-    cx.notify();
-  }
-
   pub fn set_size(&mut self, size: Size<Pixels>, cx: &mut Context<Self>) {
     self.size = size;
     cx.notify();
   }
 
   fn animating(&self) -> bool {
-    self.animation != Animation::None || self.auto_rotate
+    self.animation != Animation::None
   }
 
   fn params(&self, scale: f32) -> RenderParams {
@@ -113,13 +105,12 @@ impl SkinViewer {
     RenderParams {
       width: (f32::from(self.size.width) * scale) as u32,
       height: (f32::from(self.size.height) * scale) as u32,
-      yaw: self.yaw + if self.auto_rotate { t } else { 0.0 },
+      yaw: self.yaw,
       pitch: self.pitch,
       model: self.model,
       back: self.back,
       animation: self.animation,
       time: t,
-      ..Default::default()
     }
   }
 
@@ -147,7 +138,7 @@ impl SkinViewer {
               }
             }
             Err(e) => {
-              eprintln!("skin render failed: {e:#}");
+              tracing::error!("skin render failed: {e:#}");
               this.failed = true;
             }
           }

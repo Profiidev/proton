@@ -30,8 +30,7 @@ pub enum DependencyKind {
   Embedded,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SearchSort {
   Relevance,
   Downloads,
@@ -39,19 +38,16 @@ pub enum SearchSort {
   Newest,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Environment {
   Client,
   Server,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ProjectSummary {
   pub source: Source,
   pub id: String,
-  pub slug: Option<String>,
   pub kind: ContentKind,
   pub name: String,
   pub author: String,
@@ -67,8 +63,7 @@ pub struct ProjectSummary {
   pub url: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone)]
 pub struct ProjectDetail {
   pub summary: ProjectSummary,
   pub body: String,
@@ -76,13 +71,13 @@ pub struct ProjectDetail {
   pub links: ProjectLinks,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct GalleryImage {
   pub url: String,
   pub title: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct ProjectLinks {
   pub source: Option<String>,
   pub issues: Option<String>,
@@ -90,8 +85,7 @@ pub struct ProjectLinks {
   pub discord: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FileInfo {
   pub file_name: String,
   /// None for restricted CurseForge files
@@ -102,16 +96,14 @@ pub struct FileInfo {
   pub primary: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Dependency {
   pub project_id: String,
   pub version_id: Option<String>,
   pub kind: DependencyKind,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq)]
 pub struct VersionInfo {
   pub source: Source,
   pub project_id: String,
@@ -126,8 +118,7 @@ pub struct VersionInfo {
   pub dependencies: Vec<Dependency>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq)]
 pub struct SearchQuery {
   pub kind: ContentKind,
   pub query: String,
@@ -142,14 +133,14 @@ pub struct SearchQuery {
   pub compatible_with: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct SearchResult {
   pub hits: Vec<ProjectSummary>,
   pub total: u64,
   pub warnings: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Category {
   pub name: String,
   pub header: String,
@@ -164,6 +155,16 @@ pub struct FileHashes {
   pub fingerprint: u32,
 }
 
+impl Channel {
+  pub fn as_str(self) -> &'static str {
+    match self {
+      Channel::Release => "release",
+      Channel::Beta => "beta",
+      Channel::Alpha => "alpha",
+    }
+  }
+}
+
 impl ContentKind {
   /// Content folder inside the profile, None for modpacks (they are profiles)
   pub fn dir(self) -> Option<&'static str> {
@@ -176,19 +177,16 @@ impl ContentKind {
   }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Installed {
   pub kind: ContentKind,
   pub file_name: String,
   pub enabled: bool,
   pub manual: bool,
   pub from_pack: bool,
-  pub installed_at: Option<String>,
   pub source: Option<Source>,
   pub project_id: Option<String>,
   pub version_id: Option<String>,
-  pub sha1: String,
   pub name: Option<String>,
   pub icon_url: Option<String>,
   pub version_number: Option<String>,
@@ -197,16 +195,14 @@ pub struct Installed {
   pub active: Option<bool>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone)]
 pub struct PickRef {
   pub source: Source,
   pub project_id: String,
   pub version_id: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ManualFile {
   pub source: Source,
   pub project_id: String,
@@ -214,60 +210,45 @@ pub struct ManualFile {
   pub file_name: String,
   pub sha1: String,
   pub size: u64,
-  pub project_url: String,
   /// Browser link that starts the download of this exact file
   pub download_url: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum PlanReason {
-  Requested,
-  Dependency,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone)]
 pub struct PlanItem {
   pub name: String,
   pub icon_url: Option<String>,
   pub kind: ContentKind,
   pub version: VersionInfo,
-  pub reason: PlanReason,
   /// Project id that required this item
   pub dependency_of: Option<String>,
   /// File name this item replaces
   pub replaces: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ProjectRef {
   pub project_id: String,
   pub name: String,
   /// Project id of the item that requires this installed project
-  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub dependency_of: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq)]
 pub struct OptionalRef {
   pub source: Source,
   pub project_id: String,
   pub name: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Conflict {
   pub project_id: String,
   pub name: String,
   pub reason: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone)]
 pub struct InstallPlan {
   pub profile: String,
   pub items: Vec<PlanItem>,
@@ -278,12 +259,7 @@ pub struct InstallPlan {
   pub total_bytes: u64,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-#[serde(
-  tag = "type",
-  rename_all = "lowercase",
-  rename_all_fields = "camelCase"
-)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PackSource {
   Remote {
     source: Source,
@@ -295,8 +271,7 @@ pub enum PackSource {
   },
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PackFile {
   pub path: String,
   pub size: u64,
@@ -305,16 +280,14 @@ pub struct PackFile {
   pub url: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct PackCounts {
   pub mods: usize,
   pub resourcepacks: usize,
   pub shaders: usize,
-  pub other: usize,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone)]
 pub struct PackPlan {
   pub name: String,
   pub version: String,
@@ -330,10 +303,13 @@ pub struct PackPlan {
   pub counts: PackCounts,
   pub recommended_memory_mb: Option<u64>,
   pub total_bytes: u64,
+  /// The local pack file, remote packs are cached until installed
+  pub archive: std::path::PathBuf,
+  /// Override folders inside the archive
+  pub overrides: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq)]
 pub struct UpdateInfo {
   pub profile: String,
   pub kind: ContentKind,
@@ -347,8 +323,7 @@ pub struct UpdateInfo {
 }
 
 /// A newer version of the pack a profile was installed from
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PackUpdate {
   /// Installed version number, empty when the provider no longer lists it
   pub current: String,

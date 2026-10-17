@@ -1,4 +1,4 @@
-//! Minecraft log parsing (`logs.ts`) and the batched [`LogBuffer`] model shown by the
+//! Minecraft log parsing and the batched [`LogBuffer`] model shown by the
 //! components `LogWindow`; the profiles service appends live instance output to it.
 
 use std::sync::LazyLock;

@@ -1,4 +1,4 @@
-//! Service methods, one per former tauri command. Read-only lookups return a future that runs on
+//! Service methods. Read-only lookups return a future that runs on
 //! the tokio runtime, mutations return a `Task` that refreshes the profile's installed entity.
 
 use std::{
@@ -487,6 +487,7 @@ impl Content {
             .await
             .check_online_state(&handle.offline)
             .await?;
+          check_plan(&plan)?;
 
           if execute_install(
             providers,
@@ -540,11 +541,6 @@ impl Content {
       (job.progress)(DownloadCheckStatus::ContentResolve);
       let profiles = &handle.profiles;
       let res = async {
-        let cache = dir::cache_dir()?;
-        let archive = modpack::archive(&handle.providers, &cache, &plan.source)
-          .await
-          .check_online_state(&handle.offline)
-          .await?;
         let icon = modpack::icon(&handle.providers, &plan).await;
         let id = profiles
           .store
@@ -581,7 +577,6 @@ impl Content {
           let done = modpack::install_files(
             &handle.providers,
             &dir,
-            &archive,
             &plan,
             job.id,
             &job.cancel,
@@ -653,13 +648,10 @@ impl Content {
             ))
           })
           .collect::<std::result::Result<_, ContentError>>()?;
-        let cache = dir::cache_dir()?;
         let res = async {
-          let archive = modpack::archive(&handle.providers, &cache, &plan.source).await?;
           let done = modpack::install_files(
             &handle.providers,
             &dir,
-            &archive,
             &plan,
             job.id,
             &job.cancel,

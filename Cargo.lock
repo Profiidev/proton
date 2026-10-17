@@ -5810,7 +5810,6 @@ dependencies = [
  "proton_store",
  "proton_utils",
  "proton_versions",
- "reqwest 0.13.5",
  "serde",
  "serde_json",
  "sysinfo 0.39.6",
@@ -5838,7 +5837,7 @@ dependencies = [
 
 [[package]]
 name = "proton_skin_render"
-version = "0.1.0"
+version = "0.2.14"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -5846,6 +5845,7 @@ dependencies = [
  "gpui-kit",
  "image",
  "pollster 0.4.0",
+ "tracing",
  "wgpu",
 ]
 
@@ -5921,7 +5921,6 @@ dependencies = [
  "anyhow",
  "async-trait",
  "async_zip",
- "chrono",
  "flume",
  "gpui-kit",
  "proton_config",

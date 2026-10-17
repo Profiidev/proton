@@ -403,14 +403,13 @@ impl DiscoverPage {
 
 /// Same search except the paging offset
 fn same_query(a: &SearchQuery, b: &SearchQuery) -> bool {
-  let key = |q: &SearchQuery| {
-    serde_json::to_string(&SearchQuery {
-      offset: 0,
-      ..q.clone()
-    })
-    .unwrap_or_default()
-  };
-  key(a) == key(b)
+  SearchQuery {
+    offset: 0,
+    ..a.clone()
+  } == SearchQuery {
+    offset: 0,
+    ..b.clone()
+  }
 }
 
 fn toggle<T: PartialEq>(list: &mut Vec<T>, value: T, on: bool) {
@@ -553,7 +552,7 @@ impl DiscoverPage {
         check_row(
           SharedString::from(format!("source-{s:?}")),
           self.filters.sources.contains(&s),
-          logic::source_label(s),
+          s.name(),
           cx.listener(move |this, on: &bool, _, cx| {
             toggle(&mut this.filters.sources, s, *on);
             this.refresh(cx);
@@ -815,7 +814,7 @@ impl DiscoverPage {
       project.name.clone(),
     )
     .icon(project.icon_url.clone().map(ImageSource::from))
-    .byline(logic::source_label(project.source), &project.author)
+    .byline(project.source.name(), &project.author)
     .description(project.description.clone())
     .tags(
       logic::card_tags(&project)

@@ -87,9 +87,7 @@ async fn spawn_instance(profiles: &Profiles, cx: &mut TestAppContext) -> String 
       .spawn()?;
     let store = handle.store.lock().await;
     let profile = store.profile(VANILLA).await?;
-    store
-      .add_instance(child, &profile, "Steve".into(), "uuid".into())
-      .await
+    store.add_instance(child, &profile, "Steve".into()).await
   })
   .await
   .unwrap()
@@ -218,9 +216,7 @@ fn groups_and_summary() {
     profile_id: profile.into(),
     version: "1.21".into(),
     loader: LoaderType::Vanilla,
-    loader_version: None,
-    account_name: None,
-    account_id: None,
+    account_name: String::new(),
   };
   let groups = group_by_profile(&[info("c", "b", 3), info("a", "a", 2), info("x", "b", 1)]);
   let ids: Vec<Vec<&str>> = groups

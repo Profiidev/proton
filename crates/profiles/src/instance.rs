@@ -47,16 +47,14 @@ pub struct InstanceInfo {
   pub profile_id: String,
   pub version: String,
   pub loader: LoaderType,
-  pub loader_version: Option<String>,
-  pub account_name: Option<String>,
-  pub account_id: Option<String>,
+  pub account_name: String,
 }
 
 #[derive(Error, Debug)]
 pub enum InstanceError {
-  #[error("Invalid Process State")]
+  #[error("Game process has no pid or output")]
   InvalidProcessState,
-  #[error("Not Found")]
+  #[error("Instance not found")]
   NotFound,
 }
 
@@ -68,7 +66,6 @@ impl Instance {
     data_dir: &Path,
     profile: &Profile,
     account_name: String,
-    account_id: String,
     instances: &Instances,
     tx: &flume::Sender<ProfilesMsg>,
   ) -> Result<()> {
@@ -89,9 +86,7 @@ impl Instance {
       profile_id: profile.id.clone(),
       version: profile.version.clone(),
       loader: profile.loader,
-      loader_version: profile.loader_version.clone(),
-      account_name: Some(account_name),
-      account_id: Some(account_id),
+      account_name,
     };
     debug!("Adding child instance with pid {pid} and id {}", info.id);
     let stop_signal = Arc::new(Notify::new());

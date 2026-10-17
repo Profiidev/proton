@@ -98,6 +98,8 @@ pub fn load(cx: &mut App) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+  use gpui_kit::{IntoElement, component::ActiveTheme};
+
   use super::*;
 
   #[test]
@@ -115,5 +117,16 @@ mod tests {
         .iter()
         .any(|p| p == "fonts/Geist-Regular.ttf")
     );
+  }
+
+  #[gpui_kit::test]
+  fn theme_and_font_load(cx: &mut gpui_kit::TestAppContext) {
+    let (handle, _) = crate::test_view::open(cx, |_, _| gpui_kit::div().into_any_element());
+    crate::test_view::draw(handle, cx);
+    cx.update(|cx| {
+      assert!(cx.theme().is_dark());
+      assert_eq!(cx.theme().theme_name(), THEME);
+      assert_eq!(cx.theme().font_family.as_ref(), "Geist");
+    });
   }
 }

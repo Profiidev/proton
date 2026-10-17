@@ -1,10 +1,9 @@
 use std::{io::Cursor, path::PathBuf};
 
-use anyhow::Result;
+use anyhow::{Result, bail};
 use image::ImageFormat;
 use reqwest::{Client, multipart::Form};
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 use tokio::fs;
 use tracing::debug;
 use url::Url;
@@ -112,7 +111,7 @@ impl SkinStore {
     head.write_to(&mut cursor, ImageFormat::Png)?;
     let head = cursor.into_inner();
 
-    let id = bytes_hash(skin)?;
+    let id = bytes_hash(skin);
     debug!("Saving skin with id: {}", id);
 
     let dir = skin_dir()?;
@@ -128,7 +127,7 @@ impl SkinStore {
   }
 
   async fn add_cape(&mut self, url: Url, cape: &[u8]) -> Result<Cape> {
-    let id = bytes_hash(cape)?;
+    let id = bytes_hash(cape);
     debug!("Saving cape with id: {}", id);
 
     let dir = skin_dir()?;
@@ -197,7 +196,7 @@ impl SkinStore {
   pub async fn select_skin(&mut self, id: &str, mc_token: &str) -> Result<ProfileInfo> {
     debug!("Selecting skin with id: {id}");
     let Some(skin) = self.skins.iter_mut().find(|s| s.id == id) else {
-      return Err(SkinChangeError::NotFound.into());
+      bail!("Skin {id} not found");
     };
 
     let profile = if let Some(url) = &skin.url {
@@ -207,8 +206,7 @@ impl SkinStore {
         .bearer_auth(mc_token)
         .json(&SkinChangeReq {
           variant: SkinVariant::Classic,
-          url: Some(url.clone()),
-          file: None,
+          url: url.clone(),
         })
         .send()
         .await?
@@ -252,14 +250,5 @@ impl SkinStore {
 #[derive(Serialize)]
 struct SkinChangeReq {
   variant: SkinVariant,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  url: Option<Url>,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  file: Option<Vec<u8>>,
-}
-
-#[derive(Error, Debug)]
-enum SkinChangeError {
-  #[error("Not Found")]
-  NotFound,
+  url: Url,
 }

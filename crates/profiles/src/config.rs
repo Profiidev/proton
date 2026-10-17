@@ -15,6 +15,15 @@ pub enum Source {
   CurseForge,
 }
 
+impl Source {
+  pub fn name(self) -> &'static str {
+    match self {
+      Source::Modrinth => "Modrinth",
+      Source::CurseForge => "CurseForge",
+    }
+  }
+}
+
 #[derive(Clone)]
 pub struct ProfileInfo {
   pub path: PathBuf,
@@ -54,7 +63,7 @@ pub struct ModpackRef {
   pub version_id: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct PlayHistoryFavoriteInfo {
   pub profile: Profile,
   pub quick_play: Option<QuickPlayInfo>,
@@ -98,7 +107,7 @@ impl From<QuickPlayInfo> for QuickPlay {
   }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
 pub struct ProfileUpdate {
   pub id: String,
   pub name: String,
@@ -112,8 +121,8 @@ pub struct ProfileUpdate {
 
 #[derive(Error, Debug)]
 pub enum ProfileError {
-  #[error("NotFound")]
+  #[error("Profile not found")]
   NotFound,
-  #[error("InvalidImage")]
+  #[error("Invalid image")]
   InvalidImage,
 }

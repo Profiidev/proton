@@ -1,8 +1,6 @@
 use std::{collections::HashMap, fmt::Display};
 
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
-use serde_json::{Value, value::Serializer};
+use serde::Deserialize;
 use url::Url;
 
 use super::{
@@ -10,32 +8,22 @@ use super::{
   java::{JavaVersion, Library},
 };
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Manifest {
-  pub latest: LatestVersion,
   pub versions: Vec<ManifestVersion>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct LatestVersion {
-  pub release: String,
-  pub snapshot: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ManifestVersion {
   pub id: String,
   pub r#type: VersionType,
   pub url: Url,
-  pub time: DateTime<Utc>,
-  pub release_time: DateTime<Utc>,
   pub sha1: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum VersionType {
   Release,
@@ -46,16 +34,16 @@ pub enum VersionType {
 
 impl Display for VersionType {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    let value = serde_json::to_value(self).unwrap();
-    let Value::String(value) = value.serialize(Serializer).unwrap() else {
-      unreachable!()
-    };
-
-    write!(f, "{value}")
+    f.write_str(match self {
+      Self::Release => "release",
+      Self::Snapshot => "snapshot",
+      Self::OldBeta => "old_beta",
+      Self::OldAlpha => "old_alpha",
+    })
   }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Version {
   pub id: String,
@@ -70,14 +58,14 @@ pub struct Version {
   pub r#type: VersionType,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Downloads {
   pub client: Download,
   pub server: Option<Download>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Download {
   pub url: Url,
@@ -85,7 +73,7 @@ pub struct Download {
   pub sha1: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct AssetIndex {
   pub id: String,
@@ -95,7 +83,7 @@ pub struct AssetIndex {
   pub url: Url,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Arguments {
   pub game: Vec<Argument>,
@@ -145,34 +133,34 @@ impl Default for Arguments {
   }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", untagged)]
 pub enum Argument {
   String(String),
   Object(ArgumentRule),
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ArgumentRule {
   pub rules: Vec<Rule>,
   pub value: ArgumentValue,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", untagged)]
 pub enum ArgumentValue {
   String(String),
   List(Vec<String>),
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Assets {
   pub objects: HashMap<String, Asset>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Asset {
   pub hash: String,
