@@ -47,11 +47,13 @@ pub enum CreateTab {
 }
 
 /// Opens the dialog on the Custom tab
-pub fn open(window: &mut Window, cx: &mut App) {
+pub fn open(window: &mut Window, cx: &mut App) -> Entity<CreateDialog> {
   let view = cx.new(|cx| CreateDialog::new(window, cx));
+  let dialog = view.clone();
   window.open_dialog(cx, move |dialog, _, _| {
     dialog.w(px(620.)).p_6().child(view.clone())
   });
+  dialog
 }
 
 pub struct CreateDialog {

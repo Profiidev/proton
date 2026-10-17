@@ -627,11 +627,12 @@ fn create_dialog_closes_on_cancel_and_on_success(cx: &mut TestAppContext) {
   let (handle, _) = open(cx, ProfilesPage::new);
   let open_dialog = |cx: &mut TestAppContext| {
     cx.update_window(handle, |_, window, cx| {
-      create::open(window, cx);
+      let dialog = create::open(window, cx);
       window.render_frame(cx);
       assert!(window.has_active_dialog(cx));
+      dialog
     })
-    .unwrap();
+    .unwrap()
   };
   open_dialog(cx);
   cx.update_window(handle, |_, window, cx| {
@@ -641,11 +642,11 @@ fn create_dialog_closes_on_cancel_and_on_success(cx: &mut TestAppContext) {
   })
   .unwrap();
 
-  open_dialog(cx);
-  // the version list loads in the background
-  poll(cx, |_| true);
-  std::thread::sleep(Duration::from_millis(50));
-  cx.run_until_parked();
+  let dialog = open_dialog(cx);
+  // the version list loads in the background, create needs a version
+  poll(cx, |cx| {
+    dialog.read(cx).version.read(cx).value(cx).is_some()
+  });
   cx.update_window(handle, |_, window, cx| {
     window.render_frame(cx);
     window.click("name", cx);

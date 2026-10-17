@@ -432,7 +432,9 @@ impl Render for ProfilesPage {
           IconName::Plus,
           "New profile",
         ))
-        .on_click(|_, window, cx| create::open(window, cx)),
+        .on_click(|_, window, cx| {
+          create::open(window, cx);
+        }),
       );
 
     div()
