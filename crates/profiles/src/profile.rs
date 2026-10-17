@@ -320,7 +320,7 @@ pub async fn list_runs(log_dir: &Path) -> Result<Vec<DateTime<Utc>>> {
     {
       // the file name is the rfc3339 start time with `:` replaced by `-`
       let name = name.trim_end_matches(".log").replace("-", ":");
-      if let Ok(date) = DateTime::parse_from_str(&name, "%Y:%m:%dT%H:%M:%S.%f%:z") {
+      if let Ok(date) = DateTime::parse_from_str(&name, "%Y:%m:%dT%H:%M:%S%.f%:z") {
         res.push(date.to_utc());
       }
     }
@@ -704,15 +704,18 @@ mod tests {
   #[tokio::test]
   async fn runs_roundtrip_through_file_names() {
     let dir = tempfile::tempdir().unwrap();
-    let older = Utc::now() - Duration::hours(1);
-    let newer = Utc::now();
-    for t in [older, newer] {
+    // rfc3339 shortens the fraction to 0, 3, 6 or 9 digits, each must parse back the same
+    let at = |nanos| DateTime::from_timestamp(1_800_000_000, nanos).unwrap();
+    let times = [at(0), at(120_000_000), at(123_456_000), at(123_456_789)];
+    for t in times {
       fs::write(run_log_file(dir.path(), t), "x").await.unwrap();
     }
     fs::write(dir.path().join("garbage.log"), "x")
       .await
       .unwrap();
-    assert_eq!(list_runs(dir.path()).await.unwrap(), [newer, older]);
+    let mut newest_first = times;
+    newest_first.reverse();
+    assert_eq!(list_runs(dir.path()).await.unwrap(), newest_first);
     assert!(
       list_runs(&dir.path().join("missing"))
         .await
