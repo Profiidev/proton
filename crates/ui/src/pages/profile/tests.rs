@@ -28,14 +28,14 @@ fn copy_dir(from: &Path, to: &Path) {
   }
 }
 
-/// Services on a copy of `fixtures/data`, a window showing `build`
+/// Services on a copy of `fixtures`, a window showing `build`
 fn open<V: 'static + gpui::Render>(
   cx: &mut TestAppContext,
   build: impl FnOnce(&mut gpui::Window, &mut gpui::Context<V>) -> V + 'static,
 ) -> (AnyWindowHandle, Entity<V>, PathBuf) {
   cx.executor().allow_parking();
   let home = tempfile::tempdir().unwrap().keep();
-  let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/data");
+  let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures");
   copy_dir(&root, &home);
   // nextest runs every test in its own process, so the env var and the store do not leak
   unsafe { std::env::set_var("XDG_DATA_HOME", &home) };

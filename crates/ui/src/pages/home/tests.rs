@@ -62,7 +62,7 @@ fn renders_fixture_favorites_and_opens(cx: &mut TestAppContext) {
 #[test]
 fn continue_quick_play_only_when_newer() {
   let p: Profile = serde_json::from_str(include_str!(
-    "../../../../../fixtures/data/io.profidev.proton/profiles/11111111-1111-4111-8111-111111111111/profile.json"
+    "../../../../../fixtures/io.profidev.proton/profiles/11111111-1111-4111-8111-111111111111/profile.json"
   ))
   .unwrap();
   let mut plain = p.clone();

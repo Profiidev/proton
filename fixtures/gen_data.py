@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerates fixtures/data/io.profidev.proton (the committed reference data dir).
+"""Regenerates fixtures/io.profidev.proton (the committed reference data dir).
 
 Everything is fake and deterministic. Version manifests, loader indexes and skin/cape textures are
 public Mojang/loader data copied once from a real data dir (pass it as argv[1]); without it the
@@ -14,7 +14,7 @@ import sys
 import zlib
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1] / "data" / "io.profidev.proton"
+ROOT = Path(__file__).resolve().parent / "io.profidev.proton"
 TEX = "http://textures.minecraft.net/texture/"
 
 SKINS = [

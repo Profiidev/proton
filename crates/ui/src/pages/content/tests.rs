@@ -30,8 +30,7 @@ fn copy_dir(from: &Path, to: &Path) {
 
 fn fresh_data() -> (PathBuf, PathBuf) {
   let dir = tempfile::tempdir().unwrap().keep();
-  let fixture =
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/data/io.profidev.proton");
+  let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/io.profidev.proton");
   copy_dir(&fixture, &dir);
   proton_store::init_at(dir.join("store.json"));
   let prof = dir.join("profiles").join(FABRIC);

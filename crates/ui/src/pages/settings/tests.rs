@@ -1,4 +1,4 @@
-//! Each page against a temp copy of `fixtures/data` (Steve_Fixture active, Alex_Fixture)
+//! Each page against a temp copy of `fixtures` (Steve_Fixture active, Alex_Fixture)
 
 use std::{
   path::Path,
@@ -31,8 +31,7 @@ fn copy_dir(from: &Path, to: &Path) {
 /// The shell at `tab`, services loaded from the fixture data
 fn open(cx: &mut TestAppContext, tab: SettingsTab) -> AnyWindowHandle {
   cx.executor().allow_parking();
-  let fixtures =
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/data/io.profidev.proton");
+  let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/io.profidev.proton");
   let home = tempfile::tempdir().unwrap().keep();
   let data = home.join("io.profidev.proton");
   copy_dir(&fixtures.join("skins"), &data.join("skins"));
@@ -292,8 +291,7 @@ fn has(cx: &mut TestAppContext, handle: AnyWindowHandle, id: impl Into<gpui::Ele
 
 /// The fixture profile of `account` with `edit` applied, as the Minecraft API answers
 fn profile_json(account: &str, edit: impl FnOnce(&mut serde_json::Value)) -> String {
-  let fixtures =
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/data/io.profidev.proton");
+  let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/io.profidev.proton");
   let store: serde_json::Value =
     serde_json::from_slice(&std::fs::read(fixtures.join("store.json")).unwrap()).unwrap();
   let mut profile = store["accounts"][account]["profile"].clone();

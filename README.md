@@ -153,7 +153,7 @@ proton/
 │   ├── account/ config/ content/ profiles/ versions/
 │   └── store/ reqwest/ utils/
 ├── assets/                # theme, fonts, icons
-├── fixtures/              # test data (fixtures/data) and its generator
+├── fixtures/              # test data dir and its generator
 ├── packaging/             # icons and desktop file
 └── nix/, devenv.nix       # Nix package and dev environment
 ```

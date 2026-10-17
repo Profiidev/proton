@@ -25,12 +25,12 @@ fn copy_dir(from: &Path, to: &Path) {
   }
 }
 
-/// A temp copy of `fixtures/data` with every service initialized like `main.rs`
+/// A temp copy of `fixtures` with every service initialized like `main.rs`
 pub(crate) fn init_fixture(cx: &mut TestAppContext) -> PathBuf {
   cx.executor().allow_parking();
   let tmp = tempfile::tempdir().unwrap().keep();
   copy_dir(
-    &Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/data"),
+    &Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures"),
     &tmp,
   );
   // nextest runs each test in its own process; the versions service reads the data dir
@@ -546,7 +546,7 @@ fn create_icon_picker_skips_non_images_and_reports_bad_ones(cx: &mut TestAppCont
   let real = dir.path().join("real.jpeg");
   fs::copy(
     Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
-      "../../fixtures/data/io.profidev.proton/profiles/{FORGE}/image.png"
+      "../../fixtures/io.profidev.proton/profiles/{FORGE}/image.png"
     )),
     &real,
   )

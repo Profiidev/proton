@@ -125,7 +125,7 @@ mod tests {
 
   const FIXTURE: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../fixtures/data/io.profidev.proton/store.json"
+    "/../../fixtures/io.profidev.proton/store.json"
   );
 
   #[derive(Serialize, Deserialize, Default, PartialEq, Debug)]

@@ -178,7 +178,7 @@ Read `crates/utils/PATTERNS.md`; it is the source of truth. In short:
 | Packaging (deb, AppImage, nsis, dmg) | root `Cargo.toml` `[package.metadata.packager]`, `packaging/`, `just package`                                                                                 |
 | Nix package / dev shell              | `flake.nix`, `nix/package.nix`, `devenv.nix`                                                                                                                  |
 | CI                                   | `.github/workflows/` (`tests.yml`, `checks.yml`, `app-release.yml`, `cachix.yml`)                                                                             |
-| Test fixture data                    | `fixtures/data/io.profidev.proton` (regenerate with `fixtures/scripts/gen_data.py`)                                                                           |
+| Test fixture data                    | `fixtures/io.profidev.proton` (regenerate with `fixtures/gen_data.py`)                                                                                        |
 
 ## Data on disk
 
@@ -213,7 +213,7 @@ and `latest.json` shape, NSIS `publisher` keeps the registry keys. Users upgrade
 - Pure logic: `#[test]` / `#[tokio::test]` next to the code. gpui: `#[gpui::test]` with
   `TestAppContext`, `cx.run_until_parked()`.
 - Anything that saves: `proton_store::init_at(tmp)` first. UI tests use
-  `pages::profiles::tests::init_fixture` (temp copy of `fixtures/data`, `XDG_DATA_HOME` set,
+  `pages::profiles::tests::init_fixture` (temp copy of `fixtures`, `XDG_DATA_HOME` set,
   every service initialized like `main.rs`, reduce motion on) and `open(cx, View::new)`.
   `proton_components::test_view` (feature `test-support`) draws a closure in a themed window.
 - Perf: views call `render_count::hit::<Self>()` in `render`; `pages/tests.rs` checks every

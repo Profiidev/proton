@@ -18,8 +18,7 @@ const VANILLA: &str = "11111111-1111-4111-8111-111111111111";
 /// view is put into the returned slot (uncached, like the shell does)
 fn setup(cx: &mut TestAppContext) -> (AnyWindowHandle, Rc<RefCell<Option<AnyView>>>) {
   let dir = tempfile::tempdir().unwrap().keep();
-  let fixture =
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/data/io.profidev.proton");
+  let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/io.profidev.proton");
   let ok = std::process::Command::new("cp")
     .arg("-r")
     .arg(&fixture)
