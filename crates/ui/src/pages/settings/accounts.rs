@@ -9,7 +9,9 @@ use gpui_kit::{
     button::{Button, ButtonVariants},
     notification::{Notification, NotificationType},
   },
-  div, px,
+  div,
+  prelude::FluentBuilder,
+  px,
 };
 use proton_account::{AccountsExt, LoginState, auth::LoginStatus};
 use proton_components::widgets::{account::AccountImage, form::open_destroy_dialog};
@@ -65,6 +67,7 @@ impl AccountsPage {
       .action(move |_, _, _| {
         let page = page.clone();
         Button::new("cancel-login")
+          .cursor_pointer()
           .small()
           .outline()
           .label("Cancel")
@@ -176,11 +179,13 @@ impl Render for AccountsPage {
       ))
       .child(
         Button::new("add-account")
+          .cursor_pointer()
           .primary()
           .label("Add account")
           .icon(IconName::Plus)
           .loading(self.adding)
           .disabled(self.adding)
+          .when(self.adding, |b| b.cursor_default())
           .on_click(cx.listener(|this, _, window, cx| this.add(window, cx))),
       );
 
@@ -232,6 +237,7 @@ impl Render for AccountsPage {
         info.as_ref().map(|_| {
           let id = id.clone();
           Button::new(ElementId::Name(format!("select-{id}").into()))
+            .cursor_pointer()
             .outline()
             .label("Select")
             .on_click(move |_, window, cx| select(id.clone(), window, cx))
@@ -274,6 +280,7 @@ impl Render for AccountsPage {
           .children(action)
           .child(
             Button::new(ElementId::Name(format!("remove-{id}").into()))
+              .cursor_pointer()
               .ghost()
               .icon(Icon::new(IconName::Trash).text_color(theme.danger))
               .tooltip("Remove account")

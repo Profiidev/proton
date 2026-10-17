@@ -10,7 +10,9 @@ use gpui_kit::{
     input::{Input, InputEvent, InputState},
     notification::Notification,
   },
-  div, px,
+  div,
+  prelude::FluentBuilder,
+  px,
 };
 use proton_content::ContentExt;
 use proton_profiles::ProfilesExt;
@@ -93,16 +95,19 @@ impl Render for Duplicate {
         DialogFooter::new()
           .child(
             Button::new("cancel")
+              .cursor_pointer()
               .outline()
               .label("Cancel")
               .on_click(|_, window, cx| window.close_dialog(cx)),
           )
           .child(
             Button::new("duplicate")
+              .cursor_pointer()
               .primary()
               .label("Duplicate")
               .loading(self.busy)
               .disabled(self.busy || blank)
+              .when(self.busy || blank, |b| b.cursor_default())
               .on_click(cx.listener(|this, _, window, cx| this.submit(window, cx))),
           ),
       )

@@ -313,13 +313,13 @@ impl RenderOnce for ProfileCard {
 
     let button = if running {
       let f = self.on_stop;
-      filled_icon(Button::new("stop").danger())
+      filled_icon(Button::new("stop").cursor_pointer().danger())
         .icon(IconName::Square)
         .tooltip("Stop instances")
         .when_some(f, |b, f| b.on_click(move |_, w, cx| f(w, cx)))
     } else {
       let f = self.on_play;
-      filled_icon(Button::new("play").primary())
+      filled_icon(Button::new("play").cursor_pointer().primary())
         .icon(IconName::Play)
         .tooltip("Play profile")
         .when_some(f, |b, f| b.on_click(move |_, w, cx| f(w, cx)))
@@ -357,6 +357,7 @@ impl RenderOnce for ProfileExternalLink {
     let f = self.on_click;
     div().mt_2().flex().justify_center().child(
       Button::new("profiles-link")
+        .cursor_pointer()
         .outline()
         .gap_1p5()
         .child("Profiles")

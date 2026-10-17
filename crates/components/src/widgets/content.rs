@@ -320,15 +320,18 @@ impl RenderOnce for ProjectCard {
     let filled = self.action != CardAction::Update;
     let button = match self.action {
       CardAction::Installed => Button::new("install")
+        .cursor_pointer()
         .secondary()
         .small()
         .w_full()
         .disabled(true)
+        .cursor_default()
         .icon(IconName::Check)
         .label("Installed"),
       action => {
         let f = self.on_install;
         Button::new("install")
+          .cursor_pointer()
           .small()
           .w_full()
           .map(|b| {

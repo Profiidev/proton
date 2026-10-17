@@ -94,6 +94,7 @@ impl Render for AccountSelector {
     let muted = cx.theme().muted_foreground;
 
     let mut trigger = Button::new("account-selector")
+      .cursor_pointer()
       .ghost()
       .w_full()
       .h_12()
@@ -163,6 +164,7 @@ impl Render for AccountSelector {
               .child(div().p_2().child("No Accounts"))
               .child(
                 Button::new("add-one")
+                  .cursor_pointer()
                   .outline()
                   .small()
                   .label("Add One")
@@ -188,6 +190,7 @@ impl Render for AccountSelector {
                 let close = close.clone();
                 let select = id.clone();
                 Button::new(ElementId::Name(row_id))
+                  .cursor_pointer()
                   .ghost()
                   .w_full()
                   .h_12()

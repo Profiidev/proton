@@ -654,6 +654,7 @@ impl ProjectPage {
                 green_chip("Installed", cx).into_any_element()
               } else {
                 Button::new(("install-version", ix))
+                  .cursor_pointer()
                   .outline()
                   .small()
                   .label("Install")
@@ -683,6 +684,7 @@ impl ProjectPage {
       .when_some(target.filter(|_| !is_pack), |el, t| {
         el.child(
           Switch::new("show-all")
+            .cursor_pointer()
             .checked(self.show_all)
             .label(format!("Show all versions, not only those for {}", t.name))
             .on_click(cx.listener(|this, on: &bool, _, cx| {
@@ -939,6 +941,7 @@ impl Render for ProjectPage {
       (Some(u), _) => {
         let id = u.latest.id.clone();
         Button::new("install")
+          .cursor_pointer()
           .primary()
           .label(format!("Update to {}", u.latest.version_number))
           .on_click(
@@ -946,14 +949,20 @@ impl Render for ProjectPage {
           )
       }
       (None, Some(_)) => icon_label(
-        Button::new("install").secondary().disabled(true),
+        Button::new("install")
+          .cursor_pointer()
+          .secondary()
+          .disabled(true)
+          .cursor_default(),
         IconName::Check,
         "Installed",
       ),
       (None, None) => Button::new("install")
+        .cursor_pointer()
         .primary()
         .label("Install")
         .disabled(!is_pack && target.is_none())
+        .when(!is_pack && target.is_none(), |b| b.cursor_default())
         .on_click(cx.listener(|this, _, window, cx| this.install(None, window, cx))),
     };
 

@@ -208,6 +208,7 @@ impl Render for ManualDownloads {
                   )
                   .child(
                     Button::new(("download", ix))
+                      .cursor_pointer()
                       .outline()
                       .small()
                       .icon(IconName::Download)
@@ -224,15 +225,18 @@ impl Render for ManualDownloads {
             .mt_2()
             .child(
               Button::new("cancel")
+                .cursor_pointer()
                 .outline()
                 .label("Cancel")
                 .on_click(|_, window, cx| window.close_dialog(cx)),
             )
             .child(
               Button::new("continue")
+                .cursor_pointer()
                 .primary()
                 .label("Continue")
                 .disabled(!done)
+                .when(!done, |b| b.cursor_default())
                 .on_click(move |_, window, cx| {
                   window.close_dialog(cx);
                   on_done(found_paths.clone(), window, cx);

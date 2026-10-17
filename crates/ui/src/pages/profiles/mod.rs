@@ -348,7 +348,7 @@ impl ProfilesPage {
         .ok();
     });
     Popover::new(id)
-      .trigger(Button::new(id).outline().label(text))
+      .trigger(Button::new(id).cursor_pointer().outline().label(text))
       .content(move |_, _, cx| {
         let hover = cx.theme().accent;
         div()
@@ -441,7 +441,7 @@ impl Render for ProfilesPage {
       .child(self.filter_select(false, versions, cx))
       .child(
         filled(icon_label(
-          Button::new("new-profile").primary(),
+          Button::new("new-profile").cursor_pointer().primary(),
           IconName::Plus,
           "New profile",
         ))

@@ -9,7 +9,7 @@ use std::{
 
 use cargo_packager_updater::{Config, Update, UpdaterBuilder, semver::Version, url::Url};
 use gpui_kit::{
-  App, AppContext, Context, Entity, Global, SharedString, Task,
+  App, AppContext, Context, Entity, Global, SharedString, Styled, Task,
   component::{
     WindowExt,
     button::{Button, ButtonVariants},
@@ -345,6 +345,7 @@ pub fn check_on_start(cx: &mut App) {
       } else {
         let note = Notification::info(format!("Update available: {version}")).action(|_, _, cx| {
           Button::new("update")
+            .cursor_pointer()
             .primary()
             .label("Update")
             .on_click(cx.listener(|note, _, window, cx| {

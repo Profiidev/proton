@@ -235,6 +235,7 @@ impl Render for ProfileLogsPage {
     let level_page = page.clone();
 
     let levels = Button::new("levels")
+      .cursor_pointer()
       .outline()
       .label(levels_label)
       .dropdown_caret(true)
@@ -257,6 +258,7 @@ impl Render for ProfileLogsPage {
       });
 
     let run_menu = Button::new("runs")
+      .cursor_pointer()
       .outline()
       .label(run_label)
       .dropdown_caret(true)

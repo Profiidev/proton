@@ -484,8 +484,10 @@ impl Render for InstallDialog {
           })
           .child(radio_dot(
             Radio::new(SharedString::from(format!("radio-{}", p.id)))
+              .cursor_pointer()
               .checked(checked)
-              .disabled(!compat.ok),
+              .disabled(!compat.ok)
+              .when(!compat.ok, |b| b.cursor_default()),
             checked,
             cx,
           ))
@@ -582,17 +584,19 @@ impl Render for InstallDialog {
         DialogFooter::new()
           .child(
             Button::new("cancel")
+              .cursor_pointer()
               .outline()
               .label("Cancel")
               .on_click(|_, window, cx| window.close_dialog(cx)),
           )
           .child(
             filled(icon_label(
-              Button::new("install").primary(),
+              Button::new("install").cursor_pointer().primary(),
               IconName::Download,
               format!("Install to {target_name}"),
             ))
             .disabled(!can_install)
+            .when(!can_install, |b| b.cursor_default())
             .on_click(cx.listener(|this, _, window, cx| this.install(window, cx))),
           ),
       )

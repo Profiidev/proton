@@ -115,6 +115,7 @@ fn banner(id: &'static str, b: Banner, button: &'static str, cx: &App) -> impl I
     .child(
       div().self_center().mr(px(2.)).child(
         Button::new((id, 0usize))
+          .cursor_pointer()
           .outline()
           .label(button)
           .on_click(move |_, _, cx| cx.navigate(b.target.clone())),
@@ -260,7 +261,7 @@ impl HomePage {
       )
       .child(
         filled(icon_label(
-          Button::new("continue-play").primary(),
+          Button::new("continue-play").cursor_pointer().primary(),
           IconName::Play,
           if running > 0 {
             "Launch another"

@@ -148,6 +148,7 @@ impl Render for ContentRow {
 
     let toggle = if kind == ContentKind::Shader {
       let radio = Radio::new("toggle")
+        .cursor_pointer()
         .checked(entry.active == Some(true))
         .accessibility_label(format!("Use {name}"))
         .on_click({
@@ -160,6 +161,7 @@ impl Render for ContentRow {
       radio_dot(radio, entry.active == Some(true), cx).into_any_element()
     } else {
       Switch::new("toggle")
+        .cursor_pointer()
         .checked(entry.enabled)
         .accessibility_label(format!("Enable {name}"))
         .on_click(call(ContentPage::toggle))
@@ -176,6 +178,7 @@ impl Render for ContentRow {
       self.action(move |p, window, cx| p.ask_remove(vec![file.clone()], window, cx))
     };
     let menu = Button::new("menu")
+      .cursor_pointer()
       .ghost()
       .small()
       .size_7() // shadcn icon-sm
@@ -227,6 +230,7 @@ impl Render for ContentRow {
       .children(grip)
       .child(
         Checkbox::new("select")
+          .cursor_pointer()
           .checked(selected)
           .accessibility_label(format!("Select {name}"))
           .on_click(call(ContentPage::select)),
@@ -309,6 +313,7 @@ impl Render for ContentRow {
             let file = file.clone();
             el.child(
               Button::new("update")
+                .cursor_pointer()
                 .outline()
                 .xsmall()
                 .label("Update")

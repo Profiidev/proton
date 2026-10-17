@@ -105,6 +105,7 @@ impl Render for InstanceLogsPage {
       .child(div().flex_1().min_h(px(480.)).child(log))
       .child(
         Switch::new("follow")
+          .cursor_pointer()
           .checked(self.follow)
           .label("Follow new output")
           .on_click(move |checked, _, cx| {
@@ -244,6 +245,7 @@ impl Render for ConsoleBar {
       )
       .child(
         Button::new("instance-select")
+          .cursor_pointer()
           .outline()
           .w(px(220.))
           .justify_between()
@@ -263,6 +265,7 @@ impl Render for ConsoleBar {
       )
       .child(
         Button::new("stop")
+          .cursor_pointer()
           .danger()
           .label("Stop")
           .on_click(move |_, window, cx| {
@@ -273,12 +276,12 @@ impl Render for ConsoleBar {
     let modes = ToggleGroup::new("mode")
       .outline()
       .segmented()
-      .children(
-        MODES
-          .iter()
-          .enumerate()
-          .map(|(ix, (label, _))| Toggle::new(ix).label(*label).checked(ix == self.mode)),
-      )
+      .children(MODES.iter().enumerate().map(|(ix, (label, _))| {
+        Toggle::new(ix)
+          .cursor_pointer()
+          .label(*label)
+          .checked(ix == self.mode)
+      }))
       .on_click(cx.listener(|this, checked: &Vec<bool>, _, cx| {
         // single select that can not be cleared
         if let Some(ix) = (0..checked.len()).find(|&ix| checked[ix] && ix != this.mode) {

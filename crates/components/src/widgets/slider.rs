@@ -229,6 +229,7 @@ impl Render for Slider {
             .right_0()
             .top(px(-10.))
             .bottom(px(-10.))
+            .cursor_pointer()
             .on_mouse_down(
               MouseButton::Left,
               cx.listener(|this, e: &MouseDownEvent, window, cx| {

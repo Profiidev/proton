@@ -161,12 +161,14 @@ impl RenderOnce for InstanceRow {
       })
       .child(
         Button::new("console")
+          .cursor_pointer()
           .outline()
           .label("Console")
           .when_some(console, |b, f| b.on_click(move |_, w, cx| f(w, cx))),
       )
       .child(
         Button::new("stop")
+          .cursor_pointer()
           .danger()
           .label("Stop")
           .when_some(stop, |b, f| b.on_click(move |_, w, cx| f(w, cx))),

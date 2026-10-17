@@ -171,6 +171,7 @@ impl Render for FromModpackTab {
             )
             .child(
               Button::new(("select", ix))
+                .cursor_pointer()
                 .outline()
                 .small()
                 .label("Select")
@@ -313,6 +314,7 @@ impl Render for ImportFileTab {
                 )
                 .child(
                   Button::new("choose-file")
+                    .cursor_pointer()
                     .outline()
                     .label("Choose file")
                     .on_click(cx.listener(|this, _, window, cx| this.choose(window, cx))),

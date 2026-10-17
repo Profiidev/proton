@@ -378,6 +378,7 @@ impl Tile {
             .group_hover(group, |s| s.opacity(1.))
             .child(
               Button::new(ElementId::NamedChild(Arc::new(self.id), "remove".into()))
+                .cursor_pointer()
                 .ghost()
                 .small()
                 .icon(Icon::new(IconName::Trash).text_color(theme.danger))
@@ -408,7 +409,14 @@ fn select_field(
         .font_weight(FontWeight::MEDIUM)
         .child(label),
     )
-    .child(Select::new(state).id(id).w_full().disabled(disabled))
+    .child(
+      Select::new(state)
+        .cursor_pointer()
+        .id(id)
+        .w_full()
+        .disabled(disabled)
+        .when(disabled, |b| b.cursor_default()),
+    )
     .into_any_element()
 }
 
@@ -530,10 +538,12 @@ impl Render for SkinsPage {
           ))
           .child(
             Button::new("add-skin")
+              .cursor_pointer()
               .primary()
               .label("Add skin")
               .loading(self.adding)
               .disabled(self.adding)
+              .when(self.adding, |b| b.cursor_default())
               .on_click(cx.listener(|this, _, window, cx| this.add(window, cx))),
           ),
       )

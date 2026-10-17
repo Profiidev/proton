@@ -369,6 +369,7 @@ impl SettingsPage {
           )
           .child(
             Button::new("change-icon")
+              .cursor_pointer()
               .outline()
               .label("Change icon")
               .on_click(cx.listener(|this, _, _, cx| this.pick_icon(cx))),

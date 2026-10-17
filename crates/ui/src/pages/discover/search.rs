@@ -450,7 +450,7 @@ fn check_row(
     .h(px(16.))
     .cursor_pointer()
     .on_click(move |_, window, cx| on_toggle(&!checked, window, cx))
-    .child(Checkbox::new("box").checked(checked))
+    .child(Checkbox::new("box").cursor_pointer().checked(checked))
     .child(label.into())
     .test_support()
     .into_any_element()
@@ -532,9 +532,11 @@ impl DiscoverPage {
           )
           .child(
             Switch::new("compatible")
+              .cursor_pointer()
               .flex_none()
               .checked(self.filters.compatible)
               .disabled(target.is_none())
+              .when(target.is_none(), |b| b.cursor_default())
               .on_click(cx.listener(|this, on: &bool, _, cx| {
                 this.filters.compatible = *on;
                 this.refresh(cx);
@@ -771,6 +773,7 @@ impl DiscoverPage {
         .pb_6()
         .child(
           Button::new("load-more")
+            .cursor_pointer()
             .outline()
             .label("Load more")
             .on_click(cx.listener(|this, _, _, cx| this.load_more(cx))),
@@ -910,6 +913,7 @@ impl Render for DiscoverPage {
           .child(
             div().w(px(176.)).child(
               Select::new(&self.sort)
+                .cursor_pointer()
                 .id("sort")
                 .title_prefix("Sort: ")
                 .accessibility_label("Sort"),

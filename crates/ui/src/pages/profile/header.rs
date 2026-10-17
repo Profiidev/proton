@@ -293,7 +293,7 @@ impl Render for ProfileHeader {
           let (id, name) = (id.clone(), name.clone());
           el.child(
             icon_label(
-              Button::new("launch-another").outline(),
+              Button::new("launch-another").cursor_pointer().outline(),
               IconName::Plus,
               "Launch another",
             )
@@ -301,7 +301,7 @@ impl Render for ProfileHeader {
           )
           .child(
             filled(icon_label(
-              Button::new("stop").danger(),
+              Button::new("stop").cursor_pointer().danger(),
               IconName::Square,
               if running > 1 { "Stop all" } else { "Stop" },
             ))
@@ -310,7 +310,7 @@ impl Render for ProfileHeader {
         } else {
           el.child(
             filled(icon_label(
-              Button::new("play").primary(),
+              Button::new("play").cursor_pointer().primary(),
               IconName::Play,
               "Play",
             ))
@@ -321,6 +321,7 @@ impl Render for ProfileHeader {
       .child({
         let id = id.clone();
         Button::new("favorite")
+          .cursor_pointer()
           .outline()
           .accessibility_label("Toggle favorite")
           .map(|b| {
@@ -334,6 +335,7 @@ impl Render for ProfileHeader {
       })
       .child(
         Button::new("menu")
+          .cursor_pointer()
           .outline()
           .icon(IconName::Ellipsis)
           .accessibility_label("Profile menu")

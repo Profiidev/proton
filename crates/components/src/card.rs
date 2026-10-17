@@ -119,7 +119,7 @@ mod tests {
                 .child(card_description("Description", cx)),
             )
             .child(card_content().child("Content"))
-            .footer(Button::new("ok").label("Ok")),
+            .footer(Button::new("ok").cursor_pointer().label("Ok")),
         )
         .child(Card::new().child(card_content().child("No footer")))
         .into_any_element()

@@ -110,11 +110,13 @@ impl Render for DownloadRowView {
                 .test_support()
                 .child(
                   Button::new(("download-cancel", id))
+                    .cursor_pointer()
                     .ghost()
                     .xsmall()
                     .icon(IconName::X)
                     .tooltip("Cancel download")
                     .disabled(row.cancel_requested)
+                    .when(row.cancel_requested, |b| b.cursor_default())
                     .on_click(move |_, _, cx| cx.versions().clone().cancel_download(id, cx)),
                 ),
             )
@@ -205,6 +207,7 @@ impl Render for DownloadsPanel {
       return div().into_any_element();
     }
     let trigger = Button::new("downloads")
+      .cursor_pointer()
       .ghost()
       .h_7()
       .px(px(10.))
@@ -247,10 +250,12 @@ fn panel(
         .child(div().font_medium().child("Downloads"))
         .child(
           Button::new("downloads-clear")
+            .cursor_pointer()
             .ghost()
             .xsmall()
             .label("Clear finished")
             .disabled(all_running)
+            .when(all_running, |b| b.cursor_default())
             .on_click(|_, _, cx| cx.versions().clone().clear_finished(cx)),
         ),
     )

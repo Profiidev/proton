@@ -7,7 +7,9 @@ use gpui_kit::{
     button::{Button, ButtonVariants},
     notification::NotificationType,
   },
-  div, px,
+  div,
+  prelude::FluentBuilder,
+  px,
 };
 use proton_components::widgets::form::SwitchTile;
 use proton_config::SettingsExt;
@@ -84,17 +86,21 @@ impl Render for AboutPage {
       | UpdateState::Installing { version: v } => {
         let busy = !matches!(state, UpdateState::Available { .. });
         Button::new("install-update")
+          .cursor_pointer()
           .primary()
           .label(format!("Install {v}"))
           .loading(busy)
           .disabled(busy)
+          .when(busy, |b| b.cursor_default())
           .on_click(|_, _, cx| crate::updater::install(cx))
       }
       state => Button::new("check-updates")
+        .cursor_pointer()
         .outline()
         .label("Check for updates")
         .loading(*state == UpdateState::Checking)
         .disabled(*state == UpdateState::Checking)
+        .when(*state == UpdateState::Checking, |b| b.cursor_default())
         .on_click(cx.listener(|this, _, window, cx| this.check(window, cx))),
     };
 

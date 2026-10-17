@@ -397,6 +397,7 @@ impl CreateDialog {
           .text_size(px(13.))
           .child(
             Switch::new("snapshots")
+              .cursor_pointer()
               .small()
               .checked(snapshots)
               .on_click(|checked, _, cx| {
@@ -519,16 +520,19 @@ impl Render for CreateDialog {
             .gap_2()
             .child(
               Button::new("cancel")
+                .cursor_pointer()
                 .outline()
                 .label("Cancel")
                 .on_click(|_, window, cx| window.close_dialog(cx)),
             )
             .child(
               Button::new("create")
+                .cursor_pointer()
                 .primary()
                 .label("Create profile")
                 .loading(submitting)
                 .disabled(submitting)
+                .when(submitting, |b| b.cursor_default())
                 .on_click(cx.listener(|this, _, window, cx| this.submit(window, cx))),
             ),
         )

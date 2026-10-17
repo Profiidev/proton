@@ -46,12 +46,16 @@ pub fn open_destroy_dialog(
       .close_button(true)
       .child(DialogDescription::new().child(description.clone()))
       .footer(
-        DialogFooter::new().child(Button::new("ok").danger().label(button.clone()).on_click(
-          move |_, window, cx| {
-            on_confirm(window, cx);
-            window.close_dialog(cx);
-          },
-        )),
+        DialogFooter::new().child(
+          Button::new("ok")
+            .cursor_pointer()
+            .danger()
+            .label(button.clone())
+            .on_click(move |_, window, cx| {
+              on_confirm(window, cx);
+              window.close_dialog(cx);
+            }),
+        ),
       )
   });
 }
@@ -182,6 +186,7 @@ impl Render for VersionSelect {
     // the web select is an outline button: medium text centered, no chevron (the empty icon
     // keeps its 12px + 4px gap, the left padding balances it)
     Select::new(&self.state)
+      .cursor_pointer()
       .id("version-select")
       .w_full()
       .icon(Icon::empty())
@@ -196,6 +201,7 @@ impl Render for VersionSelect {
       })
       .accessibility_label(self.label.clone())
       .disabled(self.disabled)
+      .when(self.disabled, |b| b.cursor_default())
   }
 }
 
@@ -260,8 +266,10 @@ impl RenderOnce for SwitchTile {
       })
       .child(
         Switch::new("switch")
+          .cursor_pointer()
           .checked(checked)
           .disabled(disabled)
+          .when(disabled, |b| b.cursor_default())
           .accessibility_label(self.title.clone())
           .when_some(on_change, |s, f| s.on_change(move |v, w, cx| f(v, w, cx))),
       )
@@ -349,9 +357,11 @@ impl RenderOnce for SwitchTooltip {
       )
       .child(
         Switch::new("switch")
+          .cursor_pointer()
           .ml_auto()
           .checked(self.checked)
           .disabled(self.disabled)
+          .when(self.disabled, |b| b.cursor_default())
           .when_some(self.on_change, |s, f| {
             s.on_change(move |v, w, cx| f(v, w, cx))
           }),
@@ -532,6 +542,7 @@ mod tests {
       move |_, _| {
         let confirmed = confirmed.clone();
         Button::new("open")
+          .cursor_pointer()
           .danger()
           .label("Stop")
           .on_click(move |_, window, cx| {

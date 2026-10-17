@@ -134,6 +134,7 @@ impl Render for MinecraftPage {
           )
           .child(
             Button::new(ElementId::Name(format!("remove-dir-{label}").into()))
+              .cursor_pointer()
               .ghost()
               .icon(IconName::X)
               .tooltip(format!("Remove {label}"))
@@ -149,6 +150,7 @@ impl Render for MinecraftPage {
       .child(
         div().flex().child(
           Button::new("add-folder")
+            .cursor_pointer()
             .outline()
             .small()
             // shadcn size sm, the kit's small is 24px

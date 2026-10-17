@@ -306,7 +306,7 @@ impl QuickPlayPage {
           let (rm_id, rm_item) = (id.clone(), item.clone());
           el.child(
             filled(icon_label(
-              Button::new("play").primary(),
+              Button::new("play").cursor_pointer().primary(),
               IconName::Play,
               "Play",
             ))
@@ -314,6 +314,7 @@ impl QuickPlayPage {
           )
           .child(
             Button::new("favorite")
+              .cursor_pointer()
               .outline()
               .accessibility_label(if favorite {
                 "Remove from favorites"
@@ -333,14 +334,16 @@ impl QuickPlayPage {
           )
           .child(
             Button::new("remove")
+              .cursor_pointer()
               .outline()
               .accessibility_label("Delete world")
               .icon(Icon::new(IconName::Trash).text_color(theme.danger))
               .on_click(move |_, window, cx| remove(rm_id.clone(), rm_item.clone(), window, cx)),
           )
         } else {
-          el.children(status)
-            .child(filled(Button::new("play").primary().label("Join")).on_click(play))
+          el.children(status).child(
+            filled(Button::new("play").cursor_pointer().primary().label("Join")).on_click(play),
+          )
         }
       })
       .test_support()

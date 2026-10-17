@@ -92,10 +92,12 @@ impl Render for TargetPicker {
     let empty = shown.is_empty() && needle.is_empty();
 
     let trigger = Button::new("target-picker")
+      .cursor_pointer()
       .outline()
       .h_10()
       .max_w_full()
       .disabled(empty)
+      .when(empty, |b| b.cursor_default())
       .child(
         div()
           .flex()
@@ -159,6 +161,7 @@ impl Render for TargetPicker {
                 let id = p.id.clone();
                 let popover = popover.clone();
                 Button::new(format!("target-{}", p.id))
+                  .cursor_pointer()
                   .map(|b| if *selected { b.secondary() } else { b.ghost() })
                   .h_auto()
                   .p_2()
@@ -187,6 +190,7 @@ impl Render for TargetPicker {
                           ))),
                       ),
                   )
+                  .cursor_pointer()
                   .on_click(move |_, window, cx| {
                     set_target(cx, Some(id.clone()));
                     popover.update(cx, |p, cx| p.dismiss(window, cx));

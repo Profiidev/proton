@@ -248,6 +248,7 @@ impl Render for Gallery {
             .child(self.image.clone())
             .child(
               Button::new("destroy")
+                .cursor_pointer()
                 .danger()
                 .label("Stop instance")
                 .on_click(|_, window, cx| {

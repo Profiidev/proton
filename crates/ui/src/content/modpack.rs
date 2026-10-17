@@ -556,7 +556,7 @@ impl Render for ModpackInstallDialog {
         },
       )
       .child(
-        Checkbox::new("start")
+        Checkbox::new("start").cursor_pointer()
           .checked(self.start)
           .label("Start the game when the download finishes")
           .on_click(cx.listener(|this, checked: &bool, _, cx| {
@@ -567,14 +567,14 @@ impl Render for ModpackInstallDialog {
       .child(
         DialogFooter::new()
           .child(
-            Button::new("cancel")
+            Button::new("cancel").cursor_pointer()
               .outline()
               .label("Cancel")
               .on_click(|_, window, cx| window.close_dialog(cx)),
           )
           .child(
-            filled(Button::new("install").primary().label(label))
-              .disabled(!can)
+            filled(Button::new("install").cursor_pointer().primary().label(label))
+              .disabled(!can).when(!can, |b| b.cursor_default())
               .on_click(cx.listener(|this, _, window, cx| this.install(window, cx))),
           ),
       )

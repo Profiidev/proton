@@ -166,9 +166,11 @@ impl Render for GameSettingsForm {
               .child("Custom size (1.13+)")
               .child(
                 Switch::new("use-custom")
+                  .cursor_pointer()
                   .small()
                   .checked(use_custom)
                   .disabled(self.disabled)
+                  .when(self.disabled, |b| b.cursor_default())
                   .on_change(cx.listener(|this, checked: &bool, window, cx| {
                     let mut next = this.settings.clone();
                     next.use_custom = *checked;
@@ -449,11 +451,13 @@ impl Render for JavaSettingsForm {
             )
             .child(
               Button::new(ElementId::Name(format!("remove-env-{key}").into()))
+                .cursor_pointer()
                 .ghost()
                 .small()
                 .icon(Icon::new(IconName::Trash).text_color(theme.danger))
                 .tooltip(format!("Remove {key}"))
                 .disabled(disabled)
+                .when(disabled, |b| b.cursor_default())
                 .on_click(
                   cx.listener(move |this, _, window, cx| this.remove_env(&remove, window, cx)),
                 ),
@@ -527,9 +531,11 @@ impl Render for JavaSettingsForm {
               )
               .child(
                 Button::new("add-env")
+                  .cursor_pointer()
                   .outline()
                   .label("Add")
                   .disabled(disabled)
+                  .when(disabled, |b| b.cursor_default())
                   .on_click(cx.listener(|this, _, window, cx| this.add_env(window, cx))),
               ),
           ),

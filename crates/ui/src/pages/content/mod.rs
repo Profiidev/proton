@@ -520,6 +520,7 @@ impl ContentPage {
         el.child(
           div().w(px(144.)).flex_none().child(
             Select::new(&self.status_select)
+              .cursor_pointer()
               .id("status")
               .accessibility_label("Status"),
           ),
@@ -527,6 +528,7 @@ impl ContentPage {
       })
       .child(
         Button::new("check-updates")
+          .cursor_pointer()
           .outline()
           .map(|b| {
             if self.checking {
@@ -534,6 +536,7 @@ impl ContentPage {
               b.icon(IconName::RefreshCw)
                 .loading(true)
                 .disabled(true)
+                .cursor_default()
                 .label("Check for updates")
             } else {
               icon_label(b, IconName::RefreshCw, "Check for updates")
@@ -543,7 +546,7 @@ impl ContentPage {
       )
       .child(
         filled(icon_label(
-          Button::new("add").primary(),
+          Button::new("add").cursor_pointer().primary(),
           IconName::Plus,
           format!("Add {noun}s"),
         ))
@@ -574,6 +577,7 @@ impl ContentPage {
         .child(
           div().absolute().top_2().right_2().child(
             Button::new("update-all")
+              .cursor_pointer()
               .primary()
               .small()
               .h_7()
@@ -606,6 +610,7 @@ impl ContentPage {
         .when(self.summary.selected_updates, |el| {
           el.child(
             Button::new("bulk-update")
+              .cursor_pointer()
               .outline()
               .label("Update")
               .on_click(cx.listener(|this, _, _, cx| {
@@ -622,6 +627,7 @@ impl ContentPage {
         .when(toggles, |el| {
           el.child(
             Button::new("bulk-enable")
+              .cursor_pointer()
               .outline()
               .label("Enable")
               .on_click(cx.listener(|this, _, _, cx| {
@@ -631,6 +637,7 @@ impl ContentPage {
           )
           .child(
             Button::new("bulk-disable")
+              .cursor_pointer()
               .outline()
               .label("Disable")
               .on_click(cx.listener(|this, _, _, cx| {
@@ -641,6 +648,7 @@ impl ContentPage {
         })
         .child(
           Button::new("bulk-remove")
+            .cursor_pointer()
             .outline()
             .text_color(cx.theme().danger)
             .map(|b| icon_label(b, IconName::Trash, "Remove"))
@@ -677,6 +685,7 @@ impl ContentPage {
       })
       .child(
         Checkbox::new("select-all")
+          .cursor_pointer()
           .checked(all)
           .accessibility_label(format!("Select all {noun}s"))
           .on_click(cx.listener(|this, on: &bool, _, cx| this.select_all(*on, cx))),
@@ -784,6 +793,7 @@ impl ContentPage {
             .justify_end()
             .child(radio_dot(
               Radio::new("toggle")
+                .cursor_pointer()
                 .checked(self.summary.no_shader)
                 .accessibility_label("Turn shaders off")
                 .on_click(cx.listener(|this, _, window, cx| this.set_shader(None, window, cx))),

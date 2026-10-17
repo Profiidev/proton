@@ -101,6 +101,7 @@ impl Render for InstancesPage {
       .when(running, |el| {
         el.child(
           Button::new("stop-all")
+            .cursor_pointer()
             .danger()
             .label("Stop all")
             .on_click(|_, window, cx| {
@@ -168,6 +169,7 @@ impl Render for InstancesPage {
             .child(div().flex_1())
             .child(
               Button::new("launch-another")
+                .cursor_pointer()
                 .outline()
                 .icon(Icon::new(IconName::Plus))
                 .label("Launch another")
