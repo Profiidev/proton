@@ -374,6 +374,8 @@ impl Tile {
             .absolute()
             .top_3()
             .right_3()
+            // the trash sits on the tile, without this its click wears the skin too
+            .occlude()
             .opacity(0.)
             .group_hover(group, |s| s.opacity(1.))
             .child(
