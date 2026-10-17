@@ -277,31 +277,24 @@ impl Render for ProfileLogsPage {
         let page = page.clone();
         menu
           .item(
-            PopupMenuItem::element(move |_, _| {
-              div()
-                .flex()
-                .items_center()
-                .gap_2()
-                .text_color(danger)
-                .child(Icon::new(IconName::Trash).size_4())
-                .child("Clear runs")
-            })
-            .on_click(move |_, window, cx| {
-              let Some(profile) = page.upgrade().map(|p| p.read(cx).profile.clone()) else {
-                return;
-              };
-              open_destroy_dialog(
-                window,
-                cx,
-                "Clear Logs",
-                "Are you sure you want to clear the logs of this profile?",
-                "Clear",
-                move |_, cx| {
-                  let task = cx.profiles().clear_logs(profile.clone());
-                  spawn_toast("Failed to clear the logs", task, cx);
-                },
-              );
-            }),
+            PopupMenuItem::element(move |_, _| div().text_color(danger).child("Clear runs"))
+              .icon(Icon::new(IconName::Trash).text_color(danger))
+              .on_click(move |_, window, cx| {
+                let Some(profile) = page.upgrade().map(|p| p.read(cx).profile.clone()) else {
+                  return;
+                };
+                open_destroy_dialog(
+                  window,
+                  cx,
+                  "Clear Logs",
+                  "Are you sure you want to clear the logs of this profile?",
+                  "Clear",
+                  move |_, cx| {
+                    let task = cx.profiles().clear_logs(profile.clone());
+                    spawn_toast("Failed to clear the logs", task, cx);
+                  },
+                );
+              }),
           )
           .max_h(px(320.))
           .scrollable(true)
