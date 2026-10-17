@@ -3,7 +3,7 @@ use gpui_kit::{
   ParentElement, Render, SharedString, StatefulInteractiveElement, Styled, Subscription, Window,
   assets::IconName,
   component::{
-    ActiveTheme, Icon, Sizable,
+    ActiveTheme, Icon,
     button::{Button, ButtonVariants},
     menu::{DropdownMenu, PopupMenuItem},
     notification::Notification,
@@ -377,14 +377,9 @@ impl Render for ProfileHeader {
               )
               .item(
                 PopupMenuItem::element(move |_, _| {
-                  div()
-                    .flex()
-                    .items_center()
-                    .gap_2()
-                    .text_color(danger)
-                    .child(Icon::new(IconName::Trash).small())
-                    .child("Delete profile")
+                  div().text_color(danger).child("Delete profile")
                 })
+                .icon(Icon::new(IconName::Trash).text_color(danger))
                 .on_click(move |_, w, cx| delete(f.clone(), n2.clone(), w, cx)),
               )
           }),
