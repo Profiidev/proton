@@ -262,20 +262,8 @@ fn track_window(window: &mut Window, cx: &mut gpui_kit::Context<Shell>) {
   .detach();
 }
 
-/// gpui-kit wraps a client-decorated window that is not tiled in a 1px border and a shadow,
-/// the Tauri window (`decorations: false`) had neither. Server-side decorations skip that
-/// wrapper; on Wayland they draw nothing on Hyprland, compositors without xdg-decoration
-/// (GNOME) fall back to client. X11 WMs would add a titlebar, so X11 stays client.
-// ponytail: KDE/sway draw a titlebar for server-side windows, a kit switch to drop the wrapper
-// would fix those too
-fn decorations() -> WindowDecorations {
-  if cfg!(target_os = "linux") && std::env::var_os("WAYLAND_DISPLAY").is_some() {
-    WindowDecorations::Server
-  } else {
-    WindowDecorations::Client
-  }
-}
-
+// ponytail: gpui-kit draws a 1px border + shadow around floating client-decorated windows (the
+// Tauri window had none); kept on purpose, server-side decorations add titlebars on KDE/sway
 fn open_main_window(cx: &mut App) -> anyhow::Result<AnyWindowHandle> {
   let options = WindowOptions {
     window_bounds: Some(restored_bounds(cx)),
@@ -284,7 +272,7 @@ fn open_main_window(cx: &mut App) -> anyhow::Result<AnyWindowHandle> {
       appears_transparent: true,
       traffic_light_position: None,
     }),
-    window_decorations: Some(decorations()),
+    window_decorations: Some(WindowDecorations::Client),
     window_min_size: Some(size(px(MIN_SIZE.0), px(MIN_SIZE.1))),
     app_id: Some("io.profidev.proton".into()),
     ..Default::default()
