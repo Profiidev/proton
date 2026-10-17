@@ -14,7 +14,7 @@ use gpui_kit::{
 };
 use proton_components::widgets::{
   colors, dot_chip,
-  form::open_destroy_dialog,
+  form::{filled, icon_label, open_destroy_dialog},
   format::{format_datetime, running_label},
   profile::ProfileIcon,
 };
@@ -292,26 +292,29 @@ impl Render for ProfileHeader {
         if running > 0 {
           let (id, name) = (id.clone(), name.clone());
           el.child(
-            Button::new("launch-another")
-              .outline()
-              .icon(IconName::Plus)
-              .label("Launch another")
-              .on_click(play(id.clone())),
+            icon_label(
+              Button::new("launch-another").outline(),
+              IconName::Plus,
+              "Launch another",
+            )
+            .on_click(play(id.clone())),
           )
           .child(
-            Button::new("stop")
-              .danger()
-              .icon(IconName::Square)
-              .label(if running > 1 { "Stop all" } else { "Stop" })
-              .on_click(move |_, window, cx| stop(id.clone(), name.clone(), running, window, cx)),
+            filled(icon_label(
+              Button::new("stop").danger(),
+              IconName::Square,
+              if running > 1 { "Stop all" } else { "Stop" },
+            ))
+            .on_click(move |_, window, cx| stop(id.clone(), name.clone(), running, window, cx)),
           )
         } else {
           el.child(
-            Button::new("play")
-              .primary()
-              .icon(IconName::Play)
-              .label("Play")
-              .on_click(play(id.clone())),
+            filled(icon_label(
+              Button::new("play").primary(),
+              IconName::Play,
+              "Play",
+            ))
+            .on_click(play(id.clone())),
           )
         }
       })

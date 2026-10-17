@@ -17,7 +17,7 @@ use gpui_kit::{
   px, svg,
 };
 
-use super::{Callback, colors, dot_chip, format::running_label, input_tile};
+use super::{Callback, colors, dot_chip, form::filled_icon, format::running_label, input_tile};
 
 /// lucide `star` with a fill, for the favorite marker (`fill-yellow-500`)
 const STAR_FILLED: &[u8] = br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="black" stroke="black" stroke-width="2" stroke-linejoin="round"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg>"#;
@@ -50,8 +50,18 @@ impl ProfileIcon {
   }
 }
 
+/// shadcn `Avatar` draws a 1px `border-border` overlay (blend lighten) over its content
+fn avatar_ring(cx: &App) -> impl IntoElement {
+  div()
+    .absolute()
+    .inset_0()
+    .rounded(px(8.))
+    .border_1()
+    .border_color(cx.theme().border)
+}
+
 impl RenderOnce for ProfileIcon {
-  fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
+  fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
     let fallback = self.fallback_size;
     let box_icon = move || Icon::new(IconName::Box).size(fallback).into_any_element();
     div()
@@ -59,6 +69,7 @@ impl RenderOnce for ProfileIcon {
       .flex_none()
       .items_center()
       .justify_center()
+      .relative()
       .size(self.size)
       .rounded(px(8.))
       .overflow_hidden()
@@ -71,6 +82,7 @@ impl RenderOnce for ProfileIcon {
           .into_any_element(),
         None => box_icon(),
       })
+      .child(avatar_ring(cx))
   }
 }
 
@@ -118,17 +130,20 @@ impl RenderOnce for QuickPlayIcon {
     };
     div()
       .flex_none()
+      .relative()
       .size(self.size)
       .rounded(px(8.))
       .overflow_hidden()
       .child(match self.icon {
         Some(src) => img(src)
           .size_full()
+          .rounded(px(8.))
           .object_fit(ObjectFit::Cover)
           .with_fallback(fallback)
           .into_any_element(),
         None => fallback(),
       })
+      .child(avatar_ring(cx))
   }
 }
 
@@ -298,15 +313,13 @@ impl RenderOnce for ProfileCard {
 
     let button = if running {
       let f = self.on_stop;
-      Button::new("stop")
-        .danger()
+      filled_icon(Button::new("stop").danger())
         .icon(IconName::Square)
         .tooltip("Stop instances")
         .when_some(f, |b, f| b.on_click(move |_, w, cx| f(w, cx)))
     } else {
       let f = self.on_play;
-      Button::new("play")
-        .primary()
+      filled_icon(Button::new("play").primary())
         .icon(IconName::Play)
         .tooltip("Play profile")
         .when_some(f, |b, f| b.on_click(move |_, w, cx| f(w, cx)))

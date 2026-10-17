@@ -1,17 +1,19 @@
 //! `/home`: continue playing card, favorites and history
 
 use gpui_kit::{
-  App, AppContext, Context, Entity, FontWeight, InteractiveElement, IntoElement, ParentElement,
-  Render, SharedString, StatefulInteractiveElement, Styled, Subscription, TestSupportExt, Window,
+  App, AppContext, BoxShadow, Context, Entity, FontWeight, InteractiveElement, IntoElement,
+  ParentElement, Render, SharedString, StatefulInteractiveElement, Styled, Subscription,
+  TestSupportExt, Window,
   assets::IconName,
   component::{
-    ActiveTheme, Icon, Sizable,
+    ActiveTheme,
     button::{Button, ButtonVariants},
   },
-  div, px,
+  div, point, px,
 };
 use proton_components::widgets::{
   chip,
+  form::{alert, filled, icon_label},
   format::running_label,
   profile::{ProfileExternalLink, ProfileIcon},
 };
@@ -108,38 +110,15 @@ pub fn pack_banner(updates: &ModpackUpdates, profiles: &[Profile]) -> Option<Ban
 }
 
 fn banner(id: &'static str, b: Banner, button: &'static str, cx: &App) -> impl IntoElement {
-  let theme = cx.theme();
-  div()
+  alert(IconName::CircleArrowUp, b.title, b.description, cx)
     .id(id)
-    .flex()
-    .items_center()
-    .gap_3()
-    .px_4()
-    .py_3()
-    .rounded(px(10.))
-    .border_1()
-    .border_color(theme.border)
-    .bg(theme.popover)
-    .child(Icon::new(IconName::CircleArrowUp).small())
     .child(
-      div()
-        .flex()
-        .flex_col()
-        .flex_1()
-        .gap_0p5()
-        .text_sm()
-        .child(div().font_weight(FontWeight::MEDIUM).child(b.title))
-        .child(
-          div()
-            .text_color(theme.muted_foreground)
-            .child(b.description),
-        ),
-    )
-    .child(
-      Button::new((id, 0usize))
-        .outline()
-        .label(button)
-        .on_click(move |_, _, cx| cx.navigate(b.target.clone())),
+      div().self_center().mr(px(2.)).child(
+        Button::new((id, 0usize))
+          .outline()
+          .label(button)
+          .on_click(move |_, _, cx| cx.navigate(b.target.clone())),
+      ),
     )
 }
 
@@ -222,8 +201,14 @@ impl HomePage {
       .gap_4()
       .p_4()
       .rounded(px(14.))
-      .border_1()
-      .border_color(theme.foreground.opacity(0.1))
+      // ring-1 ring-foreground/10: outside the box, no layout space
+      .shadow(vec![BoxShadow {
+        color: theme.foreground.opacity(0.1),
+        offset: point(px(0.), px(0.)),
+        blur_radius: px(0.),
+        spread_radius: px(1.),
+        inset: false,
+      }])
       .bg(theme.popover)
       .child(
         div()
@@ -260,27 +245,30 @@ impl HomePage {
             div()
               .truncate()
               .text_xl()
-              .line_height(px(28.))
+              // measured: the web card is 2px shorter than xs + xl + xs leading + gaps
+              .line_height(px(26.))
               .font_weight(FontWeight::SEMIBOLD)
               .child(title),
           )
           .child(
             div()
               .text_xs()
+              .line_height(px(16.))
               .text_color(muted_fg)
               .child(parts.join(" · ")),
           ),
       )
       .child(
-        Button::new("continue-play")
-          .primary()
-          .icon(IconName::Play)
-          .label(if running > 0 {
+        filled(icon_label(
+          Button::new("continue-play").primary(),
+          IconName::Play,
+          if running > 0 {
             "Launch another"
           } else {
             "Play"
-          })
-          .on_click(move |_, _, cx| launch(play_id.clone(), play_qp.clone(), cx)),
+          },
+        ))
+        .on_click(move |_, _, cx| launch(play_id.clone(), play_qp.clone(), cx)),
       )
   }
 
@@ -342,6 +330,7 @@ impl HomePage {
 fn heading(text: &'static str) -> impl IntoElement {
   div()
     .text_base()
+    .line_height(px(24.))
     .font_weight(FontWeight::MEDIUM)
     .child(text)
 }

@@ -25,7 +25,6 @@ use gpui_kit::{
     button::{Button, ButtonVariants},
     input::{Input, InputEvent, InputState},
     notification::NotificationType,
-    slider::{Slider, SliderEvent, SliderState},
     switch::Switch,
   },
   div,
@@ -34,6 +33,7 @@ use gpui_kit::{
 };
 use proton_components::widgets::Handler;
 use proton_components::widgets::label;
+use proton_components::widgets::slider::{Slider, SliderEvent};
 use proton_config::settings::{GameSettings, JvmSettings};
 
 use super::toast;
@@ -255,7 +255,7 @@ pub struct JavaSettingsForm {
   mem: u64,
   memory_label: MemoryLabel,
   memory_hint: SharedString,
-  slider: Entity<SliderState>,
+  slider: Entity<Slider>,
   args: Entity<InputState>,
   key: Entity<InputState>,
   value: Entity<InputState>,
@@ -273,13 +273,7 @@ impl JavaSettingsForm {
     cx: &mut Context<Self>,
   ) -> Self {
     let mem = settings.mem_max as u64;
-    let slider = cx.new(|_| {
-      SliderState::new()
-        .max(max_mem.max(1024) as f32)
-        .min(1024.)
-        .step(256.)
-        .default_value(mem as f32)
-    });
+    let slider = cx.new(|cx| Slider::new(1024., max_mem.max(1024) as f32, 256., mem as f32, cx));
     let args = cx.new(|cx| {
       InputState::new(window, cx)
         .placeholder("-XX:+UseG1GC")
@@ -293,11 +287,11 @@ impl JavaSettingsForm {
         window,
         |this, _, e: &SliderEvent, window, cx| match e {
           SliderEvent::Change(v) => {
-            this.mem = v.start() as u64;
+            this.mem = *v as u64;
             cx.notify();
           }
           SliderEvent::Release(v) => {
-            let mem = v.start() as usize;
+            let mem = *v as usize;
             if mem != this.settings.mem_max {
               let mut next = this.settings.clone();
               next.mem_max = mem;
@@ -356,7 +350,7 @@ impl JavaSettingsForm {
     if settings.mem_max != self.settings.mem_max {
       self.mem = settings.mem_max as u64;
       let mem = self.mem as f32;
-      self.slider.update(cx, |s, cx| s.set_value(mem, window, cx));
+      self.slider.update(cx, |s, cx| s.set_value(mem, cx));
     }
     if parse_args(&self.args.read(cx).value()) != settings.args {
       let joined = settings.args.join(" ");
@@ -371,6 +365,8 @@ impl JavaSettingsForm {
   pub fn set_disabled(&mut self, disabled: bool, cx: &mut Context<Self>) {
     if disabled != self.disabled {
       self.disabled = disabled;
+      self.slider.update(cx, |s, cx| s.set_disabled(disabled, cx));
+      self.slider.update(cx, |s, cx| s.set_disabled(disabled, cx));
       cx.notify();
     }
   }
@@ -486,12 +482,12 @@ impl Render for JavaSettingsForm {
           )
           .child(
             // zero height: the label, track and hint spacing of the reference comes from the
-            // gaps alone, the kit slider (24px hit box) overhangs centered on the track line
+            // gaps alone, the 4px track overhangs centered on the line
             div()
               .flex()
               .items_center()
               .h(px(0.))
-              .child(Slider::new(&self.slider).disabled(disabled)),
+              .child(self.slider.clone()),
           )
           .child(
             div()

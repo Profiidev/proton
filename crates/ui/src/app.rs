@@ -262,6 +262,8 @@ fn track_window(window: &mut Window, cx: &mut gpui_kit::Context<Shell>) {
   .detach();
 }
 
+// ponytail: gpui-kit draws a 1px border + shadow around floating client-decorated windows (the
+// Tauri window had none); kept on purpose, server-side decorations add titlebars on KDE/sway
 fn open_main_window(cx: &mut App) -> anyhow::Result<AnyWindowHandle> {
   let options = WindowOptions {
     window_bounds: Some(restored_bounds(cx)),

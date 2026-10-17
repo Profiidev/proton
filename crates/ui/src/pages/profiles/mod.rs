@@ -24,7 +24,11 @@ use gpui_kit::{
 };
 use proton_components::{
   animation::ease_out_cubic,
-  widgets::{format::relative_time, profile::ProfileCard},
+  widgets::{
+    form::{filled, icon_label},
+    format::relative_time,
+    profile::ProfileCard,
+  },
 };
 use proton_profiles::{
   ProfilesExt,
@@ -436,11 +440,12 @@ impl Render for ProfilesPage {
       .child(self.filter_select(true, loaders, cx))
       .child(self.filter_select(false, versions, cx))
       .child(
-        Button::new("new-profile")
-          .primary()
-          .icon(IconName::Plus)
-          .label("New profile")
-          .on_click(|_, window, cx| create::open(window, cx)),
+        filled(icon_label(
+          Button::new("new-profile").primary(),
+          IconName::Plus,
+          "New profile",
+        ))
+        .on_click(|_, window, cx| create::open(window, cx)),
       );
 
     div()

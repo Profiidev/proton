@@ -56,12 +56,77 @@ pub fn open_destroy_dialog(
   });
 }
 
+/// shadcn buttons have a 1px transparent border with `bg-clip-padding`: filled variants
+/// (primary, destructive) paint only 30px of their 32px box, kit buttons paint all of it
+pub fn filled(button: Button) -> Button {
+  button.h(px(30.)).m(px(1.))
+}
+
+/// [`filled`] for an icon-only (`size-8`) button
+pub fn filled_icon(button: Button) -> Button {
+  button.size(px(30.)).m(px(1.))
+}
+
+/// shadcn icon + label content (`data-icon=inline-start`: `pl-2`, `gap-1.5`, 16px icon);
+/// kit `.icon().label()` uses `px-2.5 gap-2`
+pub fn icon_label(button: Button, icon: IconName, label: impl Into<SharedString>) -> Button {
+  let label = label.into();
+  button.pl_2().accessibility_label(label.clone()).child(
+    div()
+      .flex()
+      .items_center()
+      .gap(px(6.))
+      .child(Icon::new(icon).size_4())
+      .child(label),
+  )
+}
+
+/// shadcn `Alert`: bg-card, rounded-lg border, `px-2.5 py-2`, 16px icon beside a medium
+/// title and a muted description
+pub fn alert(
+  icon: IconName,
+  title: impl Into<SharedString>,
+  description: impl Into<SharedString>,
+  cx: &App,
+) -> gpui_kit::Div {
+  let theme = cx.theme();
+  div()
+    .flex()
+    .items_start()
+    .gap_2()
+    .px(px(10.))
+    .py_2()
+    .rounded(px(10.))
+    .border_1()
+    .border_color(theme.border)
+    .bg(theme.popover)
+    .text_sm()
+    .line_height(px(20.))
+    .child(div().flex_none().pt(px(2.)).child(Icon::new(icon).size_4()))
+    .child(
+      div()
+        .flex()
+        .flex_col()
+        .flex_1()
+        .min_w_0()
+        .gap_0p5()
+        .child(div().font_weight(FontWeight::MEDIUM).child(title.into()))
+        .child(
+          div()
+            .text_color(theme.muted_foreground)
+            .child(description.into()),
+        ),
+    )
+}
+
 type Versions = SelectState<SearchableVec<SharedString>>;
 
 /// Searchable single select of versions; a chosen value can not be cleared
 pub struct VersionSelect {
   label: SharedString,
   state: Entity<Versions>,
+  /// A value is set but not among the options: the web select showed an empty button
+  missing: bool,
   disabled: bool,
   on_change: Option<Handler<SharedString>>,
   _confirm: Subscription,
@@ -76,6 +141,7 @@ impl VersionSelect {
     cx: &mut Context<Self>,
   ) -> Self {
     let selected = selected_index(&options, value.as_ref());
+    let missing = value.is_some() && selected.is_none();
     let state = cx.new(|cx| {
       SelectState::new(SearchableVec::new(options), selected, window, cx).searchable(true)
     });
@@ -90,6 +156,7 @@ impl VersionSelect {
     Self {
       label: label.into(),
       state,
+      missing,
       disabled: false,
       on_change: None,
       _confirm: confirm,
@@ -119,6 +186,7 @@ impl VersionSelect {
     cx: &mut Context<Self>,
   ) {
     let selected = selected_index(&options, value.as_ref());
+    self.missing = value.is_some() && selected.is_none();
     self.state.update(cx, |state, cx| {
       state.set_items(SearchableVec::new(options), window, cx);
       state.set_selected_index(selected, window, cx);
@@ -134,10 +202,20 @@ fn selected_index(options: &[SharedString], value: Option<&SharedString>) -> Opt
 impl Render for VersionSelect {
   fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
     let lower = self.label.to_lowercase();
+    let placeholder = match self.missing {
+      true => String::new(),
+      false => format!("Select {}", self.label),
+    };
+    // the web select is an outline button: medium text centered, no chevron (the empty icon
+    // keeps its 12px + 4px gap, the left padding balances it)
     Select::new(&self.state)
       .id("version-select")
       .w_full()
-      .placeholder(format!("Select {}", self.label))
+      .icon(Icon::empty())
+      .text_center()
+      .font_weight(FontWeight::MEDIUM)
+      .pl(px(26.))
+      .placeholder(placeholder)
       .search_placeholder(format!("Search {lower}..."))
       .empty({
         let text = SharedString::from(format!("No {} found", self.label));

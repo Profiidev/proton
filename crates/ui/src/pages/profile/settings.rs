@@ -5,7 +5,6 @@ use gpui_kit::{
   assets::IconName,
   component::{
     ActiveTheme,
-    alert::Alert,
     button::Button,
     input::{Input, InputEvent, InputState},
     notification::Notification,
@@ -16,7 +15,7 @@ use gpui_kit::{
 };
 use proton_components::widgets::label;
 use proton_components::widgets::{
-  form::{SwitchTile, VersionSelect},
+  form::{SwitchTile, VersionSelect, alert},
   profile::ProfileIcon,
 };
 use proton_config::{SettingsExt, settings::system_max_mem};
@@ -413,12 +412,13 @@ impl SettingsPage {
       )
       .when(modded, |el| {
         el.child(
-          Alert::new(
-            "version-warning",
+          alert(
+            IconName::TriangleAlert,
+            "Changing the version can break mods",
             "Mods built for another version may fail to load.",
+            cx,
           )
-          .icon(IconName::TriangleAlert)
-          .title("Changing the version can break mods"),
+          .id("version-warning"),
         )
       })
   }
