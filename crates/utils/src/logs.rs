@@ -31,8 +31,12 @@ static LINE: LazyLock<Regex> = LazyLock::new(|| {
   .unwrap()
 });
 
+/// ANSI color codes from log4j patterns some modpacks set for the console
+static ANSI: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\x1b\[[0-9;?]*[A-Za-z]").unwrap());
+
 /// Parses `[time] [location/LEVEL] ([subLocation]): message`, unparsable lines become a bare message
 pub fn parse_line(line: &str) -> LogEntry {
+  let line = &*ANSI.replace_all(line, "");
   let Some(c) = LINE.captures(line) else {
     return LogEntry {
       message: line.to_string().into(),
@@ -266,5 +270,15 @@ mod tests {
       times(&entries, CONSOLE_ERR, ""),
       ["1", "java.lang.RuntimeException: boom", "\tat Foo.bar"]
     );
+  }
+
+  #[test]
+  fn strips_ansi_colors() {
+    let e = parse_line(
+      "\x1b[m\x1b[32m[08:54:13] [Worker-16/INFO] [colorwheel_patcher/]: Found patch\x1b[m",
+    );
+    assert_eq!(e.level, "INFO");
+    assert_eq!(e.time, "08:54:13");
+    assert_eq!(e.message, "Found patch");
   }
 }
