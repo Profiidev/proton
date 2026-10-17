@@ -133,6 +133,15 @@ fn updates_banner_counts_and_names() {
   assert_eq!(b.description, "P b and P c have newer compatible versions.");
   assert_eq!(b.target.to_url(), "/profiles/info/content/mods?id=b");
 
+  // modpack profiles only get the pack banner
+  let mut pack = profile("p");
+  pack.modpack = serde_json::from_value(
+    serde_json::json!({"source": "modrinth", "projectId": "x", "versionId": "y"}),
+  )
+  .unwrap();
+  let only_pack = ContentUpdates([("p".into(), vec![update("p", ContentKind::Mod)])].into());
+  assert_eq!(updates_banner(&only_pack, &[pack]), None);
+
   let mixed = ContentUpdates([("a".into(), vec![update("a", ContentKind::Shader)])].into());
   let b = updates_banner(&mixed, &list).unwrap();
   assert_eq!(b.title, "1 update available");

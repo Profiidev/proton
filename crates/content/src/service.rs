@@ -1428,6 +1428,38 @@ mod tests {
   }
 
   #[gpui::test]
+  async fn modpack_files_with_the_same_path_download_once(cx: &mut TestAppContext) {
+    let (server, _, _) = setup(cx, LoaderType::Vanilla).await;
+    temp_cache();
+    server.route("GET", "/cdn.modrinth.com/data/m.jar", 200, "mod");
+    let entry = json!({
+      "path": "mods/m.jar", "hashes": {"sha1": bytes_hash(b"mod"), "sha512": sha512(b"mod")},
+      "downloads": [format!("{CDN}/m.jar")], "fileSize": 3
+    });
+    let index = json!({
+      "formatVersion": 1, "game": "minecraft", "versionId": "1.21.4", "name": "Pack",
+      "files": [entry, entry],
+      "dependencies": {"minecraft": "1.21.4", "fabric-loader": "0.16.0"}
+    });
+    let file = tempfile::tempdir().unwrap().keep().join("p.mrpack");
+    rt::block_on(write_zip(
+      &file,
+      &[("modrinth.index.json", index.to_string().as_bytes())],
+    ));
+
+    let plan = cx.update(|cx| cx.content().modpack_plan(PackSource::Path { path: file }));
+    let plan = plan.await.unwrap();
+    assert_eq!((plan.files.len(), plan.counts.mods), (1, 1));
+    let install = cx.update(|cx| {
+      cx.content()
+        .modpack_install(plan, "Mine".into(), HashMap::new(), "t".into(), cx)
+    });
+    let id = install.await.unwrap();
+    let dir = profile_dir(cx, &id).await;
+    assert_eq!(std::fs::read(dir.join("mods/m.jar")).unwrap(), b"mod");
+  }
+
+  #[gpui::test]
   async fn failed_modpack_installs_remove_the_profile(cx: &mut TestAppContext) {
     let (server, _, _) = setup(cx, LoaderType::Vanilla).await;
     temp_cache();

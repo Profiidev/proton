@@ -1,5 +1,5 @@
 use std::{
-  collections::{BTreeMap, HashMap},
+  collections::{BTreeMap, HashMap, HashSet},
   path::{Component, Path, PathBuf},
 };
 
@@ -513,6 +513,10 @@ pub async fn plan(providers: &Providers, cache: &Path, source: PackSource) -> Re
     files.extend(resolved);
     manual = restricted;
   }
+  // packs may list two file ids with the same name (ATM10), one download per path
+  let mut seen = HashSet::new();
+  files.retain(|f| seen.insert(f.path.clone()));
+  manual.retain(|m| seen.insert(m.0.clone()));
 
   let mut counts = PackCounts::default();
   for path in files

@@ -47,7 +47,7 @@ use self::{
 use crate::{
   actions::toast,
   router::{self, ProfileTab, Route, RouterExt},
-  shell::{PageFactory, ShellDataExt},
+  shell::PageFactory,
 };
 
 pub fn register(cx: &mut App) {
@@ -74,31 +74,6 @@ pub fn register(cx: &mut App) {
       cx.new(|cx| ContentPage::new(id, kind, window, cx)).into()
     },
   );
-  feed_update_counts(cx);
-}
-
-/// The amber count on the profile's "Content" tab
-fn feed_update_counts(cx: &mut App) {
-  if !cx.has_global::<proton_content::Content>() {
-    return;
-  }
-  let updates = cx.content().updates.clone();
-  cx.observe(&updates, |updates, cx| {
-    let counts: HashMap<String, usize> = updates
-      .read(cx)
-      .0
-      .iter()
-      .map(|(id, u)| (id.clone(), u.len()))
-      .filter(|(_, n)| *n > 0)
-      .collect();
-    cx.shell_data().update(cx, |data, cx| {
-      if data.content_updates != counts {
-        data.content_updates = counts;
-        cx.notify();
-      }
-    });
-  })
-  .detach();
 }
 
 /// Everything the page itself draws, the page notifies only when this changes
@@ -559,12 +534,13 @@ impl ContentPage {
     if n == 0 {
       return None;
     }
-    let (loader, version) = cx
-      .profiles()
-      .profiles
-      .read(cx)
-      .iter()
-      .find(|p| p.id == self.profile)
+    let profiles = cx.profiles().profiles.read(cx);
+    let profile = profiles.iter().find(|p| p.id == self.profile);
+    // modpack profiles only announce pack updates, the rows still offer each one
+    if profile.is_some_and(|p| p.modpack.is_some()) {
+      return None;
+    }
+    let (loader, version) = profile
       .map(|p| (format!("{:?}", p.loader), p.version.clone()))
       .unwrap_or_default();
     let title = format!("{} can be updated", plural(n, word(self.kind)));

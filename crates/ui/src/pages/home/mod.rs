@@ -64,7 +64,8 @@ fn names(list: &[&str]) -> String {
 pub fn updates_banner(updates: &ContentUpdates, profiles: &[Profile]) -> Option<Banner> {
   let affected: Vec<_> = profiles
     .iter()
-    .filter(|p| updates.0.get(&p.id).is_some_and(|u| !u.is_empty()))
+    // modpack profiles get the pack banner instead, their content rows still offer each update
+    .filter(|p| p.modpack.is_none() && updates.0.get(&p.id).is_some_and(|u| !u.is_empty()))
     .collect();
   let first = affected.first()?;
   let all: Vec<_> = affected.iter().flat_map(|p| &updates.0[&p.id]).collect();
