@@ -7,6 +7,13 @@ use std::{
 
 use gpui_kit::{self as gpui, TestAppContext};
 
+use proton_utils::test_http::FakeServer;
+use proton_versions::{
+  VersionsExt,
+  downloads::DownloadStatus,
+  testing::{fake_java, java_calls},
+};
+
 use super::*;
 use crate::{
   PROFILE_LOGS,
@@ -434,11 +441,10 @@ async fn quick_play_file_change_refreshes_the_lists(cx: &mut TestAppContext) {
     .join(&id)
     .join(proton_versions::paths::QUICK_PLAY);
   std::fs::write(file, serde_json::to_string(&entries).unwrap()).unwrap();
+  // the quick play list and the profile list refresh one after the other
   wait_until(cx, "merged quick play", |cx| {
-    cx.update(|cx| quick.read(cx).len() == 1)
+    cx.update(|cx| quick.read(cx).len() == 1 && profiles.profiles.read(cx)[0].quick_play.len() == 1)
   });
-  let list = cx.update(|cx| profiles.profiles.read(cx).clone());
-  assert_eq!(list[0].quick_play.len(), 1);
 }
 
 #[gpui::test]
@@ -582,4 +588,286 @@ async fn world_icons_and_server_status_resolve_through_the_service(cx: &mut Test
   let status = Profiles::server_status("a.b".into()).await.unwrap();
   assert_eq!((status.online, status.players_online), (true, 1));
   assert!(Profiles::server_status("c.d".into()).await.is_none());
+}
+
+/// A served vanilla 1.20.1 without assets or libraries whose java is [`fake_java`]. Returns the
+/// data dir and the file the fake java records its calls in.
+fn serve_game(cx: &mut TestAppContext, server: &FakeServer, java_exit: i32) -> (PathBuf, PathBuf) {
+  use proton_utils::file::bytes_hash;
+  use serde_json::json;
+
+  let base = tempfile::tempdir().unwrap().keep();
+  // SAFETY: nextest runs every test in its own process, versions resolve the data dir from it
+  unsafe { std::env::set_var("XDG_DATA_HOME", &base) };
+  let data_dir = proton_utils::dir::data_dir().unwrap();
+  proton_store::init_at(base.join("store.json"));
+
+  let origin = server.origin();
+  let serve = |path: &str, body: &[u8]| {
+    server.route("GET", path, 200, body.to_vec());
+    json!({ "url": format!("{origin}{path}"), "size": body.len(), "sha1": bytes_hash(body) })
+  };
+
+  // the downloaded java is the fake, it records into a file next to this script
+  let script = base.join("java/java");
+  let record = fake_java(&script, java_exit);
+  let java = serve("/java/bin/java", &std::fs::read(&script).unwrap());
+  let files = json!({ "files": {
+    "bin/java": { "type": "file", "executable": true, "downloads": { "raw": java } }
+  } })
+  .to_string();
+  let runtime = json!([{
+    "manifest": serve("/java/manifest.json", files.as_bytes()),
+    "version": { "name": "17.0.8", "released": "2023-01-01" }
+  }]);
+  let mut platform = json!({
+    "java-runtime-alpha": [], "java-runtime-beta": [], "java-runtime-delta": [],
+    "java-runtime-epsilon": [], "java-runtime-gamma-snapshot": [], "jre-legacy": []
+  });
+  platform["java-runtime-gamma"] = runtime;
+  let platforms = [
+    "linux",
+    "linux-i386",
+    "mac-os",
+    "mac-os-arm64",
+    "windows-arm64",
+    "windows-x64",
+    "windows-x86",
+  ];
+  let all: serde_json::Map<_, _> = platforms
+    .into_iter()
+    .map(|p| (p.to_string(), platform.clone()))
+    .collect();
+  server.route(
+    "GET",
+    "/launchermeta.mojang.com/v1/products/java-runtime/2ec0cc96c44e5a76b9c8b7c39df7210883d12871/all.json",
+    200,
+    serde_json::Value::Object(all).to_string(),
+  );
+
+  let index = r#"{"objects":{}}"#;
+  let mut asset_index = serve("/indexes/5.json", index.as_bytes());
+  asset_index["id"] = "5".into();
+  asset_index["totalSize"] = 0.into();
+  let version = json!({
+    "id": "1.20.1",
+    "assetIndex": asset_index,
+    "downloads": { "client": serve("/client.jar", b"client") },
+    "javaVersion": { "component": "java-runtime-gamma", "majorVersion": 17 },
+    "libraries": [],
+    "mainClass": "net.minecraft.client.main.Main",
+    "type": "release"
+  })
+  .to_string();
+  let mut entry = serve("/v/1.20.1.json", version.as_bytes());
+  entry["id"] = "1.20.1".into();
+  entry["type"] = "release".into();
+  server.route(
+    "GET",
+    "/launchermeta.mojang.com/mc/game/version_manifest_v2.json",
+    200,
+    json!({ "versions": [entry] }).to_string(),
+  );
+
+  cx.update(|cx| {
+    proton_config::init(cx);
+    proton_versions::init(cx);
+    init_at(cx, data_dir.clone()).unwrap();
+  });
+  wait_until(cx, "version manifests", |cx| {
+    cx.update(|cx| cx.versions().store(cx).is_ok())
+  });
+  (data_dir, record)
+}
+
+fn download_states(cx: &mut TestAppContext) -> Vec<DownloadStatus> {
+  cx.update(|cx| {
+    let downloads = cx.versions().downloads.read(cx);
+    downloads.rows().map(|r| r.read(cx).status).collect()
+  })
+}
+
+fn auth() -> LaunchInfo {
+  LaunchInfo {
+    id: "uuid-1".into(),
+    name: "Steve".into(),
+    access_token: "secret-token".into(),
+  }
+}
+
+#[gpui::test]
+async fn launch_downloads_once_then_starts_the_game(cx: &mut TestAppContext) {
+  cx.executor().allow_parking();
+  let server = FakeServer::start();
+  let (data_dir, record) = serve_game(cx, &server, 0);
+  let profiles = cx.update(|cx| cx.profiles().clone());
+  let id = profiles
+    .create(
+      "Game".into(),
+      None,
+      "1.20.1".into(),
+      LoaderType::Vanilla,
+      None,
+    )
+    .await
+    .unwrap();
+
+  let launch = cx.update(|cx| profiles.launch(cx, id.clone(), None, auth()));
+  launch.await.unwrap();
+  wait_until(cx, "game exited", |_| java_calls(&record).len() == 1);
+  let call = &java_calls(&record)[0];
+  // the game runs inside its profile dir
+  let cwd = data_dir.join(PROFILE_DIR).join(&id);
+  assert_eq!(call[0], format!("cwd={}", cwd.display()));
+  for arg in ["net.minecraft.client.main.Main", "-Xmx2048M"] {
+    assert!(call.iter().any(|a| a == arg), "{arg} missing in {call:?}");
+  }
+
+  cx.run_until_parked();
+  let profile = cx.update(|cx| profiles.profiles.read(cx)[0].clone());
+  assert!(profile.downloaded);
+  assert!(profile.last_played.is_some() && profile.last_played_non_quick_play.is_some());
+  assert_eq!(cx.update(|cx| profiles.history.read(cx).len()), 1);
+  assert_eq!(download_states(cx), [DownloadStatus::Done]);
+
+  // downloaded: only the meta is checked, nothing is fetched again
+  let fetched = server.calls().len();
+  let launch = cx.update(|cx| profiles.launch(cx, id.clone(), None, auth()));
+  launch.await.unwrap();
+  wait_until(cx, "second run", |_| java_calls(&record).len() == 2);
+  assert_eq!(server.calls().len(), fetched);
+}
+
+#[gpui::test]
+async fn launch_uses_the_profile_jvm_settings_and_reports_a_crash(cx: &mut TestAppContext) {
+  cx.executor().allow_parking();
+  let server = FakeServer::start();
+  let (_, record) = serve_game(cx, &server, 1);
+  let profiles = cx.update(|cx| cx.profiles().clone());
+  let id = profiles
+    .create(
+      "Crashy".into(),
+      None,
+      "1.20.1".into(),
+      LoaderType::Vanilla,
+      None,
+    )
+    .await
+    .unwrap();
+  let jvm = proton_config::settings::JvmSettings {
+    args: vec!["-Dproton=1".into()],
+    env_vars: [("PROTON_TEST_ENV".to_string(), "local".to_string())].into(),
+    mem_max: 1234,
+  };
+  profiles
+    .update(crate::config::ProfileUpdate {
+      id: id.clone(),
+      name: "Crashy".into(),
+      version: "1.20.1".into(),
+      loader_version: None,
+      use_local_game: false,
+      game: None,
+      use_local_jvm: true,
+      jvm: Some(jvm),
+    })
+    .await
+    .unwrap();
+  let events = Rc::new(RefCell::new(Vec::new()));
+  let seen = events.clone();
+  cx.update(|cx| {
+    cx.subscribe(&profiles.events, move |_, e: &ProfilesEvent, _| {
+      seen.borrow_mut().push(e.clone())
+    })
+    .detach()
+  });
+
+  let launch = cx.update(|cx| profiles.launch(cx, id.clone(), None, auth()));
+  launch.await.unwrap();
+  wait_until(cx, "crash event", |_| !events.borrow().is_empty());
+  let call = &java_calls(&record)[0];
+  assert_eq!(call[1], "env=local");
+  for arg in ["-Dproton=1", "-Xmx1234M"] {
+    assert!(call.iter().any(|a| a == arg), "{arg} missing in {call:?}");
+  }
+  assert_eq!(
+    *events.borrow(),
+    [ProfilesEvent::InstanceCrashed {
+      profile_name: "Crashy".into()
+    }]
+  );
+}
+
+#[gpui::test]
+async fn repair_downloads_without_starting_and_unknown_versions_fail(cx: &mut TestAppContext) {
+  cx.executor().allow_parking();
+  let server = FakeServer::start();
+  let (data_dir, record) = serve_game(cx, &server, 0);
+  let profiles = cx.update(|cx| cx.profiles().clone());
+  let id = profiles
+    .create("P".into(), None, "1.20.1".into(), LoaderType::Vanilla, None)
+    .await
+    .unwrap();
+
+  let repair = cx.update(|cx| profiles.repair(cx, id.clone()));
+  repair.await.unwrap();
+  cx.run_until_parked();
+  assert!(cx.update(|cx| profiles.profiles.read(cx)[0].downloaded));
+  assert!(
+    proton_versions::paths::MCVersionPath::new(&data_dir, "1.20.1")
+      .client_jar()
+      .exists()
+  );
+  assert!(java_calls(&record).is_empty());
+
+  // a version the manifest does not know fails the download row and the launch
+  let other = profiles
+    .create("Old".into(), None, "9.9".into(), LoaderType::Vanilla, None)
+    .await
+    .unwrap();
+  let launch = cx.update(|cx| profiles.launch(cx, other.clone(), None, auth()));
+  assert!(launch.await.is_err());
+  let repair = cx.update(|cx| profiles.repair(cx, other.clone()));
+  assert!(repair.await.is_err());
+  cx.run_until_parked();
+  assert_eq!(
+    download_states(cx),
+    [
+      DownloadStatus::Done,
+      DownloadStatus::Error,
+      DownloadStatus::Error
+    ]
+  );
+  let old = profiles_named(cx, &profiles, "Old");
+  assert!(!old.downloaded && old.last_played.is_none());
+  assert!(java_calls(&record).is_empty());
+}
+
+fn profiles_named(cx: &mut TestAppContext, profiles: &Profiles, name: &str) -> Profile {
+  cx.update(|cx| {
+    profiles
+      .profiles
+      .read(cx)
+      .iter()
+      .find(|p| p.name == name)
+      .unwrap()
+      .clone()
+  })
+}
+
+#[gpui::test]
+async fn launch_fails_while_the_manifests_are_not_loaded(cx: &mut TestAppContext) {
+  cx.executor().allow_parking();
+  init_test(cx);
+  cx.update(|cx| {
+    proton_config::init(cx);
+    proton_versions::init_state(cx);
+  });
+  let profiles = cx.update(|cx| cx.profiles().clone());
+  let id = create(&profiles, "P").await;
+  let launch = cx.update(|cx| profiles.launch(cx, id.clone(), None, auth()));
+  assert!(launch.await.is_err());
+  let repair = cx.update(|cx| profiles.repair(cx, id));
+  assert!(repair.await.is_err());
+  // no download row was started
+  assert!(download_states(cx).is_empty());
 }
