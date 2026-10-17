@@ -1,3 +1,6 @@
+// no console window next to the app on windows
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use std::sync::Arc;
 
 use proton_ui::app::single_instance;

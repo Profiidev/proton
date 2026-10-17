@@ -136,6 +136,7 @@ impl Render for AccountSelector {
     let this = cx.entity().downgrade();
     let close = this.clone();
     Popover::new("account-popover")
+      .p_1()
       .anchor(gpui_kit::Anchor::BottomLeft)
       .open(self.open)
       .on_open_change(move |open, _, cx| {
