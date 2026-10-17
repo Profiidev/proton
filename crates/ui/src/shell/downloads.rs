@@ -78,7 +78,9 @@ impl Render for DownloadRowView {
     let id = row.id;
     let running = row.is_running();
     let speed = row.speed_label();
+    // fill the cached wrapper, else the bar and the spacers collapse to content width
     div()
+      .size_full()
       .flex()
       .flex_col()
       .gap_1p5()
