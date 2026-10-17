@@ -85,7 +85,8 @@ mod tests {
   fn toast_from_inside_a_window_callback_is_shown(cx: &mut TestAppContext) {
     let handle = open(cx);
     // like a click handler: the window is already being updated
-    cx.update_window(handle, |_, _, cx| toast("inside", cx)).unwrap();
+    cx.update_window(handle, |_, _, cx| toast("inside", cx))
+      .unwrap();
     assert_eq!(toasts(cx, handle), 1);
   }
 
