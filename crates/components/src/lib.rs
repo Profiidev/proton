@@ -81,3 +81,51 @@ pub mod test_view {
       .unwrap();
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use gpui_kit::{self as gpui, IntoElement, ParentElement, Styled, TestAppContext, div, px};
+
+  use super::*;
+
+  struct A;
+  struct B;
+
+  #[test]
+  fn render_counts_are_per_type_and_key() {
+    assert_eq!(render_count::of::<A>(), 0);
+    render_count::hit::<A>();
+    render_count::hit::<A>();
+    render_count::hit::<B>();
+    assert_eq!(render_count::of::<A>(), 2);
+    assert_eq!(render_count::of::<B>(), 1);
+
+    render_count::add("rows", 5);
+    render_count::add("rows", 0);
+    assert_eq!(render_count::get("rows"), 5);
+    assert_eq!(render_count::get("unknown"), 0);
+  }
+
+  #[test]
+  fn render_counts_are_per_thread() {
+    render_count::hit::<A>();
+    let other = std::thread::spawn(render_count::of::<A>).join().unwrap();
+    assert_eq!(other, 0);
+    assert_eq!(render_count::of::<A>(), 1);
+  }
+
+  #[gpui::test]
+  fn test_view_redraws_the_closure_every_frame(cx: &mut TestAppContext) {
+    let (handle, _) = test_view::open(cx, |_, _| {
+      render_count::hit::<A>();
+      div().w(px(10.)).child("x").into_any_element()
+    });
+    let before = render_count::of::<A>();
+    assert!(before >= 1);
+    test_view::draw(handle, cx);
+    test_view::draw(handle, cx);
+    assert_eq!(render_count::of::<A>(), before + 2);
+    // the theme is set up and motion is reduced for clicks
+    assert!(cx.update(|cx| cx.reduce_motion()));
+  }
+}

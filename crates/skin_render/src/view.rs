@@ -293,3 +293,220 @@ impl RenderOnce for MiniSkinViewer {
     .h(self.size.height)
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use std::{
+    collections::hash_map::DefaultHasher,
+    f32::consts::PI,
+    hash::{Hash, Hasher},
+    io::Cursor,
+    sync::Arc,
+  };
+
+  // explicit imports: the `gpui_kit::*` glob would shadow `#[test]`
+  use gpui_kit::{
+    self as gpui, AppContext, Entity, InputEvent, MouseMoveEvent, TestAppContext, WindowHandle,
+    point, px, size, test::TestWindowExt,
+  };
+  use image::{Rgba, RgbaImage};
+
+  use super::{MiniSkinViewer, MiniSource, SkinViewer, to_render_image};
+  use crate::{Animation, BackEquipment, ModelType, RenderParams, SkinTextures};
+
+  fn textures() -> Arc<SkinTextures> {
+    let mut out = Cursor::new(Vec::new());
+    RgbaImage::from_pixel(64, 64, Rgba([200, 100, 50, 255]))
+      .write_to(&mut out, image::ImageFormat::Png)
+      .unwrap();
+    Arc::new(SkinTextures::from_png(&out.into_inner(), None).unwrap())
+  }
+
+  fn open(cx: &mut TestAppContext) -> (WindowHandle<SkinViewer>, Entity<SkinViewer>) {
+    let handle = cx.add_window(|_, cx| SkinViewer::new(cx));
+    let view = handle.entity(cx).unwrap();
+    (handle, view)
+  }
+
+  fn frame(handle: WindowHandle<SkinViewer>, cx: &mut TestAppContext) {
+    cx.update_window(handle.into(), |_, window, cx| window.render_frame(cx))
+      .unwrap();
+  }
+
+  #[test]
+  fn render_image_is_bgra() {
+    let img = RgbaImage::from_pixel(2, 1, Rgba([1, 2, 3, 4]));
+    let out = to_render_image(img);
+    assert_eq!(out.as_bytes(0).unwrap(), [3, 2, 1, 4, 3, 2, 1, 4]);
+  }
+
+  #[test]
+  fn mini_cache_key_ignores_time_and_pose() {
+    let hash = |source: &MiniSource| {
+      let mut h = DefaultHasher::new();
+      source.hash(&mut h);
+      h.finish()
+    };
+    let tex = textures();
+    let base = RenderParams::default();
+    let key = hash(&MiniSource(tex.clone(), base));
+    // tiles are static: time, pitch and animation never change the image
+    let same = RenderParams {
+      time: 9.0,
+      pitch: 0.4,
+      animation: Animation::Running,
+      ..base
+    };
+    assert_eq!(hash(&MiniSource(tex.clone(), same)), key);
+    for other in [
+      RenderParams { yaw: PI, ..base },
+      RenderParams {
+        model: ModelType::Slim,
+        ..base
+      },
+      RenderParams {
+        width: base.width + 1,
+        ..base
+      },
+      RenderParams {
+        back: BackEquipment::Elytra,
+        ..base
+      },
+    ] {
+      assert_ne!(hash(&MiniSource(tex.clone(), other)), key);
+    }
+  }
+
+  #[gpui::test]
+  fn without_a_skin_nothing_renders(cx: &mut TestAppContext) {
+    let (handle, view) = open(cx);
+    frame(handle, cx);
+    cx.run_until_parked();
+    view.read_with(cx, |v, _| {
+      assert!(v.rendered.is_none() && v.frame.is_none() && !v.in_flight);
+    });
+  }
+
+  #[gpui::test]
+  fn renders_once_while_idle_and_again_on_change(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    let (handle, view) = open(cx);
+    view.update(cx, |v, cx| {
+      v.set_animation(Animation::None, cx);
+      v.set_skin(Some(textures()), cx);
+    });
+    frame(handle, cx);
+    assert!(view.read_with(cx, |v, _| v.in_flight));
+    cx.run_until_parked();
+    let first = view.read_with(cx, |v, _| {
+      assert!(!v.in_flight && !v.failed);
+      v.rendered.unwrap()
+    });
+    assert!(view.read_with(cx, |v, _| v.frame.is_some()));
+    assert_eq!(first.time, 0.0);
+    // the test window has a scale factor of 2
+    assert_eq!((first.width, first.height), (424, 560));
+
+    // equal params: no second render
+    frame(handle, cx);
+    assert!(!view.read_with(cx, |v, _| v.in_flight));
+
+    view.update(cx, |v, cx| v.set_model(ModelType::Slim, cx));
+    frame(handle, cx);
+    assert!(view.read_with(cx, |v, _| v.in_flight));
+    cx.run_until_parked();
+    assert_eq!(
+      view.read_with(cx, |v, _| v.rendered.unwrap().model),
+      ModelType::Slim
+    );
+  }
+
+  #[gpui::test]
+  fn a_failed_render_stops_until_a_new_skin(cx: &mut TestAppContext) {
+    let (handle, view) = open(cx);
+    view.update(cx, |v, cx| {
+      // idle would keep requesting frames, the test never parks
+      v.animation = Animation::None;
+      v.textures = Some(textures());
+      v.failed = true;
+      cx.notify();
+    });
+    frame(handle, cx);
+    assert!(view.read_with(cx, |v, _| v.rendered.is_none()));
+
+    view.update(cx, |v, cx| v.set_skin(Some(textures()), cx));
+    assert!(!view.read_with(cx, |v, _| v.failed));
+    cx.executor().allow_parking();
+  }
+
+  #[gpui::test]
+  fn drag_orbits_and_clamps_the_pitch(cx: &mut TestAppContext) {
+    let (handle, view) = open(cx);
+    view.update(cx, |v, cx| v.set_animation(Animation::None, cx));
+    cx.update_window(handle.into(), |_, window, cx| {
+      // half the 280px height is half a turn
+      window.drag(point(px(150.), px(100.)), point(px(10.), px(100.)), cx);
+    })
+    .unwrap();
+    view.read_with(cx, |v, _| {
+      assert!((v.yaw - PI).abs() < 1e-4, "{}", v.yaw);
+      assert_eq!(v.pitch, 0.0);
+      assert!(v.drag.is_none(), "mouse up ends the drag");
+    });
+
+    cx.update_window(handle.into(), |_, window, cx| {
+      window.drag(point(px(100.), px(10.)), point(px(100.), px(270.)), cx);
+    })
+    .unwrap();
+    assert_eq!(view.read_with(cx, |v, _| v.pitch), 1.55);
+    cx.update_window(handle.into(), |_, window, cx| {
+      window.drag(point(px(100.), px(270.)), point(px(100.), px(0.)), cx);
+      window.drag(point(px(100.), px(270.)), point(px(100.), px(0.)), cx);
+    })
+    .unwrap();
+    assert_eq!(view.read_with(cx, |v, _| v.pitch), -1.55);
+  }
+
+  #[gpui::test]
+  fn moving_without_the_button_drops_the_drag(cx: &mut TestAppContext) {
+    let (handle, view) = open(cx);
+    view.update(cx, |v, _| v.drag = Some(point(px(10.), px(10.))));
+    frame(handle, cx);
+    cx.update_window(handle.into(), |_, window, cx| {
+      // the button was released outside the window
+      window.dispatch_event(
+        MouseMoveEvent {
+          position: point(px(100.), px(10.)),
+          pressed_button: None,
+          modifiers: Default::default(),
+        }
+        .to_platform_input(),
+        cx,
+      );
+    })
+    .unwrap();
+    view.read_with(cx, |v, _| {
+      assert!(v.drag.is_none());
+      assert_eq!(v.yaw, 0.0);
+    });
+  }
+
+  #[gpui::test]
+  fn size_and_scale_set_the_render_size(cx: &mut TestAppContext) {
+    let (_, view) = open(cx);
+    view.update(cx, |v, cx| v.set_size(size(px(100.), px(50.)), cx));
+    let p = view.read_with(cx, |v, _| v.params(2.0));
+    assert_eq!((p.width, p.height), (200, 100));
+  }
+
+  #[test]
+  fn mini_viewer_builder() {
+    let tile = MiniSkinViewer::new(textures())
+      .model(ModelType::Slim)
+      .flipped(true)
+      .size(size(px(10.), px(20.)));
+    assert_eq!(tile.model, ModelType::Slim);
+    assert!(tile.flipped);
+    assert_eq!(tile.size, size(px(10.), px(20.)));
+  }
+}

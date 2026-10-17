@@ -180,4 +180,80 @@ mod tests {
       "{nope"
     );
   }
+
+  #[test]
+  fn non_object_json_counts_as_corrupt() {
+    // valid json but not one top-level object
+    for body in ["[1,2]", "\"text\"", "null", ""] {
+      let dir = tempfile::tempdir().unwrap();
+      let path = dir.path().join(STORE_FILE);
+      std::fs::write(&path, body).unwrap();
+      let store = Store::open(path.clone());
+      assert_eq!(store.get::<u32>("a").unwrap(), None, "{body:?}");
+      assert_eq!(
+        std::fs::read_to_string(path.with_extension("json.corrupt")).unwrap(),
+        body
+      );
+    }
+  }
+
+  #[test]
+  fn wrong_type_is_an_error_not_a_default() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path().join(STORE_FILE));
+    store.set("item", &"a string").unwrap();
+    assert!(store.get::<Item>("item").is_err());
+    assert!(store.get_or_default::<Item>("item").is_err());
+    // missing fields are an error too, callers add #[serde(default)]
+    store
+      .set("item", &serde_json::json!({ "name": "a" }))
+      .unwrap();
+    assert!(store.get::<Item>("item").is_err());
+  }
+
+  #[test]
+  fn deleting_a_missing_key_does_not_save() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join(STORE_FILE);
+    let store = Store::open(path.clone());
+    store.delete("nope").unwrap();
+    assert!(!path.exists());
+  }
+
+  #[test]
+  fn set_overwrites_and_keeps_unicode_keys() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join(STORE_FILE);
+    let store = Store::open(path.clone());
+    store.set("schlüssel ✓", &1).unwrap();
+    store.set("schlüssel ✓", &2).unwrap();
+    assert_eq!(
+      Store::open(path).get::<u32>("schlüssel ✓").unwrap(),
+      Some(2)
+    );
+  }
+
+  #[test]
+  fn unwritable_path_fails_the_save() {
+    let dir = tempfile::tempdir().unwrap();
+    // the parent is a file, so create_dir_all fails
+    let blocker = dir.path().join("file");
+    std::fs::write(&blocker, "").unwrap();
+    let store = Store::open(blocker.join(STORE_FILE));
+    assert!(store.set("a", &1).is_err());
+    // the value stays in memory for the next save attempt
+    assert_eq!(store.get::<u32>("a").unwrap(), Some(1));
+  }
+
+  #[test]
+  fn init_at_wins_once_and_later_calls_are_ignored() {
+    let dir = tempfile::tempdir().unwrap();
+    let first = dir.path().join("first.json");
+    let second = dir.path().join("second.json");
+    init_at(first.clone());
+    init_at(second.clone());
+    store().set("a", &1).unwrap();
+    assert!(first.exists());
+    assert!(!second.exists());
+  }
 }

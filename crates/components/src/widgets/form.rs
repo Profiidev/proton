@@ -606,4 +606,101 @@ mod tests {
       Some("/tmp/icon.png".into())
     );
   }
+
+  #[test]
+  fn is_image_matches_the_web_accept_list() {
+    let cases = [
+      ("a.png", true),
+      ("a.PNG", true),
+      ("dir/a.jpg", true),
+      ("a.JpEg", true),
+      ("bild ü.jpeg", true),
+      ("a.gif", false),
+      ("a.webp", false),
+      ("png", false),
+      ("a.png.txt", false),
+      (".png", false),
+      ("", false),
+    ];
+    for (path, expected) in cases {
+      assert_eq!(is_image(Path::new(path)), expected, "{path:?}");
+    }
+  }
+
+  #[test]
+  fn selected_index_finds_the_value_row() {
+    let options: Vec<SharedString> = vec!["1.21".into(), "1.20".into(), "1.20".into()];
+    let row = |v: &str| selected_index(&options, Some(&v.into())).map(|ix| ix.row);
+    // the first duplicate wins
+    assert_eq!(row("1.20"), Some(1));
+    assert_eq!(row("1.21"), Some(0));
+    assert_eq!(row("1.19"), None);
+    assert_eq!(selected_index(&options, None), None);
+    assert_eq!(selected_index(&[], Some(&"1.21".into())), None);
+  }
+
+  #[gpui::test]
+  fn version_select_marks_a_missing_value(cx: &mut TestAppContext) {
+    let (handle, _) = test_view::open(cx, |_, _| div().into_any_element());
+    let select = cx
+      .update_window(handle, |_, window, cx| {
+        cx.new(|cx| VersionSelect::new("Loader", vec!["a".into()], Some("gone".into()), window, cx))
+      })
+      .unwrap();
+    assert!(select.read_with(cx, |s, _| s.missing));
+    assert_eq!(select.read_with(cx, |s, cx| s.value(cx)), None);
+
+    cx.update_window(handle, |_, window, cx| {
+      select.update(cx, |s, cx| {
+        s.set_options(
+          vec!["gone".into(), "b".into()],
+          Some("gone".into()),
+          window,
+          cx,
+        )
+      })
+    })
+    .unwrap();
+    assert!(!select.read_with(cx, |s, _| s.missing));
+    assert_eq!(
+      select.read_with(cx, |s, cx| s.value(cx)).as_deref(),
+      Some("gone")
+    );
+
+    // no value is not "missing", the placeholder shows instead
+    cx.update_window(handle, |_, window, cx| {
+      select.update(cx, |s, cx| {
+        s.set_options(vec!["b".into()], None, window, cx)
+      })
+    })
+    .unwrap();
+    assert!(!select.read_with(cx, |s, _| s.missing));
+    assert_eq!(select.read_with(cx, |s, cx| s.value(cx)), None);
+  }
+
+  #[gpui::test]
+  fn image_input_ignores_non_images_and_cancel(cx: &mut TestAppContext) {
+    let calls = Rc::new(Cell::new(0));
+    let input = cx.new(|_| {
+      let calls = calls.clone();
+      ImageInput::new(None).on_change(move |_, _, _| calls.set(calls.get() + 1))
+    });
+    let (handle, _) = test_view::open(cx, {
+      let input = input.clone();
+      move |_, _| input.clone().into_any_element()
+    });
+    let responses: [Option<Vec<PathBuf>>; 2] = [None, Some(vec!["/tmp/a.gif".into()])];
+    for response in responses {
+      cx.update_window(handle, |_, window, cx| {
+        window.render_frame(cx);
+        window.click("image-input", cx);
+      })
+      .unwrap();
+      cx.run_until_parked();
+      cx.simulate_path_prompt_response(move |_| response);
+      cx.run_until_parked();
+    }
+    assert_eq!(calls.get(), 0);
+    assert!(input.read_with(cx, |i, _| i.picked().is_none()));
+  }
 }

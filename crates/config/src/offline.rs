@@ -144,4 +144,31 @@ mod tests {
         .any(|m| m == OfflineMsg::Event(OfflineEvent::Reconnected))
     );
   }
+
+  #[test]
+  fn sends_after_the_receiver_is_gone_are_ignored() {
+    let (handle, rx) = OfflineHandle::new();
+    drop(rx);
+    handle.report(false);
+    handle.manifest_refresh_failed();
+    assert!(handle.is_offline());
+  }
+
+  #[test]
+  fn result_matching_the_state_skips_the_check() {
+    proton_utils::rt::block_on(async {
+      let (handle, rx) = OfflineHandle::new();
+      // ok while online: nothing to recheck
+      let ok: Result<u8, &str> = Ok(1);
+      assert_eq!(ok.check_online_state(&handle).await, Ok(1));
+
+      handle.report(false);
+      let _ = rx.try_iter().count();
+      // an error while offline is expected too, and passes through unchanged
+      let err: Result<u8, &str> = Err("down");
+      assert_eq!(err.check_online_state(&handle).await, Err("down"));
+      assert!(handle.is_offline());
+      assert!(rx.try_recv().is_err());
+    });
+  }
 }

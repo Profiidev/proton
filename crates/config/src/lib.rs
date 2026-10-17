@@ -182,4 +182,30 @@ mod tests {
       ]
     );
   }
+
+  #[gpui::test]
+  fn unchanged_update_does_not_save(cx: &mut TestAppContext) {
+    let dir = tempfile::tempdir().unwrap().keep();
+    let path = dir.join("store.json");
+    proton_store::init_at(path.clone());
+    cx.update(init);
+    cx.update(|cx| update(cx, |_| {}));
+    assert!(!path.exists());
+    cx.update(|cx| update(cx, |s| s.url = Some("/home".into())));
+    assert!(path.exists());
+  }
+
+  #[gpui::test]
+  fn unreadable_settings_fall_back_to_the_default(cx: &mut TestAppContext) {
+    let dir = tempfile::tempdir().unwrap().keep();
+    let path = dir.join("store.json");
+    std::fs::write(&path, r#"{"settings":{"auto_update":"yes"},"other":1}"#).unwrap();
+    proton_store::init_at(path);
+    cx.update(init);
+    assert_eq!(
+      cx.update(|cx| cx.settings().get(cx).clone()),
+      Settings::default()
+    );
+    assert!(!cx.update(|cx| cx.offline().is_offline(cx)));
+  }
 }

@@ -429,3 +429,232 @@ pub fn build_mesh(
   }
   mesh
 }
+
+#[cfg(test)]
+mod tests {
+  use std::io::Cursor;
+
+  use image::{ImageFormat, Rgba};
+
+  use super::*;
+
+  const RED: Rgba<u8> = Rgba([255, 0, 0, 255]);
+  const BLUE: Rgba<u8> = Rgba([0, 0, 255, 255]);
+
+  fn opaque(w: u32, h: u32) -> RgbaImage {
+    RgbaImage::from_pixel(w, h, Rgba([10, 20, 30, 255]))
+  }
+
+  fn png(img: &RgbaImage) -> Vec<u8> {
+    let mut out = Cursor::new(Vec::new());
+    img.write_to(&mut out, ImageFormat::Png).unwrap();
+    out.into_inner()
+  }
+
+  #[test]
+  fn skin_sizes() {
+    let cases = [
+      ((64, 64), Some(64)),
+      ((128, 128), Some(128)),
+      ((64, 32), Some(64)),
+      ((128, 64), Some(128)),
+      ((32, 32), None),
+      ((32, 16), None),
+      ((64, 48), None),
+      ((63, 63), None),
+      ((0, 0), None),
+    ];
+    for ((w, h), side) in cases {
+      let out = normalize_skin(opaque(w, h)).ok().map(|i| {
+        assert_eq!(i.width(), i.height());
+        i.width()
+      });
+      assert_eq!(out, side, "{w}x{h}");
+    }
+  }
+
+  #[test]
+  fn opaque_overlay_background_is_cleared() {
+    let img = normalize_skin(opaque(64, 64)).unwrap();
+    // hat, jacket and left sleeve areas
+    for (x, y) in [(40, 8), (20, 40), (52, 56), (4, 52)] {
+      assert_eq!(img.get_pixel(x, y).0[3], 0, "({x},{y})");
+    }
+    // inner layers stay
+    for (x, y) in [(8, 8), (20, 20), (36, 52)] {
+      assert_eq!(img.get_pixel(x, y).0[3], 255, "({x},{y})");
+    }
+  }
+
+  #[test]
+  fn a_transparent_pixel_keeps_the_overlay() {
+    let mut src = opaque(64, 64);
+    src.put_pixel(0, 0, Rgba([0; 4]));
+    let img = normalize_skin(src).unwrap();
+    assert_eq!(img.get_pixel(40, 8).0[3], 255);
+    assert_eq!(img.get_pixel(20, 40).0[3], 255);
+  }
+
+  #[test]
+  fn hd_skins_clear_scaled_regions() {
+    let img = normalize_skin(opaque(128, 128)).unwrap();
+    // the hat at 2x: (32..64, 0..16) becomes (64..128, 0..32)
+    assert_eq!(img.get_pixel(64, 0).0[3], 0);
+    assert_eq!(img.get_pixel(127, 31).0[3], 0);
+    assert_eq!(img.get_pixel(63, 31).0[3], 255);
+  }
+
+  #[test]
+  fn legacy_skin_mirrors_the_right_limbs() {
+    let mut src = opaque(64, 32);
+    // right arm top face (44,16 4x4): left column red, right column blue
+    for y in 16..20 {
+      src.put_pixel(44, y, RED);
+      src.put_pixel(47, y, BLUE);
+    }
+    let img = normalize_skin(src).unwrap();
+    assert_eq!(img.dimensions(), (64, 64));
+    // copied to the left arm top (36,48), flipped horizontally
+    assert_eq!(*img.get_pixel(39, 48), RED);
+    assert_eq!(*img.get_pixel(36, 48), BLUE);
+    // the right leg front (4,20) lands on the left leg front (20,52)
+    assert_eq!(img.get_pixel(20, 52).0[3], 255);
+    // only the hat is cleared on legacy skins, the 1.8 overlay slots are new and empty
+    assert_eq!(img.get_pixel(40, 8).0[3], 0);
+    assert_eq!(img.get_pixel(0, 32).0[3], 0);
+  }
+
+  #[test]
+  fn cape_sizes() {
+    let cases = [
+      ((64, 32), Some((64, 32))),
+      ((128, 64), Some((128, 64))),
+      ((22, 17), Some((64, 32))),
+      ((44, 34), Some((128, 64))),
+      ((46, 22), Some((64, 32))),
+      ((64, 64), None),
+      ((10, 10), None),
+      ((0, 0), Some((0, 0))),
+    ];
+    for ((w, h), out) in cases {
+      let res = normalize_cape(opaque(w, h)).ok().map(|i| i.dimensions());
+      assert_eq!(res, out, "{w}x{h}");
+    }
+    // the source sits top-left, the rest is transparent
+    let cape = normalize_cape(opaque(22, 17)).unwrap();
+    assert_eq!(cape.get_pixel(0, 0).0[3], 255);
+    assert_eq!(cape.get_pixel(22, 0).0[3], 0);
+  }
+
+  #[test]
+  fn textures_from_png() {
+    let skin = png(&opaque(64, 64));
+    let cape = png(&opaque(64, 32));
+    let plain = SkinTextures::from_png(&skin, None).unwrap();
+    assert!(plain.cape.is_none());
+    let caped = SkinTextures::from_png(&skin, Some(&cape)).unwrap();
+    assert_eq!(caped.cape.as_ref().unwrap().dimensions(), (64, 32));
+    // the cache key follows the source bytes
+    assert_ne!(plain.hash, caped.hash);
+    assert_eq!(
+      plain.hash,
+      SkinTextures::from_png(&skin, None).unwrap().hash
+    );
+
+    assert!(SkinTextures::from_png(b"not a png", None).is_err());
+    assert!(SkinTextures::from_png(&[], None).is_err());
+    assert!(SkinTextures::from_png(&skin, Some(b"junk")).is_err());
+    // decodable but the wrong shape
+    assert!(SkinTextures::from_png(&png(&opaque(30, 30)), None).is_err());
+    assert!(SkinTextures::from_png(&skin, Some(&png(&opaque(30, 30)))).is_err());
+  }
+
+  const ANIMATIONS: [Animation; 5] = [
+    Animation::None,
+    Animation::Idle,
+    Animation::Walking,
+    Animation::Running,
+    Animation::Waving,
+  ];
+
+  #[test]
+  fn mesh_vertex_counts() {
+    // 6 parts, inner + outer box, 6 faces of 2 triangles
+    let skin = 6 * 2 * 36;
+    for model in [ModelType::Classic, ModelType::Slim] {
+      for anim in ANIMATIONS {
+        for (back, has_cape, cape) in [
+          (BackEquipment::Cape, true, 36),
+          (BackEquipment::Elytra, true, 72),
+          (BackEquipment::None, true, 0),
+          (BackEquipment::Cape, false, 0),
+          (BackEquipment::Elytra, false, 0),
+        ] {
+          let mesh = build_mesh(model, back, anim, 1.3, has_cape);
+          assert_eq!(mesh.skin.len(), skin, "{model:?} {anim:?}");
+          assert_eq!(mesh.cape.len(), cape, "{back:?} {has_cape}");
+        }
+      }
+    }
+  }
+
+  #[test]
+  fn mesh_is_finite_with_unit_normals_and_inner_uvs() {
+    for anim in ANIMATIONS {
+      for time in [0.0, 0.5, 123.4] {
+        let mesh = build_mesh(ModelType::Classic, BackEquipment::Elytra, anim, time, true);
+        for v in mesh.skin.iter().chain(&mesh.cape) {
+          assert!(v.pos.iter().all(|c| c.is_finite()), "{anim:?} {time}");
+          let len = Vec3::from(v.normal).length();
+          assert!((len - 1.0).abs() < 1e-4, "{anim:?} normal {len}");
+          assert!(v.uv.iter().all(|c| (0.0..=1.0).contains(c)), "{:?}", v.uv);
+        }
+        // the first box of each part is the opaque inner layer
+        assert_eq!(mesh.skin[0].opaque, 1.0);
+        assert_eq!(mesh.skin[36].opaque, 0.0);
+        assert!(mesh.cape.iter().all(|v| v.opaque == 0.0));
+      }
+    }
+  }
+
+  fn x_extent(verts: &[Vertex]) -> f32 {
+    let xs = verts.iter().map(|v| v.pos[0]);
+    xs.clone().fold(f32::MIN, f32::max) - xs.fold(f32::MAX, f32::min)
+  }
+
+  #[test]
+  fn slim_arms_are_narrower() {
+    let arm = |model| {
+      let mesh = build_mesh(model, BackEquipment::None, Animation::None, 0.0, false);
+      // the right arm is the third part, its inner box
+      x_extent(&mesh.skin[2 * 72..2 * 72 + 36])
+    };
+    assert!((arm(ModelType::Classic) - 4.0).abs() < 1e-4);
+    assert!((arm(ModelType::Slim) - 3.0).abs() < 1e-4);
+  }
+
+  #[test]
+  fn still_poses_ignore_time_and_animations_move() {
+    let at = |anim, t| {
+      let mesh = build_mesh(ModelType::Classic, BackEquipment::Cape, anim, t, true);
+      mesh
+        .skin
+        .iter()
+        .chain(&mesh.cape)
+        .flat_map(|v| v.pos)
+        .collect::<Vec<_>>()
+    };
+    assert_eq!(at(Animation::None, 0.0), at(Animation::None, 9.0));
+    for anim in &ANIMATIONS[1..] {
+      assert_ne!(at(*anim, 0.0), at(*anim, 0.37), "{anim:?}");
+    }
+  }
+
+  #[test]
+  fn defaults_match_the_web_viewer() {
+    assert_eq!(ModelType::default(), ModelType::Classic);
+    assert_eq!(BackEquipment::default(), BackEquipment::Cape);
+    assert_eq!(Animation::default(), Animation::Idle);
+    assert_eq!(pose(Animation::None, 5.0).cape_x, CAPE_DEFAULT_ANGLE);
+  }
+}

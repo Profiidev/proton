@@ -78,3 +78,172 @@ pub async fn last_modified_ago(path: &PathBuf) -> Result<Option<Duration>> {
 
   Ok(Some(Utc::now() - time))
 }
+
+#[cfg(test)]
+mod tests {
+  use serde::Deserialize;
+
+  use super::*;
+  use crate::rt::block_on;
+
+  #[derive(Serialize, Deserialize, Debug, PartialEq)]
+  struct Item {
+    name: String,
+    count: u32,
+  }
+
+  #[test]
+  fn bytes_hash_is_hex_sha1() {
+    let cases: [(&[u8], &str); 3] = [
+      (b"", "da39a3ee5e6b4b0d3255bfef95601890afd80709"),
+      (b"abc", "a9993e364706816aba3e25717850c26c9cd0d89d"),
+      ("ü".as_bytes(), "94a759fd37735430753c7b6b80684306d80ea16e"),
+    ];
+    for (bytes, hash) in cases {
+      assert_eq!(bytes_hash(bytes), hash, "{bytes:?}");
+    }
+  }
+
+  #[test]
+  fn file_hash_compares_the_file_content() {
+    let dir = tempfile::tempdir().unwrap();
+    // spans several 8 KiB reads with a partial last one
+    let big = (0..20_000u32).map(|i| i as u8).collect::<Vec<_>>();
+    let cases: [(&str, &[u8]); 3] = [("empty", b""), ("small", b"abc"), ("big", &big)];
+    for (name, bytes) in cases {
+      let path = dir.path().join(name);
+      std::fs::write(&path, bytes).unwrap();
+      assert!(
+        block_on(file_hash(&bytes_hash(bytes), &path)).unwrap(),
+        "{name}"
+      );
+      assert!(
+        !block_on(file_hash(&bytes_hash(b"other"), &path)).unwrap(),
+        "{name}"
+      );
+    }
+    // a missing file is a mismatch, not an error
+    assert!(!block_on(file_hash(&bytes_hash(b""), &dir.path().join("missing"))).unwrap());
+  }
+
+  #[test]
+  fn file_hash_is_case_sensitive() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("f");
+    std::fs::write(&path, "abc").unwrap();
+    // hex::encode is lowercase, an uppercase hash never matches
+    let upper = bytes_hash(b"abc").to_uppercase();
+    assert!(!block_on(file_hash(&upper, &path)).unwrap());
+  }
+
+  #[test]
+  fn write_then_read_json_round_trips() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("item.json");
+    let item = Item {
+      name: "名前 ✓".into(),
+      count: 1,
+    };
+    block_on(write_file(&path, &item)).unwrap();
+    assert_eq!(block_on(read_parse_file::<Item>(&path)).unwrap(), item);
+  }
+
+  #[test]
+  fn write_file_does_not_create_parents() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("missing/item.json");
+    assert!(block_on(write_file(&path, &1)).is_err());
+  }
+
+  #[test]
+  fn read_parse_file_errors() {
+    let dir = tempfile::tempdir().unwrap();
+    let cases = [
+      ("empty", ""),
+      ("malformed", "{\"name\":"),
+      ("wrong_type", r#"{"name":"a","count":"x"}"#),
+      ("missing_field", r#"{"name":"a"}"#),
+    ];
+    for (name, body) in cases {
+      let path = dir.path().join(name);
+      std::fs::write(&path, body).unwrap();
+      let err = block_on(read_parse_file::<Item>(&path)).unwrap_err();
+      assert!(err.is::<serde_json::Error>(), "{name}");
+    }
+    let err = block_on(read_parse_file::<Item>(&dir.path().join("missing"))).unwrap_err();
+    assert!(err.is::<std::io::Error>());
+  }
+
+  #[test]
+  fn read_parse_xml_file_reads_and_rejects_garbage() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("ok.xml");
+    std::fs::write(&path, "<item><name>ünï</name><count>4</count></item>").unwrap();
+    assert_eq!(
+      block_on(read_parse_xml_file::<Item>(&path)).unwrap(),
+      Item {
+        name: "ünï".into(),
+        count: 4
+      }
+    );
+
+    for (name, body) in [("unclosed", "<item><name>a</name>"), ("empty", "")] {
+      let path = dir.path().join(name);
+      std::fs::write(&path, body).unwrap();
+      assert!(
+        block_on(read_parse_xml_file::<Item>(&path)).is_err(),
+        "{name}"
+      );
+    }
+    assert!(block_on(read_parse_xml_file::<Item>(&dir.path().join("missing"))).is_err());
+  }
+
+  #[test]
+  fn create_or_open_file_creates_parents_and_truncates() {
+    use tokio::io::AsyncWriteExt;
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("a/b/log.txt");
+    block_on(async {
+      let mut file = create_or_open_file(&path).await.unwrap();
+      file.write_all(b"first run").await.unwrap();
+      file.flush().await.unwrap();
+    });
+    assert_eq!(std::fs::read(&path).unwrap(), b"first run");
+
+    block_on(async {
+      let mut file = create_or_open_file(&path).await.unwrap();
+      file.write_all(b"2nd").await.unwrap();
+      file.flush().await.unwrap();
+    });
+    assert_eq!(std::fs::read(&path).unwrap(), b"2nd");
+  }
+
+  #[test]
+  fn last_modified_ago_is_none_for_missing_files() {
+    let dir = tempfile::tempdir().unwrap();
+    assert_eq!(
+      block_on(last_modified_ago(&dir.path().join("missing"))).unwrap(),
+      None
+    );
+
+    let path = dir.path().join("f");
+    std::fs::write(&path, "").unwrap();
+    let ago = block_on(last_modified_ago(&path)).unwrap().unwrap();
+    assert!(ago < Duration::minutes(1), "{ago}");
+
+    // an old mtime shows up as a long duration
+    let old = std::time::SystemTime::now() - std::time::Duration::from_secs(3 * 3600);
+    std::fs::File::options()
+      .write(true)
+      .open(&path)
+      .unwrap()
+      .set_modified(old)
+      .unwrap();
+    let ago = block_on(last_modified_ago(&path)).unwrap().unwrap();
+    assert!(
+      ago >= Duration::hours(3) && ago < Duration::hours(4),
+      "{ago}"
+    );
+  }
+}

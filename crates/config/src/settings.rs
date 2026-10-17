@@ -143,4 +143,96 @@ mod tests {
       Some("tauri://localhost/profiles?id=1")
     );
   }
+
+  const TAURI_SETTINGS: &str = r#"{
+    "system_max_mem": 16384,
+    "sidebar_width": null,
+    "url": "tauri://localhost/home",
+    "auto_update": false,
+    "hide_window_controls": false,
+    "download_dirs": [],
+    "minecraft": {
+      "show_snapshots": false,
+      "game_settings": { "use_custom": false, "width": 854, "height": 480 },
+      "jvm_settings": { "args": [], "env_vars": {}, "mem_max": 4096 }
+    }
+  }"#;
+
+  #[test]
+  fn empty_object_is_the_default() {
+    let settings: Settings = serde_json::from_str("{}").unwrap();
+    assert_eq!(settings, Settings::default());
+    assert_eq!(settings.minecraft.game_settings.width, 854);
+    assert_eq!(settings.minecraft.game_settings.height, 480);
+    assert_eq!(settings.minecraft.jvm_settings.mem_max, 2048);
+    assert_eq!(settings.window, None);
+  }
+
+  #[test]
+  fn reads_the_tauri_settings_and_round_trips() {
+    let settings: Settings = serde_json::from_str(TAURI_SETTINGS).unwrap();
+    assert_eq!(settings.minecraft.jvm_settings.mem_max, 4096);
+    // an empty list means "no folders", not "the system Downloads folder"
+    assert_eq!(settings.download_dirs, Some(Vec::new()));
+    assert!(settings.download_dirs().is_empty());
+
+    let json = serde_json::to_string(&settings).unwrap();
+    assert_eq!(serde_json::from_str::<Settings>(&json).unwrap(), settings);
+  }
+
+  #[test]
+  fn minecraft_without_sub_settings_uses_their_defaults() {
+    let settings: Settings =
+      serde_json::from_str(r#"{"minecraft":{"show_snapshots":true}}"#).unwrap();
+    assert_eq!(settings.minecraft.game_settings, GameSettings::default());
+    assert_eq!(settings.minecraft.jvm_settings, JvmSettings::default());
+  }
+
+  #[test]
+  fn window_state_without_maximized_is_not_maximized() {
+    let settings: Settings =
+      serde_json::from_str(r#"{"window":{"x":1,"y":-2.5,"width":800,"height":600}}"#).unwrap();
+    let window = settings.window.unwrap();
+    assert_eq!((window.x, window.y), (1.0, -2.5));
+    assert!(!window.maximized);
+  }
+
+  #[test]
+  fn malformed_settings_are_an_error() {
+    for json in [
+      r#"{"auto_update":"yes"}"#,
+      r#"{"minecraft":{"jvm_settings":{"mem_max":-1}}}"#,
+      r#"{"window":{"x":1}}"#,
+      "[]",
+    ] {
+      assert!(serde_json::from_str::<Settings>(json).is_err(), "{json}");
+    }
+  }
+
+  #[test]
+  fn custom_download_dirs_replace_the_system_one() {
+    let dirs = vec![PathBuf::from("/a"), PathBuf::from("/ü/b")];
+    let settings = Settings {
+      download_dirs: Some(dirs.clone()),
+      ..Default::default()
+    };
+    assert_eq!(settings.download_dirs(), dirs);
+    // none falls back to the system folder, if there is one
+    assert_eq!(
+      Settings::default().download_dirs(),
+      dir::download_dir().into_iter().collect::<Vec<_>>()
+    );
+  }
+
+  #[test]
+  fn mem_fits_leaves_two_gb_for_the_os() {
+    let max = system_max_mem();
+    assert!(max > 0);
+    assert_eq!(max, system_max_mem(), "cached");
+    if max >= 2048 {
+      assert!(mem_fits(max - 2048));
+      assert!(!mem_fits(max - 2047));
+    }
+    assert!(!mem_fits(max));
+  }
 }

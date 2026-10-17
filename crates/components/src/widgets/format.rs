@@ -225,4 +225,19 @@ mod tests {
     );
     assert_eq!(instance_subtitle("<1m", None, true), "running for <1m");
   }
+
+  #[test]
+  fn instance_helper_edges() {
+    // an empty account name counts as unknown
+    assert_eq!(instance_subtitle("1m", Some(""), true), "running for 1m");
+    assert_eq!(format_duration(0), "<1m");
+    assert_eq!(format_duration(-5_000), "<1m");
+    assert_eq!(format_duration(59_999), "<1m");
+    assert_eq!(format_duration(60 * 60_000), "1h 0m");
+    assert_eq!(format_gb(0), "0.0");
+    assert_eq!(memory_usage(Some(0), Some(0)), Some(("0.0 GB".into(), 0.)));
+    assert_eq!(memory_usage(None, None), None);
+    // only shown while something runs, so 0 is never pluralized
+    assert_eq!(running_label(0), "Running");
+  }
 }

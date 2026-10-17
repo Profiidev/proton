@@ -21,3 +21,6 @@ wgpu = { version = "29", default-features = false, features = [
   "metal",
   "gles"
 ] }
+
+[dev-dependencies]
+gpui-kit = { version = "0.7.3", default-features = false, features = ["test-support"] }
