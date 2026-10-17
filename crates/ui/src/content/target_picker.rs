@@ -205,3 +205,118 @@ impl Render for TargetPicker {
 pub fn any_profile() -> ProfileFilter {
   Rc::new(|_, _| true)
 }
+
+#[cfg(test)]
+mod tests {
+  use std::{cell::Cell, rc::Rc};
+
+  use gpui_kit::{self as gpui, AppContext, TestAppContext, test::TestWindowExt};
+
+  use super::*;
+  use crate::pages::profiles::tests::{init_fixture, open};
+
+  const VANILLA: &str = "11111111-1111-4111-8111-111111111111";
+  const FABRIC: &str = "22222222-2222-4222-8222-222222222222";
+
+  fn picked(filter: &ProfileFilter, cx: &mut TestAppContext) -> Option<String> {
+    cx.update(|cx| candidates(filter, cx).1.map(|p| p.id))
+  }
+
+  #[gpui::test]
+  fn candidates_prefer_remembered_then_latest_played(cx: &mut TestAppContext) {
+    init_fixture(cx);
+    let all = any_profile();
+    let (list, _) = cx.update(|cx| candidates(&all, cx));
+    assert_eq!(list.len(), 4);
+    // nothing remembered: the latest played
+    assert_eq!(picked(&all, cx).as_deref(), Some(VANILLA));
+    cx.update(|cx| set_target(cx, Some(FABRIC.into())));
+    assert_eq!(picked(&all, cx).as_deref(), Some(FABRIC));
+    // the remembered one is filtered out
+    let no_fabric: ProfileFilter = Rc::new(|p, _| p.id != FABRIC);
+    assert_eq!(picked(&no_fabric, cx).as_deref(), Some(VANILLA));
+    // a deleted profile is remembered
+    cx.update(|cx| set_target(cx, Some("gone".into())));
+    assert_eq!(picked(&all, cx).as_deref(), Some(VANILLA));
+    let none: ProfileFilter = Rc::new(|_, _| false);
+    let (list, target) = cx.update(|cx| candidates(&none, cx));
+    assert!(list.is_empty() && target.is_none());
+  }
+
+  #[gpui::test]
+  fn set_target_persists_and_notifies_on_change_only(cx: &mut TestAppContext) {
+    init_fixture(cx);
+    let entity = cx.update(target);
+    let count = Rc::new(Cell::new(0));
+    let seen = count.clone();
+    let _sub = cx.update(|cx| cx.observe(&entity, move |_, _| seen.set(seen.get() + 1)));
+    let stored = || {
+      proton_store::store()
+        .get::<String>(super::super::TARGET_KEY)
+        .unwrap()
+    };
+    for _ in 0..2 {
+      cx.update(|cx| set_target(cx, Some(FABRIC.into())));
+    }
+    cx.run_until_parked();
+    assert_eq!(count.get(), 1);
+    assert_eq!(stored().as_deref(), Some(FABRIC));
+    cx.update(|cx| set_target(cx, None));
+    cx.run_until_parked();
+    assert_eq!(count.get(), 2);
+    assert_eq!(stored(), None);
+    // the same entity from now on
+    assert_eq!(cx.update(target), entity);
+  }
+
+  #[gpui::test]
+  fn the_popover_searches_and_picks_a_profile(cx: &mut TestAppContext) {
+    init_fixture(cx);
+    let (handle, picker) = open(cx, |w, cx| TargetPicker::new(any_profile(), w, cx));
+    cx.run_until_parked();
+    cx.update_window(handle, |_, w, cx| {
+      w.render_frame(cx);
+      w.click("target-picker", cx);
+      w.render_frame(cx);
+      assert!(w.try_find(format!("target-{VANILLA}")).is_some());
+    })
+    .unwrap();
+    cx.update_window(handle, |_, w, cx| {
+      let search = picker.read(cx).search.clone();
+      search.update(cx, |s, cx| s.set_value("  FABRIC perf", w, cx));
+    })
+    .unwrap();
+    // set_value emits no change event, the picker re-renders on the next notify
+    picker.update(cx, |_, cx| cx.notify());
+    cx.run_until_parked();
+    cx.update_window(handle, |_, w, cx| {
+      w.render_frame(cx);
+      assert!(w.try_find(format!("target-{VANILLA}")).is_none());
+      w.click(format!("target-{FABRIC}"), cx);
+    })
+    .unwrap();
+    cx.run_until_parked();
+    let target = cx.update(|cx| target(cx).read(cx).clone());
+    assert_eq!(target.as_deref(), Some(FABRIC));
+    cx.update_window(handle, |_, w, cx| {
+      w.render_frame(cx);
+      // picking closes the popover
+      assert!(w.try_find("target-list").is_none());
+    })
+    .unwrap();
+  }
+
+  #[gpui::test]
+  fn without_candidates_the_trigger_does_not_open(cx: &mut TestAppContext) {
+    init_fixture(cx);
+    let (handle, _) = open(cx, |w, cx| TargetPicker::new(Rc::new(|_, _| false), w, cx));
+    cx.run_until_parked();
+    cx.update_window(handle, |_, w, cx| {
+      w.render_frame(cx);
+      w.click("target-picker", cx);
+      w.render_frame(cx);
+      assert!(w.try_find("target-list").is_none());
+    })
+    .unwrap();
+  }
+}

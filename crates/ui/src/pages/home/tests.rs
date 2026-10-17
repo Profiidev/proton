@@ -224,3 +224,183 @@ fn continue_quick_play_cases() {
 
   assert!(continue_quick_play(&played("a", None, false)).is_none());
 }
+
+#[test]
+fn names_read_like_prose() {
+  for (list, expected) in [
+    (&[][..], ""),
+    (&["A"][..], "A"),
+    (&["A", "B"][..], "A and B"),
+    (&["A", "B", "C"][..], "A, B and C"),
+  ] {
+    assert_eq!(names(list), expected, "{list:?}");
+  }
+}
+
+fn pack_update(profile: &str) -> proton_content::model::PackUpdate {
+  proton_content::model::PackUpdate {
+    current: "1".into(),
+    latest: update(profile, ContentKind::Modpack).latest,
+  }
+}
+
+#[test]
+fn pack_banner_counts_and_names() {
+  let list = [profile("a"), profile("b"), profile("c")];
+  assert_eq!(pack_banner(&ModpackUpdates::default(), &list), None);
+  // updates for profiles that are gone show nothing
+  let gone = ModpackUpdates([("gone".into(), pack_update("gone"))].into());
+  assert_eq!(pack_banner(&gone, &list), None);
+
+  let one = ModpackUpdates([("b".into(), pack_update("b"))].into());
+  let b = pack_banner(&one, &list).unwrap();
+  assert_eq!(b.title, "1 modpack update available");
+  assert_eq!(b.description, "P b has a new pack version.");
+  assert_eq!(
+    b.target,
+    Route::Profile {
+      id: "b".into(),
+      tab: ProfileTab::QuickPlay(QuickPlayTab::Singleplayer)
+    }
+  );
+
+  let two = ModpackUpdates(
+    [
+      ("a".into(), pack_update("a")),
+      ("c".into(), pack_update("c")),
+    ]
+    .into(),
+  );
+  let b = pack_banner(&two, &list).unwrap();
+  assert_eq!(b.title, "2 modpack updates available");
+  // profile list order, not map order
+  assert_eq!(b.description, "P a, P c have a new pack version.");
+  assert_eq!(
+    b.target.to_url(),
+    "/profiles/info/quick_play/singleplayer?id=a"
+  );
+}
+
+const FABRIC: &str = "22222222-2222-4222-8222-222222222222";
+const PACK: &str = "44444444-4444-4444-8444-444444444444";
+
+#[gpui::test]
+fn banners_navigate_to_their_targets(cx: &mut TestAppContext) {
+  init_fixture(cx);
+  let (handle, _) = open(cx, |_, cx| HomePage::new(cx));
+  poll(cx, |cx| !cx.profiles().profiles.read(cx).is_empty());
+  cx.update_window(handle, |_, window, cx| {
+    window.render_frame(cx);
+    assert!(window.try_find("updates-banner").is_none());
+    assert!(window.try_find("packs-banner").is_none());
+  })
+  .unwrap();
+
+  cx.update(|cx| {
+    let c = cx.content().clone();
+    c.updates.update(cx, |u, cx| {
+      *u = ContentUpdates([(FABRIC.into(), vec![update(FABRIC, ContentKind::Mod)])].into());
+      cx.notify();
+    });
+    c.pack_updates.update(cx, |u, cx| {
+      *u = ModpackUpdates([(PACK.into(), pack_update(PACK))].into());
+      cx.notify();
+    });
+  });
+  cx.run_until_parked();
+  cx.update_window(handle, |_, window, cx| {
+    window.render_frame(cx);
+    window
+      .within("updates-banner")
+      .click(("updates-banner", 0usize), cx);
+  })
+  .unwrap();
+  assert_eq!(
+    cx.update(|cx| cx.route()).to_url(),
+    format!("/profiles/info/content/mods?id={FABRIC}")
+  );
+  cx.update_window(handle, |_, window, cx| {
+    window.render_frame(cx);
+    window
+      .within("packs-banner")
+      .click(("packs-banner", 0usize), cx);
+  })
+  .unwrap();
+  assert_eq!(
+    cx.update(|cx| cx.route()),
+    Route::Profile {
+      id: PACK.into(),
+      tab: ProfileTab::QuickPlay(QuickPlayTab::Singleplayer),
+    }
+  );
+}
+
+#[gpui::test]
+fn empty_home_shows_hints_and_links_to_profiles(cx: &mut TestAppContext) {
+  init_fixture(cx);
+  let (handle, _) = open(cx, |_, cx| HomePage::new(cx));
+  poll(cx, |cx| !cx.profiles().profiles.read(cx).is_empty());
+  cx.update(|cx| {
+    let p = cx.profiles().clone();
+    p.favorites.update(cx, |f, cx| {
+      f.clear();
+      cx.notify();
+    });
+    p.history.update(cx, |h, cx| {
+      h.clear();
+      cx.notify();
+    });
+    // nothing ever played: no continue card
+    p.profiles.update(cx, |list, cx| {
+      for profile in list.iter_mut() {
+        profile.last_played = None;
+      }
+      cx.notify();
+    });
+  });
+  cx.run_until_parked();
+  cx.update_window(handle, |_, window, cx| {
+    window.render_frame(cx);
+    assert!(window.try_find("continue").is_none());
+    assert!(window.try_find("open").is_none());
+    assert!(
+      window
+        .within("favorites")
+        .try_find("profiles-link")
+        .is_some()
+    );
+    window.within("history").click("profiles-link", cx);
+  })
+  .unwrap();
+  assert_eq!(cx.update(|cx| cx.route()), Route::Profiles);
+}
+
+#[gpui::test]
+fn continue_card_resumes_the_latest_profile(cx: &mut TestAppContext) {
+  init_fixture(cx);
+  let (handle, _) = open(cx, |_, cx| HomePage::new(cx));
+  poll(cx, |cx| !cx.profiles().profiles.read(cx).is_empty());
+  let latest = cx.update(|cx| {
+    latest_played(cx.profiles().profiles.read(cx))
+      .cloned()
+      .unwrap()
+  });
+  assert_eq!(latest.id, VANILLA);
+  let tab = crate::pages::profiles::quick_play_tab(continue_quick_play(&latest));
+  cx.update_window(handle, |_, window, cx| {
+    window.render_frame(cx);
+    // nothing runs, so the button plays instead of launching another
+    assert!(window.try_find("continue-play").is_some());
+  })
+  .unwrap();
+  // the icon is a plain div (not observable), it runs `open_profile` with the card's entry
+  let qp = continue_quick_play(&latest).cloned();
+  cx.update(|cx| crate::pages::profiles::open_profile(latest.id.clone(), qp.as_ref(), cx));
+  assert_eq!(
+    cx.update(|cx| cx.route()),
+    Route::Profile {
+      id: VANILLA.into(),
+      tab: ProfileTab::QuickPlay(tab),
+    }
+  );
+}

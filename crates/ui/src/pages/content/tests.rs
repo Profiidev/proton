@@ -265,3 +265,250 @@ fn a_500_mod_list_renders_only_visible_rows(cx: &mut TestAppContext) {
     "{rendered} of 507 rows rendered after scrolling"
   );
 }
+
+fn visible(page: &Entity<ContentPage>, cx: &mut TestAppContext) -> Vec<String> {
+  cx.update(|cx| page.read(cx).summary.visible.clone())
+}
+
+/// Sets the search text; `set_value` emits no change event, so the page syncs by hand
+fn search(
+  handle: AnyWindowHandle,
+  page: &Entity<ContentPage>,
+  text: &'static str,
+  cx: &mut TestAppContext,
+) {
+  cx.update_window(handle, |_, window, cx| {
+    let search = page.read(cx).search.clone();
+    search.update(cx, |s, cx| s.set_value(text, window, cx));
+  })
+  .unwrap();
+  page.update(cx, |p, cx| p.sync(cx));
+  draw(handle, cx);
+}
+
+fn toasts(cx: &mut TestAppContext, handle: AnyWindowHandle) -> usize {
+  cx.update_window(handle, |_, window, cx| window.notifications(cx).len())
+    .unwrap()
+}
+
+#[gpui::test]
+fn search_and_status_filter_the_rows(cx: &mut TestAppContext) {
+  let (handle, page, _) = open(cx);
+  search(handle, &page, "SODIUM", cx);
+  assert_eq!(visible(&page, cx), ["sodium-fabric-0.6.13+mc1.21.8.jar"]);
+
+  search(handle, &page, "", cx);
+  for (status, expected) in [
+    (RowStatus::Disabled, vec!["debugify-1.21.8+1.0.jar"]),
+    (RowStatus::Updates, vec![]),
+  ] {
+    page.update(cx, |p, cx| {
+      p.status = status;
+      p.sync(cx);
+    });
+    assert_eq!(visible(&page, cx), expected, "{status:?}");
+  }
+  // the filtered-out list says so
+  draw(handle, cx);
+  cx.update_window(handle, |_, window, _| {
+    assert!(window.try_find(SharedString::from(FABRIC_API)).is_none());
+  })
+  .unwrap();
+  page.update(cx, |p, cx| {
+    p.status = RowStatus::Enabled;
+    p.sync(cx);
+  });
+  assert_eq!(visible(&page, cx).len(), 6);
+}
+
+#[gpui::test]
+fn updates_show_the_alert_and_count_on_the_tab(cx: &mut TestAppContext) {
+  use proton_content::model::{Channel, UpdateInfo, VersionInfo};
+
+  let (handle, page, _) = open(cx);
+  cx.update(super::feed_update_counts);
+  let update = |profile: &str| UpdateInfo {
+    profile: profile.into(),
+    kind: ContentKind::Mod,
+    file_name: FABRIC_API.into(),
+    source: Source::Modrinth,
+    project_id: "P7dR8mSH".into(),
+    name: "Fabric API".into(),
+    current: "1".into(),
+    latest: VersionInfo {
+      source: Source::Modrinth,
+      project_id: "P7dR8mSH".into(),
+      id: "v2".into(),
+      name: "v2".into(),
+      version_number: "2.0".into(),
+      channel: Channel::Release,
+      game_versions: vec![],
+      loaders: vec![],
+      published_at: String::new(),
+      files: vec![],
+      dependencies: vec![],
+    },
+  };
+  cx.update(|cx| {
+    let updates = cx.content().updates.clone();
+    updates.update(cx, |u, cx| {
+      // a profile without updates gets no count
+      u.0 = [
+        (FABRIC.into(), vec![update(FABRIC)]),
+        ("empty".into(), vec![]),
+      ]
+      .into();
+      cx.notify();
+    });
+  });
+  draw(handle, cx);
+  let summary = cx.update(|cx| page.read(cx).summary.clone());
+  assert_eq!(summary.updates, 1);
+  page.update(cx, |p, cx| {
+    p.status = RowStatus::Updates;
+    p.sync(cx);
+  });
+  assert_eq!(visible(&page, cx), [FABRIC_API]);
+  cx.update_window(handle, |_, window, _| {
+    assert!(window.try_find("update-all").is_some());
+  })
+  .unwrap();
+  let counts = cx.update(|cx| cx.shell_data().read(cx).content_updates.clone());
+  assert_eq!(counts, HashMap::from([(FABRIC.to_string(), 1)]));
+  // selecting the updatable row offers a bulk update
+  page.update(cx, |p, cx| {
+    p.selected.insert(FABRIC_API.into());
+    p.sync(cx);
+  });
+  assert!(cx.update(|cx| page.read(cx).summary.selected_updates));
+  draw(handle, cx);
+  cx.update_window(handle, |_, window, _| {
+    assert!(window.try_find("bulk-update").is_some());
+  })
+  .unwrap();
+}
+
+#[gpui::test]
+fn select_all_then_bulk_disable_moves_every_visible_file(cx: &mut TestAppContext) {
+  let (handle, page, profile_dir) = open(cx);
+  search(handle, &page, "ium", cx);
+  let shown = visible(&page, cx);
+  assert_eq!(shown.len(), 2);
+  cx.update_window(handle, |_, window, cx| window.click("select-all", cx))
+    .unwrap();
+  draw(handle, cx);
+  // only what the search shows is selected
+  assert_eq!(cx.update(|cx| page.read(cx).summary.selected), 2);
+  cx.update_window(handle, |_, window, cx| window.click("bulk-disable", cx))
+    .unwrap();
+  for file in shown {
+    let disabled = profile_dir.join(format!("mods/{file}.disabled"));
+    wait(cx, || {
+      let disabled = disabled.clone();
+      move |_: &mut App| disabled.exists()
+    });
+  }
+  // still all selected after the refresh, so select-all clears
+  draw(handle, cx);
+  cx.update_window(handle, |_, window, cx| window.click("select-all", cx))
+    .unwrap();
+  draw(handle, cx);
+  assert_eq!(cx.update(|cx| page.read(cx).summary.selected), 0);
+}
+
+#[gpui::test]
+fn removing_a_downloaded_mod_needs_no_confirmation(cx: &mut TestAppContext) {
+  let (handle, page, profile_dir) = open(cx);
+  cx.update_window(handle, |_, window, cx| {
+    page.update(cx, |p, cx| {
+      p.ask_remove(vec!["modmenu-15.0.0.jar".into()], window, cx)
+    });
+    assert!(!window.has_active_dialog(cx));
+  })
+  .unwrap();
+  let jar = profile_dir.join("mods/modmenu-15.0.0.jar");
+  wait(cx, || {
+    let jar = jar.clone();
+    move |_: &mut App| !jar.exists()
+  });
+  wait(cx, || {
+    let page = page.clone();
+    move |cx: &mut App| page.read(cx).summary.total == 6
+  });
+}
+
+#[gpui::test]
+fn wrong_extensions_warn_and_the_rest_is_added(cx: &mut TestAppContext) {
+  let (handle, page, profile_dir) = open(cx);
+  let dir = tempfile::tempdir().unwrap();
+  let jar = dir.path().join("Upper.JAR");
+  std::fs::write(&jar, b"jar").unwrap();
+  // ponytail: called outside the window, a toast from a window callback is dropped (see report)
+  page.update(cx, |p, cx| {
+    p.add_paths(vec![dir.path().join("pack.zip"), jar.clone()], cx)
+  });
+  wait(cx, || {
+    let page = page.clone();
+    move |cx: &mut App| page.read(cx).summary.total == 8
+  });
+  assert!(profile_dir.join("mods/Upper.JAR").exists());
+  assert_eq!(toasts(cx, handle), 1);
+  // only good files: no warning
+  let good = dir.path().join("good.jar");
+  std::fs::write(&good, b"jar").unwrap();
+  page.update(cx, |p, cx| p.add_paths(vec![good], cx));
+  wait(cx, || {
+    let page = page.clone();
+    move |cx: &mut App| page.read(cx).summary.total == 9
+  });
+  assert_eq!(toasts(cx, handle), 1);
+}
+
+#[gpui::test]
+fn add_tabs_and_projects_navigate(cx: &mut TestAppContext) {
+  let (handle, page, _) = open(cx);
+  cx.update_window(handle, |_, window, cx| window.click("add", cx))
+    .unwrap();
+  draw(handle, cx);
+  assert_eq!(
+    cx.update(|cx| cx.route()),
+    Route::Discover(router::Kind::Mod)
+  );
+  // Discover installs into this profile next
+  let target = cx.update(|cx| crate::content::target(cx).read(cx).clone());
+  assert_eq!(target.as_deref(), Some(FABRIC));
+
+  for (label, kind) in [
+    ("Shaders", router::Kind::Shader),
+    ("Resource packs", router::Kind::ResourcePack),
+    ("Mods", router::Kind::Mod),
+  ] {
+    cx.update_window(handle, |_, window, cx| {
+      window.within("content-tabs").click(label, cx)
+    })
+    .unwrap();
+    draw(handle, cx);
+    assert_eq!(
+      cx.update(|cx| cx.route()),
+      Route::Profile {
+        id: FABRIC.into(),
+        tab: ProfileTab::Content(kind),
+      }
+    );
+  }
+
+  for (source, route) in [
+    (Source::Modrinth, router::Source::Modrinth),
+    (Source::CurseForge, router::Source::CurseForge),
+  ] {
+    page.update(cx, |p, cx| p.open_project(source, "x".into(), cx));
+    assert_eq!(
+      cx.update(|cx| cx.route()),
+      Route::Project {
+        id: "x".into(),
+        kind: router::Kind::Mod,
+        source: route,
+      }
+    );
+  }
+}

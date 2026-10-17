@@ -1014,4 +1014,215 @@ mod tests {
     assert_eq!(*seen.borrow(), ["", "sod"]);
     page.read_with(cx, |p, _| assert_eq!(p.hits.len(), 1));
   }
+
+  type Log = Rc<RefCell<Vec<SearchQuery>>>;
+
+  /// A search returning `pages` of `per` hits each out of `total`, recording each query
+  fn paged(total: u64, fail: Rc<std::cell::Cell<bool>>) -> (SearchFn, Log) {
+    let log: Log = Rc::default();
+    let seen = log.clone();
+    let search: SearchFn = Rc::new(move |q, _| {
+      seen.borrow_mut().push(q.clone());
+      if fail.get() {
+        return Task::ready(Err(anyhow::anyhow!("offline")));
+      }
+      let hits = (q.offset..(q.offset + 2).min(total as u32))
+        .map(|n| crate::content::logic::tests::summary(&format!("p{n}")))
+        .collect();
+      Task::ready(Ok(SearchResult {
+        hits,
+        total,
+        warnings: vec![],
+      }))
+    });
+    (search, log)
+  }
+
+  fn page(
+    kind: Kind,
+    search: SearchFn,
+    cx: &mut TestAppContext,
+  ) -> (Entity<DiscoverPage>, &mut gpui_kit::VisualTestContext) {
+    // categories load from the content service on open
+    let server = proton_utils::test_http::FakeServer::start();
+    std::mem::forget(server);
+    cx.executor().allow_parking();
+    init_services(cx);
+    let (page, cx) =
+      cx.add_window_view(|window, cx| DiscoverPage::with_search(kind, search, window, cx));
+    cx.run_until_parked();
+    (page, cx)
+  }
+
+  #[gpui::test]
+  fn load_more_pages_by_offset_until_the_total(cx: &mut TestAppContext) {
+    let (search, log) = paged(5, Rc::default());
+    let (page, cx) = page(Kind::Modpack, search, cx);
+    page.read_with(cx, |p, _| {
+      assert_eq!(p.hits.len(), 2);
+      // alerts none, two cards, the footer
+      assert_eq!(p.item_count(), 3);
+    });
+    for expected in [4, 5, 5] {
+      page.update(cx, |p, cx| p.load_more(cx));
+      cx.run_until_parked();
+      assert_eq!(page.read_with(cx, |p, _| p.hits.len()), expected);
+    }
+    let offsets: Vec<_> = log.borrow().iter().map(|q| q.offset).collect();
+    // the third load_more stops at the total
+    assert_eq!(offsets, [0, 2, 4]);
+  }
+
+  #[gpui::test]
+  fn a_page_for_an_old_query_is_dropped(cx: &mut TestAppContext) {
+    let (search, log) = paged(10, Rc::default());
+    let (page, cx) = page(Kind::Modpack, search, cx);
+    page.update(cx, |p, cx| {
+      p.load_more(cx);
+      // a second call while one is loading is ignored
+      p.load_more(cx);
+      p.filters.query = "new".into();
+      p.refresh(cx);
+    });
+    cx.run_until_parked();
+    page.read_with(cx, |p, _| {
+      assert_eq!(p.hits.len(), 2);
+      assert_eq!(p.hits[0].id, "p0");
+    });
+    let queries: Vec<_> = log
+      .borrow()
+      .iter()
+      .map(|q| (q.query.clone(), q.offset))
+      .collect();
+    assert_eq!(queries, [("".into(), 0), ("".into(), 2), ("new".into(), 0)]);
+  }
+
+  #[gpui::test]
+  fn failed_then_empty_search(cx: &mut TestAppContext) {
+    let fail = Rc::new(std::cell::Cell::new(true));
+    let (search, _) = paged(0, fail.clone());
+    let (page, cx) = page(Kind::Mod, search, cx);
+    page.read_with(cx, |p, _| {
+      assert!(p.failed && !p.loading);
+      assert!(p.hits.is_empty());
+      assert_eq!(p.item_count(), 1);
+    });
+    fail.set(false);
+    page.update(cx, |p, cx| {
+      p.filters.query = "x".into();
+      p.refresh(cx);
+    });
+    cx.run_until_parked();
+    page.read_with(cx, |p, _| assert!(!p.failed && p.hits.is_empty()));
+    cx.update(gpui_kit::test::TestWindowExt::render_frame);
+  }
+
+  #[gpui::test]
+  fn the_same_query_searches_once(cx: &mut TestAppContext) {
+    let (search, log) = paged(1, Rc::default());
+    let (page, cx) = page(Kind::Shader, search, cx);
+    page.update(cx, |p, cx| {
+      p.refresh(cx);
+      p.refresh(cx);
+    });
+    cx.run_until_parked();
+    assert_eq!(log.borrow().len(), 1);
+  }
+
+  #[gpui::test]
+  fn filter_rows_toggle_loaders_and_environments(cx: &mut TestAppContext) {
+    use gpui_kit::test::TestWindowExt;
+    let (search, log) = paged(0, Rc::default());
+    let (page, cx) = page(Kind::Mod, search, cx);
+    let click = |id: &'static str, cx: &mut gpui_kit::VisualTestContext| {
+      cx.update(|window, cx| {
+        window.render_frame(cx);
+        window.click(id, cx);
+      });
+      cx.run_until_parked();
+    };
+    click("loader-fabric", cx);
+    assert_eq!(log.borrow().last().unwrap().loaders, ["fabric"]);
+    click("loader-fabric", cx);
+    assert!(log.borrow().last().unwrap().loaders.is_empty());
+
+    click("Client", cx);
+    assert_eq!(
+      log.borrow().last().unwrap().environment,
+      Some(Environment::Client)
+    );
+    // one environment at a time
+    click("Server", cx);
+    assert_eq!(
+      log.borrow().last().unwrap().environment,
+      Some(Environment::Server)
+    );
+    click("Server", cx);
+    assert_eq!(log.borrow().last().unwrap().environment, None);
+    // no profile, so compatible stays off
+    page.read_with(cx, |p, _| assert!(!p.compatible(None)));
+  }
+
+  #[gpui::test]
+  fn cards_open_their_project(cx: &mut TestAppContext) {
+    use gpui_kit::test::TestWindowExt;
+    let (search, _) = paged(1, Rc::default());
+    let (_, cx) = page(Kind::Mod, search, cx);
+    cx.update(|window, cx| {
+      window.render_frame(cx);
+      window.within("Modrinth-p0").click("name", cx);
+    });
+    assert_eq!(
+      cx.update(|_, cx| cx.route()),
+      Route::Project {
+        id: "p0".into(),
+        kind: Kind::Mod,
+        source: crate::router::Source::Modrinth,
+      }
+    );
+  }
+
+  #[test]
+  fn texts_name_every_kind() {
+    for (kind, title, noun) in [
+      (ContentKind::Mod, "Mods", "mods"),
+      (ContentKind::Modpack, "Modpacks", "modpacks"),
+      (
+        ContentKind::ResourcePack,
+        "Resource packs",
+        "resource packs",
+      ),
+      (ContentKind::Shader, "Shaders", "shaders"),
+    ] {
+      let (t, sub, n) = texts(kind);
+      assert_eq!((t, n), (title, noun));
+      assert!(!sub.is_empty());
+    }
+  }
+
+  #[test]
+  fn same_query_ignores_only_the_offset() {
+    let a = logic::build_query(ContentKind::Mod, &Filters::new(ContentKind::Mod), None, 0);
+    let paged = SearchQuery {
+      offset: 40,
+      ..a.clone()
+    };
+    assert!(same_query(&a, &paged));
+    let other = SearchQuery {
+      query: "x".into(),
+      ..a.clone()
+    };
+    assert!(!same_query(&a, &other));
+  }
+
+  #[test]
+  fn toggle_adds_once_and_removes() {
+    let mut list = vec![1, 2];
+    toggle(&mut list, 3, true);
+    toggle(&mut list, 3, true);
+    assert_eq!(list, [1, 2, 3]);
+    toggle(&mut list, 1, false);
+    toggle(&mut list, 9, false);
+    assert_eq!(list, [2, 3]);
+  }
 }

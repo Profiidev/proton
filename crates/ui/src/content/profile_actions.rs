@@ -181,3 +181,119 @@ pub fn export_mrpack(profile: String, _: &mut Window, cx: &mut App) {
   })
   .detach();
 }
+
+#[cfg(test)]
+mod tests {
+  use gpui_kit::{
+    self as gpui, AnyWindowHandle, TestAppContext, component::WindowExt, test::TestWindowExt,
+  };
+
+  use super::*;
+  use crate::{
+    pages::profiles::tests::{init_fixture, open, poll},
+    router::RouterExt,
+  };
+
+  const VANILLA: &str = "11111111-1111-4111-8111-111111111111";
+
+  struct Empty;
+
+  impl Render for Empty {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+      div().size_full()
+    }
+  }
+
+  fn window(cx: &mut TestAppContext) -> AnyWindowHandle {
+    init_fixture(cx);
+    open(cx, |_, _| Empty).0
+  }
+
+  fn toasts(cx: &mut TestAppContext, handle: AnyWindowHandle) -> usize {
+    cx.update_window(handle, |_, window, cx| window.notifications(cx).len())
+      .unwrap()
+  }
+
+  #[gpui::test]
+  fn unknown_profiles_open_nothing(cx: &mut TestAppContext) {
+    let handle = window(cx);
+    cx.update_window(handle, |_, w, cx| {
+      open_duplicate_dialog("gone".into(), w, cx);
+      export_mrpack("gone".into(), w, cx);
+      assert!(!w.has_active_dialog(cx));
+    })
+    .unwrap();
+    assert!(!cx.did_prompt_for_new_path());
+  }
+
+  #[gpui::test]
+  fn duplicate_copies_and_opens_the_copy(cx: &mut TestAppContext) {
+    let handle = window(cx);
+    cx.update_window(handle, |_, w, cx| {
+      open_duplicate_dialog(VANILLA.into(), w, cx);
+      w.render_frame(cx);
+      assert!(w.has_active_dialog(cx));
+      w.within("dialog").click("duplicate", cx);
+    })
+    .unwrap();
+    poll(cx, |cx| {
+      cx.profiles()
+        .profiles
+        .read(cx)
+        .iter()
+        .any(|p| p.name == "Vanilla Survival (copy)")
+    });
+    let copy = cx.update(|cx| {
+      cx.profiles()
+        .profiles
+        .read(cx)
+        .iter()
+        .find(|p| p.name == "Vanilla Survival (copy)")
+        .unwrap()
+        .id
+        .clone()
+    });
+    assert_ne!(copy, VANILLA);
+    poll(cx, |cx| {
+      cx.route()
+        == Route::Profile {
+          id: copy.clone(),
+          tab: ProfileTab::QuickPlay(QuickPlayTab::Singleplayer),
+        }
+    });
+    cx.update_window(handle, |_, w, cx| {
+      w.render_frame(cx);
+      assert!(!w.has_active_dialog(cx));
+    })
+    .unwrap();
+    assert_eq!(toasts(cx, handle), 0);
+  }
+
+  #[gpui::test]
+  fn export_writes_the_mrpack_and_a_cancel_does_nothing(cx: &mut TestAppContext) {
+    let handle = window(cx);
+    let dir = tempfile::tempdir().unwrap();
+    cx.update_window(handle, |_, w, cx| export_mrpack(VANILLA.into(), w, cx))
+      .unwrap();
+    cx.run_until_parked();
+    cx.simulate_new_path_selection(|_| None);
+    cx.run_until_parked();
+    assert_eq!(toasts(cx, handle), 0);
+
+    let path = dir.path().join("Vanilla Survival.mrpack");
+    cx.update_window(handle, |_, w, cx| export_mrpack(VANILLA.into(), w, cx))
+      .unwrap();
+    cx.run_until_parked();
+    let target = path.clone();
+    cx.simulate_new_path_selection(move |_| Some(target));
+    poll(cx, |_| path.exists());
+    // the success toast
+    let handle2 = handle;
+    poll(cx, move |cx| {
+      handle2
+        .update(cx, |_, w, cx| w.notifications(cx).len())
+        .unwrap()
+        == 1
+    });
+  }
+}

@@ -1296,4 +1296,92 @@ pub(crate) mod tests {
       assert!(window.try_find("description").is_none());
     });
   }
+
+  /// A project page while every provider request 404s
+  fn offline_page(
+    kind: Kind,
+    cx: &mut TestAppContext,
+  ) -> (Entity<ProjectPage>, &mut gpui_kit::VisualTestContext) {
+    std::mem::forget(proton_utils::test_http::FakeServer::start());
+    cx.executor().allow_parking();
+    init_services(cx);
+    let (page, cx) = cx.add_window_view(|window, cx| {
+      ProjectPage::new(
+        "AANobbMI".into(),
+        kind,
+        crate::router::Source::Modrinth,
+        window,
+        cx,
+      )
+    });
+    for _ in 0..50 {
+      std::thread::sleep(std::time::Duration::from_millis(10));
+      cx.run_until_parked();
+      if page.read_with(cx, |p, _| p.failed) {
+        break;
+      }
+    }
+    (page, cx)
+  }
+
+  #[gpui::test]
+  fn an_unreachable_project_shows_not_found(cx: &mut TestAppContext) {
+    let (page, cx) = offline_page(Kind::Mod, cx);
+    page.read_with(cx, |p, _| {
+      assert!(p.failed && p.detail.is_none());
+      // mods pick a target, nothing is compatible before the project loads
+      assert!(p.picker.is_some());
+    });
+    cx.update(|window, cx| {
+      window.render_frame(cx);
+      assert!(window.try_find("project-tabs").is_none());
+    });
+  }
+
+  #[gpui::test]
+  fn modpacks_load_every_version_and_have_no_picker(cx: &mut TestAppContext) {
+    let (page, cx) = offline_page(Kind::Modpack, cx);
+    // the version list lands after the project error
+    for _ in 0..100 {
+      if page.read_with(cx, |p, _| p.all_versions.is_some()) {
+        break;
+      }
+      std::thread::sleep(std::time::Duration::from_millis(10));
+      cx.run_until_parked();
+    }
+    page.read_with(cx, |p, _| {
+      assert!(p.picker.is_none());
+      assert_eq!(p.all_versions.as_deref(), Some(&[][..]));
+    });
+  }
+
+  #[gpui::test]
+  fn without_a_target_install_waits_and_versions_have_no_switch(cx: &mut TestAppContext) {
+    let (page, cx) = offline_page(Kind::Mod, cx);
+    page.update(cx, |p, cx| {
+      p.set_detail(detail(), cx);
+      p.tab = TabKind::Versions;
+      cx.notify();
+    });
+    cx.run_until_parked();
+    page.read_with(cx, |p, _| {
+      // no profiles at all: nothing to load versions for
+      assert!(p.versions_for.is_none() && p.compat_versions.is_none());
+    });
+    cx.update(|window, cx| {
+      window.render_frame(cx);
+      assert!(window.try_find("install").is_some());
+      assert!(window.try_find("show-all").is_none());
+      assert!(window.try_find(("install-version", 0usize)).is_none());
+    });
+    // the gallery tab of a project without images
+    page.update(cx, |p, cx| {
+      let mut d = detail();
+      d.gallery.clear();
+      p.set_detail(d, cx);
+      p.tab = TabKind::Gallery;
+      cx.notify();
+    });
+    cx.update(|window, cx| window.render_frame(cx));
+  }
 }

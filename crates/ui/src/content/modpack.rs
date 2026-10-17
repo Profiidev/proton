@@ -580,3 +580,200 @@ impl Render for ModpackInstallDialog {
       )
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use std::path::PathBuf;
+
+  use gpui_kit::{
+    self as gpui, AnyWindowHandle, TestAppContext, component::WindowExt, test::TestWindowExt,
+  };
+  use proton_content::model::{ManualFile, PackCounts};
+  use proton_versions::loader::LoaderType;
+
+  use super::*;
+  use crate::pages::profiles::tests::{init_fixture, open, poll};
+
+  const PACK: &str = "44444444-4444-4444-8444-444444444444";
+
+  fn plan(manual: Vec<ManualFile>) -> PackPlan {
+    PackPlan {
+      name: "Imported ✨".into(),
+      version: "1.0".into(),
+      summary: None,
+      icon_url: None,
+      source: PackSource::Path {
+        path: PathBuf::from("/nonexistent/pack.mrpack"),
+      },
+      minecraft: "1.21.8".into(),
+      loader: LoaderType::Fabric,
+      loader_version: None,
+      files: vec![],
+      manual,
+      counts: PackCounts {
+        mods: 2,
+        resourcepacks: 0,
+        shaders: 1,
+      },
+      recommended_memory_mb: Some(4096),
+      total_bytes: 0,
+      archive: PathBuf::from("/nonexistent/pack.mrpack"),
+      overrides: vec![],
+    }
+  }
+
+  fn toasts(cx: &mut TestAppContext, handle: AnyWindowHandle) -> usize {
+    cx.update_window(handle, |_, window, cx| window.notifications(cx).len())
+      .unwrap()
+  }
+
+  fn settle(cx: &mut TestAppContext) {
+    for _ in 0..20 {
+      std::thread::sleep(std::time::Duration::from_millis(20));
+      cx.run_until_parked();
+    }
+  }
+
+  #[test]
+  fn gb_has_one_decimal() {
+    for (mb, text) in [
+      (0, "0.0 GB"),
+      (1024, "1.0 GB"),
+      (1536, "1.5 GB"),
+      (16384, "16.0 GB"),
+    ] {
+      assert_eq!(gb(mb), text);
+    }
+  }
+
+  #[gpui::test]
+  fn change_of_an_unknown_profile_opens_nothing(cx: &mut TestAppContext) {
+    init_fixture(cx);
+    let (handle, _) = open(cx, |w, cx| {
+      ModpackInstallDialog::new(None, None, None, w, cx)
+    });
+    cx.update_window(handle, |_, w, cx| {
+      ModpackInstallDialog::open_change("gone", w, cx);
+      assert!(!w.has_active_dialog(cx));
+    })
+    .unwrap();
+  }
+
+  #[gpui::test]
+  fn an_imported_plan_fills_the_name_and_needs_one_to_install(cx: &mut TestAppContext) {
+    init_fixture(cx);
+    let (handle, dialog) = open(cx, |w, cx| {
+      ModpackInstallDialog::new(None, None, Some(plan(vec![])), w, cx)
+    });
+    cx.run_until_parked();
+    cx.update(|cx| {
+      let d = dialog.read(cx);
+      assert_eq!(d.name.read(cx).value(), "Imported ✨");
+      assert!(d.current().is_some() && d.manual.is_none());
+      assert!(d.manual_done(cx));
+    });
+
+    // a blank name keeps the button disabled
+    cx.update_window(handle, |_, w, cx| {
+      let name = dialog.read(cx).name.clone();
+      name.update(cx, |n, cx| n.set_value("   ", w, cx));
+      w.render_frame(cx);
+      w.click("install", cx);
+    })
+    .unwrap();
+    settle(cx);
+    assert_eq!(toasts(cx, handle), 0);
+
+    // the archive does not exist, so the install job fails with a toast
+    cx.update_window(handle, |_, w, cx| {
+      let name = dialog.read(cx).name.clone();
+      name.update(cx, |n, cx| n.set_value("Mine", w, cx));
+      w.render_frame(cx);
+      w.click("start", cx);
+      w.render_frame(cx);
+      w.click("install", cx);
+    })
+    .unwrap();
+    assert!(dialog.read_with(cx, |d, _| d.start));
+    poll(cx, |cx| {
+      cx.windows()[0]
+        .update(cx, |_, w, cx| w.notifications(cx).len())
+        .unwrap()
+        == 1
+    });
+  }
+
+  #[gpui::test]
+  fn manual_files_block_the_install_until_found(cx: &mut TestAppContext) {
+    init_fixture(cx);
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().to_path_buf();
+    cx.update(|cx| proton_config::update(cx, |s| s.download_dirs = Some(vec![path])));
+    let bytes = b"restricted";
+    let file = ManualFile {
+      source: Source::CurseForge,
+      project_id: "p".into(),
+      file_id: "f".into(),
+      file_name: "r.jar".into(),
+      sha1: proton_utils::file::bytes_hash(bytes),
+      size: bytes.len() as u64,
+      download_url: "https://example.com".into(),
+    };
+    let (_, dialog) = open(cx, move |w, cx| {
+      ModpackInstallDialog::new(None, None, Some(plan(vec![file])), w, cx)
+    });
+    settle(cx);
+    assert!(!cx.update(|cx| dialog.read(cx).manual_done(cx)));
+    std::fs::write(dir.path().join("r.jar"), bytes).unwrap();
+    for _ in 0..50 {
+      cx.executor()
+        .advance_clock(std::time::Duration::from_secs(2));
+      std::thread::sleep(std::time::Duration::from_millis(20));
+      cx.run_until_parked();
+      if cx.update(|cx| dialog.read(cx).manual_done(cx)) {
+        break;
+      }
+    }
+    assert!(cx.update(|cx| dialog.read(cx).manual_done(cx)));
+  }
+
+  #[gpui::test]
+  fn a_pack_without_versions_stays_empty(cx: &mut TestAppContext) {
+    // every provider request 404s
+    let _server = proton_utils::test_http::FakeServer::start();
+    init_fixture(cx);
+    let (handle, dialog) = open(cx, |w, cx| {
+      let profile = cx
+        .profiles()
+        .profiles
+        .read(cx)
+        .iter()
+        .find(|p| p.id == PACK)
+        .cloned();
+      let pack = profile
+        .as_ref()
+        .and_then(|p| p.modpack.as_ref())
+        .map(|m| Pack {
+          source: m.source,
+          id: m.project_id.clone(),
+          name: "Fabulously Optimized".into(),
+          icon_url: None,
+        });
+      ModpackInstallDialog::new(pack, profile, None, w, cx)
+    });
+    settle(cx);
+    dialog.read_with(cx, |d, _| {
+      assert!(d.versions.is_empty() && d.version.is_none());
+      assert!(d.current().is_none());
+      assert!(matches!(d.remote, Remote::Loading));
+    });
+    cx.update_window(handle, |_, w, cx| {
+      w.render_frame(cx);
+      // nothing to change to
+      w.click("install", cx);
+    })
+    .unwrap();
+    settle(cx);
+    assert_eq!(toasts(cx, handle), 0);
+  }
+}

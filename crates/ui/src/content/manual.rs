@@ -246,3 +246,116 @@ impl Render for ManualDownloads {
       })
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use std::cell::RefCell;
+
+  use gpui_kit::{self as gpui, AnyWindowHandle, TestAppContext, test::TestWindowExt};
+  use proton_content::model::Source;
+
+  use super::*;
+  use crate::pages::profiles::tests::{init_fixture, open, poll};
+
+  struct Empty;
+
+  impl Render for Empty {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+      div().size_full()
+    }
+  }
+
+  fn file(id: &str, bytes: &[u8]) -> ManualFile {
+    ManualFile {
+      source: Source::CurseForge,
+      project_id: "p".into(),
+      file_id: id.into(),
+      file_name: format!("{id}.jar"),
+      sha1: proton_utils::file::bytes_hash(bytes),
+      size: bytes.len() as u64,
+      download_url: "https://example.com".into(),
+    }
+  }
+
+  /// The fixture with `dir` as the only download folder, and an empty window
+  fn setup(cx: &mut TestAppContext, dir: PathBuf) -> AnyWindowHandle {
+    init_fixture(cx);
+    cx.update(|cx| proton_config::update(cx, |s| s.download_dirs = Some(vec![dir])));
+    open(cx, |_, _| Empty).0
+  }
+
+  #[gpui::test]
+  fn no_files_is_done_without_polling(cx: &mut TestAppContext) {
+    let dir = tempfile::tempdir().unwrap();
+    let handle = setup(cx, dir.path().into());
+    cx.update_window(handle, |_, _, cx| {
+      let view = cx.new(|cx| ManualDownloads::new(vec![], cx));
+      assert!(view.read(cx).done());
+      assert!(view.read(cx)._poll.is_none());
+    })
+    .unwrap();
+  }
+
+  #[gpui::test]
+  fn continue_waits_for_every_file_then_hands_over_the_paths(cx: &mut TestAppContext) {
+    let dir = tempfile::tempdir().unwrap();
+    let handle = setup(cx, dir.path().into());
+    // already there, under any name
+    std::fs::write(dir.path().join("renamed.jar"), b"first").unwrap();
+    // a browser download in progress hashes right but is skipped
+    std::fs::write(dir.path().join("second.jar.part"), b"second").unwrap();
+    let files = vec![file("a", b"first"), file("b", b"second")];
+    let done: Rc<RefCell<Option<HashMap<String, PathBuf>>>> = Rc::default();
+    let seen = done.clone();
+    cx.update_window(handle, |_, w, cx| {
+      ManualDownloads::open(
+        files,
+        move |found, _, _| *seen.borrow_mut() = Some(found),
+        w,
+        cx,
+      )
+    })
+    .unwrap();
+    poll(cx, |cx| {
+      cx.windows()[0]
+        .update(cx, |_, w, cx| {
+          w.render_frame(cx);
+          w.try_find(("download", 0usize)).is_none()
+        })
+        .unwrap()
+    });
+    cx.update_window(handle, |_, w, cx| {
+      w.render_frame(cx);
+      assert!(w.try_find(("download", 1usize)).is_some());
+      // disabled while a file is missing
+      w.click("continue", cx);
+    })
+    .unwrap();
+    assert!(done.borrow().is_none());
+
+    std::fs::write(dir.path().join("second.jar"), b"second").unwrap();
+    for _ in 0..50 {
+      cx.executor().advance_clock(POLL);
+      std::thread::sleep(std::time::Duration::from_millis(20));
+      cx.run_until_parked();
+      let found = cx
+        .update_window(handle, |_, w, cx| {
+          w.render_frame(cx);
+          w.try_find(("download", 1usize)).is_none()
+        })
+        .unwrap();
+      if found {
+        break;
+      }
+    }
+    cx.update_window(handle, |_, w, cx| {
+      w.render_frame(cx);
+      w.click("continue", cx);
+    })
+    .unwrap();
+    poll(cx, |_| done.borrow().is_some());
+    let found = done.borrow().clone().unwrap();
+    assert_eq!(found["a"], dir.path().join("renamed.jar"));
+    assert_eq!(found["b"], dir.path().join("second.jar"));
+  }
+}

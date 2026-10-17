@@ -335,4 +335,86 @@ mod tests {
        be re-downloaded."
     );
   }
+
+  #[test]
+  fn kinds_words_sources_and_extensions() {
+    for (kind, content, word_, ext) in [
+      (Kind::Mod, ContentKind::Mod, "mod", ".jar"),
+      // modpacks list as mods inside a profile
+      (Kind::Modpack, ContentKind::Mod, "mod", ".jar"),
+      (
+        Kind::ResourcePack,
+        ContentKind::ResourcePack,
+        "resource pack",
+        ".zip",
+      ),
+      (Kind::Shader, ContentKind::Shader, "shader", ".zip"),
+    ] {
+      assert_eq!(content_kind(kind), content);
+      assert_eq!(word(content), word_);
+      assert_eq!(extension(content), ext);
+    }
+    assert_eq!(word(ContentKind::Modpack), "mod");
+    assert_eq!(source_label(None), "Manual");
+    assert_eq!(
+      source_label(Some(Source::Modrinth)),
+      Source::Modrinth.name()
+    );
+    assert!(accepts(ContentKind::Shader, Path::new("BSL v10.ZIP")));
+    // no extension at all
+    assert!(!accepts(ContentKind::Mod, Path::new("jar")));
+  }
+
+  #[test]
+  fn display_name_falls_back_to_the_file() {
+    assert_eq!(display_name(&row("a.zip")), "a.zip");
+    let named = Installed {
+      name: Some("Ä Pack".into()),
+      ..row("a.zip")
+    };
+    assert_eq!(display_name(&named), "Ä Pack");
+  }
+
+  #[test]
+  fn other_errors_get_the_generic_message() {
+    let generic = "Something went wrong, please try again";
+    assert_eq!(error_message(&anyhow::anyhow!("io")), generic);
+  }
+
+  #[test]
+  fn remove_warning_lists_each_blocker_once_and_plural_manual_files() {
+    let api = Installed {
+      dependency_of: vec!["sodium".into(), "iris.jar".into()],
+      ..row("api.jar")
+    };
+    let api2 = Installed {
+      dependency_of: vec!["sodium".into()],
+      manual: true,
+      ..row("api2.jar")
+    };
+    let sodium = Installed {
+      project_id: Some("sodium".into()),
+      name: Some("Sodium".into()),
+      ..row("sodium.jar")
+    };
+    // matched by file name when it has no project
+    let iris = row("iris.jar");
+    let local = Installed {
+      manual: true,
+      ..row("local.jar")
+    };
+    let all = vec![api.clone(), api2.clone(), sodium, iris, local.clone()];
+    assert_eq!(
+      remove_warning(&[api, api2, local], &all).unwrap(),
+      "Still needed by Sodium, iris.jar, which may stop working. api2.jar, local.jar were added \
+       manually and cannot be re-downloaded."
+    );
+    assert_eq!(remove_warning(&[], &all), None);
+  }
+
+  #[test]
+  fn move_item_to_the_same_place_is_a_copy() {
+    assert_eq!(move_item(&[1, 2, 3], 1, 1), [1, 2, 3]);
+    assert_eq!(move_item(&[1], 0, 0), [1]);
+  }
 }
