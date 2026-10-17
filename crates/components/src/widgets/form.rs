@@ -462,6 +462,7 @@ impl Render for ImageInput {
         .items_center()
         .justify_center()
         .gap_1()
+        .rounded(px(8.))
         .bg(muted)
         .child(Icon::new(IconName::Upload).size_4())
         .when_some(placeholder.clone(), |d, p| {
@@ -495,20 +496,16 @@ impl Render for ImageInput {
             d.cursor_pointer()
               .on_click(cx.listener(|this, _, window, cx| this.pick(window, cx)))
           })
-          .child(
-            div()
+          // overflow_hidden clips square, so the image and fallback carry the radius
+          .child(match source {
+            Some(src) => img(src)
               .size_full()
               .rounded(px(8.))
-              .overflow_hidden()
-              .child(match source {
-                Some(src) => img(src)
-                  .size_full()
-                  .object_fit(ObjectFit::Cover)
-                  .with_fallback(fallback)
-                  .into_any_element(),
-                None => fallback(),
-              }),
-          )
+              .object_fit(ObjectFit::Cover)
+              .with_fallback(fallback)
+              .into_any_element(),
+            None => fallback(),
+          })
           .test_support(),
       )
   }
