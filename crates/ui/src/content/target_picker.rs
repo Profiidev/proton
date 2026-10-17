@@ -162,9 +162,10 @@ impl Render for TargetPicker {
                   .map(|b| if *selected { b.secondary() } else { b.ghost() })
                   .h_auto()
                   .p_2()
-                  .justify_start()
                   .child(
+                    // button content centers, so the row fills it to stay left aligned
                     div()
+                      .w_full()
                       .flex()
                       .items_center()
                       .gap(px(10.))
