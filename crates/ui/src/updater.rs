@@ -339,6 +339,10 @@ mod tests {
       "platforms": {
         "linux-x86_64": platform("appimage"),
         "linux-aarch64": platform("appimage"),
+        // for old Tauri deb installs, tagged appimage (see app-release.yml)
+        "linux-x86_64-deb": platform("appimage"),
+        "darwin-x86_64": platform("app"),
+        "darwin-aarch64": platform("app"),
         "windows-x86_64": platform("nsis"),
         "macos-x86_64": platform("app"),
         "macos-aarch64": platform("app"),

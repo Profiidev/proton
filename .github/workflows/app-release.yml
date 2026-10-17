@@ -100,9 +100,18 @@ jobs:
               mv Proton.app.tar.gz.sig "Proton_${UPDATER#macos-}.app.tar.gz.sig"
               bundle="Proton_${UPDATER#macos-}.app.tar.gz"; format=app ;;
           esac
-          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${bundle}"
-          jq -n --arg key "$UPDATER" --arg url "$url" --arg sig "$(cat "$bundle.sig")" --arg format "$format" \
+          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}"
+          jq -n --arg key "$UPDATER" --arg url "$base/$bundle" --arg sig "$(cat "$bundle.sig")" --arg format "$format" \
             '{($key): {url: $url, signature: $sig, format: $format}}' > "$GITHUB_WORKSPACE/updater-$UPDATER.json"
+          # old Tauri deb installs look up `linux-x86_64-deb` and install it with dpkg.
+          # cargo-packager-updater has no deb format and rejects the whole manifest on an unknown
+          # one, so the entry is tagged appimage; the gpui app never reads this key.
+          if [[ $UPDATER == linux-* ]]; then
+            deb=$(ls *.deb)
+            jq --arg key "$UPDATER-deb" --arg url "$base/$deb" --arg sig "$(cat "$deb.sig")" \
+              '. + {($key): {url: $url, signature: $sig, format: "appimage"}}' \
+              "$GITHUB_WORKSPACE/updater-$UPDATER.json" > tmp.json && mv tmp.json "$GITHUB_WORKSPACE/updater-$UPDATER.json"
+          fi
           files=$(ls *.deb *.AppImage *-setup.exe *.dmg *.app.tar.gz *.sig 2>/dev/null || true)
           gh release upload "$TAG" $files --clobber
 

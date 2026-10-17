@@ -100,7 +100,8 @@ product-name = "Proton"
 identifier = "io.profidev.proton"
 category = "Game"
 authors = ["ProfiiDev"]
-publisher = "ProfiiDev"
+# matches the Tauri NSIS manufacturer (identifier segment) so its registry keys carry over
+publisher = "profidev"
 before-packaging-command = "cargo build --release --bin proton"
 icons = [
   "packaging/icons/32x32.png",
