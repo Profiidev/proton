@@ -680,6 +680,8 @@ impl ContentPage {
       .items_center()
       .gap_3()
       .px_3()
+      // gpui clips rectangular, so backgrounds round themselves inside the 14px card
+      .rounded_t(px(13.))
       .bg(theme.muted.opacity(0.4))
       .when(self.kind == ContentKind::ResourcePack, |el| {
         el.child(div().size_4().flex_none())
@@ -743,6 +745,8 @@ impl ContentPage {
       let row_style = gpui_kit::StyleRefinement::default()
         .w_full()
         .h(px(ROW_HEIGHT));
+      let hover = theme.accent.opacity(0.4);
+      let round_last = self.kind != ContentKind::Shader;
       div()
         .relative()
         .flex()
@@ -754,9 +758,21 @@ impl ContentPage {
             "content-rows",
             visible.len(),
             cx.processor(move |this, range: std::ops::Range<usize>, _, _| {
+              let last = this.summary.visible.len() - 1;
               range
-                .filter_map(|ix| this.row_views.get(this.summary.visible.get(ix)?))
-                .map(|view| view.clone().cached(row_style.clone()).into_any_element())
+                .filter_map(|ix| Some((ix, this.row_views.get(this.summary.visible.get(ix)?)?)))
+                .map(|(ix, view)| {
+                  // hover lives out here so the last row can round it into the card corners
+                  // ponytail: a hovered row cut off mid-scroll still pokes past the corners
+                  div()
+                    .id(ix)
+                    .w_full()
+                    .h(px(ROW_HEIGHT))
+                    .hover(|s| s.bg(hover))
+                    .when(round_last && ix == last, |el| el.rounded_b(px(13.)))
+                    .child(view.clone().cached(row_style.clone()))
+                    .into_any_element()
+                })
                 .collect()
             }),
           )
