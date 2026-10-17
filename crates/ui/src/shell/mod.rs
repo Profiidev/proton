@@ -160,7 +160,7 @@ impl Render for Shell {
         el.with_animation(
           ElementId::NamedInteger("page".into(), self.nav_count as u64),
           Animation::new(PAGE_FADE).with_easing(ease_out_cubic),
-          |el, t| el.opacity(t).top(px(6. * (1. - t))),
+          |el, t| el.opacity(t),
         )
         .into_any_element()
       }
