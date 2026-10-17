@@ -86,7 +86,8 @@ impl MavenArtifact {
   pub fn url(&self, base_url: &str) -> Result<Url> {
     Ok(Url::parse(&format!(
       "{}/{}/{}/{}/{}-{}{}.{}",
-      base_url,
+      // `Url::as_str` keeps the trailing slash of a root url
+      base_url.trim_end_matches('/'),
       self.group.replace('.', "/"),
       self.artifact,
       self.version,
