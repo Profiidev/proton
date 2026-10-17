@@ -26,20 +26,17 @@ pub fn mem_fits(mb: u64) -> bool {
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq)]
+// missing fields fall back one by one, old data never resets the whole struct
+#[serde(default)]
 pub struct Settings {
   /// The last route, the UI owns the format. The tauri app stored a full URL here.
   pub url: Option<String>,
-  #[serde(default)]
   pub auto_update: bool,
-  #[serde(default)]
   pub hide_window_controls: bool,
-  #[serde(default)]
   pub minecraft: MinecraftSettings,
   /// Folders checked for manual downloads, `None` means the system Downloads folder
-  #[serde(default)]
   pub download_dirs: Option<Vec<PathBuf>>,
   /// Main window bounds, `None` until the window was moved or resized once
-  #[serde(default)]
   pub window: Option<WindowState>,
 }
 
@@ -73,15 +70,15 @@ impl Settings {
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq)]
+#[serde(default)]
 pub struct MinecraftSettings {
   pub show_snapshots: bool,
-  #[serde(default)]
   pub game_settings: GameSettings,
-  #[serde(default)]
   pub jvm_settings: JvmSettings,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(default)]
 pub struct GameSettings {
   pub use_custom: bool,
   pub width: usize,
@@ -99,6 +96,7 @@ impl Default for GameSettings {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(default)]
 pub struct JvmSettings {
   pub args: Vec<String>,
   pub env_vars: HashMap<String, String>,
@@ -198,12 +196,30 @@ mod tests {
   }
 
   #[test]
+  fn partial_settings_keep_what_is_there() {
+    // a missing field once reset every setting to its default, losing e.g. mem_max
+    let settings: Settings = serde_json::from_str(
+      r#"{"auto_update":true,"minecraft":{"game_settings":{"width":1920},"jvm_settings":{"mem_max":6144}}}"#,
+    )
+    .unwrap();
+    assert!(settings.auto_update);
+    assert!(!settings.minecraft.show_snapshots);
+    let game = &settings.minecraft.game_settings;
+    assert_eq!(
+      (game.use_custom, game.width, game.height),
+      (false, 1920, 480)
+    );
+    assert_eq!(settings.minecraft.jvm_settings.mem_max, 6144);
+    assert!(settings.minecraft.jvm_settings.args.is_empty());
+  }
+
+  #[test]
   fn malformed_settings_are_an_error() {
     for json in [
       r#"{"auto_update":"yes"}"#,
       r#"{"minecraft":{"jvm_settings":{"mem_max":-1}}}"#,
       r#"{"window":{"x":1}}"#,
-      "[]",
+      r#""settings""#,
     ] {
       assert!(serde_json::from_str::<Settings>(json).is_err(), "{json}");
     }
