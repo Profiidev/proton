@@ -5696,7 +5696,7 @@ dependencies = [
 
 [[package]]
 name = "proton"
-version = "0.2.15"
+version = "0.3.0"
 dependencies = [
  "gpui-kit",
  "proton_account",
@@ -5713,7 +5713,7 @@ dependencies = [
 
 [[package]]
 name = "proton_account"
-version = "0.2.15"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -5737,7 +5737,7 @@ dependencies = [
 
 [[package]]
 name = "proton_components"
-version = "0.2.15"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -5748,7 +5748,7 @@ dependencies = [
 
 [[package]]
 name = "proton_config"
-version = "0.2.15"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "flume",
@@ -5765,7 +5765,7 @@ dependencies = [
 
 [[package]]
 name = "proton_content"
-version = "0.2.15"
+version = "0.3.0"
 dependencies = [
  "ammonia",
  "anyhow",
@@ -5797,7 +5797,7 @@ dependencies = [
 
 [[package]]
 name = "proton_profiles"
-version = "0.2.15"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -5823,7 +5823,7 @@ dependencies = [
 
 [[package]]
 name = "proton_reqwest"
-version = "0.2.15"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "dirs 7.0.0",
@@ -5837,7 +5837,7 @@ dependencies = [
 
 [[package]]
 name = "proton_skin_render"
-version = "0.2.15"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -5851,7 +5851,7 @@ dependencies = [
 
 [[package]]
 name = "proton_store"
-version = "0.2.15"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "proton_utils",
@@ -5863,7 +5863,7 @@ dependencies = [
 
 [[package]]
 name = "proton_ui"
-version = "0.2.15"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "base64 0.23.1",
@@ -5892,7 +5892,7 @@ dependencies = [
 
 [[package]]
 name = "proton_utils"
-version = "0.2.15"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -5916,7 +5916,7 @@ dependencies = [
 
 [[package]]
 name = "proton_versions"
-version = "0.2.15"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "async-trait",
