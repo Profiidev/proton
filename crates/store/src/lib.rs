@@ -75,16 +75,28 @@ impl Store {
   pub fn set<V: Serialize>(&self, key: &str, value: &V) -> Result<()> {
     let json = serde_json::to_value(value)?;
     let mut data = self.data();
-    data.insert(key.to_string(), json);
-    save(&self.path, &data)
+    let old = data.insert(key.to_string(), json);
+    let res = save(&self.path, &data);
+    // a failed save must not leak into the next successful one
+    if res.is_err() {
+      match old {
+        Some(old) => data.insert(key.to_string(), old),
+        None => data.remove(key),
+      };
+    }
+    res
   }
 
   pub fn delete(&self, key: &str) -> Result<()> {
     let mut data = self.data();
-    if data.remove(key).is_some() {
-      save(&self.path, &data)?;
+    let Some(old) = data.remove(key) else {
+      return Ok(());
+    };
+    let res = save(&self.path, &data);
+    if res.is_err() {
+      data.insert(key.to_string(), old);
     }
-    Ok(())
+    res
   }
 
   pub fn save(&self) -> Result<()> {
@@ -241,8 +253,23 @@ mod tests {
     std::fs::write(&blocker, "").unwrap();
     let store = Store::open(blocker.join(STORE_FILE));
     assert!(store.set("a", &1).is_err());
-    // the value stays in memory for the next save attempt
+    // a failed save leaves nothing behind that a later save would write
+    assert_eq!(store.get::<u32>("a").unwrap(), None);
+  }
+
+  #[test]
+  fn failed_saves_restore_the_old_values() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join(STORE_FILE);
+    let store = Store::open(path.clone());
+    store.set("a", &1).unwrap();
+    store.set("b", &2).unwrap();
+    // the temp file can't be created next to the store anymore
+    std::fs::create_dir(path.with_extension("json.tmp")).unwrap();
+    assert!(store.set("a", &9).is_err());
+    assert!(store.delete("b").is_err());
     assert_eq!(store.get::<u32>("a").unwrap(), Some(1));
+    assert_eq!(store.get::<u32>("b").unwrap(), Some(2));
   }
 
   #[test]

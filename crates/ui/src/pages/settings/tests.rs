@@ -339,20 +339,17 @@ fn account_changes_that_fail_to_save_toast(cx: &mut TestAppContext) {
   let data = data_dir();
   // the store writes a temp file next to itself
   std::fs::set_permissions(&data, std::fs::Permissions::from_mode(0o555)).unwrap();
+  let before = cx.update(|cx| active(cx));
   act(cx, handle, |w, cx| w.click(format!("select-{ALEX}"), cx));
-  settle(cx, |cx| active(cx).as_deref() == Some(ALEX));
-  settle(cx, |_| true);
-  // "Failed to switch Account"
-  assert_eq!(toasts(cx, handle), 1);
+  // "Failed to switch Account", the old account stays active since nothing was saved
+  wait_toasts(cx, handle, 1);
+  assert_eq!(cx.update(|cx| active(cx)), before);
 
   act(cx, handle, |w, cx| w.click(format!("remove-{STEVE}"), cx));
   act(cx, handle, |w, cx| w.within("dialog").click("ok", cx));
-  settle(cx, |cx| {
-    !cx.accounts().accounts.read(cx).contains_key(STEVE)
-  });
-  settle(cx, |_| true);
-  // "Failed to remove Account"
-  assert_eq!(toasts(cx, handle), 2);
+  // "Failed to remove Account", the account is still listed
+  wait_toasts(cx, handle, 2);
+  assert!(cx.update(|cx| cx.accounts().accounts.read(cx).contains_key(STEVE)));
   std::fs::set_permissions(&data, std::fs::Permissions::from_mode(0o755)).unwrap();
 }
 

@@ -21,7 +21,7 @@ pub struct AccountStore {
   client: Client,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 struct AccountInfo {
   auth: AuthInfo,
   profile: ProfileInfo,
@@ -86,6 +86,19 @@ impl AccountStore {
     store.set(Self::ACTIVE_ACCOUNT_KEY, &self.active)
   }
 
+  /// Applies `change` and saves, memory is restored when the save fails so the UI never shows
+  /// what was not written
+  fn change(&mut self, change: impl FnOnce(&mut Self)) -> Result<()> {
+    let (accounts, active) = (self.accounts.clone(), self.active.clone());
+    change(self);
+    let res = self.save();
+    if res.is_err() {
+      self.accounts = accounts;
+      self.active = active;
+    }
+    res
+  }
+
   pub async fn refresh_all(&mut self) -> Result<()> {
     let keys: Vec<String> = self.accounts.keys().cloned().collect();
 
@@ -126,28 +139,26 @@ impl AccountStore {
 
   pub fn set_active(&mut self, id: String) -> Result<()> {
     debug!("Changing active account to {id}");
-    self.active = id;
-    self.save()?;
-    Ok(())
+    self.change(|s| s.active = id)
   }
 
   pub fn remove_account(&mut self, id: &str) -> Result<()> {
     debug!("Removing account {id}");
-    self.accounts.remove(id);
-    self.save()?;
-    Ok(())
+    self.change(|s| {
+      s.accounts.remove(id);
+    })
   }
 
   /// Adds a freshly logged in account, it becomes active when none was
   pub fn add_account(&mut self, auth: AuthInfo, profile: ProfileInfo) -> Result<()> {
     debug!("Adding account {}", profile.id);
-    if self.active.is_empty() {
-      self.active = profile.id.clone();
-    }
-    self
-      .accounts
-      .insert(profile.id.clone(), Some(AccountInfo { auth, profile }));
-    self.save()
+    self.change(|s| {
+      if s.active.is_empty() {
+        s.active = profile.id.clone();
+      }
+      s.accounts
+        .insert(profile.id.clone(), Some(AccountInfo { auth, profile }));
+    })
   }
 
   pub async fn refresh_auth(&mut self, id: &str) -> Result<()> {
@@ -288,6 +299,30 @@ mod tests {
     store.remove_account("a").unwrap();
     store.remove_account("a").unwrap();
     assert!(AccountStore::new().unwrap().list_profiles().is_empty());
+  }
+
+  #[test]
+  fn failed_saves_leave_the_accounts_unchanged() {
+    let data = init_dirs();
+    let mut store = AccountStore::new().unwrap();
+    store
+      .add_account(auth_info([true; 4]), with_id("a", "A"))
+      .unwrap();
+    // the store's temp file can't be created anymore, every save fails
+    std::fs::create_dir(data.join("store.json.tmp")).unwrap();
+
+    assert!(store.set_active("b".into()).is_err());
+    assert!(store.remove_account("a").is_err());
+    assert!(
+      store
+        .add_account(auth_info([true; 4]), with_id("c", "C"))
+        .is_err()
+    );
+    // memory matches the disk, the UI shows nothing that was not written
+    assert_eq!(store.active(), "a");
+    let mut ids: Vec<_> = store.list_profiles().into_keys().collect();
+    ids.sort();
+    assert_eq!(ids, ["a"]);
   }
 
   #[test]
