@@ -2,7 +2,7 @@
 
 The PNGs in this directory are frozen: they were captured from the Tauri app, which was deleted at the gpui cutover. Its last source is commit `d7dab77`, and the capture script is `fixtures/scripts/reference.sh` at commit `10acfd2`.
 
-Source of truth: `app/src` (SvelteKit + Svelte 5 + @profidev/pleiades/shadcn-svelte). Strings in quotes are exact UI text. `cmd(...)` = Tauri invoke command name. "data-state" = value auto-refetched when backend emits `data-update` event with the matching `UpdateType` payload (see Shared > Data refresh).
+Source of truth: `app/src` at commit `d7dab77` (deleted since; SvelteKit + Svelte 5 + @profidev/pleiades/shadcn-svelte). Strings in quotes are exact UI text. `cmd(...)` = Tauri invoke command name. "data-state" = value auto-refetched when backend emits `data-update` event with the matching `UpdateType` payload (see Shared > Data refresh).
 
 ---
 

@@ -5,7 +5,7 @@ A modern, fast, and feature-rich Minecraft launcher built in Rust with [gpui](ht
 [![GitHub Release](https://img.shields.io/github/v/release/ProfiiDev/proton?style=flat-square)](https://github.com/ProfiiDev/proton/releases/latest)
 [![GitHub Issues](https://img.shields.io/github/issues/ProfiiDev/proton?style=flat-square)](https://github.com/ProfiiDev/proton/issues)
 [![GitHub License](https://img.shields.io/github/license/ProfiiDev/proton?style=flat-square)](https://github.com/ProfiiDev/proton/blob/main/LICENSE)
-[![Build Status](https://img.shields.io/github/actions/workflow/status/ProfiiDev/proton/release.yml?branch=main&style=flat-square)](https://github.com/ProfiiDev/proton/actions)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/ProfiiDev/proton/app-release.yml?branch=main&style=flat-square)](https://github.com/ProfiiDev/proton/actions)
 ![Proton Screenshot](docs/screenshot.png)
 
 ## ✨ Features
@@ -28,13 +28,11 @@ A modern, fast, and feature-rich Minecraft launcher built in Rust with [gpui](ht
 - **Quick Play**: Automatically detect and quickly access your favorite servers and worlds
 - **Java Management**: Automatic Java installation and version management with ability for custom RAM limits and JVM arguments
 - **Detailed Logging**: Comprehensive logging system for troubleshooting
+- **Content**: Browse and install mods, resource packs and shaders from Modrinth and CurseForge
+- **Modpacks**: Install, update and export (.mrpack) modpacks
 
 ### Upcoming Features 🚧
 
-- **Mod Management**: Download and install mods from Modrinth and CurseForge
-- **Resource Pack Browser**: Browse and install resource packs
-- **Shader Pack Support**: Easy shader installation and management
-- **Modpack Installation**: One-click modpack installation from popular platforms
 - **Themes**: Customizable themes for better user experience
 - **Import/Export**: Easy profile and settings migration
 
