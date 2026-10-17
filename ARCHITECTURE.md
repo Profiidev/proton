@@ -67,7 +67,7 @@ Layering rule: services (`config`, `versions`, `account`, `profiles`, `content`)
    and manifests load on tokio, `Profiles::loaded` flips when the profiles are in), then
    `proton_ui::init` (router, shell data, updater globals) and `pages::register_all`.
 5. `proton_ui::app::start` (`crates/ui/src/app.rs`):
-   - `restore_route`: `PROTON_ROUTE` env, else `settings.url` (old SvelteKit URLs parse too),
+   - `restore_route`: `settings.url` (old SvelteKit URLs parse too),
      else Home. `persist_route` saves it debounced (500ms) on every change.
    - `bridge`: mirrors offline flag, settings, profile/instance names and content update counts
      into `ShellData` (`mirror` + `write_changed`); the "Offline" badge's `ShellEvent::Reconnect`.
@@ -178,9 +178,7 @@ Read `crates/utils/PATTERNS.md`; it is the source of truth. In short:
 | Packaging (deb, AppImage, nsis, dmg) | root `Cargo.toml` `[package.metadata.packager]`, `packaging/`, `just package`                                                                                 |
 | Nix package / dev shell              | `flake.nix`, `nix/package.nix`, `devenv.nix`                                                                                                                  |
 | CI                                   | `.github/workflows/` (`tests.yml`, `checks.yml`, `app-release.yml`, `cachix.yml`)                                                                             |
-| Screenshots / visual parity          | `fixtures/scripts/{screenshots,compare,routes}.sh`, `fixtures/reference/`                                                                                     |
 | Test fixture data                    | `fixtures/data/io.profidev.proton` (regenerate with `fixtures/scripts/gen_data.py`)                                                                           |
-| Expected UI behavior                 | `fixtures/reference/BEHAVIOR.md`                                                                                                                              |
 
 ## Data on disk
 
@@ -221,11 +219,6 @@ and `latest.json` shape, NSIS `publisher` keeps the registry keys. Users upgrade
 - Perf: views call `render_count::hit::<Self>()` in `render`; `pages/tests.rs` checks every
   route has a page, render counts on ticks and idle frames. `skin_render/tests/snapshot.rs` has
   image snapshots (`UPDATE_SNAPSHOTS=1`).
-- Visual: `just screenshots [filter]` runs the release build per route (`PROTON_ROUTE`) on a
-  copy of `fixtures/data` in a private headless sway → `fixtures/gpui/`; `just compare` makes
-  side-by-side montages + RMSE report in `fixtures/compare/` against the frozen Tauri captures in
-  `fixtures/reference/` (do not regenerate those; the Tauri app is gone). Both output dirs are
-  gitignored.
 - CI: `tests.yml` (nextest, all features), `checks.yml` (rustfmt, clippy, oxfmt with auto-fix,
   `nix flake check`), `app-release.yml` (packaging on PRs, upload + `latest.json` on release),
   `cachix.yml` (nix build).

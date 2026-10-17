@@ -137,8 +137,6 @@ cargo run      # start the app
 just test                  # cargo nextest run --workspace
 just lint                  # clippy, warnings are errors
 just fmt                   # cargo fmt (json/md/yaml: oxfmt)
-just screenshots [route]   # screenshot every route into fixtures/gpui (headless sway)
-just compare [route]       # diff fixtures/gpui against the frozen fixtures/reference
 just package deb,appimage  # release packages via cargo-packager
 nix build                  # Nix package (result/bin/proton)
 ```
@@ -155,7 +153,7 @@ proton/
 │   ├── account/ config/ content/ profiles/ versions/
 │   └── store/ reqwest/ utils/
 ├── assets/                # theme, fonts, icons
-├── fixtures/              # screenshot data, scripts and references
+├── fixtures/              # test data (fixtures/data) and its generator
 ├── packaging/             # icons and desktop file
 └── nix/, devenv.nix       # Nix package and dev environment
 ```

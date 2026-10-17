@@ -42,17 +42,11 @@ fn route_is_persisted_once_after_the_debounce(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-fn start_route_prefers_env_then_settings(cx: &mut TestAppContext) {
+fn start_route_comes_from_the_settings(cx: &mut TestAppContext) {
   init_test(cx);
+  assert_eq!(cx.update(|cx| initial_route(cx)), Route::Home);
   cx.update(|cx| proton_config::update(cx, |s| s.url = Some("tauri://localhost/instances".into())));
   assert_eq!(cx.update(|cx| initial_route(cx)), Route::Instances);
-  // SAFETY: no other test reads this variable
-  unsafe { std::env::set_var(ROUTE_ENV, "/settings/java") };
-  assert_eq!(
-    cx.update(|cx| initial_route(cx)),
-    Route::Settings(SettingsTab::Java)
-  );
-  unsafe { std::env::remove_var(ROUTE_ENV) };
 }
 
 #[gpui::test]

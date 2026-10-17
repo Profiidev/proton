@@ -1,6 +1,6 @@
 //! Self update via cargo-packager-updater: `latest.json` on the GitHub release (written by
 //! `.github/workflows/app-release.yml`), bundles signed with the old Tauri updater key.
-//! Port of the old `+layout.svelte` updater flow (BEHAVIOR §2 "Updater flow").
+//! Self-updater: checks, downloads and installs releases.
 
 use std::{
   path::{Path, PathBuf},

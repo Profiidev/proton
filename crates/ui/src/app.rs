@@ -23,8 +23,6 @@ use crate::{
   shell::{Shell, ShellData, ShellDataExt, ShellEvent},
 };
 
-/// Start route override, e.g. `PROTON_ROUTE=/settings/java` (screenshot automation)
-pub const ROUTE_ENV: &str = "PROTON_ROUTE";
 /// Route and window bounds are saved this long after the last change
 const PERSIST_DELAY: Duration = Duration::from_millis(500);
 
@@ -60,16 +58,11 @@ impl Debounce {
 }
 
 fn initial_route(cx: &App) -> Route {
-  std::env::var(ROUTE_ENV)
-    .ok()
-    .and_then(|url| Route::from_url(&url))
-    .or_else(|| {
-      cx.settings()
-        .get(cx)
-        .url
-        .as_deref()
-        .and_then(Route::from_url)
-    })
+  cx.settings()
+    .get(cx)
+    .url
+    .as_deref()
+    .and_then(Route::from_url)
     .unwrap_or(Route::Home)
 }
 

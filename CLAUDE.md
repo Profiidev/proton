@@ -1,8 +1,7 @@
 # Notes for agents
 
 Read `ARCHITECTURE.md` first (crate map, startup, "where do I change X", gotchas), then
-`crates/utils/PATTERNS.md` before touching a service crate. Expected UI behavior and exact strings
-are in `fixtures/reference/BEHAVIOR.md`.
+`crates/utils/PATTERNS.md` before touching a service crate.
 
 ## Commands
 
@@ -12,8 +11,6 @@ cargo nextest run -p proton_ui pages::home   # a subset
 just lint                 # cargo clippy --workspace --all-targets -- -D warnings
 just fmt                  # cargo fmt --all
 oxfmt <files>             # json/md/yaml, from the repo root (devenv has it, CI checks it)
-just screenshots [slug]   # release build per route into fixtures/gpui (headless sway, needs nix)
-just compare [slug]       # fixtures/reference vs fixtures/gpui into fixtures/compare
 just package deb,appimage # cargo-packager bundles
 ```
 
@@ -40,4 +37,4 @@ shell (`direnv allow` / `devenv shell`) or `nix build` (`result/bin/proton`).
   old route URLs, updater key. New fields get `#[serde(default)]`.
 - Deliberate shortcuts get a `ponytail:` comment naming the ceiling and the upgrade path.
 - Tests that save call `proton_store::init_at` first; UI tests use `init_fixture`. Never write
-  the real data dir. Don't regenerate `fixtures/reference/*.png` (frozen Tauri captures).
+  the real data dir.
