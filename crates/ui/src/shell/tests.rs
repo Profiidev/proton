@@ -48,6 +48,9 @@ fn open(cx: &mut TestAppContext) -> (AnyWindowHandle, Rc<Cell<usize>>) {
 fn click(handle: AnyWindowHandle, id: &str, cx: &mut TestAppContext) {
   cx.update_window(handle, |_, window, cx| {
     window.render_frame(cx);
+    // new pages build on the next frame
+    window.simulate_next_frame(cx);
+    window.render_frame(cx);
     window.click(id.to_string(), cx);
   })
   .unwrap();
@@ -70,6 +73,11 @@ fn sidebar_navigates_and_pages_are_cached(cx: &mut TestAppContext) {
   // the nested settings nav
   click(handle, "tab-Java", cx);
   assert_eq!(route(cx), Route::Settings(SettingsTab::Java));
+  cx.update_window(handle, |_, window, cx| {
+    window.render_frame(cx);
+    window.simulate_next_frame(cx);
+  })
+  .unwrap();
   // home, profiles, shaders, accounts, java
   assert_eq!(builds.get(), 5);
 
@@ -132,4 +140,23 @@ fn offline_badge_asks_to_reconnect(cx: &mut TestAppContext) {
   cx.run_until_parked();
   click(handle, "offline", cx);
   assert!(asked.get());
+}
+
+#[gpui::test]
+fn new_page_builds_on_the_next_frame(cx: &mut TestAppContext) {
+  let (handle, builds) = open(cx);
+  let frame = |cx: &mut TestAppContext| {
+    cx.update_window(handle, |_, window, cx| window.render_frame(cx))
+      .unwrap();
+  };
+  frame(cx);
+  let before = builds.get();
+  cx.update(|cx| cx.navigate(Route::Profiles));
+  frame(cx);
+  // the spinner paints first
+  assert_eq!(builds.get(), before);
+  cx.update_window(handle, |_, window, cx| window.simulate_next_frame(cx))
+    .unwrap();
+  frame(cx);
+  assert_eq!(builds.get(), before + 1);
 }

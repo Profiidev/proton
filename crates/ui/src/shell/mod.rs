@@ -10,13 +10,18 @@ use std::collections::HashMap;
 use gpui_kit::{
   AnyView, App, AppContext, Context, Entity, EventEmitter, Global, InteractiveElement, IntoElement,
   MouseButton, NavigationDirection, ParentElement, Render, StyleRefinement, Styled, Window,
-  component::ActiveTheme, div, prelude::FluentBuilder, px,
+  component::{ActiveTheme, Sizable, spinner::Spinner},
+  div,
+  prelude::FluentBuilder,
+  px,
 };
 
 pub use downloads::{DownloadRowView, DownloadsPanel};
 pub use header::{HEADER_HEIGHT, Header, HeaderActions};
 pub use pages::{PageFactory, Placeholder};
 pub use sidebar::{COMPACT_BELOW, NavItem, Sidebar, SimpleSidebar, sidebar_width};
+
+use proton_profiles::Profiles;
 
 use crate::router::{Names, Route, RouterExt, SettingsTab};
 
@@ -74,6 +79,8 @@ pub struct Shell {
   profile_nav: Entity<SimpleSidebar>,
   /// most recently used last
   pages: Vec<(Route, AnyView)>,
+  /// Not cached yet: builds on the next frame so the spinner paints first
+  pending: Option<Route>,
   profile_header: Option<(String, AnyView)>,
 }
 
@@ -88,6 +95,10 @@ impl Shell {
     .detach();
     // only the navs show shell data, the shell itself stays put
     cx.observe(&data, |this, _, cx| this.sync_navs(cx)).detach();
+    if let Some(profiles) = cx.try_global::<Profiles>() {
+      cx.observe(&profiles.loaded.clone(), |_, _, cx| cx.notify())
+        .detach();
+    }
 
     let this = Self {
       header: cx.new(Header::new),
@@ -96,6 +107,7 @@ impl Shell {
       settings_nav: cx.new(|_| SimpleSidebar::default()),
       profile_nav: cx.new(|_| SimpleSidebar::default()),
       pages: vec![],
+      pending: None,
       profile_header: None,
     };
     this.sync_navs(cx);
@@ -108,21 +120,44 @@ impl Shell {
     sidebar::sync_navs(&self.settings_nav, &self.profile_nav, &route, &data, cx);
   }
 
-  fn page(&mut self, route: &Route, window: &mut Window, cx: &mut App) -> AnyView {
-    if let Some(ix) = self.pages.iter().position(|(r, _)| r == route) {
-      let entry = self.pages.remove(ix);
-      self.pages.push(entry);
-    } else {
-      let view = PageFactory::build(route, window, cx);
-      self.pages.push((route.clone(), view));
-      if self.pages.len() > CACHED_PAGES {
-        self.pages.remove(0);
-      }
+  /// None while the page is not built yet
+  fn page(
+    &mut self,
+    route: &Route,
+    window: &mut Window,
+    cx: &mut Context<Self>,
+  ) -> Option<AnyView> {
+    let ix = self.pages.iter().position(|(r, _)| r == route);
+    // the profiles load in the background at startup, most pages need them
+    if ix.is_none() && profiles_loaded(cx) && self.pending.as_ref() != Some(route) {
+      self.pending = Some(route.clone());
+      let this = cx.entity().downgrade();
+      let route = route.clone();
+      window.on_next_frame(move |window, cx| {
+        let _ = this.update(cx, |this, cx| {
+          // navigated on meanwhile
+          if this.pending.take_if(|p| *p == route).is_none() {
+            return;
+          }
+          let view = PageFactory::build(&route, window, cx);
+          this.pages.push((route, view));
+          if this.pages.len() > CACHED_PAGES {
+            this.pages.remove(0);
+          }
+          cx.notify();
+        });
+      });
     }
-    self.pages.last().map(|(_, v)| v.clone()).unwrap()
+    let entry = self.pages.remove(ix?);
+    self.pages.push(entry);
+    self.pages.last().map(|(_, v)| v.clone())
   }
 
   fn profile_header(&mut self, id: &str, window: &mut Window, cx: &mut App) -> Option<AnyView> {
+    // it leaves for the list when the profile is missing
+    if !profiles_loaded(cx) {
+      return None;
+    }
     if self.profile_header.as_ref().is_none_or(|(i, _)| i != id) {
       let build = cx
         .try_global::<PageFactory>()
@@ -131,6 +166,11 @@ impl Shell {
     }
     self.profile_header.as_ref().map(|(_, v)| v.clone())
   }
+}
+
+fn profiles_loaded(cx: &App) -> bool {
+  cx.try_global::<Profiles>()
+    .is_none_or(|p| *p.loaded.read(cx))
 }
 
 fn full() -> StyleRefinement {
@@ -146,7 +186,16 @@ impl Render for Shell {
     // (Tried in 3d: a cached page also stopped re-rendering on live log appends.)
     // ponytail: the page root renders on every frame, keep page roots shallow and push
     // live parts into cached child views.
-    let page = self.page(&route, window, cx);
+    let page = match self.page(&route, window, cx) {
+      Some(page) => page.into_any_element(),
+      None => div()
+        .size_full()
+        .flex()
+        .items_center()
+        .justify_center()
+        .child(Spinner::new().large())
+        .into_any_element(),
+    };
     let page = div().relative().size_full().child(page);
 
     let content = match &route {

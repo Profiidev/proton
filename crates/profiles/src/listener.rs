@@ -1,6 +1,6 @@
 use gpui_kit::{App, AppContext, AsyncApp, Entity};
 
-use proton_utils::logs::LogBuffer;
+use proton_utils::{entity::WriteChangedExt, logs::LogBuffer};
 
 use crate::{Profiles, ProfilesEvent, store::ProfilesMsg};
 
@@ -24,6 +24,7 @@ fn apply(cx: &mut AsyncApp, p: &Profiles, msg: ProfilesMsg) {
       set(cx, &p.profiles, profiles);
       set(cx, &p.favorites, favorites);
       set(cx, &p.history, history);
+      p.loaded.write_changed(cx, true);
     }
     ProfilesMsg::QuickPlay(id, list) => {
       if let Some(entity) = p.lazy.read_with(cx, |l, _| l.quick_play.get(&id).cloned()) {

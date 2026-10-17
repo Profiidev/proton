@@ -25,6 +25,7 @@ use gpui_kit::{
     radio::Radio,
     scroll::Scrollbar,
     select::{SearchableVec, Select, SelectEvent, SelectState},
+    spinner::Spinner,
   },
   div,
   prelude::FluentBuilder,
@@ -713,7 +714,16 @@ impl ContentPage {
       )
       .child(div().size_7().flex_none());
 
-    let body = if visible.is_empty() {
+    let body = if !self.installed.read(cx).loaded {
+      div()
+        .py_6()
+        .border_t_1()
+        .border_color(theme.border)
+        .flex()
+        .justify_center()
+        .child(Spinner::new())
+        .into_any_element()
+    } else if visible.is_empty() {
       let text = if self.summary.total == 0 {
         format!("No {noun}s installed yet")
       } else {

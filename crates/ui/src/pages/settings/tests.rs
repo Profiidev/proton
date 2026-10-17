@@ -88,6 +88,9 @@ fn act(
 ) {
   cx.update_window(handle, |_, window, cx| {
     window.render_frame(cx);
+    // new pages build on the next frame
+    window.simulate_next_frame(cx);
+    window.render_frame(cx);
     f(window, cx);
   })
   .unwrap();
@@ -169,6 +172,8 @@ fn capes_offline_change_warns(cx: &mut TestAppContext) {
   // the grid shows once the skin texture is decoded
   settle(cx, |cx| {
     cx.update_window(handle, |_, w, cx| {
+      w.render_frame(cx);
+      w.simulate_next_frame(cx);
       w.render_frame(cx);
       w.try_find("cape-REMOVE_CAPE").is_some()
     })

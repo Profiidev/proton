@@ -128,6 +128,8 @@ pub struct Profiles {
   /// Running games, notifies only when one starts or exits
   pub instances: Entity<Vec<InstanceInfo>>,
   pub events: Entity<ProfilesEvents>,
+  /// False until the profiles were read from disk the first time
+  pub loaded: Entity<bool>,
   lazy: Entity<LazyEntities>,
   pub handle: ProfilesHandle,
 }
@@ -505,20 +507,45 @@ fn mark_played(profile: &mut Profile, quick_play: Option<&QuickPlayInfo>, now: D
   }
 }
 
-/// Loads the profiles from the store and starts the listener. Needs `proton_config::init`.
+/// Reads the profiles and starts their file watchers on tokio, `loaded` flips when done
 pub fn init(cx: &mut App) {
-  match proton_utils::dir::data_dir() {
-    Ok(dir) => {
-      let _ = init_at(cx, dir).log_err();
+  let data_dir = match proton_utils::dir::data_dir() {
+    Ok(dir) => dir,
+    Err(err) => return tracing::error!("No data dir, profiles disabled: {err:?}"),
+  };
+  let (tx, rx) = flume::unbounded();
+  let service = service(
+    cx,
+    rx,
+    ProfileStore::empty(data_dir.clone(), tx.clone()),
+    false,
+  );
+  // the lock is held until the real store is in, so early calls wait for it
+  let Ok(mut guard) = service.handle.store.clone().try_lock_owned() else {
+    unreachable!("nobody else has the new lock")
+  };
+  let handle = service.handle.clone();
+  rt::spawn(async move {
+    match ProfileStore::new(data_dir, tx.clone()).log_err() {
+      Ok(store) => *guard = store,
+      Err(_) => tracing::error!("Profiles could not be read, profiles disabled"),
     }
-    Err(err) => tracing::error!("No data dir, profiles disabled: {err:?}"),
-  }
+    drop(guard);
+    if handle.refresh().await.log_err().is_err() {
+      // still mark them loaded, pages wait for it
+      let _ = tx.send(ProfilesMsg::Profiles {
+        profiles: vec![],
+        favorites: vec![],
+        history: vec![],
+      });
+    }
+  });
 }
 
-/// [`init`] with an explicit data dir, for tests
+/// [`init`] with an explicit data dir that loads synchronously, for tests
 pub fn init_at(cx: &mut App, data_dir: PathBuf) -> Result<()> {
   let (tx, rx) = flume::unbounded();
-  let mut store = ProfileStore::new(data_dir, tx.clone())?;
+  let mut store = ProfileStore::new(data_dir, tx)?;
   let (profiles, favorites, history) = rt::block_on(async {
     anyhow::Ok((
       store.list_profiles().await?,
@@ -526,13 +553,27 @@ pub fn init_at(cx: &mut App, data_dir: PathBuf) -> Result<()> {
       store.list_history().await?,
     ))
   })?;
+  let service = service(cx, rx, store, true);
+  service.profiles.update(cx, |p, _| *p = profiles);
+  service.favorites.update(cx, |f, _| *f = favorites);
+  service.history.update(cx, |h, _| *h = history);
+  Ok(())
+}
 
+fn service(
+  cx: &mut App,
+  rx: flume::Receiver<ProfilesMsg>,
+  store: ProfileStore,
+  loaded: bool,
+) -> Profiles {
+  let tx = store.sender();
   let service = Profiles {
-    profiles: cx.new(|_| profiles),
-    favorites: cx.new(|_| favorites),
-    history: cx.new(|_| history),
+    profiles: cx.new(|_| vec![]),
+    favorites: cx.new(|_| vec![]),
+    history: cx.new(|_| vec![]),
     instances: cx.new(|_| Vec::new()),
     events: cx.new(|_| ProfilesEvents),
+    loaded: cx.new(|_| loaded),
     lazy: cx.new(|_| LazyEntities::default()),
     handle: ProfilesHandle {
       store: Arc::new(Mutex::new(store)),
@@ -540,8 +581,8 @@ pub fn init_at(cx: &mut App, data_dir: PathBuf) -> Result<()> {
     },
   };
   listener::listen(cx, rx, service.clone());
-  cx.set_global(service);
-  Ok(())
+  cx.set_global(service.clone());
+  service
 }
 
 #[cfg(test)]

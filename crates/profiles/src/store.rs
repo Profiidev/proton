@@ -67,6 +67,20 @@ pub struct ProfileStore {
 impl ProfileStore {
   const PROFILE_KEY: &str = "profiles";
 
+  /// No profiles and no disk access, stands in until [`Self::new`] is done
+  pub(crate) fn empty(data_dir: PathBuf, tx: flume::Sender<ProfilesMsg>) -> ProfileStore {
+    ProfileStore {
+      profiles: HashMap::new(),
+      tx,
+      instances: Default::default(),
+      data_dir,
+    }
+  }
+
+  pub(crate) fn sender(&self) -> flume::Sender<ProfilesMsg> {
+    self.tx.clone()
+  }
+
   pub fn new(data_dir: PathBuf, tx: flume::Sender<ProfilesMsg>) -> Result<ProfileStore> {
     let store = proton_store::store();
     let profile_paths: HashMap<String, PathBuf> = store.get_or_default(Self::PROFILE_KEY)?;

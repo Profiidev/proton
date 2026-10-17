@@ -244,7 +244,20 @@ impl Content {
         Ok(by_kind)
       })
       .await
-      .log_err()?;
+      .log_err();
+      let by_kind = match by_kind {
+        Ok(by_kind) => by_kind,
+        Err(e) => {
+          // ends the page's spinner, keeps what was listed before
+          entity.update(cx, |c, cx| {
+            if !c.loaded {
+              c.loaded = true;
+              cx.notify();
+            }
+          });
+          return Err(e);
+        }
+      };
       entity.write_changed(
         cx,
         InstalledContent {

@@ -190,3 +190,32 @@ fn mark_played_updates_history() {
   mark_played(&mut profile, None, now);
   assert_eq!(profile.last_played_non_quick_play, Some(now));
 }
+
+#[gpui::test]
+async fn init_loads_in_the_background_and_early_calls_wait(cx: &mut TestAppContext) {
+  cx.executor().allow_parking();
+  let dir = tempfile::tempdir().unwrap().keep();
+  // SAFETY: nextest runs every test in its own process, nothing else reads the env yet
+  unsafe { std::env::set_var("XDG_DATA_HOME", &dir) };
+  proton_store::init_at(dir.join("store.json"));
+  cx.update(init);
+  let profiles = cx.update(|cx| cx.profiles().clone());
+  assert!(!cx.update(|cx| *profiles.loaded.read(cx)));
+
+  // queued behind the initial load
+  profiles
+    .create(
+      "Early".into(),
+      None,
+      "1.21".into(),
+      LoaderType::Vanilla,
+      None,
+    )
+    .await
+    .unwrap();
+  cx.run_until_parked();
+  cx.update(|cx| {
+    assert!(*profiles.loaded.read(cx));
+    assert_eq!(profiles.profiles.read(cx)[0].name, "Early");
+  });
+}

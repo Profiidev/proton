@@ -250,8 +250,12 @@ async fn live_log_in_the_shell_re_renders_neither_header_nor_sidebar(cx: &mut Te
   show(handle, &slot, cx, Shell::new);
   cx.run_until_parked();
   for _ in 0..2 {
-    cx.update_window(handle, |_, window, cx| window.draw(cx).clear(cx))
-      .unwrap();
+    cx.update_window(handle, |_, window, cx| {
+      window.draw(cx).clear(cx);
+      // the page builds on the next frame
+      window.simulate_next_frame(cx);
+    })
+    .unwrap();
   }
   let buffer = cx.update(|cx| profiles.instance_logs(&id, cx)).unwrap();
 

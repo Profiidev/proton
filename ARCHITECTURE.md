@@ -63,7 +63,8 @@ Layering rule: services (`config`, `versions`, `account`, `profiles`, `content`)
    restart (`updater::RESTART_ENV`) it retries for up to 5s while the old process lets go.
 3. `gpui_kit::application()` with `components::assets::Assets` and `proton_reqwest::client()`.
 4. Inside `run`: `gpui_kit::init`, `assets::load` (fonts, themes, mono font), then the services
-   in dependency order: `config` → `versions` → `account` → `profiles` → `content`, then
+   in dependency order: `config` → `versions` → `account` → `profiles` → `content` (profiles
+   and manifests load on tokio, `Profiles::loaded` flips when the profiles are in), then
    `proton_ui::init` (router, shell data, updater globals) and `pages::register_all`.
 5. `proton_ui::app::start` (`crates/ui/src/app.rs`):
    - `restore_route`: `PROTON_ROUTE` env, else `settings.url` (old SvelteKit URLs parse too),
@@ -106,7 +107,8 @@ Read `crates/utils/PATTERNS.md`; it is the source of truth. In short:
   never re-render the header; `Sidebar` (main nav, sliding `Glide` pill, compact below 768px,
   footer from `set_sidebar_footer`); `SimpleSidebar` for the settings/profile sub-navs;
   `DownloadsPanel` (one entity per row). Pages are cached per route (`CACHED_PAGES` = 8, LRU)
-  and switch without a transition. `ShellData` holds what the shell shows; services push into it.
+  and switch without a transition. An uncached page shows a spinner and builds on the next
+  frame, after `Profiles::loaded`. `ShellData` holds what the shell shows; services push into it.
 - **`router/`** – `Route` enum (`route.rs`) with `ProfileTab`, `SettingsTab`, `Kind`, `Source`.
   `Route::to_url`/`from_url` speak the old SvelteKit URLs (`/profiles/info/logs?id=x`,
   `tauri://localhost/...`) including the old redirects, so `settings.url` from the Tauri app
