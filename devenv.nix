@@ -50,20 +50,13 @@ let
   ];
 in
 {
-  packages = buildDeps ++ gpuiLibs ++ mcLibs;
+  # oxfmt: json/md/yaml formatting, no node needed
+  packages = buildDeps ++ gpuiLibs ++ mcLibs ++ [ pkgs.oxfmt ];
 
   languages = {
     rust = {
       enable = true;
       channel = "stable";
-    };
-
-    # oxfmt/oxlint (and the old Svelte app until it is deleted)
-    javascript = {
-      enable = true;
-      npm = {
-        enable = true;
-      };
     };
   };
 

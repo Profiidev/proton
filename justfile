@@ -12,10 +12,6 @@ fmt:
 package formats="deb,appimage":
   cargo packager --release -f {{formats}}
 
-# Screenshot every route of the Tauri app into fixtures/reference (Hyprland), optional slug filter
-reference *filter:
-  fixtures/scripts/reference.sh {{filter}}
-
 # Screenshot every route of the gpui app into fixtures/gpui (own headless sway), optional slug filter
 screenshots *filter:
   fixtures/scripts/screenshots.sh {{filter}}

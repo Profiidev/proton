@@ -17,5 +17,5 @@ wgpu = { version = "29", default-features = false, features = [
   "wgsl",
   "vulkan",
   "metal",
-  "gles",
+  "gles"
 ] }
