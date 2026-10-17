@@ -121,6 +121,15 @@ impl SkinStore {
     fs::write(dir.join(format!("{id}.png")), skin).await?;
     fs::write(dir.join(format!("{id}_head.png")), &head).await?;
 
+    // the id is the content hash, the same png twice is one skin
+    if let Some(i) = self.skins.iter().position(|s| s.id == id) {
+      if self.skins[i].url.is_none() && url.is_some() {
+        self.skins[i].url = url;
+        self.save()?;
+      }
+      return self.skins[i].load_skin();
+    }
+
     let skin_info = SkinInfo { url, id };
     self.skins.push(skin_info.clone());
     self.save()?;
@@ -135,6 +144,10 @@ impl SkinStore {
     let dir = skin_dir()?;
     fs::create_dir_all(&dir).await?;
     fs::write(dir.join(format!("{id}.png")), cape).await?;
+
+    if let Some(known) = self.capes.iter().find(|c| c.id == id) {
+      return known.load_cape();
+    }
 
     let cape_info = CapeInfo { url, id };
     self.capes.push(cape_info.clone());
@@ -281,6 +294,22 @@ mod tests {
 
   fn tex_url(server: &FakeServer, name: &str) -> Url {
     format!("{}/tex/{name}", server.origin()).parse().unwrap()
+  }
+
+  #[test]
+  fn adding_the_same_skin_twice_keeps_one_entry() {
+    init_dirs();
+    let mut store = SkinStore::new().unwrap();
+    let bytes = png(7);
+    let first = rt::block_on(store.add_skin(None, &bytes)).unwrap();
+    let url: Url = "https://textures.minecraft.net/texture/x".parse().unwrap();
+    // seen again as a worn skin: the known entry learns its url
+    let second = rt::block_on(store.add_skin(Some(url.clone()), &bytes)).unwrap();
+    assert_eq!(second.id, first.id);
+    assert_eq!(second.url, Some(url.clone()));
+    // an upload of the same png later does not forget it
+    rt::block_on(store.add_skin(None, &bytes)).unwrap();
+    assert_eq!(SkinStore::new().unwrap().list_skins(), [second]);
   }
 
   #[test]
