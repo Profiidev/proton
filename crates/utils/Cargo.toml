@@ -23,5 +23,9 @@ url.workspace = true
 dirs.workspace = true
 regex = "1.13.1"
 
+[features]
+# FakeServer and the url seam it needs
+test-support = []
+
 [dev-dependencies]
 gpui-kit = { workspace = true, features = ["test-support"] }

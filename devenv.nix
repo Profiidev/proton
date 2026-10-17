@@ -51,12 +51,24 @@ let
 in
 {
   # oxfmt: json/md/yaml formatting, no node needed
-  packages = buildDeps ++ gpuiLibs ++ mcLibs ++ [ pkgs.oxfmt ];
+  packages = buildDeps ++ gpuiLibs ++ mcLibs ++ [
+    pkgs.oxfmt
+    pkgs.cargo-llvm-cov
+  ];
 
   languages = {
     rust = {
       enable = true;
       channel = "stable";
+      # cargo-llvm-cov
+      components = [
+        "rustc"
+        "cargo"
+        "clippy"
+        "rustfmt"
+        "rust-analyzer"
+        "llvm-tools-preview"
+      ];
     };
   };
 
