@@ -224,6 +224,7 @@ impl Render for DownloadsPanel {
       .collect();
     let all_running = self.running.iter().all(|r| *r);
     Popover::new("downloads-popover")
+      .p_1()
       .anchor(Anchor::TopRight)
       .trigger(trigger)
       .content(move |_, _, cx| panel(&rows, all_running, cx))

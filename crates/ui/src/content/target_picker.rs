@@ -130,6 +130,7 @@ impl Render for TargetPicker {
 
     let search = self.search.clone();
     Popover::new("target-picker-popover")
+      .p_1()
       .anchor(Anchor::TopRight)
       .trigger(trigger)
       .content(move |_, _, cx| {

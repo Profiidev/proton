@@ -335,6 +335,7 @@ impl ProfilesPage {
         .ok();
     });
     Popover::new(id)
+      .p_1()
       .trigger(Button::new(id).cursor_pointer().outline().label(text))
       .content(move |_, _, cx| {
         let hover = cx.theme().accent;
