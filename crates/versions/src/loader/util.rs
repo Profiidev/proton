@@ -158,4 +158,93 @@ mod tests {
 
     fs::remove_dir_all(&dir).await.unwrap();
   }
+
+  #[test]
+  fn mc_versions_compare_numerically() {
+    use std::cmp::Ordering::*;
+    let cases = [
+      ("1.5.1", "1.5.2", Less),
+      ("1.10", "1.9", Greater),
+      ("1.20.1", "1.20.1", Equal),
+      // more parts is newer
+      ("1.20", "1.20.1", Less),
+      ("1.20.1", "1.20", Greater),
+      // a non numeric part sorts below a number, whichever side it is on
+      ("1.7.10_pre4", "1.7.10", Less),
+      ("1.7.10", "1.7.10_pre4", Greater),
+      ("1.5.1", "1.7.10_pre4", Less),
+      ("", "1", Less),
+    ];
+    for (a, b, expected) in cases {
+      assert_eq!(
+        compare_mc_versions(&a.into(), &b.into()),
+        expected,
+        "{a} vs {b}"
+      );
+    }
+  }
+
+  #[test]
+  fn main_class_comes_from_the_jar_manifest() {
+    let dir = tempfile::tempdir().unwrap();
+    let jar = dir.path().join("p.jar");
+    let manifest = b"Manifest-Version: 1.0\r\nMain-Class: net.minecraftforge.Installer\r\n";
+    proton_utils::rt::block_on(async {
+      crate::testing::write_zip(&jar, &[("META-INF/MANIFEST.MF", manifest)]).await;
+      // lines() drops the \r too
+      assert_eq!(
+        main_class_from_jar(&jar).await.unwrap(),
+        "net.minecraftforge.Installer"
+      );
+
+      let no_main = dir.path().join("n.jar");
+      crate::testing::write_zip(
+        &no_main,
+        &[("META-INF/MANIFEST.MF", b"Manifest-Version: 1.0\n")],
+      )
+      .await;
+      let err = main_class_from_jar(&no_main).await.unwrap_err();
+      assert_eq!(err.to_string(), "Main-Class not found");
+
+      let not_utf8 = dir.path().join("u.jar");
+      crate::testing::write_zip(&not_utf8, &[("META-INF/MANIFEST.MF", &[0xff, 0xfe])]).await;
+      assert!(main_class_from_jar(&not_utf8).await.is_err());
+      assert!(
+        main_class_from_jar(&dir.path().join("missing.jar"))
+          .await
+          .is_err()
+      );
+
+      fs::write(dir.path().join("bad.jar"), b"not a zip")
+        .await
+        .unwrap();
+      assert!(
+        main_class_from_jar(&dir.path().join("bad.jar"))
+          .await
+          .is_err()
+      );
+    });
+  }
+
+  #[test]
+  fn extract_and_save_creates_parent_dirs() {
+    let dir = tempfile::tempdir().unwrap();
+    let zip = dir.path().join("z.zip");
+    let target = dir.path().join("a/b/ü c.txt");
+    proton_utils::rt::block_on(async {
+      crate::testing::write_zip(&zip, &[("x.txt", b"x")]).await;
+      extract_and_save_file_from_zip(&zip, "x.txt", &target)
+        .await
+        .unwrap();
+      assert_eq!(fs::read(&target).await.unwrap(), b"x");
+      // a missing entry writes nothing
+      let other = dir.path().join("o/o.txt");
+      assert!(
+        extract_and_save_file_from_zip(&zip, "y.txt", &other)
+          .await
+          .is_err()
+      );
+      assert!(!other.exists());
+    });
+  }
 }

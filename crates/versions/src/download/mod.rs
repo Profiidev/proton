@@ -178,3 +178,261 @@ where
 
   Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+  use std::time::Duration;
+
+  use proton_utils::{download::default_client, rt, test_http::FakeServer};
+
+  use super::*;
+  use crate::{
+    event::DownloadMsg,
+    loader::LoaderType,
+    meta::java::Component,
+    testing::{file_mode, serve_version},
+  };
+
+  /// Waits out the status debounce and returns every status sent
+  fn statuses(rx: &flume::Receiver<DownloadMsg>) -> Vec<DownloadCheckStatus> {
+    rt::block_on(async { tokio::time::sleep(Duration::from_millis(150)).await });
+    rx.try_iter()
+      .filter_map(|m| match m {
+        DownloadMsg::Status { status, .. } => Some(status),
+        _ => None,
+      })
+      .collect()
+  }
+
+  #[cfg(target_os = "linux")]
+  #[test]
+  fn a_version_downloads_once_and_is_then_only_checked() {
+    let server = FakeServer::start();
+    let dir = tempfile::tempdir().unwrap();
+    let data = dir.path().join("dätä");
+    let (handle, rx) = DownloadsHandle::new();
+    let client = default_client();
+
+    let fixture = rt::block_on(serve_version(&server));
+    let mc = &fixture.manifest.versions[0];
+    let java = &fixture.java.linux;
+    rt::block_on(check_download_version(
+      mc, java, &data, &client, &handle, 1, None,
+    ))
+    .unwrap();
+
+    let version_path = MCVersionPath::new(&data, "1.20.1");
+    let java_path = JavaVersionPath::new(&data, Component::JavaRuntimeGamma, "1.20.1".into());
+    let mc_path = MCPath::new(&data);
+    assert_eq!(std::fs::read(version_path.client_jar()).unwrap(), b"client");
+    assert!(version_path.version_manifest().exists());
+    assert!(mc_path.assets_index_path().join("5.json").exists());
+    assert_eq!(
+      std::fs::read_dir(mc_path.assets_objects_path())
+        .unwrap()
+        .count(),
+      2
+    );
+    assert_eq!(
+      std::fs::read(mc_path.library_path().join("a/b/lib/1/lib-1.jar")).unwrap(),
+      b"lib"
+    );
+    assert_eq!(file_mode(&java_path.bin_path()) & 0o777, 0o755);
+    assert_ne!(
+      file_mode(&java_path.base_path().join("lib/x.txt")) & 0o111,
+      0o111
+    );
+    assert!(java_path.base_path().join("bin").is_dir());
+    // links are left to the runtime, natives are unpacked next to the java libs
+    assert!(!java_path.base_path().join("lib/link").exists());
+    assert_eq!(
+      std::fs::read(java_path.native_path().join("liblwjgl.so")).unwrap(),
+      b"so"
+    );
+    assert!(!java_path.native_path().join("META-INF").exists());
+
+    let seen = statuses(&rx);
+    // ticks in between are debounced away, the last one always arrives
+    assert_eq!(seen.last(), Some(&DownloadCheckStatus::Done));
+
+    let fetched = server.calls().len();
+    // the osx library and natives are never fetched
+    assert!(server.calls().iter().all(|c| c.path != "/never"));
+    // a native file deleted by the user is unpacked again without a download
+    std::fs::remove_file(java_path.native_path().join("liblwjgl.so")).unwrap();
+    rt::block_on(check_download_version(
+      mc, java, &data, &client, &handle, 2, None,
+    ))
+    .unwrap();
+    assert_eq!(server.calls().len(), fetched, "everything was cached");
+    assert!(java_path.native_path().join("liblwjgl.so").exists());
+
+    // a corrupted file is fetched again
+    std::fs::write(version_path.client_jar(), "broken").unwrap();
+    rt::block_on(check_download_version(
+      mc, java, &data, &client, &handle, 3, None,
+    ))
+    .unwrap();
+    assert_eq!(server.calls().len(), fetched + 1);
+    assert_eq!(server.calls().last().unwrap().path, "/client.jar");
+  }
+
+  #[test]
+  fn a_hash_mismatch_fails_and_writes_nothing() {
+    let server = FakeServer::start();
+    let dir = tempfile::tempdir().unwrap();
+    let data = dir.path().to_path_buf();
+    let (handle, _rx) = DownloadsHandle::new();
+    let fixture = rt::block_on(serve_version(&server));
+    server.route("GET", "/client.jar", 200, "tampered");
+
+    let mc = &fixture.manifest.versions[0];
+    let result = rt::block_on(check_download_version(
+      mc,
+      &fixture.java.linux,
+      &data,
+      &default_client(),
+      &handle,
+      1,
+      None,
+    ));
+    let err = result.unwrap_err();
+    assert!(
+      err
+        .downcast_ref::<proton_utils::file::FileError>()
+        .is_some(),
+      "{err}"
+    );
+    assert!(!MCVersionPath::new(&data, "1.20.1").client_jar().exists());
+  }
+
+  #[test]
+  fn http_errors_and_missing_runtimes_fail_the_download() {
+    let server = FakeServer::start();
+    let dir = tempfile::tempdir().unwrap();
+    let data = dir.path().to_path_buf();
+    let (handle, _rx) = DownloadsHandle::new();
+    let fixture = rt::block_on(serve_version(&server));
+    let mc = &fixture.manifest.versions[0];
+    let client = default_client();
+    let run = |java: &PlatformVersion| {
+      rt::block_on(check_download_version(
+        mc, java, &data, &client, &handle, 1, None,
+      ))
+    };
+
+    // no runtime for this component on this platform
+    let empty = PlatformVersion::default();
+    let err = run(&empty).unwrap_err();
+    assert!(
+      matches!(err.downcast_ref(), Some(DownloadError::NotSupported)),
+      "{err}"
+    );
+
+    // a missing asset fails after the client is in place
+    let version_path = MCVersionPath::new(&data, &mc.id);
+    let version = rt::block_on(check_version_manifest(
+      mc,
+      &version_path,
+      &client,
+      &handle,
+      0,
+    ));
+    let assets = rt::block_on(check_assets_manifest(
+      &version.unwrap(),
+      &MCPath::new(&data),
+      &client,
+      &handle,
+      0,
+    ));
+    let hash = assets.unwrap().objects["a.txt"].hash.clone();
+    let asset = format!("/resources.download.minecraft.net/{}/{hash}", &hash[..2]);
+    server.route("GET", &asset, 500, "");
+    assert!(run(&fixture.java.linux).is_err());
+    assert!(version_path.client_jar().exists());
+  }
+
+  #[cfg(target_os = "linux")]
+  #[test]
+  fn a_loader_is_installed_after_the_game() {
+    let server = FakeServer::start();
+    let dir = tempfile::tempdir().unwrap();
+    let data = dir.path().to_path_buf();
+    let (handle, rx) = DownloadsHandle::new();
+    let fixture = rt::block_on(serve_version(&server));
+    let meta = r#"{
+      "loader": { "maven": "net.fabricmc:fabric-loader:0.15.0" },
+      "launcherMeta": { "libraries": { "client": [], "common": [] }, "mainClass": { "client": "K" } }
+    }"#;
+    server
+      .route(
+        "GET",
+        "/meta.fabricmc.net/v2/versions/loader/1.20.1/0.15.0",
+        200,
+        meta,
+      )
+      .route(
+        "GET",
+        "/maven.fabricmc.net/net/fabricmc/fabric-loader/0.15.0/fabric-loader-0.15.0.jar",
+        200,
+        "loader",
+      );
+
+    let loader = LoaderType::Fabric.loader_version("1.20.1".into(), "0.15.0".into());
+    let mc = &fixture.manifest.versions[0];
+    rt::block_on(check_download_version(
+      mc,
+      &fixture.java.linux,
+      &data,
+      &default_client(),
+      &handle,
+      1,
+      loader,
+    ))
+    .unwrap();
+    let jar = MCPath::new(&data)
+      .library_path()
+      .join("net/fabricmc/fabric-loader/0.15.0/fabric-loader-0.15.0.jar");
+    assert_eq!(std::fs::read(jar).unwrap(), b"loader");
+
+    assert_eq!(statuses(&rx).last(), Some(&DownloadCheckStatus::Done));
+  }
+
+  #[test]
+  fn pools_propagate_the_first_error() {
+    let (handle, rx) = DownloadsHandle::new();
+    let checks = |fail: usize| -> Vec<_> {
+      (0..3)
+        .map(|i| async move {
+          anyhow::ensure!(i != fail, "boom");
+          anyhow::Ok((i != 1).then_some(i))
+        })
+        .collect()
+    };
+    rt::block_on(async {
+      let status = DownloadCheckStatus::AssetsCheck;
+      let mut found = check_pool(checks(9), &handle, 0, status).await.unwrap();
+      found.sort();
+      // checks that need nothing are dropped
+      assert_eq!(found, [0, 2]);
+      let err = check_pool(checks(2), &handle, 0, status).await.unwrap_err();
+      assert_eq!(err.to_string(), "boom");
+
+      let funcs = Vec::<(fn(_) -> std::future::Ready<Result<()>>, usize)>::new();
+      download_pool(
+        funcs,
+        handle.clone(),
+        5,
+        DownloadCheckStatus::AssetsDownload,
+      )
+      .await
+      .unwrap();
+    });
+    // an empty pool still reports 0 of 0 bytes
+    let seen = statuses(&rx);
+    assert!(
+      seen.contains(&DownloadCheckStatus::AssetsDownload(0, 0)),
+      "{seen:?}"
+    );
+  }
+}

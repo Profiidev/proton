@@ -348,3 +348,390 @@ async fn classpath(
 
   Ok(classpath)
 }
+
+#[cfg(test)]
+mod tests {
+  use proton_utils::rt;
+
+  use super::*;
+  use crate::{
+    meta::java::Component,
+    testing::{fake_java, java_calls},
+  };
+
+  fn artifact(path: &str) -> serde_json::Value {
+    serde_json::json!({ "artifact": { "path": path, "url": "https://x.invalid/a.jar", "sha1": "a", "size": 1 } })
+  }
+
+  fn quick(feature: &str, flag: &str, var: &str) -> serde_json::Value {
+    serde_json::json!({
+      "rules": [{ "action": "allow", "features": { feature: true } }],
+      "value": [flag, var]
+    })
+  }
+
+  fn version_json() -> serde_json::Value {
+    serde_json::json!({
+      "id": "1.20.1",
+      "arguments": {
+        "game": [
+          "--username", "${auth_player_name}", "--version", "${version_name}",
+          "--gameDir", "${game_directory}", "--assetsDir", "${assets_root}",
+          "--assetIndex", "${assets_index_name}", "--uuid", "${auth_uuid}",
+          "--accessToken", "${auth_access_token}", "--clientId", "${clientid}",
+          "--xuid", "${auth_xuid}", "--userType", "${user_type}", "--versionType", "${version_type}",
+          { "rules": [{ "action": "allow", "features": { "is_demo_user": true } }], "value": "--demo" },
+          {
+            "rules": [{ "action": "allow", "features": { "has_custom_resolution": true } }],
+            "value": ["--width", "${resolution_width}", "--height", "${resolution_height}"]
+          },
+          quick("has_quick_plays_support", "--quickPlayPath", "${quickPlayPath}"),
+          quick("is_quick_play_singleplayer", "--quickPlaySingleplayer", "${quickPlaySingleplayer}"),
+          quick("is_quick_play_multiplayer", "--quickPlayMultiplayer", "${quickPlayMultiplayer}"),
+          quick("is_quick_play_realms", "--quickPlayRealms", "${quickPlayRealms}")
+        ],
+        "jvm": [
+          { "rules": [{ "action": "allow", "os": { "name": "osx" } }], "value": ["-XstartOnFirstThread"] },
+          { "rules": [{ "action": "allow", "os": { "name": "linux" } }], "value": "-Dlinux=yes" },
+          { "rules": [{ "action": "allow", "os": { "arch": "x86" } }], "value": "-Xss1M" },
+          "-Djava.library.path=${natives_directory}",
+          "-Dminecraft.launcher.brand=${launcher_name}",
+          "-Dminecraft.launcher.version=${launcher_version}",
+          "-Dsep=${classpath_separator}",
+          "-Dlib=${library_directory}",
+          "-Dunknown=${not_a_var}",
+          "-cp", "${classpath}"
+        ]
+      },
+      "assetIndex": { "id": "5", "sha1": "a", "size": 1, "totalSize": 1, "url": "https://x.invalid/i.json" },
+      "downloads": { "client": { "url": "https://x.invalid/c.jar", "size": 1, "sha1": "c" } },
+      "javaVersion": { "component": "java-runtime-gamma", "majorVersion": 17 },
+      "libraries": [
+        { "name": "a.b:with-artifact:1", "downloads": artifact("custom/place.jar") },
+        {
+          "name": "a.b:mac-only:1", "downloads": artifact("mac.jar"),
+          "rules": [{ "action": "allow", "os": { "name": "osx" } }]
+        },
+        { "name": "a.b:no-downloads:1" },
+        { "name": "org.ow2.asm:asm:9.3", "downloads": artifact("org/ow2/asm/asm/9.3/asm-9.3.jar") },
+        // same jar twice is on the classpath once
+        { "name": "a.b:with-artifact:1", "downloads": artifact("custom/place.jar") }
+      ],
+      "mainClass": "net.minecraft.client.main.Main",
+      "type": "release"
+    })
+  }
+
+  struct Env {
+    _dir: tempfile::TempDir,
+    data: PathBuf,
+  }
+
+  fn env() -> Env {
+    let dir = tempfile::tempdir().unwrap();
+    let data = dir.path().join("dätä dir");
+    std::fs::create_dir_all(data.join("profiles/my profile")).unwrap();
+    let manifest = MCVersionPath::new(&data, "1.20.1").version_manifest();
+    std::fs::create_dir_all(manifest.parent().unwrap()).unwrap();
+    std::fs::write(&manifest, version_json().to_string()).unwrap();
+    Env { _dir: dir, data }
+  }
+
+  impl Env {
+    fn args(&self) -> LaunchArgs {
+      LaunchArgs {
+        launcher_version: "1.0.0".into(),
+        launcher_name: "proton".into(),
+        player_name: "Stëve".into(),
+        player_uuid: "uuid".into(),
+        user_type: "msa".into(),
+        access_token: "secret token".into(),
+        data_dir: self.data.clone(),
+        version: "1.20.1".into(),
+        working_sub_dir: "profiles/my profile".into(),
+        quick_play: None,
+        loader: None,
+        game_settings: GameSettings::default(),
+        jvm_settings: JvmSettings::default(),
+      }
+    }
+
+    fn java(&self, code: i32) -> PathBuf {
+      let java = JavaVersionPath::new(&self.data, Component::JavaRuntimeGamma, "1.20.1".into());
+      fake_java(&java.bin_path(), code)
+    }
+
+    fn p(&self, rest: &str) -> String {
+      self.data.join(rest).display().to_string()
+    }
+  }
+
+  fn version() -> Version {
+    serde_json::from_value(version_json()).unwrap()
+  }
+
+  /// Launches and waits, returns the exit code and the recorded args
+  fn launch(env: &Env, args: &LaunchArgs, code: i32) -> (Option<i32>, Vec<String>) {
+    let record = env.java(code);
+    let status = rt::block_on(async {
+      let child = launch_minecraft_version(args).await.unwrap();
+      child.wait_with_output().await.unwrap().status
+    });
+    let mut calls = java_calls(&record);
+    assert_eq!(calls.len(), 1);
+    (status.code(), calls.remove(0))
+  }
+
+  #[cfg(target_os = "linux")]
+  #[test]
+  fn vanilla_launch_passes_every_placeholder() {
+    let env = env();
+    let mut args = env.args();
+    args.quick_play = Some(QuickPlay::Singleplayer {
+      world_name: "Wörld 1".into(),
+    });
+    args.game_settings = GameSettings {
+      use_custom: true,
+      width: 1280,
+      height: 720,
+    };
+    args.jvm_settings = JvmSettings {
+      args: vec!["-Dcustom=a b".into()],
+      env_vars: [("PROTON_TEST_ENV".to_string(), "hi".to_string())].into(),
+      mem_max: 4096,
+    };
+
+    let (code, call) = launch(&env, &args, 0);
+    assert_eq!(code, Some(0));
+    let classpath = [
+      env.p("minecraft/versions/1.20.1/1.20.1.jar"),
+      env.p("minecraft/lib/custom/place.jar"),
+      env.p("minecraft/lib/a/b/no-downloads/1/no-downloads-1.jar"),
+      env.p("minecraft/lib/org/ow2/asm/asm/9.3/asm-9.3.jar"),
+    ]
+    .join(":");
+    let expected = [
+      format!("cwd={}", env.p("profiles/my profile")),
+      "env=hi".into(),
+      // os gated jvm args only for this os
+      "-Dlinux=yes".into(),
+      format!(
+        "-Djava.library.path={}",
+        env.p("java/java-runtime-gamma/lib")
+      ),
+      "-Dminecraft.launcher.brand=proton".into(),
+      "-Dminecraft.launcher.version=1.0.0".into(),
+      "-Dsep=:".into(),
+      format!("-Dlib={}", env.p("minecraft/lib")),
+      // unknown placeholders stay as they are
+      "-Dunknown=${not_a_var}".into(),
+      "-cp".into(),
+      classpath,
+      "-Xmx4096M".into(),
+      "-Dcustom=a b".into(),
+      "net.minecraft.client.main.Main".into(),
+      "--username".into(),
+      "Stëve".into(),
+      "--version".into(),
+      "1.20.1".into(),
+      "--gameDir".into(),
+      env.p("profiles/my profile"),
+      "--assetsDir".into(),
+      env.p("minecraft/assets"),
+      "--assetIndex".into(),
+      "5".into(),
+      "--uuid".into(),
+      "uuid".into(),
+      "--accessToken".into(),
+      "secret token".into(),
+      "--clientId".into(),
+      CLIENT_ID.into(),
+      "--xuid".into(),
+      "0".into(),
+      "--userType".into(),
+      "msa".into(),
+      "--versionType".into(),
+      "release".into(),
+      "--width".into(),
+      "1280".into(),
+      "--height".into(),
+      "720".into(),
+      "--quickPlayPath".into(),
+      QUICK_PLAY.into(),
+      "--quickPlaySingleplayer".into(),
+      "Wörld 1".into(),
+      "--userProperties".into(),
+      "{}".into(),
+    ];
+    assert_eq!(call, expected);
+  }
+
+  #[test]
+  fn the_game_exit_code_reaches_the_caller() {
+    let env = env();
+    let (code, _) = launch(&env, &env.args(), 7);
+    assert_eq!(code, Some(7));
+  }
+
+  #[test]
+  fn quick_play_turns_on_only_its_own_flag() {
+    let env = env();
+    let version = version();
+    let cases = [
+      (None, None),
+      (
+        Some(QuickPlay::Singleplayer {
+          world_name: "w".into(),
+        }),
+        Some(("--quickPlaySingleplayer", "w")),
+      ),
+      (
+        Some(QuickPlay::Multiplayer {
+          uri: "mc.example:25565".into(),
+        }),
+        Some(("--quickPlayMultiplayer", "mc.example:25565")),
+      ),
+      (
+        Some(QuickPlay::Realms {
+          realm_id: "42".into(),
+        }),
+        Some(("--quickPlayRealms", "42")),
+      ),
+    ];
+    for (quick_play, expected) in cases {
+      let mut args = env.args();
+      args.quick_play = quick_play;
+      let game = game_args(&args, &version, "cp");
+      // custom resolution is off by default, the demo flag never set
+      assert!(!game.contains(&"--width".into()) && !game.contains(&"--demo".into()));
+      // the path flag is always there, the launcher supports quick play
+      assert!(game.contains(&"--quickPlayPath".into()));
+      let flags: Vec<_> = game
+        .iter()
+        .filter(|a| a.starts_with("--quickPlay") && *a != "--quickPlayPath")
+        .collect();
+      match expected {
+        None => assert!(flags.is_empty(), "{flags:?}"),
+        Some((flag, value)) => {
+          assert_eq!(flags, [flag]);
+          let at = game.iter().position(|a| a == flag).unwrap();
+          assert_eq!(game[at + 1], value);
+        }
+      }
+      assert_eq!(game[game.len() - 2..], ["--userProperties", "{}"]);
+    }
+  }
+
+  #[test]
+  fn legacy_versions_use_the_default_arguments() {
+    let env = env();
+    let mut json = version_json();
+    json.as_object_mut().unwrap().remove("arguments");
+    let version: Version = serde_json::from_value(json).unwrap();
+    let args = env.args();
+    let jvm = jvm_args(&args, &version, "the-cp");
+    assert_eq!(jvm[jvm.len() - 2..], ["-cp", "the-cp"]);
+    let game = game_args(&args, &version, "the-cp");
+    assert!(game.iter().all(|a| !a.contains("${")), "{game:?}");
+  }
+
+  struct FakeLoader {
+    overwrite: bool,
+    fail: bool,
+  }
+
+  #[async_trait::async_trait]
+  impl LoaderVersion for FakeLoader {
+    async fn download(
+      &self,
+      _: &reqwest::Client,
+      _: &MCVersionPath,
+      _: &MCPath,
+      _: &[String],
+    ) -> Result<Vec<crate::loader::CheckFuture>> {
+      Ok(vec![])
+    }
+    async fn preprocess(&self, _: &MCVersionPath, _: &MCPath, _: PathBuf) -> Result<()> {
+      Ok(())
+    }
+    async fn classpath(&self, _: &MCVersionPath, mc: &MCPath) -> Result<Vec<ClasspathEntry>> {
+      Ok(vec![
+        ClasspathEntry::from_name("org.ow2.asm:asm:9.6", mc)?,
+        ClasspathEntry::from_name("loader:core:1", mc)?,
+      ])
+    }
+    async fn main_class(&self, _: &MCVersionPath) -> Result<String> {
+      Ok("loader.Main".into())
+    }
+    async fn arguments(&self, _: &MCVersionPath) -> Result<Arguments> {
+      anyhow::ensure!(!self.fail, "no loader args");
+      Ok(Arguments::new(
+        vec!["-Dloader=${version_name}".into()],
+        vec!["--tweak".into(), "${auth_player_name}".into()],
+        self.overwrite,
+      ))
+    }
+  }
+
+  #[test]
+  fn loader_replaces_libraries_main_class_and_maybe_game_args() {
+    let env = env();
+    for overwrite in [false, true] {
+      let mut args = env.args();
+      args.loader = Some(Box::new(FakeLoader {
+        overwrite,
+        fail: false,
+      }));
+      let (_, call) = launch(&env, &args, 0);
+      std::fs::remove_file(
+        JavaVersionPath::new(&env.data, Component::JavaRuntimeGamma, "1.20.1".into())
+          .bin_path()
+          .with_extension("calls"),
+      )
+      .unwrap();
+
+      let cp = &call[call.iter().position(|a| a == "-cp").unwrap() + 1];
+      // the loader's asm wins over vanilla's, loader libs go last
+      assert!(
+        !cp.contains("asm-9.3.jar") && cp.contains("asm-9.6.jar"),
+        "{cp}"
+      );
+      assert!(cp.ends_with(&env.p("minecraft/lib/loader/core/1/core-1.jar")));
+
+      let main = call.iter().position(|a| a == "loader.Main").unwrap();
+      assert_eq!(call[main - 2..main], ["-Dloader=1.20.1", "-Xmx2048M"]);
+      let game = &call[main + 1..];
+      assert_eq!(game[game.len() - 2..], ["--tweak", "Stëve"]);
+      // overwriting drops the vanilla args, user properties included
+      assert_eq!(game.contains(&"--username".to_string()), !overwrite);
+      assert_eq!(game.contains(&"--userProperties".to_string()), !overwrite);
+    }
+  }
+
+  #[test]
+  fn launch_errors_are_returned() {
+    let env = env();
+    // no java installed yet
+    let err = rt::block_on(launch_minecraft_version(&env.args())).unwrap_err();
+    assert!(err.downcast_ref::<std::io::Error>().is_some(), "{err}");
+
+    let record = env.java(0);
+    let mut args = env.args();
+    args.loader = Some(Box::new(FakeLoader {
+      overwrite: false,
+      fail: true,
+    }));
+    let err = rt::block_on(launch_minecraft_version(&args)).unwrap_err();
+    assert_eq!(err.to_string(), "no loader args");
+
+    // the version is not downloaded
+    let mut args = env.args();
+    args.version = "1.0".into();
+    assert!(rt::block_on(launch_minecraft_version(&args)).is_err());
+
+    let mut args = env.args();
+    args.working_sub_dir = "profiles/missing".into();
+    assert!(rt::block_on(launch_minecraft_version(&args)).is_err());
+    assert!(java_calls(&record).is_empty());
+  }
+}

@@ -20,7 +20,8 @@ mod util;
 
 type DownloadFuture =
   Pin<Box<dyn Future<Output = Result<(DownloadFileSizeFuture, usize)>> + Send + 'static>>;
-type CheckFuture = Pin<Box<dyn Future<Output = Result<Option<DownloadFuture>>> + Send + 'static>>;
+pub(crate) type CheckFuture =
+  Pin<Box<dyn Future<Output = Result<Option<DownloadFuture>>> + Send + 'static>>;
 
 pub struct ClasspathEntry {
   pub artifact: MavenArtifact,
@@ -167,5 +168,102 @@ impl Arguments {
       game_args,
       overwrite_game_args,
     }
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  struct Fixed(Vec<String>);
+
+  #[async_trait::async_trait]
+  impl Loader for Fixed {
+    async fn download_metadata(&self, _: &Client, _: &MCVersionPath) -> Result<()> {
+      Ok(())
+    }
+    async fn supported_versions(&self, _: &MCVersionPath, _: bool) -> Result<Vec<String>> {
+      Ok(vec![])
+    }
+    async fn loader_versions_for_mc_version(
+      &self,
+      _: &str,
+      _: &MCVersionPath,
+      stable: bool,
+    ) -> Result<Vec<String>> {
+      // the newest version is asked for stable only
+      assert!(stable);
+      Ok(self.0.clone())
+    }
+  }
+
+  #[test]
+  fn vanilla_has_no_loader() {
+    assert!(LoaderType::Vanilla.loader().is_none());
+    assert!(
+      LoaderType::Vanilla
+        .loader_version("1.20.1".into(), "x".into())
+        .is_none()
+    );
+    for ty in [
+      LoaderType::Fabric,
+      LoaderType::Quilt,
+      LoaderType::Forge,
+      LoaderType::NeoForge,
+    ] {
+      assert!(ty.loader().is_some());
+      assert!(ty.loader_version("1.20.1".into(), "x".into()).is_some());
+    }
+    assert_eq!(LoaderType::mod_loaders().len(), 4);
+  }
+
+  #[test]
+  fn loader_types_keep_their_stored_names() {
+    // profiles in store.json hold these strings
+    for (ty, name) in [
+      (LoaderType::Vanilla, "Vanilla"),
+      (LoaderType::Fabric, "Fabric"),
+      (LoaderType::Quilt, "Quilt"),
+      (LoaderType::Forge, "Forge"),
+      (LoaderType::NeoForge, "NeoForge"),
+    ] {
+      assert_eq!(serde_json::to_value(ty).unwrap(), name);
+      assert_eq!(
+        serde_json::from_value::<LoaderType>(name.into()).unwrap(),
+        ty
+      );
+    }
+  }
+
+  #[test]
+  fn newest_loader_version_is_the_first_or_an_error() {
+    let path = MCVersionPath::new(&PathBuf::from("/d"), "1.20.1");
+    proton_utils::rt::block_on(async {
+      let loader = Fixed(vec!["2".into(), "1".into()]);
+      let newest = loader.newest_loader_version_for_mc_version("1.20.1", &path);
+      assert_eq!(newest.await.unwrap(), "2");
+
+      let err = Fixed(vec![])
+        .newest_loader_version_for_mc_version("1.20.1", &path)
+        .await
+        .unwrap_err();
+      assert_eq!(
+        err.to_string(),
+        "No loader versions found for Minecraft version: 1.20.1"
+      );
+    });
+  }
+
+  #[test]
+  fn classpath_entries_resolve_maven_names() {
+    let mc = MCPath::new(&PathBuf::from("/d"));
+    let entry = ClasspathEntry::from_name("a.b:c:1", &mc).unwrap();
+    assert_eq!(
+      entry.path,
+      PathBuf::from("/d/minecraft/lib/a/b/c/1/c-1.jar")
+    );
+    assert!(ClasspathEntry::from_name("broken", &mc).is_err());
+    let args = Arguments::new(vec!["-a".into()], vec![], true);
+    assert!(args.overwrite_game_args && args.game_args.is_empty());
   }
 }

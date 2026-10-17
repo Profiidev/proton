@@ -18,7 +18,7 @@ use crate::{
 };
 use proton_utils::{
   dir::data_dir, download::default_client, download::download_and_parse_file_no_hash,
-  file::file_hash,
+  file::file_hash, http,
 };
 
 use super::{
@@ -107,7 +107,7 @@ impl McVersionStore {
       download_and_parse_file_no_hash(
         client,
         &mc_manifest_path,
-        MC_VERSION_MANIFEST_URL
+        http::url(MC_VERSION_MANIFEST_URL)
           .parse()
           .expect("Failed to parse mc version url"),
         force
@@ -115,7 +115,7 @@ impl McVersionStore {
       download_and_parse_file_no_hash(
         client,
         &java_manifest_path,
-        JAVA_VERSION_MANIFEST_URL
+        http::url(JAVA_VERSION_MANIFEST_URL)
           .parse()
           .expect("Failed to parse java version url"),
         force
@@ -254,5 +254,253 @@ impl McVersionStore {
     } else {
       Ok(vec![])
     }
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use std::time::Duration;
+
+  use proton_utils::{rt, test_http::FakeServer};
+  use tokio::fs;
+
+  use super::*;
+  use crate::testing::{data_dir, serve_version};
+
+  const MC_PATH: &str = "/launchermeta.mojang.com/mc/game/version_manifest_v2.json";
+  const JAVA_PATH: &str = "/launchermeta.mojang.com/v1/products/java-runtime/2ec0cc96c44e5a76b9c8b7c39df7210883d12871/all.json";
+
+  fn manifest(ids: &[(&str, &str)]) -> String {
+    let versions: Vec<_> = ids
+      .iter()
+      .map(|(id, ty)| {
+        serde_json::json!({ "id": id, "type": ty, "url": "https://x.invalid/v.json", "sha1": "s" })
+      })
+      .collect();
+    serde_json::json!({ "versions": versions }).to_string()
+  }
+
+  fn store(ids: &[(&str, &str)]) -> McVersionStore {
+    let manifest = serde_json::from_str(&manifest(ids)).unwrap();
+    McVersionStore::from_manifests(manifest, JavaVersions::default(), DownloadsHandle::new().0)
+  }
+
+  fn java_manifest() -> String {
+    let empty = serde_json::json!({
+      "java-runtime-alpha": [], "java-runtime-beta": [], "java-runtime-delta": [],
+      "java-runtime-epsilon": [], "java-runtime-gamma": [],
+      "java-runtime-gamma-snapshot": [], "jre-legacy": []
+    });
+    let platforms = [
+      "linux",
+      "linux-i386",
+      "mac-os",
+      "mac-os-arm64",
+      "windows-arm64",
+      "windows-x64",
+      "windows-x86",
+    ];
+    let all: serde_json::Map<_, _> = platforms
+      .into_iter()
+      .map(|p| (p.to_string(), empty.clone()))
+      .collect();
+    serde_json::Value::Object(all).to_string()
+  }
+
+  #[test]
+  fn cancel_permits_survive_until_the_job_waits() {
+    assert!(!is_busy());
+    // canceling a job nobody runs is a no-op
+    cancel(7);
+    let guard = register_cancel(7);
+    assert!(is_busy());
+    cancel(7);
+    rt::block_on(async {
+      tokio::time::timeout(Duration::from_secs(1), guard.notify.notified())
+        .await
+        .expect("the stored permit wakes the job");
+    });
+    drop(guard);
+    // the guard unregisters on drop, even on early returns
+    assert!(!is_busy());
+  }
+
+  #[test]
+  fn manifests_are_cached_until_forced() {
+    let server = FakeServer::start();
+    let data = data_dir();
+    server
+      .route("GET", MC_PATH, 200, manifest(&[("1.21", "release")]))
+      .route("GET", JAVA_PATH, 200, java_manifest());
+    let client = default_client();
+    rt::block_on(async {
+      let (mc, _) = McVersionStore::load_manifests(&client, false)
+        .await
+        .unwrap();
+      assert_eq!(mc.versions[0].id, "1.21");
+      assert!(MCPath::new(&data).mc_manifest().exists());
+
+      // offline: the cache still answers
+      server
+        .route("GET", MC_PATH, 503, "")
+        .route("GET", JAVA_PATH, 503, "");
+      assert!(McVersionStore::load_manifests(&client, false).await.is_ok());
+      assert!(McVersionStore::load_manifests(&client, true).await.is_err());
+
+      server.route("GET", MC_PATH, 200, manifest(&[("1.22", "release")]));
+      server.route("GET", JAVA_PATH, 200, java_manifest());
+      let (mc, _) = McVersionStore::load_manifests(&client, true).await.unwrap();
+      assert_eq!(mc.versions[0].id, "1.22");
+
+      // a corrupt cache is an error, not an empty list
+      fs::write(MCPath::new(&data).mc_manifest(), "{")
+        .await
+        .unwrap();
+      assert!(McVersionStore::new(DownloadsHandle::new().0).await.is_err());
+    });
+    assert_eq!(server.calls().len(), 6);
+  }
+
+  #[test]
+  fn vanilla_lists_hide_snapshots_when_stable() {
+    data_dir();
+    let store = store(&[
+      ("24w01a", "snapshot"),
+      ("1.21", "release"),
+      ("b1.7.3", "old_beta"),
+    ]);
+    rt::block_on(async {
+      let list = |stable| store.list_versions(&LoaderType::Vanilla, stable);
+      assert_eq!(list(true).await.unwrap(), ["1.21"]);
+      assert_eq!(list(false).await.unwrap(), ["24w01a", "1.21", "b1.7.3"]);
+      let loaders = store.list_loader_versions(&LoaderType::Vanilla, "1.21", true);
+      assert!(loaders.await.unwrap().is_empty());
+    });
+  }
+
+  #[test]
+  fn loader_lists_follow_the_release_order() {
+    let data = data_dir();
+    let store = store(&[
+      ("1.21", "release"),
+      ("1.20.1", "release"),
+      ("1.19", "release"),
+    ]);
+    let root = MCVersionPath::new(&data, "").version_root().clone();
+    rt::block_on(async {
+      // no metadata yet
+      assert!(
+        store
+          .list_versions(&LoaderType::Fabric, true)
+          .await
+          .is_err()
+      );
+
+      fs::create_dir_all(&root).await.unwrap();
+      let game = r#"[
+        { "version": "1.19", "stable": true },
+        { "version": "23w01a", "stable": true },
+        { "version": "1.21", "stable": true }
+      ]"#;
+      fs::write(root.join("fabric-game.json"), game)
+        .await
+        .unwrap();
+      let loader = r#"[{ "version": "0.15.0", "stable": true }]"#;
+      fs::write(root.join("fabric-loader.json"), loader)
+        .await
+        .unwrap();
+      // versions missing from the manifest go last
+      assert_eq!(
+        store
+          .list_versions(&LoaderType::Fabric, true)
+          .await
+          .unwrap(),
+        ["1.21", "1.19", "23w01a"]
+      );
+      let loaders = store.list_loader_versions(&LoaderType::Fabric, "1.21", true);
+      assert_eq!(loaders.await.unwrap(), ["0.15.0"]);
+    });
+  }
+
+  #[test]
+  fn meta_check_compares_the_manifest_hash() {
+    let data = data_dir();
+    let manifest = format!(
+      r#"{{ "versions": [{{ "id": "1.21", "type": "release", "url": "https://x.invalid", "sha1": "{}" }}] }}"#,
+      proton_utils::file::bytes_hash(b"meta")
+    );
+    let (handle, rx) = DownloadsHandle::new();
+    let store = McVersionStore::from_manifests(
+      serde_json::from_str(&manifest).unwrap(),
+      JavaVersions::default(),
+      handle,
+    );
+    let path = MCVersionPath::new(&data, "1.21").version_manifest();
+    rt::block_on(async {
+      let err = store.check_meta("9.9", 1).await.unwrap_err();
+      assert!(matches!(err.downcast_ref(), Some(DownloadError::NotFound)));
+      assert!(!store.check_meta("1.21", 1).await.unwrap());
+
+      fs::create_dir_all(path.parent().unwrap()).await.unwrap();
+      fs::write(&path, "other").await.unwrap();
+      assert!(!store.check_meta("1.21", 1).await.unwrap());
+      fs::write(&path, "meta").await.unwrap();
+      assert!(store.check_meta("1.21", 1).await.unwrap());
+      tokio::time::sleep(Duration::from_millis(100)).await;
+    });
+    // only the good check reports done
+    let done: Vec<_> = rx.try_iter().collect();
+    assert_eq!(done.len(), 1, "{done:?}");
+  }
+
+  #[cfg(target_os = "linux")]
+  #[test]
+  fn check_or_download_finishes_or_is_canceled() {
+    let server = FakeServer::start();
+    let data = data_dir();
+    let fixture = rt::block_on(serve_version(&server));
+    let store =
+      McVersionStore::from_manifests(fixture.manifest, fixture.java, DownloadsHandle::new().0);
+    rt::block_on(async {
+      let run = |v: &'static str, id| store.check_or_download(v, id, LoaderType::Vanilla, None);
+      let err = run("9.9", 1).await.unwrap_err();
+      assert!(matches!(err.downcast_ref(), Some(DownloadError::NotFound)));
+      assert!(run("1.20.1", 2).await.unwrap());
+      assert!(MCVersionPath::new(&data, "1.20.1").client_jar().exists());
+      assert!(!is_busy());
+    });
+  }
+
+  #[test]
+  fn a_hanging_download_can_be_canceled() {
+    // accepts connections but never answers
+    let silent = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}/v.json", silent.local_addr().unwrap());
+    data_dir();
+    let manifest = format!(
+      r#"{{ "versions": [{{ "id": "1.21", "type": "release", "url": "{url}", "sha1": "s" }}] }}"#
+    );
+    let store = McVersionStore::from_manifests(
+      serde_json::from_str(&manifest).unwrap(),
+      JavaVersions::default(),
+      DownloadsHandle::new().0,
+    );
+    let job = rt::spawn(async move {
+      store
+        .check_or_download("1.21", 3, LoaderType::Vanilla, None)
+        .await
+    });
+    rt::block_on(async {
+      while !is_busy() {
+        tokio::time::sleep(Duration::from_millis(5)).await;
+      }
+      cancel(3);
+      let finished = tokio::time::timeout(Duration::from_secs(5), job)
+        .await
+        .unwrap()
+        .unwrap();
+      assert!(!finished.unwrap());
+    });
+    assert!(!is_busy());
   }
 }

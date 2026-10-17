@@ -10,8 +10,8 @@ use crate::{
   meta::minecraft::Assets,
   paths::MCPath,
 };
-use proton_utils::path;
 use proton_utils::{download::download_file, file::file_hash};
+use proton_utils::{http, path};
 
 pub const MC_RESOURCES_URL: &str = "https://resources.download.minecraft.net";
 
@@ -29,7 +29,7 @@ pub async fn check_download_version_assets(
     let prefix_hash = &asset.hash[0..2];
     let hash = asset.hash.clone();
     let path = path!(mc_path.assets_objects_path(), prefix_hash, &hash);
-    let url = format!("{MC_RESOURCES_URL}/{prefix_hash}/{hash}").parse()?;
+    let url = format!("{}/{prefix_hash}/{hash}", http::url(MC_RESOURCES_URL)).parse()?;
     let size = asset.size;
 
     let client = client.clone();

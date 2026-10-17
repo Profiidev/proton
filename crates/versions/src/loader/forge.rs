@@ -27,11 +27,11 @@ use crate::{
   maven::MavenArtifact,
   paths::{MCPath, MCVersionPath},
 };
-use proton_utils::path;
 use proton_utils::{
   download::download_file_no_hash,
   file::{read_parse_file, read_parse_xml_file},
 };
+use proton_utils::{http, path};
 
 const INDEX_BASE_URL_FORGE: &str =
   "https://files.minecraftforge.net/net/minecraftforge/forge/maven-metadata.json";
@@ -52,14 +52,14 @@ pub struct ForgeLikeLoader {
 impl ForgeLikeLoader {
   pub fn forge() -> Self {
     Self {
-      index_url: INDEX_BASE_URL_FORGE.to_string(),
+      index_url: http::url(INDEX_BASE_URL_FORGE).into_owned(),
       index_file_name: INDEX_FILE_NAME_FORGE.to_string(),
     }
   }
 
   pub fn neoforge() -> Self {
     Self {
-      index_url: INDEX_BASE_URL_NEOFORGE.to_string(),
+      index_url: http::url(INDEX_BASE_URL_NEOFORGE).into_owned(),
       index_file_name: INDEX_FILE_NAME_NEOFORGE.to_string(),
     }
   }
@@ -181,9 +181,9 @@ impl ForgeLikeLoaderVersion {
     Self {
       mc_version,
       loader_version,
-      installer_base_url: INSTALLER_URL_FORGE.to_string(),
+      installer_base_url: http::url(INSTALLER_URL_FORGE).into_owned(),
       index_file_name: INDEX_FILE_NAME_FORGE.to_string(),
-      maven_base_url: MAVEN_BASE_URL_FORGE.to_string(),
+      maven_base_url: http::url(MAVEN_BASE_URL_FORGE).into_owned(),
     }
   }
 
@@ -191,9 +191,9 @@ impl ForgeLikeLoaderVersion {
     Self {
       mc_version,
       loader_version,
-      installer_base_url: INSTALLER_URL_NEOFORGE.to_string(),
+      installer_base_url: http::url(INSTALLER_URL_NEOFORGE).into_owned(),
       index_file_name: INDEX_FILE_NAME_NEOFORGE.to_string(),
-      maven_base_url: MAVEN_BASE_URL_NEOFORGE.to_string(),
+      maven_base_url: http::url(MAVEN_BASE_URL_NEOFORGE).into_owned(),
     }
   }
 
@@ -734,6 +734,7 @@ impl ForgeVersionManifestOld {
   const MINECRAFT_MAVEN: &str = "https://libraries.minecraft.net";
 
   fn into_new(self) -> Result<ForgeVersion> {
+    let minecraft_maven = http::url(Self::MINECRAFT_MAVEN);
     let library_results = self
       .version_info
       .libraries
@@ -744,7 +745,7 @@ impl ForgeVersionManifestOld {
           .url
           .as_ref()
           .map(|u| u.as_str())
-          .unwrap_or(Self::MINECRAFT_MAVEN);
+          .unwrap_or(&minecraft_maven);
 
         let url = Some(maven.url(base_url)?);
         let path = maven.path().to_string_lossy().into_owned();
@@ -773,5 +774,672 @@ impl ForgeVersionManifestOld {
       minecraft_arguments: Some(self.version_info.minecraft_arguments),
       arguments: None,
     })
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use proton_utils::{download::default_client, rt, test_http::FakeServer};
+
+  use super::*;
+  use crate::{
+    loader::CheckFuture,
+    testing::{fake_java, java_calls, write_zip},
+  };
+
+  const FORGE_INDEX: &str = r#"{
+    "1.20.1": ["1.20.1-47.1.0", "1.20.1-47.1.3"],
+    "1.7.10_pre4": ["1.7.10_pre4-10.12.2.1149-prerelease"],
+    "1.7.10": ["1.7.10-10.13.4.1614-1.7.10"],
+    "1.5.2": ["1.5.2-7.8.0.684"],
+    "1.5.1": ["1.5.1-7.7.0.598"],
+    "1.4.7": ["1.4.7-6.6.2.534"]
+  }"#;
+  const NEOFORGE_INDEX: &str = "<metadata><groupId>net.neoforged</groupId><versioning>\
+    <latest>21.0.2-beta</latest><versions>\
+    <version>20.2.3-beta</version><version>20.4.80-beta</version><version>20.4.237</version>\
+    <version>21.0.1-beta</version><version>21.0.2</version><version>broken</version>\
+    </versions></versioning></metadata>";
+
+  struct Env {
+    _dir: tempfile::TempDir,
+    data: PathBuf,
+    mc: MCPath,
+  }
+
+  fn env() -> Env {
+    let dir = tempfile::tempdir().unwrap();
+    // spaces and unicode reach the processor args
+    let data = dir.path().join("dätä dir");
+    Env {
+      mc: MCPath::new(&data),
+      data,
+      _dir: dir,
+    }
+  }
+
+  impl Env {
+    fn version(&self, mc: &str) -> MCVersionPath {
+      MCVersionPath::new(&self.data, mc)
+    }
+
+    fn lib(&self, name: &str) -> PathBuf {
+      MavenArtifact::new(name).unwrap().full_path(&self.mc)
+    }
+
+    async fn index(&self, name: &str, body: &str) {
+      let root = self.version("").version_root().clone();
+      fs::create_dir_all(&root).await.unwrap();
+      fs::write(root.join(format!("{name}-index.json")), body)
+        .await
+        .unwrap();
+    }
+  }
+
+  async fn run(futures: Vec<CheckFuture>) -> Result<()> {
+    for check in futures {
+      if let Some(download) = check.await? {
+        let (write, _) = download.await?;
+        write(Box::new(|_| {})).await?;
+      }
+    }
+    Ok(())
+  }
+
+  #[test]
+  fn version_strings_split_into_mc_and_loader() {
+    let forge = [
+      ("1.16.5-36.2.39", Some(("1.16.5", "36.2.39"))),
+      (
+        "1.7.10-10.13.4.1614-1.7.10",
+        Some(("1.7.10", "10.13.4.1614")),
+      ),
+      ("1.16.5", None),
+      ("", None),
+    ];
+    for (input, expected) in forge {
+      let pair = forge_version_pair(input).ok();
+      let pair = pair.as_ref().map(|(a, b)| (a.as_str(), b.as_str()));
+      assert_eq!(pair, expected, "{input}");
+    }
+    let neoforge = [
+      ("20.4.237", Some(("1.20.4", "237"))),
+      ("20.2.3-beta", Some(("1.20.2", "3-beta"))),
+      // the .0 minor is the first release of a major
+      ("21.0.1-beta", Some(("1.21", "1-beta"))),
+      ("21.1.1.5", Some(("1.21.1", "1.5"))),
+      ("20.4", None),
+      ("x.4.1", None),
+      ("20.y.1", None),
+      ("", None),
+    ];
+    for (input, expected) in neoforge {
+      let pair = neoforge_version_pair(input).ok();
+      let pair = pair.as_ref().map(|(a, b)| (a.as_str(), b.as_str()));
+      assert_eq!(pair, expected, "{input}");
+    }
+  }
+
+  #[test]
+  fn forge_lists_skip_prereleases_and_jar_patching_versions() {
+    let env = env();
+    let path = env.version("");
+    let loader = ForgeLikeLoader::forge();
+    rt::block_on(async {
+      assert!(loader.supported_versions(&path, true).await.is_err());
+      env.index("forge", FORGE_INDEX).await;
+
+      let mut stable = loader.supported_versions(&path, true).await.unwrap();
+      stable.sort();
+      // 1.5.1 and older need manual jar patching
+      assert_eq!(stable, ["1.20.1", "1.5.2", "1.7.10"]);
+      let mut all = loader.supported_versions(&path, false).await.unwrap();
+      all.sort();
+      assert_eq!(all, ["1.20.1", "1.5.2", "1.7.10", "1.7.10_pre4"]);
+
+      let versions = |mc, stable| loader.loader_versions_for_mc_version(mc, &path, stable);
+      // newest first
+      assert_eq!(
+        versions("1.20.1", true).await.unwrap(),
+        ["47.1.3", "47.1.0"]
+      );
+      assert_eq!(versions("1.7.10", true).await.unwrap(), ["10.13.4.1614"]);
+      assert!(versions("1.7.10_pre4", true).await.unwrap().is_empty());
+      assert_eq!(
+        versions("1.7.10_pre4", false).await.unwrap(),
+        ["10.12.2.1149"]
+      );
+      assert!(versions("9.9", false).await.unwrap().is_empty());
+    });
+  }
+
+  #[test]
+  fn neoforge_lists_come_from_maven_metadata() {
+    let server = FakeServer::start();
+    server.route(
+      "GET",
+      "/maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml",
+      200,
+      NEOFORGE_INDEX,
+    );
+    let env = env();
+    let path = env.version("");
+    let loader = ForgeLikeLoader::neoforge();
+    rt::block_on(async {
+      loader
+        .download_metadata(&default_client(), &path)
+        .await
+        .unwrap();
+      // sorted and deduped, the broken entry is dropped
+      assert_eq!(
+        loader.supported_versions(&path, true).await.unwrap(),
+        ["1.20.2", "1.20.4", "1.21"]
+      );
+      let versions = |mc, stable| loader.loader_versions_for_mc_version(mc, &path, stable);
+      assert_eq!(versions("1.20.4", true).await.unwrap(), ["237"]);
+      assert_eq!(versions("1.20.4", false).await.unwrap(), ["237", "80-beta"]);
+      assert_eq!(versions("1.21", false).await.unwrap(), ["2", "1-beta"]);
+      assert!(versions("1.20.2", true).await.unwrap().is_empty());
+
+      // the latest route wins, a failed refresh is an error
+      server.route(
+        "GET",
+        "/maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml",
+        500,
+        "",
+      );
+      assert!(
+        loader
+          .download_metadata(&default_client(), &path)
+          .await
+          .is_err()
+      );
+      // corrupt xml
+      fs::write(loader.index(&path), "<metadata>").await.unwrap();
+      assert!(loader.supported_versions(&path, true).await.is_err());
+    });
+  }
+
+  #[test]
+  fn installer_urls_use_the_full_loader_version() {
+    let env = env();
+    rt::block_on(async {
+      env.index("forge", FORGE_INDEX).await;
+      let forge = ForgeLikeLoaderVersion::forge("1.7.10".into(), "10.13.4.1614".into());
+      let path = env.version("1.7.10");
+      assert!(forge.installer_url(&path).await.unwrap().ends_with(
+        "/net/minecraftforge/forge/1.7.10-10.13.4.1614-1.7.10/forge-1.7.10-10.13.4.1614-1.7.10-installer.jar"
+      ));
+      assert_eq!(
+        forge.installer_path(&path).await.unwrap(),
+        path.base_path().join("forge-1.7.10-10.13.4.1614-1.7.10")
+      );
+      let missing = ForgeLikeLoaderVersion::forge("1.7.10".into(), "1.0".into());
+      let err = missing.installer_url(&path).await.unwrap_err();
+      assert_eq!(
+        err.to_string(),
+        "Loader version 1.0 not found for Minecraft version 1.7.10"
+      );
+
+      env.index("neoforge", NEOFORGE_INDEX).await;
+      for (mc, loader, full) in [
+        ("1.20.4", "237", "20.4.237"),
+        ("1.20.4", "80-beta", "20.4.80-beta"),
+        // "1.21" maps to the 21.0 line
+        ("1.21", "1-beta", "21.0.1-beta"),
+      ] {
+        let neo = ForgeLikeLoaderVersion::neoforge(mc.into(), loader.into());
+        let url = neo.installer_url(&env.version(mc)).await.unwrap();
+        assert!(
+          url.ends_with(&format!("/neoforge/{full}/neoforge-{full}-installer.jar")),
+          "{url}"
+        );
+      }
+      let neo = ForgeLikeLoaderVersion::neoforge("1.20.4".into(), "999".into());
+      assert!(neo.installer_url(&env.version("1.20.4")).await.is_err());
+    });
+  }
+
+  fn lib_json(name: &str, path: &str, url: &str, sha1: Option<&str>) -> serde_json::Value {
+    let mut artifact = serde_json::json!({ "path": path, "url": url });
+    if let Some(sha1) = sha1 {
+      artifact["sha1"] = sha1.into();
+    }
+    serde_json::json!({ "name": name, "downloads": { "artifact": artifact } })
+  }
+
+  /// A 1.20.1 style installer with processors, served by `server`
+  async fn modern_installer(env: &Env, server: &FakeServer) {
+    let origin = server.origin();
+    let maven = format!("{origin}/maven.minecraftforge.net");
+    let profile = serde_json::json!({
+      "data": {
+        "MAPPINGS": { "client": "[de.oceanlabs.mcp:mcp_config:1.20.1@zip]", "server": "x" },
+        "BINPATCH": { "client": "/data/client.lzma", "server": "/data/server.lzma" },
+        "LITERAL": { "client": "'ü lit'", "server": "" }
+      },
+      "processors": [
+        // never run, its jar does not even exist
+        { "sides": ["server"], "jar": "x:server-only:1", "classpath": [], "args": [] },
+        {
+          "sides": ["client", "server"],
+          "jar": "net.minecraftforge:installertools:1.0",
+          "classpath": ["a.b:cp-lib:1"],
+          "args": [
+            "--task", "{MAPPINGS}", "--patch", "{BINPATCH}", "--jar", "{MINECRAFT_JAR}",
+            "--side", "{SIDE}", "--out", "[a.b:out:1@txt]", "--lit", "{LITERAL}",
+            "--version", "{MINECRAFT_VERSION}", "--root", "{ROOT}", "--libs", "{LIBRARY_DIR}"
+          ]
+        }
+      ],
+      "libraries": [
+        lib_json(
+          "net.minecraftforge:installertools:1.0",
+          "net/minecraftforge/installertools/1.0/installertools-1.0.jar",
+          &format!("{maven}/net/minecraftforge/installertools/1.0/installertools-1.0.jar"),
+          None,
+        ),
+        // no url: it ships inside the installer
+        lib_json(
+          "net.minecraftforge:forge:1.20.1-47.1.0:universal",
+          "net/minecraftforge/forge/1.20.1-47.1.0/forge-1.20.1-47.1.0-universal.jar",
+          "",
+          None,
+        ),
+      ],
+      "json": "/version.json"
+    });
+    let version = serde_json::json!({
+      "mainClass": "cpw.mods.bootstraplauncher.BootstrapLauncher",
+      "libraries": [
+        lib_json("org.lwjgl:lwjgl:3.3.1", "org/lwjgl/lwjgl/3.3.1/lwjgl-3.3.1.jar", &format!("{maven}/vanilla.jar"), None),
+        lib_json(
+          "net.minecraftforge:installertools:1.0",
+          "net/minecraftforge/installertools/1.0/installertools-1.0.jar",
+          &format!("{maven}/net/minecraftforge/installertools/1.0/installertools-1.0.jar"),
+          None,
+        ),
+        lib_json(
+          "cpw.mods:securejarhandler:2.1.10",
+          "cpw/mods/securejarhandler/2.1.10/securejarhandler-2.1.10.jar",
+          &format!("{maven}/cpw/mods/securejarhandler/2.1.10/securejarhandler-2.1.10.jar"),
+          Some("0000"),
+        ),
+        lib_json(
+          "net.minecraftforge:forge:1.20.1-47.1.0",
+          "net/minecraftforge/forge/1.20.1-47.1.0/forge-1.20.1-47.1.0.jar",
+          "",
+          None,
+        ),
+        // no url and not in the installer: silently skipped
+        lib_json("x:not-shipped:1", "x/not-shipped/1/not-shipped-1.jar", "", None),
+        lib_json(
+          "cpw.mods:securejarhandler:2.1.10",
+          "cpw/mods/securejarhandler/2.1.10/securejarhandler-2.1.10.jar",
+          &format!("{maven}/cpw/mods/securejarhandler/2.1.10/securejarhandler-2.1.10.jar"),
+          None,
+        ),
+      ],
+      "arguments": { "game": ["--launchTarget", "forgeclient"], "jvm": ["-Dlibs=${library_directory}"] }
+    });
+
+    let jar = env.data.join("installer.jar");
+    write_zip(
+      &jar,
+      &[
+        ("install_profile.json", profile.to_string().as_bytes()),
+        ("version.json", version.to_string().as_bytes()),
+        ("data/client.lzma", b"patch"),
+        (
+          "maven/net/minecraftforge/forge/1.20.1-47.1.0/forge-1.20.1-47.1.0-universal.jar",
+          b"universal",
+        ),
+        (
+          "maven/net/minecraftforge/forge/1.20.1-47.1.0/forge-1.20.1-47.1.0.jar",
+          b"forge",
+        ),
+      ],
+    )
+    .await;
+    server
+      .route(
+        "GET",
+        "/maven.minecraftforge.net/net/minecraftforge/forge/1.20.1-47.1.0/forge-1.20.1-47.1.0-installer.jar",
+        200,
+        fs::read(&jar).await.unwrap(),
+      )
+      .route(
+        "GET",
+        "/maven.minecraftforge.net/net/minecraftforge/installertools/1.0/installertools-1.0.jar",
+        200,
+        "tools",
+      )
+      .route(
+        "GET",
+        "/maven.minecraftforge.net/cpw/mods/securejarhandler/2.1.10/securejarhandler-2.1.10.jar",
+        200,
+        "sjh",
+      );
+    env.index("forge", FORGE_INDEX).await;
+  }
+
+  #[test]
+  fn modern_installer_extracts_downloads_and_runs_client_processors() {
+    let server = FakeServer::start();
+    let env = env();
+    let path = env.version("1.20.1");
+    let forge = ForgeLikeLoaderVersion::forge("1.20.1".into(), "47.1.0".into());
+    let installer = path.base_path().join("forge-1.20.1-47.1.0");
+
+    rt::block_on(async {
+      modern_installer(&env, &server).await;
+      let client = default_client();
+      let vanilla = ["org.lwjgl:lwjgl:3.3.1".to_string()];
+      let futures = forge
+        .download(&client, &path, &env.mc, &vanilla)
+        .await
+        .unwrap();
+      // installertools once (profile + version.json), securejarhandler once, vanilla skipped
+      assert_eq!(futures.len(), 2);
+      run(futures).await.unwrap();
+
+      assert_eq!(
+        fs::read(installer.join("data/client.lzma")).await.unwrap(),
+        b"patch"
+      );
+      let universal = env.lib("net.minecraftforge:forge:1.20.1-47.1.0:universal");
+      assert_eq!(fs::read(universal).await.unwrap(), b"universal");
+      let forge_jar = env.lib("net.minecraftforge:forge:1.20.1-47.1.0");
+      assert_eq!(fs::read(forge_jar).await.unwrap(), b"forge");
+      assert!(!env.lib("x:not-shipped:1").exists());
+      assert_eq!(
+        fs::read(env.lib("cpw.mods:securejarhandler:2.1.10"))
+          .await
+          .unwrap(),
+        b"sjh"
+      );
+
+      // the processor jar names its main class
+      let tools = env.lib("net.minecraftforge:installertools:1.0");
+      write_zip(
+        &tools,
+        &[(
+          "META-INF/MANIFEST.MF",
+          b"Main-Class: net.minecraftforge.installertools.ConsoleTool\n",
+        )],
+      )
+      .await;
+      let java = env.data.join("jre/bin/java");
+      let record = fake_java(&java, 0);
+      forge
+        .preprocess(&path, &env.mc, java.clone())
+        .await
+        .unwrap();
+
+      let calls = java_calls(&record);
+      assert_eq!(calls.len(), 1, "server processors are skipped");
+      let s = |p: PathBuf| p.to_string_lossy().into_owned();
+      let expected = [
+        format!("cwd={}", installer.display()),
+        "env=".into(),
+        "-cp".into(),
+        format!(
+          "{}{SEPARATOR}{}",
+          tools.display(),
+          env.lib("a.b:cp-lib:1").display()
+        ),
+        "net.minecraftforge.installertools.ConsoleTool".into(),
+        "--task".into(),
+        s(env.lib("de.oceanlabs.mcp:mcp_config:1.20.1@zip")),
+        "--patch".into(),
+        s(installer.join("data/client.lzma")),
+        "--jar".into(),
+        s(path.client_jar()),
+        "--side".into(),
+        "client".into(),
+        "--out".into(),
+        s(env.lib("a.b:out:1@txt")),
+        "--lit".into(),
+        "'ü lit'".into(),
+        "--version".into(),
+        "1.20.1".into(),
+        "--root".into(),
+        s(path.base_path().clone()),
+        "--libs".into(),
+        s(env.mc.library_path()),
+      ];
+      assert_eq!(calls[0], expected);
+
+      // a failing processor stops the install
+      let record = fake_java(&java, 3);
+      let err = forge
+        .preprocess(&path, &env.mc, java.clone())
+        .await
+        .unwrap_err();
+      assert!(
+        err.to_string().contains("Processor command failed"),
+        "{err}"
+      );
+      assert_eq!(java_calls(&record).len(), 2);
+
+      // a missing java binary is an error, not a panic
+      let gone = forge.preprocess(&path, &env.mc, env.data.join("nope/java"));
+      assert!(gone.await.is_err());
+
+      // launching uses the extracted version.json, deduped
+      let classpath: Vec<_> = forge
+        .classpath(&path, &env.mc)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|e| e.artifact.artifact)
+        .collect();
+      assert_eq!(
+        classpath,
+        [
+          "lwjgl",
+          "installertools",
+          "securejarhandler",
+          "forge",
+          "not-shipped"
+        ]
+      );
+      assert_eq!(
+        forge.main_class(&path).await.unwrap(),
+        "cpw.mods.bootstraplauncher.BootstrapLauncher"
+      );
+      let args = forge.arguments(&path).await.unwrap();
+      assert_eq!(args.jvm_args, ["-Dlibs=${library_directory}"]);
+      assert_eq!(args.game_args, ["--launchTarget", "forgeclient"]);
+      assert!(!args.overwrite_game_args);
+    });
+  }
+
+  #[test]
+  fn processor_args_must_be_in_the_profile_data() {
+    let env = env();
+    let path = env.version("1.20.1");
+    let forge = ForgeLikeLoaderVersion::forge("1.20.1".into(), "47.1.0".into());
+    let installer = path.base_path().join("forge-1.20.1-47.1.0");
+    rt::block_on(async {
+      env.index("forge", FORGE_INDEX).await;
+      let tools = env.lib("a:tools:1");
+      write_zip(&tools, &[("META-INF/MANIFEST.MF", b"Main-Class: T\n")]).await;
+      let profile = serde_json::json!({
+        "data": {},
+        "processors": [{ "jar": "a:tools:1", "classpath": [], "args": ["{NOPE}"] }],
+        "libraries": [],
+        "json": "/version.json"
+      });
+      fs::create_dir_all(&installer).await.unwrap();
+      fs::write(installer.join(INSTALLER_PROFILE_PATH), profile.to_string())
+        .await
+        .unwrap();
+      let java = env.data.join("bin/java");
+      let record = fake_java(&java, 0);
+      let err = forge.preprocess(&path, &env.mc, java).await.unwrap_err();
+      assert_eq!(err.to_string(), "Argument NOPE not found in profile data");
+      assert!(java_calls(&record).is_empty());
+
+      // a processor jar without a manifest fails before spawning
+      let profile = serde_json::json!({
+        "data": {},
+        "processors": [{ "jar": "a:missing:1", "classpath": [], "args": [] }],
+        "libraries": [],
+        "json": "/version.json"
+      });
+      fs::write(installer.join(INSTALLER_PROFILE_PATH), profile.to_string())
+        .await
+        .unwrap();
+      let java = env.data.join("bin/java");
+      assert!(forge.preprocess(&path, &env.mc, java).await.is_err());
+
+      // neither format parses
+      fs::write(installer.join(INSTALLER_PROFILE_PATH), "{}")
+        .await
+        .unwrap();
+      let java = env.data.join("bin/java");
+      assert!(forge.preprocess(&path, &env.mc, java).await.is_err());
+    });
+  }
+
+  #[test]
+  fn legacy_installer_converts_the_old_profile() {
+    let server = FakeServer::start();
+    let origin = server.origin();
+    let env = env();
+    let path = env.version("1.7.10");
+    let forge = ForgeLikeLoaderVersion::forge("1.7.10".into(), "10.13.4.1614".into());
+    let profile = serde_json::json!({
+      "install": {
+        "path": "net.minecraftforge:forge:1.7.10-10.13.4.1614-1.7.10",
+        "filePath": "forge-1.7.10-10.13.4.1614-1.7.10-universal.jar"
+      },
+      "versionInfo": {
+        "mainClass": "net.minecraft.launchwrapper.Launch",
+        "minecraftArguments": "--username ${auth_player_name} --tweakClass cpw.mods.fml.common.launcher.FMLTweaker",
+        "libraries": [
+          { "name": "net.minecraftforge:forge:1.7.10-10.13.4.1614-1.7.10", "url": "http://files.minecraftforge.net/maven/" },
+          { "name": "net.minecraft:launchwrapper:1.12" },
+          { "name": "org.scala-lang:scala-library:2.11.1", "url": format!("{origin}/maven.minecraftforge.net/") }
+        ]
+      }
+    });
+
+    rt::block_on(async {
+      env.index("forge", FORGE_INDEX).await;
+      let jar = env.data.join("legacy.jar");
+      write_zip(
+        &jar,
+        &[
+          ("install_profile.json", profile.to_string().as_bytes()),
+          (
+            "forge-1.7.10-10.13.4.1614-1.7.10-universal.jar",
+            b"universal",
+          ),
+        ],
+      )
+      .await;
+      server
+        .route(
+          "GET",
+          "/maven.minecraftforge.net/net/minecraftforge/forge/1.7.10-10.13.4.1614-1.7.10/forge-1.7.10-10.13.4.1614-1.7.10-installer.jar",
+          200,
+          fs::read(&jar).await.unwrap(),
+        )
+        .route(
+          "GET",
+          "/libraries.minecraft.net/net/minecraft/launchwrapper/1.12/launchwrapper-1.12.jar",
+          200,
+          "lw",
+        )
+        .route(
+          "GET",
+          "/maven.minecraftforge.net/org/scala-lang/scala-library/2.11.1/scala-library-2.11.1.jar",
+          200,
+          "scala",
+        );
+
+      let futures = forge
+        .download(&default_client(), &path, &env.mc, &[])
+        .await
+        .unwrap();
+      // the forge jar itself comes out of the installer
+      assert_eq!(futures.len(), 2);
+      run(futures).await.unwrap();
+      let universal = env.lib("net.minecraftforge:forge:1.7.10-10.13.4.1614-1.7.10");
+      assert_eq!(fs::read(universal).await.unwrap(), b"universal");
+      assert_eq!(
+        fs::read(env.lib("net.minecraft:launchwrapper:1.12"))
+          .await
+          .unwrap(),
+        b"lw"
+      );
+
+      // old installers have no processors
+      let java = env.data.join("bin/java");
+      let record = fake_java(&java, 1);
+      forge.preprocess(&path, &env.mc, java).await.unwrap();
+      assert!(java_calls(&record).is_empty());
+
+      assert_eq!(
+        forge.main_class(&path).await.unwrap(),
+        "net.minecraft.launchwrapper.Launch"
+      );
+      let args = forge.arguments(&path).await.unwrap();
+      // old minecraftArguments replace the vanilla game args
+      assert!(args.overwrite_game_args);
+      assert_eq!(
+        args.game_args,
+        [
+          "--username",
+          "${auth_player_name}",
+          "--tweakClass",
+          "cpw.mods.fml.common.launcher.FMLTweaker"
+        ]
+      );
+      assert!(args.jvm_args.is_empty());
+      assert_eq!(forge.classpath(&path, &env.mc).await.unwrap().len(), 3);
+    });
+  }
+
+  #[test]
+  fn broken_installers_are_errors() {
+    let server = FakeServer::start();
+    let env = env();
+    let path = env.version("1.20.1");
+    let forge = ForgeLikeLoaderVersion::forge("1.20.1".into(), "47.1.0".into());
+    let url = "/maven.minecraftforge.net/net/minecraftforge/forge/1.20.1-47.1.0/forge-1.20.1-47.1.0-installer.jar";
+    rt::block_on(async {
+      env.index("forge", FORGE_INDEX).await;
+      let client = default_client();
+      let download = || forge.download(&client, &path, &env.mc, &[]);
+
+      server.route("GET", url, 404, "");
+      assert!(download().await.is_err());
+      server.route("GET", url, 200, "not a zip");
+      assert!(download().await.is_err());
+
+      let jar = env.data.join("empty.jar");
+      write_zip(&jar, &[("other.txt", b"")]).await;
+      server.route("GET", url, 200, fs::read(&jar).await.unwrap());
+      let err = download().await.err().unwrap();
+      assert_eq!(
+        err.to_string(),
+        "File 'install_profile.json' not found in zip"
+      );
+
+      write_zip(&jar, &[("install_profile.json", b"{}")]).await;
+      server.route("GET", url, 200, fs::read(&jar).await.unwrap());
+      assert!(download().await.is_err());
+
+      // a version.json without the profile pointing at it
+      let profile = r#"{ "data": {}, "processors": [], "libraries": [], "json": "/version.json" }"#;
+      write_zip(&jar, &[("install_profile.json", profile.as_bytes())]).await;
+      server.route("GET", url, 200, fs::read(&jar).await.unwrap());
+      assert!(download().await.is_err());
+      // nothing installed yet, launching parts fail
+      assert!(forge.classpath(&path, &env.mc).await.is_err());
+    });
   }
 }

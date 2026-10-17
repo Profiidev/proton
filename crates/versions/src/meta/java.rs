@@ -148,3 +148,75 @@ pub struct Downloads {
 pub struct Files {
   pub files: HashMap<String, File>,
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn components_display_as_their_serde_names() {
+    let all = [
+      Component::JavaRuntimeAlpha,
+      Component::JavaRuntimeBeta,
+      Component::JavaRuntimeDelta,
+      Component::JavaRuntimeEpsilon,
+      Component::JavaRuntimeGamma,
+      Component::JavaRuntimeGammaSnapshot,
+      Component::JreLegacy,
+    ];
+    for component in all {
+      let name = component.to_string();
+      assert_eq!(
+        serde_json::from_value::<Component>(name.clone().into()).unwrap(),
+        component,
+        "{name}"
+      );
+    }
+    // new runtimes parse as unknown, the download then reports not supported
+    assert_eq!(
+      serde_json::from_value::<Component>("java-runtime-zeta".into()).unwrap(),
+      Component::Unknown
+    );
+    assert_eq!(Component::Unknown.to_string(), "unknown");
+  }
+
+  #[test]
+  fn runtime_files_are_tagged_by_type() {
+    let files: Files = serde_json::from_str(
+      r#"{ "files": {
+        "bin": { "type": "directory" },
+        "lib/link": { "type": "link", "target": "../x" },
+        "bin/java": { "type": "file", "executable": true, "downloads": {
+          "raw": { "url": "https://x.invalid/java", "size": 1, "sha1": "a" },
+          "lzma": { "url": "https://x.invalid/java.lzma", "size": 1, "sha1": "b" }
+        } }
+      } }"#,
+    )
+    .unwrap();
+    assert_eq!(files.files["bin"], File::Directory);
+    assert_eq!(
+      files.files["lib/link"],
+      File::Link {
+        target: "../x".into()
+      }
+    );
+    let File::File {
+      executable,
+      downloads,
+    } = &files.files["bin/java"]
+    else {
+      panic!()
+    };
+    assert!(executable);
+    assert_eq!(downloads.raw.sha1, "a");
+    assert!(serde_json::from_str::<File>(r#"{ "type": "socket" }"#).is_err());
+  }
+
+  #[test]
+  fn platform_lists_default_to_empty() {
+    let versions = JavaVersions::default();
+    assert!(versions.linux.java_runtime_gamma.is_empty());
+    // mojang lists every platform, a missing one is an error
+    assert!(serde_json::from_str::<JavaVersions>("{}").is_err());
+  }
+}

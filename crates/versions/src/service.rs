@@ -361,4 +361,141 @@ mod tests {
     cx.update(|cx| proton_config::update(cx, |s| s.minecraft.show_snapshots = true));
     assert_eq!(list(cx).await.unwrap(), ["24w01a", "1.21"]);
   }
+
+  fn serve_manifests(server: &proton_utils::test_http::FakeServer, release: &str) {
+    let mc = serde_json::json!({ "versions": [
+      { "id": release, "type": "release", "url": "https://x.invalid/v.json", "sha1": "s" }
+    ] });
+    let empty = serde_json::json!({
+      "java-runtime-alpha": [], "java-runtime-beta": [], "java-runtime-delta": [],
+      "java-runtime-epsilon": [], "java-runtime-gamma": [],
+      "java-runtime-gamma-snapshot": [], "jre-legacy": []
+    });
+    let java = serde_json::json!({
+      "linux": empty, "linux-i386": empty, "mac-os": empty, "mac-os-arm64": empty,
+      "windows-arm64": empty, "windows-x64": empty, "windows-x86": empty
+    });
+    let game = r#"[{ "version": "1.21", "stable": true }]"#;
+    server
+      .route("GET", "/launchermeta.mojang.com/mc/game/version_manifest_v2.json", 200, mc.to_string())
+      .route(
+        "GET",
+        "/launchermeta.mojang.com/v1/products/java-runtime/2ec0cc96c44e5a76b9c8b7c39df7210883d12871/all.json",
+        200,
+        java.to_string(),
+      )
+      .route("GET", "/meta.fabricmc.net/v2/versions/loader", 200, game)
+      .route("GET", "/meta.fabricmc.net/v2/versions/game", 200, game)
+      .route("GET", "/meta.quiltmc.org/v3/versions/loader", 200, r#"[{ "version": "0.25.0" }]"#)
+      .route("GET", "/meta.quiltmc.org/v3/versions/game", 200, game)
+      .route(
+        "GET",
+        "/files.minecraftforge.net/net/minecraftforge/forge/maven-metadata.json",
+        200,
+        r#"{ "1.21": ["1.21-51.0.0"] }"#,
+      )
+      .route(
+        "GET",
+        "/maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml",
+        200,
+        "<metadata><versioning><versions><version>21.0.1</version></versions></versioning></metadata>",
+      );
+  }
+
+  #[gpui::test]
+  async fn lists_need_loaded_manifests(cx: &mut TestAppContext) {
+    let versions = init_test(cx);
+    assert!(cx.update(|cx| versions.store(cx)).is_err());
+    let list = cx.update(|cx| versions.version_list(LoaderType::Vanilla, cx));
+    assert!(list.await.is_err());
+    let list = cx.update(|cx| versions.loader_version_list(LoaderType::Fabric, "1.21".into(), cx));
+    assert!(list.await.is_err());
+  }
+
+  #[gpui::test]
+  async fn refresh_loads_everything_and_drops_cached_lists(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    let server = proton_utils::test_http::FakeServer::start();
+    crate::testing::data_dir();
+    let versions = init_test(cx);
+    serve_manifests(&server, "1.21");
+    let notified = count(cx, &versions.versions);
+
+    cx.update(|cx| versions.refresh_manifests(cx))
+      .await
+      .unwrap();
+    assert_eq!(notified.get(), 1);
+    let neo = cx.update(|cx| versions.version_list(LoaderType::NeoForge, cx));
+    assert_eq!(neo.await.unwrap(), ["1.21"]);
+    let forge = cx.update(|cx| versions.loader_version_list(LoaderType::Forge, "1.21".into(), cx));
+    assert_eq!(forge.await.unwrap(), ["51.0.0"]);
+    // cached: a second ask makes no request and needs no store
+    let calls = server.calls().len();
+    let forge = cx.update(|cx| versions.loader_version_list(LoaderType::Forge, "1.21".into(), cx));
+    assert_eq!(forge.await.unwrap(), ["51.0.0"]);
+    assert_eq!(server.calls().len(), calls);
+
+    // a second refresh swaps the manifests and forgets the lists
+    serve_manifests(&server, "1.22");
+    cx.update(|cx| versions.refresh_manifests(cx))
+      .await
+      .unwrap();
+    cx.read(|cx| {
+      let lists = versions.versions.read(cx);
+      assert!(lists.versions.is_empty() && lists.loader_versions.is_empty());
+    });
+    let vanilla = cx.update(|cx| versions.version_list(LoaderType::Vanilla, cx));
+    assert_eq!(vanilla.await.unwrap(), ["1.22"]);
+
+    // a failing loader endpoint fails the refresh
+    server.route("GET", "/meta.quiltmc.org/v3/versions/game", 500, "");
+    assert!(
+      cx.update(|cx| versions.refresh_manifests(cx))
+        .await
+        .is_err()
+    );
+  }
+
+  #[gpui::test]
+  async fn init_reads_cached_manifests(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    let server = proton_utils::test_http::FakeServer::start();
+    crate::testing::data_dir();
+    serve_manifests(&server, "1.21");
+    let dir = tempfile::tempdir().unwrap().keep();
+    proton_store::init_at(dir.join("store.json"));
+    cx.update(|cx| {
+      proton_config::init(cx);
+      init(cx);
+    });
+    let versions = cx.update(|cx| cx.versions().clone());
+    // the store arrives from the tokio side
+    for _ in 0..200 {
+      if cx.update(|cx| versions.store(cx)).is_ok() {
+        break;
+      }
+      std::thread::sleep(std::time::Duration::from_millis(10));
+      cx.run_until_parked();
+    }
+    let list = cx.update(|cx| versions.version_list(LoaderType::Vanilla, cx));
+    assert_eq!(list.await.unwrap(), ["1.21"]);
+  }
+
+  #[gpui::test]
+  fn finish_for_a_cleared_row_is_ignored(cx: &mut TestAppContext) {
+    let versions = init_test(cx);
+    let a = versions.handle.start("A");
+    versions.handle.finish(a, true);
+    cx.run_until_parked();
+    cx.update(|cx| versions.clear_finished(cx));
+    // late messages for the dropped row do not panic or bring it back
+    versions.handle.finish(a, false);
+    versions.handle.send(status(a, DownloadCheckStatus::Done));
+    // cancel without a row still reaches the job
+    let guard = store::register_cancel(a);
+    cx.update(|cx| versions.cancel_download(a, cx));
+    cx.run_until_parked();
+    rt::block_on(guard.notify.notified());
+    cx.read(|cx| assert_eq!(versions.downloads.read(cx).rows().count(), 0));
+  }
 }

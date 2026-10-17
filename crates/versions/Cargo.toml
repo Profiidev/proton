@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[features]
+test-support = []
+
 [dependencies]
 url.workspace = true
 flume.workspace = true
@@ -24,4 +27,5 @@ proton_config.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true
 proton_store.workspace = true
+proton_utils = { workspace = true, features = ["test-support"] }
 gpui-kit = { workspace = true, features = ["test-support"] }

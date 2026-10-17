@@ -166,3 +166,94 @@ pub struct Asset {
   pub hash: String,
   pub size: usize,
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::meta::java::Component;
+
+  const LEGACY: &str = r#"{
+    "id": "1.12.2",
+    "assetIndex": { "id": "1.12", "sha1": "a", "size": 1, "totalSize": 2, "url": "https://x.invalid/i.json" },
+    "downloads": { "client": { "url": "https://x.invalid/c.jar", "size": 3, "sha1": "c" } },
+    "libraries": [],
+    "mainClass": "net.minecraft.client.main.Main",
+    "minecraftArguments": "--username ${auth_player_name}",
+    "type": "release"
+  }"#;
+
+  #[test]
+  fn legacy_versions_get_default_arguments_and_java_8() {
+    let version: Version = serde_json::from_str(LEGACY).unwrap();
+    assert_eq!(version.arguments, Arguments::default());
+    assert_eq!(version.java_version.component, Component::JreLegacy);
+    assert_eq!(version.java_version.major_version, 8);
+    assert_eq!(version.downloads.server, None);
+
+    // the defaults pair every flag with its placeholder
+    let game = &version.arguments.game;
+    assert_eq!(game.len() % 2, 0);
+    for pair in game.chunks(2) {
+      let [Argument::String(flag), Argument::String(value)] = pair else {
+        panic!("{pair:?}");
+      };
+      assert!(
+        flag.starts_with("--") && value.starts_with("${"),
+        "{flag} {value}"
+      );
+    }
+    let jvm = &version.arguments.jvm;
+    assert_eq!(jvm[jvm.len() - 2], Argument::String("-cp".into()));
+    assert_eq!(jvm[jvm.len() - 1], Argument::String("${classpath}".into()));
+  }
+
+  #[test]
+  fn arguments_mix_strings_and_rule_objects() {
+    let args: Arguments = serde_json::from_str(
+      r#"{
+        "game": ["--demo", { "rules": [{ "action": "allow", "features": { "is_demo_user": true } }], "value": "--x" }],
+        "jvm": [{ "rules": [{ "action": "allow", "os": { "name": "osx" } }], "value": ["-XstartOnFirstThread", "-Da"] }]
+      }"#,
+    )
+    .unwrap();
+    assert_eq!(args.game[0], Argument::String("--demo".into()));
+    let Argument::Object(rule) = &args.game[1] else {
+      panic!()
+    };
+    assert_eq!(rule.value, ArgumentValue::String("--x".into()));
+    let Argument::Object(rule) = &args.jvm[0] else {
+      panic!()
+    };
+    assert_eq!(
+      rule.value,
+      ArgumentValue::List(vec!["-XstartOnFirstThread".into(), "-Da".into()])
+    );
+  }
+
+  #[test]
+  fn version_types_display_as_their_serde_names() {
+    for (name, ty) in [
+      ("release", VersionType::Release),
+      ("snapshot", VersionType::Snapshot),
+      ("old_beta", VersionType::OldBeta),
+      ("old_alpha", VersionType::OldAlpha),
+    ] {
+      assert_eq!(ty.to_string(), name);
+      assert_eq!(
+        serde_json::from_value::<VersionType>(name.into()).unwrap(),
+        ty
+      );
+    }
+    // a new mojang type breaks the manifest instead of being dropped silently
+    assert!(serde_json::from_value::<VersionType>("experiment".into()).is_err());
+  }
+
+  #[test]
+  fn missing_required_fields_fail_to_parse() {
+    let mut json: serde_json::Value = serde_json::from_str(LEGACY).unwrap();
+    json.as_object_mut().unwrap().remove("mainClass");
+    assert!(serde_json::from_value::<Version>(json).is_err());
+    assert!(serde_json::from_str::<Manifest>("{}").is_err());
+    assert!(serde_json::from_str::<Manifest>("not json").is_err());
+  }
+}

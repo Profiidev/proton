@@ -131,3 +131,54 @@ impl MCVersionPath {
     path!(&self.base_path, format!("{}.jar", self.version))
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn layout_matches_the_tauri_data_dir() {
+    let data = PathBuf::from("/home/ü ser/data");
+    let p = |s: &str| PathBuf::from(format!("/home/ü ser/data/{s}"));
+
+    let mc = MCPath::new(&data);
+    assert_eq!(mc.mc_manifest(), p("minecraft/manifest.json"));
+    assert_eq!(mc.library_path(), p("minecraft/lib"));
+    assert_eq!(mc.assets_path(), p("minecraft/assets"));
+    assert_eq!(mc.assets_objects_path(), p("minecraft/assets/objects"));
+    assert_eq!(mc.assets_index_path(), p("minecraft/assets/indexes"));
+
+    let version = MCVersionPath::new(&data, "1.20.1");
+    assert_eq!(version.version_root(), &p("minecraft/versions"));
+    assert_eq!(version.base_path(), &p("minecraft/versions/1.20.1"));
+    assert_eq!(
+      version.version_manifest(),
+      p("minecraft/versions/1.20.1/1.20.1.json")
+    );
+    assert_eq!(
+      version.client_jar(),
+      p("minecraft/versions/1.20.1/1.20.1.jar")
+    );
+    // the empty version is how callers get at the version root
+    let root = MCVersionPath::new(&data, "");
+    assert_eq!(root.version_root(), root.base_path());
+
+    let java = JavaVersionPath::new(&data, Component::JavaRuntimeGamma, "1.20.1".into());
+    assert_eq!(java.java_manifest(), p("java/manifest.json"));
+    assert_eq!(java.base_path(), &p("java/java-runtime-gamma"));
+    assert_eq!(java.library_path(), p("java/java-runtime-gamma/lib"));
+    assert_eq!(java.native_path(), java.library_path());
+    #[cfg(target_family = "unix")]
+    assert_eq!(java.bin_path(), p("java/java-runtime-gamma/bin/java"));
+  }
+
+  #[test]
+  fn legacy_java_keeps_natives_per_minecraft_version() {
+    let data = PathBuf::from("/d");
+    let a = JavaVersionPath::new(&data, Component::JreLegacy, "1.8.9".into());
+    let b = JavaVersionPath::new(&data, Component::JreLegacy, "1.12.2".into());
+    assert_eq!(a.native_path(), PathBuf::from("/d/java/jre-legacy/1.8.9"));
+    assert_ne!(a.native_path(), b.native_path());
+    assert_eq!(a.library_path(), b.library_path());
+  }
+}
