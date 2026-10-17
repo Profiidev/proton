@@ -6,6 +6,8 @@ use crate::event::DownloadCheckStatus;
 
 /// Weight of the newest sample in the speed moving average
 const SMOOTHING: f64 = 0.3;
+/// Shortest time a speed sample spans; queued ticks drain back-to-back and would spike
+const MIN_SAMPLE_SECS: f64 = 0.5;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DownloadStatus {
@@ -31,8 +33,8 @@ pub struct DownloadProgress {
   pub unit: Option<&'static str>,
   /// Smoothed bytes/s of the current byte stage
   pub speed: Option<f64>,
-  /// Time of the last byte-stage value, for speed deltas
-  pub updated_at: Option<Instant>,
+  /// Time and value the next speed sample is measured from
+  pub sampled: Option<(Instant, usize)>,
   pub cancel_requested: bool,
 }
 
@@ -110,7 +112,7 @@ impl DownloadProgress {
       bytes: false,
       unit: None,
       speed: None,
-      updated_at: None,
+      sampled: None,
       cancel_requested: false,
     }
   }
@@ -127,31 +129,39 @@ impl DownloadProgress {
       unit,
     } = parse_stage(status);
     let same_stage = bytes && self.bytes && self.stage == stage;
-    let (prev_value, prev_speed, prev_updated) = (self.value, self.speed, self.updated_at);
+    let (prev_speed, prev_sampled) = (self.speed, self.sampled);
 
     self.bytes = bytes;
     self.speed = None;
+    self.sampled = None;
     self.stage = stage;
     self.value = progress.map(|p| p.0);
     self.total = progress.map(|p| p.1);
     self.unit = unit;
-    self.updated_at = bytes.then_some(now);
 
     if *status == DownloadCheckStatus::Done {
       (self.value, self.total) = (Some(1), Some(1));
       return;
     }
-    let Some(value) = self.value.filter(|_| same_stage) else {
+    let Some(value) = self.value.filter(|_| bytes) else {
       return;
     };
-    let dt = prev_updated.map_or(0.0, |t| now.saturating_duration_since(t).as_secs_f64());
-    let prev = prev_value.unwrap_or(0);
-    if dt <= 0.0 || value < prev {
-      (self.speed, self.updated_at) = (prev_speed, prev_updated);
+    let Some((since, base)) = prev_sampled.filter(|_| same_stage) else {
+      self.sampled = Some((now, value));
+      return;
+    };
+    let dt = now.saturating_duration_since(since).as_secs_f64();
+    if value < base {
+      (self.speed, self.sampled) = (prev_speed, Some((now, value)));
       return;
     }
-    let sample = (value - prev) as f64 / dt;
+    if dt < MIN_SAMPLE_SECS {
+      (self.speed, self.sampled) = (prev_speed, prev_sampled);
+      return;
+    }
+    let sample = (value - base) as f64 / dt;
     self.speed = Some(prev_speed.map_or(sample, |s| s * (1.0 - SMOOTHING) + sample * SMOOTHING));
+    self.sampled = Some((now, value));
   }
 
   /// Final status, canceled wins when a cancel was requested
@@ -325,6 +335,20 @@ mod tests {
     d.apply_status(&ClientDownload(5, 10), at(&d, 1000));
     d.apply_status(&ClientDownload(6, 10), at(&d, 1000));
     assert_eq!((d.speed, d.value), (Some(5.0), Some(6)));
+  }
+
+  #[test]
+  fn bursts_of_queued_ticks_do_not_spike_the_speed() {
+    let mut d = base();
+    d.apply_status(&ClientDownload(0, 100 * MIB), at(&d, 0));
+    d.apply_status(&ClientDownload(1_000_000, 100 * MIB), at(&d, 1000));
+    for (i, ms) in (1000..1010).enumerate() {
+      d.apply_status(&ClientDownload(1_000_000 * (i + 2), 100 * MIB), at(&d, ms));
+    }
+    assert_eq!(d.speed, Some(1_000_000.0));
+    d.apply_status(&ClientDownload(12_000_000, 100 * MIB), at(&d, 2000));
+    // the burst counts once the window passes: 0.7 * 1e6 + 0.3 * 11e6
+    assert!((d.speed.unwrap() - 4_000_000.0).abs() < 1.0);
   }
 
   #[test]
