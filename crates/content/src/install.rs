@@ -417,6 +417,8 @@ pub async fn fetch_all(
       sha512,
     } = file;
     let client = providers.download_client(source).clone();
+    // hosts were checked above, tests reroute them to the fake server
+    let url: Url = proton_utils::http::url(url.as_str()).parse()?;
     let (done, progress) = (done.clone(), progress.clone());
     futures.push(async move {
       let report = Box::new(move |n| {

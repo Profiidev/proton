@@ -539,7 +539,14 @@ impl Version {
 
 #[cfg(test)]
 mod tests {
+  use proton_utils::{
+    rt,
+    test_http::{Call, FakeServer},
+  };
+  use reqwest::Url;
+
   use super::*;
+  use crate::ContentError;
 
   fn query() -> SearchQuery {
     SearchQuery {
@@ -611,5 +618,379 @@ mod tests {
       kinds,
       [DependencyKind::Required, DependencyKind::Incompatible]
     );
+  }
+
+  /// Query pairs of a recorded call
+  fn query_of(call: &Call) -> HashMap<String, String> {
+    Url::parse(&format!("http://x{}", call.path))
+      .unwrap()
+      .query_pairs()
+      .into_owned()
+      .collect()
+  }
+
+  fn version_json(id: &str, published: &str) -> serde_json::Value {
+    json!({
+      "id": id, "project_id": "p", "name": id, "version_number": id, "version_type": "release",
+      "game_versions": ["1.21.1"], "loaders": ["fabric"], "date_published": published,
+      "files": [{"url": "https://cdn.modrinth.com/f.jar", "filename": "f.jar", "primary": true,
+        "size": 1, "hashes": {"sha1": format!("sha-{id}"), "sha512": null}}],
+      "dependencies": []
+    })
+  }
+
+  fn project_json(organization: Option<&str>) -> serde_json::Value {
+    json!({
+      "id": "AANobbMI", "slug": null, "project_type": "shader", "team": "t1",
+      "organization": organization, "title": "Sodium", "description": "fast", "body": "# Hi",
+      "icon_url": "https://cdn/icon.png", "categories": ["optimization"],
+      "additional_categories": ["utility"], "loaders": ["iris"], "game_versions": ["1.21.1"],
+      "downloads": 7, "updated": "u", "client_side": "required", "server_side": null,
+      "gallery": [{"url": "https://cdn/g.png", "title": null}],
+      "source_url": "https://src", "issues_url": "", "wiki_url": null, "discord_url": "https://dc"
+    })
+  }
+
+  #[test]
+  fn search_sends_facets_sort_and_caps_the_limit() {
+    let server = FakeServer::start();
+    server.route(
+      "GET",
+      "/api.modrinth.com/v2/search",
+      200,
+      json!({"total_hits": 42, "hits": [{
+        "project_id": "a", "project_type": "modpack", "slug": null, "author": "me", "title": "A",
+        "description": "", "categories": ["fabric"], "versions": [], "downloads": 1,
+        "icon_url": null, "date_modified": "d", "client_side": null, "server_side": null
+      }]})
+      .to_string(),
+    );
+    let q = SearchQuery {
+      query: "sod ium".into(),
+      sort: SearchSort::Downloads,
+      offset: 40,
+      limit: 500,
+      ..query()
+    };
+    let modrinth = Modrinth::new();
+    let page = rt::block_on(modrinth.search(&q)).unwrap();
+    assert_eq!(page.total, 42);
+    let hit = &page.hits[0];
+    assert_eq!(
+      (hit.kind, hit.loaders.clone()),
+      (ContentKind::Modpack, vec!["fabric".into()])
+    );
+    // no slug links by id
+    assert_eq!(hit.url, "https://modrinth.com/modpack/a");
+
+    let calls = server.calls();
+    let q = query_of(&calls[0]);
+    assert_eq!(q["query"], "sod ium");
+    assert_eq!(q["index"], "downloads");
+    assert_eq!(q["offset"], "40");
+    assert_eq!(q["limit"], "100");
+    assert_eq!(q["facets"], facets(&query()));
+
+    // the same page again comes from the cache
+    rt::block_on(modrinth.search(&SearchQuery {
+      query: "sod ium".into(),
+      sort: SearchSort::Downloads,
+      offset: 40,
+      limit: 500,
+      ..query()
+    }))
+    .unwrap();
+    assert_eq!(server.calls().len(), 1);
+  }
+
+  #[test]
+  fn sort_and_kind_names() {
+    let sorts = [
+      (SearchSort::Relevance, "relevance"),
+      (SearchSort::Downloads, "downloads"),
+      (SearchSort::Updated, "updated"),
+      (SearchSort::Newest, "newest"),
+    ];
+    for (sort, name) in sorts {
+      assert_eq!(sort_str(sort), name);
+    }
+    for k in [
+      ContentKind::Mod,
+      ContentKind::Modpack,
+      ContentKind::ResourcePack,
+      ContentKind::Shader,
+    ] {
+      assert_eq!(kind(kind_str(k)), k);
+    }
+    // datapacks and plugins show up as mods
+    assert_eq!(kind("datapack"), ContentKind::Mod);
+  }
+
+  #[test]
+  fn facets_edge_cases() {
+    let bare = SearchQuery {
+      loaders: vec![],
+      categories: vec![],
+      game_version: None,
+      ..query()
+    };
+    assert_eq!(facets(&bare), r#"[["project_type:mod"]]"#);
+    // resource packs have no loaders on Modrinth, a loader facet would hide all of them
+    let packs = SearchQuery {
+      kind: ContentKind::ResourcePack,
+      ..bare.clone()
+    };
+    assert_eq!(facets(&packs), r#"[["project_type:resourcepack"]]"#);
+    let client = SearchQuery {
+      environment: Some(Environment::Client),
+      ..bare
+    };
+    let f: Vec<Vec<String>> = serde_json::from_str(&facets(&client)).unwrap();
+    assert_eq!(f[1].len(), environments(Environment::Client).len());
+    assert!(f[1].contains(&"environment:singleplayer_only".to_string()));
+  }
+
+  #[test]
+  fn project_with_organization_uses_its_name() {
+    let server = FakeServer::start();
+    server.route(
+      "GET",
+      "/api.modrinth.com/v2/project/AANobbMI",
+      200,
+      project_json(Some("org1")).to_string(),
+    );
+    server.route(
+      "GET",
+      "/api.modrinth.com/v3/organization/org1",
+      200,
+      r#"{"name":"CaffeineMC"}"#,
+    );
+    let detail = rt::block_on(Modrinth::new().project("AANobbMI")).unwrap();
+    assert_eq!(detail.summary.author, "CaffeineMC");
+    assert_eq!(detail.summary.kind, ContentKind::Shader);
+    assert_eq!(detail.summary.categories, ["optimization", "utility"]);
+    assert_eq!(detail.summary.url, "https://modrinth.com/shader/AANobbMI");
+    assert!(detail.body.contains("<h1>"), "{}", detail.body);
+    assert_eq!(detail.gallery[0].url, "https://cdn/g.png");
+    // empty links are dropped like missing ones
+    assert_eq!(detail.links.source.as_deref(), Some("https://src"));
+    assert_eq!(detail.links.issues, None);
+    assert_eq!(detail.links.wiki, None);
+    assert_eq!(detail.links.discord.as_deref(), Some("https://dc"));
+  }
+
+  #[test]
+  fn project_author_comes_from_the_team() {
+    let cases = [
+      // the owner, wherever it is listed
+      (
+        json!([{"role": "Dev", "user": {"username": "b"}}, {"role": "Owner", "user": {"username": "a"}}]),
+        "a",
+      ),
+      // no owner falls back to the first member
+      (json!([{"role": "Dev", "user": {"username": "b"}}]), "b"),
+      (json!([]), ""),
+    ];
+    for (members, author) in cases {
+      let server = FakeServer::start();
+      server.route(
+        "GET",
+        "/api.modrinth.com/v2/project/AANobbMI",
+        200,
+        project_json(None).to_string(),
+      );
+      server.route(
+        "GET",
+        "/api.modrinth.com/v2/team/t1/members",
+        200,
+        members.to_string(),
+      );
+      let detail = rt::block_on(Modrinth::new().project("AANobbMI")).unwrap();
+      assert_eq!(detail.summary.author, author);
+    }
+  }
+
+  #[test]
+  fn project_fails_when_the_author_lookup_fails() {
+    let server = FakeServer::start();
+    server.route(
+      "GET",
+      "/api.modrinth.com/v2/project/x",
+      200,
+      project_json(None).to_string(),
+    );
+    let res = rt::block_on(Modrinth::new().project("x"));
+    assert!(matches!(res, Err(ContentError::NotFound)));
+  }
+
+  #[test]
+  fn versions_filter_only_when_given_and_sort_newest_first() {
+    let server = FakeServer::start();
+    server.route(
+      "GET",
+      "/api.modrinth.com/v2/project/p/version",
+      200,
+      json!([
+        version_json("old", "2024-01-01"),
+        version_json("new", "2026-01-01"),
+        version_json("mid", "2025-01-01")
+      ])
+      .to_string(),
+    );
+    let modrinth = Modrinth::new();
+    let ids = |v: Vec<VersionInfo>| v.into_iter().map(|v| v.id).collect::<Vec<_>>();
+    let all = rt::block_on(modrinth.versions("p", &[], None)).unwrap();
+    assert_eq!(ids(all), ["new", "mid", "old"]);
+    rt::block_on(modrinth.versions("p", &["fabric".into(), "quilt".into()], Some("1.21.1")))
+      .unwrap();
+
+    let calls = server.calls();
+    let unfiltered = query_of(&calls[0]);
+    assert_eq!(unfiltered.len(), 1);
+    assert_eq!(unfiltered["include_changelog"], "false");
+    let filtered = query_of(&calls[1]);
+    assert_eq!(filtered["loaders"], r#"["fabric","quilt"]"#);
+    assert_eq!(filtered["game_versions"], r#"["1.21.1"]"#);
+  }
+
+  #[test]
+  fn empty_id_lists_skip_the_request() {
+    let server = FakeServer::start();
+    let modrinth = Modrinth::new();
+    rt::block_on(async {
+      assert!(modrinth.versions_by_id(&[]).await.unwrap().is_empty());
+      assert!(modrinth.summaries(&[]).await.unwrap().is_empty());
+      assert!(modrinth.by_hashes(&[]).await.unwrap().is_empty());
+      let latest = modrinth.latest_for(&[], &[], "1.21.1", true).await;
+      assert!(latest.unwrap().is_empty());
+    });
+    assert!(server.calls().is_empty());
+  }
+
+  #[test]
+  fn bulk_lookups_send_ids_as_json() {
+    let server = FakeServer::start();
+    server.route(
+      "GET",
+      "/api.modrinth.com/v2/versions",
+      200,
+      json!([version_json("a", "d")]).to_string(),
+    );
+    server.route(
+      "GET",
+      "/api.modrinth.com/v2/projects",
+      200,
+      json!([project_json(Some("org"))]).to_string(),
+    );
+    let modrinth = Modrinth::new();
+    let ids = vec!["a".to_string(), "b\"c".to_string()];
+    let versions = rt::block_on(modrinth.versions_by_id(&ids)).unwrap();
+    assert_eq!(versions[0].files[0].sha1, "sha-a");
+    let summaries = rt::block_on(modrinth.summaries(&ids)).unwrap();
+    // summaries never look up the author
+    assert_eq!(summaries[0].author, "");
+
+    let calls = server.calls();
+    assert_eq!(calls.len(), 2);
+    for call in &calls {
+      assert_eq!(query_of(call)["ids"], r#"["a","b\"c"]"#);
+    }
+  }
+
+  fn hashes(sha1: &str) -> FileHashes {
+    FileHashes {
+      sha1: sha1.into(),
+      fingerprint: 0,
+    }
+  }
+
+  #[test]
+  fn by_hashes_posts_sha1s() {
+    let server = FakeServer::start();
+    server.route(
+      "POST",
+      "/api.modrinth.com/v2/version_files",
+      200,
+      json!({"h1": version_json("a", "d")}).to_string(),
+    );
+    let res = rt::block_on(Modrinth::new().by_hashes(&[hashes("h1"), hashes("h2")])).unwrap();
+    assert_eq!(res.len(), 1);
+    assert_eq!(res["h1"].id, "a");
+    let body: serde_json::Value = serde_json::from_str(server.calls()[0].body_str()).unwrap();
+    assert_eq!(body, json!({"hashes": ["h1", "h2"], "algorithm": "sha1"}));
+  }
+
+  #[test]
+  fn latest_for_adds_loaders_and_release_filter_only_when_set() {
+    let server = FakeServer::start();
+    server.route(
+      "POST",
+      "/api.modrinth.com/v2/version_files/update",
+      200,
+      json!({"h1": version_json("a", "d")}).to_string(),
+    );
+    let modrinth = Modrinth::new();
+    let files = [hashes("h1")];
+    rt::block_on(async {
+      modrinth
+        .latest_for(&files, &[], "1.21.1", false)
+        .await
+        .unwrap();
+      let res = modrinth
+        .latest_for(&files, &["fabric".into()], "1.21.1", true)
+        .await
+        .unwrap();
+      assert_eq!(res["h1"].id, "a");
+    });
+    let bodies: Vec<serde_json::Value> = server
+      .calls()
+      .iter()
+      .map(|c| serde_json::from_str(c.body_str()).unwrap())
+      .collect();
+    assert_eq!(
+      bodies,
+      [
+        json!({"hashes": ["h1"], "algorithm": "sha1", "game_versions": ["1.21.1"]}),
+        json!({"hashes": ["h1"], "algorithm": "sha1", "game_versions": ["1.21.1"],
+          "loaders": ["fabric"], "version_types": ["release"]}),
+      ]
+    );
+  }
+
+  #[test]
+  fn categories_filter_by_kind_from_one_cached_request() {
+    let server = FakeServer::start();
+    server.route(
+      "GET",
+      "/api.modrinth.com/v2/tag/category",
+      200,
+      json!([
+        {"name": "magic", "project_type": "mod", "header": "categories"},
+        {"name": "realistic", "project_type": "shader", "header": "style"},
+        {"name": "fabric", "project_type": "mod", "header": "loaders"}
+      ])
+      .to_string(),
+    );
+    let modrinth = Modrinth::new();
+    let names = |kind| {
+      rt::block_on(modrinth.categories(kind))
+        .unwrap()
+        .into_iter()
+        .map(|c| (c.name, c.header))
+        .collect::<Vec<_>>()
+    };
+    assert_eq!(
+      names(ContentKind::Mod),
+      [
+        ("magic".into(), "categories".into()),
+        ("fabric".into(), "loaders".into())
+      ]
+    );
+    assert_eq!(
+      names(ContentKind::Shader),
+      [("realistic".to_string(), "style".to_string())]
+    );
+    assert!(names(ContentKind::Modpack).is_empty());
+    assert_eq!(server.calls().len(), 1);
   }
 }

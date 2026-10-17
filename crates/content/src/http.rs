@@ -139,10 +139,229 @@ async fn send(req: RequestBuilder) -> Result<Value> {
 
 /// Builds `base/segments...?query`, encoding each segment
 pub fn api(base: &str, segments: &[&str], query: &[(&str, &str)]) -> Url {
-  let mut url = Url::parse(base).expect("valid api base");
+  let mut url = Url::parse(&proton_utils::http::url(base)).expect("valid api base");
   url.path_segments_mut().expect("api base").extend(segments);
   if !query.is_empty() {
     url.query_pairs_mut().extend_pairs(query);
   }
   url
+}
+
+#[cfg(test)]
+mod tests {
+  use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+  };
+
+  use proton_utils::{
+    rt,
+    test_http::{FakeServer, Response},
+  };
+  use serde_json::json;
+
+  use super::*;
+
+  const BASE: &str = "https://api.test/v1";
+
+  fn http() -> Http {
+    Http::new(HeaderMap::new(), Policy::default())
+  }
+
+  fn get(url: Url) -> Result<Value> {
+    rt::block_on(http().get(url))
+  }
+
+  /// Answers `fail` with `status` (Retry-After 0, so no real backoff), then 200
+  fn flaky(server: &FakeServer, status: u16, fail: usize) -> Arc<AtomicUsize> {
+    let attempts = Arc::new(AtomicUsize::new(0));
+    let seen = attempts.clone();
+    server.route_fn("GET", "/api.test/v1/x", move |_| {
+      if seen.fetch_add(1, Ordering::SeqCst) < fail {
+        Response::new(status, "busy").header("Retry-After", "0")
+      } else {
+        Response::new(200, r#"{"ok":true}"#)
+      }
+    });
+    attempts
+  }
+
+  #[test]
+  fn api_encodes_segments_and_query() {
+    let url = api(BASE, &["project", "a b/c"], &[("q", "x&y"), ("e", "ü")]);
+    assert_eq!(
+      url.as_str(),
+      "https://api.test/v1/project/a%20b%2Fc?q=x%26y&e=%C3%BC"
+    );
+    // no query keeps the url free of a trailing `?`
+    assert_eq!(api(BASE, &[], &[]).as_str(), "https://api.test/v1");
+  }
+
+  #[test]
+  fn api_reaches_the_fake_server() {
+    let server = FakeServer::start();
+    let url = api(BASE, &["x"], &[]);
+    assert_eq!(url.as_str(), format!("{}/api.test/v1/x", server.origin()));
+  }
+
+  #[test]
+  fn retries_429_and_5xx_until_success() {
+    for status in [429, 500, 502, 503] {
+      let server = FakeServer::start();
+      let attempts = flaky(&server, status, 2);
+      assert_eq!(get(api(BASE, &["x"], &[])).unwrap(), json!({"ok": true}));
+      assert_eq!(attempts.load(Ordering::SeqCst), 3, "{status}");
+    }
+  }
+
+  #[test]
+  fn gives_up_after_three_retries() {
+    for (status, err) in [(429, "RateLimited"), (503, "Network")] {
+      let server = FakeServer::start();
+      let attempts = flaky(&server, status, usize::MAX);
+      let res = get(api(BASE, &["x"], &[]));
+      assert_eq!(format!("{:?}", res.unwrap_err()), err);
+      assert_eq!(attempts.load(Ordering::SeqCst), 4);
+    }
+  }
+
+  #[test]
+  fn client_errors_are_not_retried() {
+    for (status, err) in [(404, "NotFound"), (400, "Network"), (401, "Network")] {
+      let server = FakeServer::start();
+      server.route("GET", "/api.test/v1/x", status, "{}");
+      let res = get(api(BASE, &["x"], &[]));
+      assert_eq!(format!("{:?}", res.unwrap_err()), err, "{status}");
+      assert_eq!(server.calls().len(), 1);
+    }
+  }
+
+  #[test]
+  fn unparsable_retry_after_falls_back_to_backoff() {
+    let server = FakeServer::start();
+    let attempts = Arc::new(AtomicUsize::new(0));
+    let seen = attempts.clone();
+    server.route_fn("GET", "/api.test/v1/x", move |_| {
+      if seen.fetch_add(1, Ordering::SeqCst) == 0 {
+        // http dates are not parsed, the 1s backoff applies
+        Response::new(503, "").header("Retry-After", "Wed, 21 Oct 2015 07:28:00 GMT")
+      } else {
+        Response::new(200, "1")
+      }
+    });
+    let start = Instant::now();
+    assert_eq!(get(api(BASE, &["x"], &[])).unwrap(), json!(1));
+    assert!(start.elapsed() >= Duration::from_secs(1));
+  }
+
+  #[test]
+  fn malformed_or_mismatched_json_is_a_network_error() {
+    let server = FakeServer::start();
+    server.route("GET", "/api.test/v1/bad", 200, "{not json");
+    server.route("GET", "/api.test/v1/shape", 200, r#"{"a":1}"#);
+    server.route("GET", "/api.test/v1/empty", 200, "");
+    for path in ["bad", "empty"] {
+      let res = get(api(BASE, &[path], &[]));
+      assert!(matches!(res, Err(ContentError::Network)), "{path}");
+    }
+    let res: Result<Vec<String>> = rt::block_on(http().get(api(BASE, &["shape"], &[])));
+    assert!(matches!(res, Err(ContentError::Network)));
+  }
+
+  #[test]
+  fn unreachable_host_is_a_network_error() {
+    // nothing listens on port 1
+    let res = get(Url::parse("http://127.0.0.1:1/x").unwrap());
+    assert!(matches!(res, Err(ContentError::Network)));
+  }
+
+  #[test]
+  fn cache_hits_skip_the_request_per_url() {
+    let server = FakeServer::start();
+    server.route("GET", "/api.test/v1/x", 200, "[1]");
+    let http = http();
+    rt::block_on(async {
+      for _ in 0..3 {
+        let v: Vec<u8> = http.get_cached(api(BASE, &["x"], &[])).await.unwrap();
+        assert_eq!(v, [1]);
+      }
+      // another query is another cache key
+      let _: Vec<u8> = http
+        .get_cached(api(BASE, &["x"], &[("a", "1")]))
+        .await
+        .unwrap();
+      // plain get never reads the cache
+      let _: Vec<u8> = http.get(api(BASE, &["x"], &[])).await.unwrap();
+    });
+    assert_eq!(server.calls().len(), 3);
+  }
+
+  #[test]
+  fn cached_value_is_reparsed_per_type() {
+    let server = FakeServer::start();
+    server.route("GET", "/api.test/v1/x", 200, "[1]");
+    let http = http();
+    rt::block_on(async {
+      let _: Vec<u8> = http.get_cached(api(BASE, &["x"], &[])).await.unwrap();
+      // a hit with the wrong type fails like a fresh response would
+      let res: Result<String> = http.get_cached(api(BASE, &["x"], &[])).await;
+      assert!(matches!(res, Err(ContentError::Network)));
+    });
+    assert_eq!(server.calls().len(), 1);
+  }
+
+  #[test]
+  fn errors_are_not_cached() {
+    let server = FakeServer::start();
+    server.route("GET", "/api.test/v1/x", 404, "");
+    let http = http();
+    rt::block_on(async {
+      for _ in 0..2 {
+        let res: Result<Value> = http.get_cached(api(BASE, &["x"], &[])).await;
+        assert!(matches!(res, Err(ContentError::NotFound)));
+      }
+    });
+    assert_eq!(server.calls().len(), 2);
+  }
+
+  #[test]
+  fn post_sends_json_and_default_headers() {
+    let server = FakeServer::start();
+    server.route_fn("POST", "/api.test/v1/x", |call| {
+      Response::new(200, call.body.clone())
+    });
+    let mut headers = HeaderMap::new();
+    headers.insert("x-api-key", "secret".parse().unwrap());
+    let http = Http::new(headers, Policy::default());
+    let echoed: Value =
+      rt::block_on(http.post(api(BASE, &["x"], &[]), &json!({"a": [1, 2]}))).unwrap();
+    assert_eq!(echoed, json!({"a": [1, 2]}));
+
+    let call = &server.calls()[0];
+    assert_eq!(call.header("content-type"), Some("application/json"));
+    assert_eq!(call.header("x-api-key"), Some("secret"));
+    assert_eq!(call.header("user-agent"), Some(USER_AGENT));
+  }
+
+  #[test]
+  fn retried_posts_resend_the_body() {
+    let server = FakeServer::start();
+    let attempts = Arc::new(AtomicUsize::new(0));
+    let seen = attempts.clone();
+    server.route_fn("POST", "/api.test/v1/x", move |call| {
+      if seen.fetch_add(1, Ordering::SeqCst) == 0 {
+        Response::new(500, "").header("Retry-After", "0")
+      } else {
+        Response::new(200, call.body.clone())
+      }
+    });
+    let v: Value = rt::block_on(http().post(api(BASE, &["x"], &[]), &json!([3]))).unwrap();
+    assert_eq!(v, json!([3]));
+    let bodies: Vec<_> = server
+      .calls()
+      .iter()
+      .map(|c| c.body_str().to_string())
+      .collect();
+    assert_eq!(bodies, ["[3]", "[3]"]);
+  }
 }

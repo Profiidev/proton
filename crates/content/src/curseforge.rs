@@ -688,6 +688,11 @@ impl CfFile {
 
 #[cfg(test)]
 mod tests {
+  use proton_utils::{
+    rt,
+    test_http::{Call, FakeServer, Response},
+  };
+
   use super::*;
 
   #[test]
@@ -763,5 +768,531 @@ mod tests {
     assert_eq!(logo("", "full"), Some("full".into()));
     assert_eq!(logo("thumb", "full"), Some("thumb".into()));
     assert_eq!(logo("", ""), None);
+  }
+
+  fn query_of(call: &Call) -> HashMap<String, String> {
+    Url::parse(&format!("http://x{}", call.path))
+      .unwrap()
+      .query_pairs()
+      .into_owned()
+      .collect()
+  }
+
+  fn json_of(call: &Call) -> serde_json::Value {
+    serde_json::from_str(call.body_str()).unwrap()
+  }
+
+  fn file_json(id: u64, mod_id: u64, date: &str, versions: &[&str]) -> serde_json::Value {
+    json!({
+      "id": id, "modId": mod_id, "displayName": format!("v{id}"), "fileName": format!("{id}.jar"),
+      "releaseType": 1, "hashes": [{"value": format!("sha{id}"), "algo": 1}], "fileDate": date,
+      "fileLength": 1, "downloadUrl": format!("https://edge.forgecdn.net/{id}.jar"),
+      "gameVersions": versions, "dependencies": [], "fileFingerprint": id
+    })
+  }
+
+  fn mod_json(id: u64, indexes: serde_json::Value) -> serde_json::Value {
+    json!({
+      "id": id, "name": format!("m{id}"), "summary": "s", "downloadCount": 12.9,
+      "links": {"websiteUrl": format!("https://www.curseforge.com/m{id}"), "wikiUrl": "",
+        "issuesUrl": "https://issues", "sourceUrl": null},
+      "categories": [{"name": "Magic"}], "classId": 6, "authors": [{"name": "a"}, {"name": "b"}],
+      "logo": null, "dateModified": "d", "latestFilesIndexes": indexes,
+      "screenshots": [{"title": "", "thumbnailUrl": null, "url": "https://s/1.png"},
+        {"title": "Two", "url": "https://s/2.png"}]
+    })
+  }
+
+  fn query(kind: ContentKind) -> SearchQuery {
+    SearchQuery {
+      kind,
+      query: "jei".into(),
+      sources: vec![Source::CurseForge],
+      loaders: vec![],
+      game_version: None,
+      categories: vec![],
+      environment: None,
+      sort: SearchSort::Updated,
+      offset: 0,
+      limit: 20,
+      compatible_with: None,
+    }
+  }
+
+  fn search_route(server: &FakeServer, total: u64) {
+    server.route(
+      "GET",
+      "/api.curseforge.com/v1/mods/search",
+      200,
+      json!({"data": [mod_json(1, json!([]))], "pagination": {"totalCount": total}}).to_string(),
+    );
+  }
+
+  #[test]
+  fn requests_carry_the_api_key() {
+    let server = FakeServer::start();
+    search_route(&server, 1);
+    rt::block_on(CurseForge::new().search(&query(ContentKind::Mod))).unwrap();
+    assert_eq!(server.calls()[0].header("x-api-key"), Some(CF_KEY));
+  }
+
+  #[test]
+  fn search_sends_filters_and_caps_the_total() {
+    let server = FakeServer::start();
+    search_route(&server, 50_000);
+    let q = SearchQuery {
+      loaders: vec!["iris".into(), "fabric".into(), "quilt".into()],
+      game_version: Some("1.21.1".into()),
+      ..query(ContentKind::Mod)
+    };
+    let page = rt::block_on(CurseForge::new().search(&q)).unwrap();
+    assert_eq!(page.total, 10_000);
+    let hit = &page.hits[0];
+    assert_eq!((hit.id.as_str(), hit.author.as_str()), ("1", "a"));
+    assert_eq!(hit.downloads, 12);
+
+    let q = query_of(&server.calls()[0]);
+    let expected = [
+      ("gameId", "432"),
+      ("classId", "6"),
+      ("searchFilter", "jei"),
+      ("sortField", "3"),
+      ("sortOrder", "desc"),
+      ("index", "0"),
+      ("pageSize", "20"),
+      ("gameVersion", "1.21.1"),
+      // unknown loaders are dropped
+      ("modLoaderTypes", "[4,5]"),
+    ];
+    assert_eq!(q.len(), expected.len());
+    for (k, v) in expected {
+      assert_eq!(q[k], v, "{k}");
+    }
+  }
+
+  #[test]
+  fn search_window_stays_inside_the_10k_limit() {
+    // (offset, limit) -> (index, pageSize)
+    let cases = [
+      ((0, 100), ("0", "50")),
+      ((9_990, 50), ("9990", "10")),
+      ((9_999, 50), ("9999", "1")),
+      ((20_000, 20), ("9999", "1")),
+    ];
+    for ((offset, limit), (index, size)) in cases {
+      let server = FakeServer::start();
+      search_route(&server, 1);
+      let q = SearchQuery {
+        offset,
+        limit,
+        ..query(ContentKind::Mod)
+      };
+      rt::block_on(CurseForge::new().search(&q)).unwrap();
+      let q = query_of(&server.calls()[0]);
+      assert_eq!((q["index"].as_str(), q["pageSize"].as_str()), (index, size));
+    }
+  }
+
+  #[test]
+  fn loader_filter_only_applies_to_mods_and_modpacks() {
+    for (kind, filtered) in [
+      (ContentKind::Mod, true),
+      (ContentKind::Modpack, true),
+      (ContentKind::ResourcePack, false),
+      (ContentKind::Shader, false),
+    ] {
+      let server = FakeServer::start();
+      search_route(&server, 1);
+      let q = SearchQuery {
+        loaders: vec!["forge".into()],
+        ..query(kind)
+      };
+      rt::block_on(CurseForge::new().search(&q)).unwrap();
+      let q = query_of(&server.calls()[0]);
+      assert_eq!(q.contains_key("modLoaderTypes"), filtered, "{kind:?}");
+      assert_eq!(q["classId"], class_id(kind).to_string());
+    }
+  }
+
+  #[test]
+  fn categories_map_by_name_slug_or_alias() {
+    let server = FakeServer::start();
+    search_route(&server, 1);
+    server.route(
+      "GET",
+      "/api.curseforge.com/v1/categories",
+      200,
+      json!({"data": [
+        {"id": 1, "name": "Performance", "slug": "performance"},
+        {"id": 2, "name": "API and Library", "slug": "library-api"},
+        {"id": 3, "name": "Magic", "slug": "magic"},
+        {"id": 4, "name": "Tech", "slug": "technology"}
+      ]})
+      .to_string(),
+    );
+    let names = ["optimization", "library", "Magic", "technology", "unknown"];
+    let q = SearchQuery {
+      categories: names.map(String::from).into(),
+      ..query(ContentKind::Mod)
+    };
+    rt::block_on(CurseForge::new().search(&q)).unwrap();
+    let calls = server.calls();
+    let categories = calls
+      .iter()
+      .find(|c| c.path.contains("categories?"))
+      .unwrap();
+    let cq = query_of(categories);
+    assert_eq!(
+      (cq["gameId"].as_str(), cq["classId"].as_str()),
+      ("432", "6")
+    );
+    let search = calls.iter().find(|c| c.path.contains("search")).unwrap();
+    assert_eq!(query_of(search)["categoryIds"], "[1,2,3,4]");
+  }
+
+  #[test]
+  fn at_most_ten_category_ids_are_sent() {
+    let server = FakeServer::start();
+    search_route(&server, 1);
+    let data: Vec<_> = (0..12)
+      .map(|i| json!({"id": i, "name": format!("c{i}"), "slug": format!("c{i}")}))
+      .collect();
+    server.route(
+      "GET",
+      "/api.curseforge.com/v1/categories",
+      200,
+      json!({ "data": data }).to_string(),
+    );
+    let q = SearchQuery {
+      categories: (0..12).map(|i| format!("c{i}")).collect(),
+      ..query(ContentKind::Mod)
+    };
+    rt::block_on(CurseForge::new().search(&q)).unwrap();
+    let search = server
+      .calls()
+      .into_iter()
+      .find(|c| c.path.contains("search"))
+      .unwrap();
+    assert_eq!(query_of(&search)["categoryIds"], "[0,1,2,3,4,5,6,7,8,9]");
+  }
+
+  #[test]
+  fn sort_fields() {
+    let cases = [
+      (SearchSort::Relevance, 2),
+      (SearchSort::Downloads, 6),
+      (SearchSort::Updated, 3),
+      (SearchSort::Newest, 11),
+    ];
+    for (sort, field) in cases {
+      assert_eq!(sort_field(sort), field);
+    }
+  }
+
+  #[test]
+  fn project_joins_mod_and_description() {
+    let server = FakeServer::start();
+    let indexes = json!([
+      {"gameVersion": "1.21.1", "fileId": 1, "releaseType": 1, "modLoader": 4},
+      {"gameVersion": "1.21.1", "fileId": 2, "releaseType": 1, "modLoader": 6},
+      {"gameVersion": "1.20.1", "fileId": 3, "releaseType": 1, "modLoader": 4},
+      {"gameVersion": "1.20.1", "fileId": 4, "releaseType": 1, "modLoader": null}
+    ]);
+    server.route(
+      "GET",
+      "/api.curseforge.com/v1/mods/7",
+      200,
+      json!({ "data": mod_json(7, indexes) }).to_string(),
+    );
+    server.route(
+      "GET",
+      "/api.curseforge.com/v1/mods/7/description",
+      200,
+      json!({"data": "<p>Hi<script>x()</script></p>"}).to_string(),
+    );
+    let detail = rt::block_on(CurseForge::new().project("7")).unwrap();
+    assert!(!detail.body.contains("script"), "{}", detail.body);
+    assert!(detail.body.contains("Hi"));
+    // loaders and versions are deduplicated in order
+    assert_eq!(detail.summary.loaders, ["fabric", "neoforge"]);
+    assert_eq!(detail.summary.game_versions, ["1.21.1", "1.20.1"]);
+    assert_eq!(detail.summary.url, "https://www.curseforge.com/m7");
+    let titles: Vec<_> = detail.gallery.iter().map(|g| g.title.clone()).collect();
+    assert_eq!(titles, [None, Some("Two".into())]);
+    assert_eq!(detail.links.source, None);
+    assert_eq!(detail.links.wiki, None);
+    assert_eq!(detail.links.issues.as_deref(), Some("https://issues"));
+    assert_eq!(detail.links.discord, None);
+  }
+
+  #[test]
+  fn project_fails_without_a_description() {
+    let server = FakeServer::start();
+    server.route(
+      "GET",
+      "/api.curseforge.com/v1/mods/7",
+      200,
+      json!({ "data": mod_json(7, json!([])) }).to_string(),
+    );
+    let res = rt::block_on(CurseForge::new().project("7"));
+    assert!(matches!(res, Err(crate::ContentError::NotFound)));
+  }
+
+  fn files_route(server: &FakeServer, total: u64, files: Vec<serde_json::Value>) {
+    let files = files.clone();
+    server.route_fn("GET", "/api.curseforge.com/v1/mods/9/files", move |call| {
+      let index: usize = query_of(call)["index"].parse().unwrap();
+      let page: Vec<_> = files
+        .iter()
+        .skip(index)
+        .take(PAGE as usize)
+        .cloned()
+        .collect();
+      Response::new(
+        200,
+        json!({"data": page, "pagination": {"totalCount": total}}).to_string(),
+      )
+    });
+  }
+
+  #[test]
+  fn versions_fetch_every_page_up_to_the_cap() {
+    // (total files, pages requested)
+    for (total, pages) in [(0, 1), (50, 1), (51, 2), (120, 3), (5_000, 10)] {
+      let server = FakeServer::start();
+      let files = (0..total.min(600))
+        .map(|i| file_json(i, 9, &format!("{i:05}"), &[]))
+        .collect();
+      files_route(&server, total, files);
+      let versions = rt::block_on(CurseForge::new().versions("9", &[], None)).unwrap();
+      let calls = server.calls();
+      assert_eq!(calls.len(), pages, "{total}");
+      let mut indexes: Vec<u32> = calls
+        .iter()
+        .map(|c| query_of(c)["index"].parse().unwrap())
+        .collect();
+      indexes.sort();
+      assert_eq!(
+        indexes,
+        (0..pages as u32).map(|p| p * PAGE).collect::<Vec<_>>()
+      );
+      assert_eq!(versions.len() as u64, total.min(pages as u64 * PAGE as u64));
+      // newest first across pages
+      assert!(
+        versions
+          .windows(2)
+          .all(|w| w[0].published_at >= w[1].published_at)
+      );
+    }
+  }
+
+  #[test]
+  fn versions_filter_by_loader() {
+    let server = FakeServer::start();
+    files_route(
+      &server,
+      3,
+      vec![
+        file_json(1, 9, "1", &["Fabric", "1.21.1"]),
+        file_json(2, 9, "2", &["Forge", "1.21.1"]),
+        // no loader tag, kept for any loader
+        file_json(3, 9, "3", &["1.21.1", "Client"]),
+      ],
+    );
+    let cf = CurseForge::new();
+    let ids = |loaders: &[&str], game| {
+      let loaders: Vec<String> = loaders.iter().map(|s| s.to_string()).collect();
+      rt::block_on(cf.versions("9", &loaders, game))
+        .unwrap()
+        .into_iter()
+        .map(|v| v.id)
+        .collect::<Vec<_>>()
+    };
+    assert_eq!(ids(&["fabric"], Some("1.21.1")), ["3", "1"]);
+    assert_eq!(ids(&[], None), ["3", "2", "1"]);
+    // quilt profiles take fabric mods too, the server filter is skipped for two loaders
+    assert_eq!(ids(&["quilt", "fabric"], None), ["3", "1"]);
+
+    let calls = server.calls();
+    let q: Vec<_> = calls.iter().map(query_of).collect();
+    assert_eq!(q[0]["gameVersion"], "1.21.1");
+    assert_eq!(q[0]["modLoaderType"], "4");
+    assert!(!q[1].contains_key("gameVersion") && !q[1].contains_key("modLoaderType"));
+    assert!(!q[2].contains_key("modLoaderType"));
+    assert_eq!(q[0]["pageSize"], "50");
+  }
+
+  #[test]
+  fn versions_fail_when_a_later_page_fails() {
+    let server = FakeServer::start();
+    server.route_fn("GET", "/api.curseforge.com/v1/mods/9/files", |call| {
+      if query_of(call)["index"] == "0" {
+        Response::new(
+          200,
+          json!({"data": [], "pagination": {"totalCount": 60}}).to_string(),
+        )
+      } else {
+        Response::new(404, "")
+      }
+    });
+    let res = rt::block_on(CurseForge::new().versions("9", &[], None));
+    assert!(res.is_err());
+  }
+
+  #[test]
+  fn summaries_skip_non_numeric_ids() {
+    let server = FakeServer::start();
+    server.route(
+      "POST",
+      "/api.curseforge.com/v1/mods",
+      200,
+      json!({"data": [mod_json(5, json!([]))]}).to_string(),
+    );
+    let cf = CurseForge::new();
+    let none = rt::block_on(cf.summaries(&["AANobbMI".into(), "".into()])).unwrap();
+    assert!(none.is_empty());
+    assert!(server.calls().is_empty());
+
+    let some = rt::block_on(cf.summaries(&["5".into(), "x".into()])).unwrap();
+    assert_eq!(some[0].id, "5");
+    assert_eq!(
+      json_of(&server.calls()[0]),
+      json!({"modIds": [5], "filterPcOnly": true})
+    );
+  }
+
+  #[test]
+  fn files_and_fingerprints_skip_empty_input() {
+    let server = FakeServer::start();
+    let cf = CurseForge::new();
+    rt::block_on(async {
+      assert!(cf.files(&[]).await.unwrap().is_empty());
+      assert!(cf.by_hashes(&[]).await.unwrap().is_empty());
+      assert!(
+        cf.latest_for(&[], &[], "1.21.1", false)
+          .await
+          .unwrap()
+          .is_empty()
+      );
+    });
+    assert!(server.calls().is_empty());
+  }
+
+  fn fingerprints_route(server: &FakeServer, matched: &[(u64, u64)]) {
+    let matches: Vec<_> = matched
+      .iter()
+      .map(|(fp, mod_id)| json!({"file": file_json(*fp, *mod_id, "d", &["1.21.1"])}))
+      .collect();
+    server.route(
+      "POST",
+      "/api.curseforge.com/v1/fingerprints/432",
+      200,
+      json!({"data": {"exactMatches": matches}}).to_string(),
+    );
+  }
+
+  fn hashes(fingerprint: u32) -> FileHashes {
+    FileHashes {
+      sha1: format!("local{fingerprint}"),
+      fingerprint,
+    }
+  }
+
+  #[test]
+  fn by_hashes_maps_fingerprints_back_to_sha1() {
+    let server = FakeServer::start();
+    // 99 matched nothing we sent, it is dropped
+    fingerprints_route(&server, &[(11, 1), (99, 2)]);
+    let res = rt::block_on(CurseForge::new().by_hashes(&[hashes(11), hashes(12)])).unwrap();
+    assert_eq!(res.len(), 1);
+    assert_eq!(res["local11"].project_id, "1");
+    assert_eq!(
+      json_of(&server.calls()[0]),
+      json!({"fingerprints": [11, 12]})
+    );
+  }
+
+  #[test]
+  fn latest_for_picks_the_newest_matching_index() {
+    let server = FakeServer::start();
+    fingerprints_route(&server, &[(11, 1)]);
+    let indexes = json!([
+      {"gameVersion": "1.21.1", "fileId": 100, "releaseType": 1, "modLoader": 4},
+      {"gameVersion": "1.21.1", "fileId": 300, "releaseType": 2, "modLoader": 4},
+      {"gameVersion": "1.21.1", "fileId": 400, "releaseType": 1, "modLoader": 1},
+      {"gameVersion": "1.21.1", "fileId": 150, "releaseType": 1, "modLoader": null},
+      {"gameVersion": "1.20.1", "fileId": 900, "releaseType": 1, "modLoader": 4}
+    ]);
+    server.route(
+      "POST",
+      "/api.curseforge.com/v1/mods",
+      200,
+      json!({"data": [mod_json(1, indexes)]}).to_string(),
+    );
+    server.route_fn("POST", "/api.curseforge.com/v1/mods/files", |call| {
+      let ids: Vec<u64> = serde_json::from_value(json_of(call)["fileIds"].clone()).unwrap();
+      let files: Vec<_> = ids.iter().map(|id| file_json(*id, 1, "d", &[])).collect();
+      Response::new(200, json!({ "data": files }).to_string())
+    });
+    let cf = CurseForge::new();
+    let latest = |loaders: &[&str], release_only| {
+      let loaders: Vec<String> = loaders.iter().map(|s| s.to_string()).collect();
+      rt::block_on(cf.latest_for(&[hashes(11)], &loaders, "1.21.1", release_only))
+        .unwrap()
+        .get("local11")
+        .map(|v| v.id.clone())
+    };
+    assert_eq!(latest(&["fabric"], true), Some("150".into()));
+    assert_eq!(latest(&["fabric"], false), Some("300".into()));
+    assert_eq!(latest(&[], true), Some("400".into()));
+    assert_eq!(latest(&["neoforge"], true), Some("150".into()));
+  }
+
+  #[test]
+  fn latest_for_without_matches_stops_early() {
+    let server = FakeServer::start();
+    fingerprints_route(&server, &[]);
+    let res = rt::block_on(CurseForge::new().latest_for(&[hashes(1)], &[], "1.21.1", false));
+    assert!(res.unwrap().is_empty());
+    assert_eq!(server.calls().len(), 1);
+  }
+
+  #[test]
+  fn cdn_urls() {
+    let cases = [
+      ("https://edge.forgecdn.net/files/1/2/a.jar", true),
+      ("https://forgecdn.net/a.jar", true),
+      ("http://edge.forgecdn.net/a.jar", false),
+      ("https://evilforgecdn.net/a.jar", false),
+      ("https://forgecdn.net.evil.com/a.jar", false),
+      ("https://www.curseforge.com/a.jar", false),
+    ];
+    for (url, ok) in cases {
+      assert_eq!(cdn_url(&Url::parse(url).unwrap()), ok, "{url}");
+    }
+  }
+
+  #[test]
+  fn downloads_do_not_follow_redirects_off_the_cdn() {
+    let server = FakeServer::start();
+    let target = format!("{}/elsewhere", server.origin());
+    server.route_fn("GET", "/start", move |_| {
+      Response::new(302, "").header("Location", &target)
+    });
+    server.route("GET", "/elsewhere", 200, "key leaked");
+    let cf = CurseForge::new();
+    let url = format!("{}/start", server.origin());
+    let res = rt::block_on(cf.download_client().get(url).send());
+    assert!(res.unwrap_err().is_redirect());
+    let calls = server.calls();
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0].header("x-api-key"), Some(CF_KEY));
+  }
+
+  #[test]
+  fn normalizes_category_names() {
+    assert_eq!(normalize("API & Library"), "apilibrary");
+    assert_eq!(normalize("Adventure and RPG"), "adventureandrpg");
+    assert_eq!(normalize("Über-Mod"), "bermod");
   }
 }

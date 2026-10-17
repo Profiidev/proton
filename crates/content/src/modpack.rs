@@ -555,7 +555,7 @@ pub async fn icon(providers: &Providers, plan: &PackPlan) -> Option<Vec<u8>> {
   };
   let res = providers
     .download_client(source)
-    .get(url)
+    .get(&*proton_utils::http::url(url.as_str()))
     .send()
     .await
     .ok()?
@@ -979,7 +979,7 @@ pub fn duplicate(profile: &Profile, name: String) -> Profile {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
   use std::sync::Arc;
 
   use serde_json::json;
@@ -987,14 +987,21 @@ mod tests {
   use super::*;
   use crate::store::tests::temp_dir;
 
-  async fn write_zip(path: &Path, entries: &[(&str, &[u8])]) {
+  pub(crate) async fn write_zip(path: &Path, entries: &[(&str, &[u8])]) {
     let file = fs::File::create(path).await.unwrap();
     let mut zip = ZipFileWriter::new(file.compat_write());
     for (name, data) in entries {
       let entry = ZipEntryBuilder::new((*name).into(), Compression::Deflate);
       zip.write_entry_whole(entry, data).await.unwrap();
     }
-    zip.close().await.unwrap();
+    zip
+      .close()
+      .await
+      .unwrap()
+      .into_inner()
+      .flush()
+      .await
+      .unwrap();
   }
 
   fn index_file(path: &str, client: &str) -> serde_json::Value {
@@ -1371,5 +1378,64 @@ mod tests {
     assert_eq!(copy.loader_version.as_deref(), Some("77"));
 
     std::fs::remove_dir_all(&dir).unwrap();
+  }
+
+  fn icon_plan(icon_url: Option<&str>) -> PackPlan {
+    PackPlan {
+      name: String::new(),
+      version: String::new(),
+      summary: None,
+      icon_url: icon_url.map(Into::into),
+      source: PackSource::Path { path: "p".into() },
+      minecraft: "1.21.1".into(),
+      loader: LoaderType::Vanilla,
+      loader_version: None,
+      files: vec![],
+      manual: vec![],
+      counts: PackCounts::default(),
+      recommended_memory_mb: None,
+      total_bytes: 0,
+      archive: "p".into(),
+      overrides: vec![],
+    }
+  }
+
+  #[test]
+  fn icon_needs_https_and_an_image() {
+    use proton_utils::{rt, test_http::FakeServer};
+    let server = FakeServer::start();
+    let mut png = std::io::Cursor::new(Vec::new());
+    image::RgbaImage::new(1, 1)
+      .write_to(&mut png, image::ImageFormat::Png)
+      .unwrap();
+    let png = png.into_inner();
+    server.route("GET", "/cdn.test/icon.png", 200, png.clone());
+    server.route("GET", "/cdn.test/text.png", 200, "<html>");
+    server.route("GET", "/cdn.test/gone.png", 404, "");
+    let insecure = format!("{}/cdn.test/icon.png", server.origin());
+
+    let providers = Providers::new();
+    let icon = |url: Option<&str>| rt::block_on(icon(&providers, &icon_plan(url)));
+    assert_eq!(icon(Some("https://cdn.test/icon.png")), Some(png));
+    let cases = [
+      None,
+      Some("not a url"),
+      // plain http is never fetched, even from a reachable host
+      Some(insecure.as_str()),
+      Some("https://cdn.test/text.png"),
+      Some("https://cdn.test/gone.png"),
+    ];
+    for url in cases {
+      assert_eq!(icon(url), None, "{url:?}");
+    }
+    let paths: Vec<_> = server.calls().into_iter().map(|c| c.path).collect();
+    assert_eq!(
+      paths,
+      [
+        "/cdn.test/icon.png",
+        "/cdn.test/text.png",
+        "/cdn.test/gone.png"
+      ]
+    );
   }
 }

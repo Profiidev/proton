@@ -336,3 +336,105 @@ impl VersionInfo {
     self.files.iter().find(|f| f.primary).or(self.files.first())
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn enums_keep_their_stored_names() {
+    // these strings live in `proton-content.json` manifests
+    let cases = [
+      (serde_json::to_value(ContentKind::Mod), "mod"),
+      (serde_json::to_value(ContentKind::Modpack), "modpack"),
+      (
+        serde_json::to_value(ContentKind::ResourcePack),
+        "resourcepack",
+      ),
+      (serde_json::to_value(ContentKind::Shader), "shader"),
+      (serde_json::to_value(Channel::Release), "release"),
+      (serde_json::to_value(Channel::Beta), "beta"),
+      (serde_json::to_value(Channel::Alpha), "alpha"),
+      (serde_json::to_value(DependencyKind::Required), "required"),
+      (serde_json::to_value(DependencyKind::Optional), "optional"),
+      (
+        serde_json::to_value(DependencyKind::Incompatible),
+        "incompatible",
+      ),
+      (serde_json::to_value(DependencyKind::Embedded), "embedded"),
+    ];
+    for (value, name) in cases {
+      assert_eq!(value.unwrap(), name);
+    }
+    for kind in [
+      ContentKind::Mod,
+      ContentKind::Modpack,
+      ContentKind::ResourcePack,
+      ContentKind::Shader,
+    ] {
+      let json = serde_json::to_string(&kind).unwrap();
+      assert_eq!(serde_json::from_str::<ContentKind>(&json).unwrap(), kind);
+    }
+    // snake or camel case from other tools is not accepted
+    assert!(serde_json::from_str::<ContentKind>(r#""resource_pack""#).is_err());
+    assert!(serde_json::from_str::<Channel>(r#""Release""#).is_err());
+  }
+
+  #[test]
+  fn channel_str_matches_serde() {
+    for c in [Channel::Release, Channel::Beta, Channel::Alpha] {
+      assert_eq!(serde_json::to_value(c).unwrap(), c.as_str());
+    }
+  }
+
+  #[test]
+  fn kind_dirs() {
+    assert_eq!(ContentKind::Mod.dir(), Some("mods"));
+    assert_eq!(ContentKind::ResourcePack.dir(), Some("resourcepacks"));
+    assert_eq!(ContentKind::Shader.dir(), Some("shaderpacks"));
+    assert_eq!(ContentKind::Modpack.dir(), None);
+  }
+
+  fn file(name: &str, primary: bool) -> FileInfo {
+    FileInfo {
+      file_name: name.into(),
+      url: None,
+      sha1: String::new(),
+      sha512: None,
+      size: 0,
+      primary,
+    }
+  }
+
+  #[test]
+  fn primary_file_falls_back_to_the_first() {
+    let version = |files| VersionInfo {
+      source: Source::Modrinth,
+      project_id: "p".into(),
+      id: "v".into(),
+      name: String::new(),
+      version_number: String::new(),
+      channel: Channel::Release,
+      game_versions: vec![],
+      loaders: vec![],
+      published_at: String::new(),
+      files,
+      dependencies: vec![],
+    };
+    let name = |files| version(files).primary_file().map(|f| f.file_name.clone());
+    assert_eq!(
+      name(vec![file("a", false), file("b", true)]),
+      Some("b".into())
+    );
+    assert_eq!(
+      name(vec![file("a", false), file("b", false)]),
+      Some("a".into())
+    );
+    // the first primary wins when a provider marks several
+    assert_eq!(
+      name(vec![file("a", true), file("b", true)]),
+      Some("a".into())
+    );
+    assert_eq!(name(vec![]), None);
+  }
+}

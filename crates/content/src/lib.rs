@@ -150,7 +150,7 @@ pub fn init(cx: &mut App) {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
   use std::{cell::Cell, path::PathBuf, rc::Rc, sync::LazyLock};
 
   use gpui_kit::{self as gpui, TestAppContext};
@@ -170,7 +170,7 @@ mod tests {
     dir
   });
 
-  fn init_test(cx: &mut TestAppContext) {
+  pub(crate) fn init_test(cx: &mut TestAppContext) {
     LazyLock::force(&DIR);
     cx.update(|cx| {
       proton_config::init(cx);
@@ -187,7 +187,10 @@ mod tests {
     });
   }
 
-  fn counted<T: 'static>(cx: &mut TestAppContext, entity: &Entity<T>) -> Rc<Cell<usize>> {
+  pub(crate) fn counted<T: 'static>(
+    cx: &mut TestAppContext,
+    entity: &Entity<T>,
+  ) -> Rc<Cell<usize>> {
     let count = Rc::new(Cell::new(0));
     let seen = count.clone();
     cx.update(|cx| {
@@ -198,7 +201,7 @@ mod tests {
   }
 
   /// Writes one identified mod into the profile, so scans need no network
-  async fn add_mod(dir: PathBuf) {
+  pub(crate) async fn add_mod(dir: PathBuf) {
     std::fs::create_dir_all(dir.join("mods")).unwrap();
     std::fs::write(dir.join("mods/a.jar"), b"jar").unwrap();
     let entry = Entry {
