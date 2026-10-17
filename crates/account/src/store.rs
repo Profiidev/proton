@@ -5,7 +5,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 
-use proton_utils::{download::default_client, log::ErrorLogExt};
+use proton_utils::{download::default_client, http, log::ErrorLogExt};
 
 use super::{
   auth::{AuthInfo, refresh_mc_token},
@@ -169,9 +169,9 @@ impl AccountStore {
 
     if let Some(Some(account)) = self.accounts.get_mut(account) {
       let req = if id == REMOVE_CAPE {
-        self.client.delete(CAPE_CHANGE_URL)
+        self.client.delete(&*http::url(CAPE_CHANGE_URL))
       } else {
-        self.client.put(CAPE_CHANGE_URL)
+        self.client.put(&*http::url(CAPE_CHANGE_URL))
       };
 
       let res = req
@@ -199,4 +199,241 @@ impl AccountStore {
 #[serde(rename_all = "camelCase")]
 struct CapeChangeReq {
   cape_id: String,
+}
+
+#[cfg(test)]
+mod tests {
+  use proton_utils::{
+    rt,
+    test_http::{FakeServer, Response},
+  };
+
+  use super::*;
+  use crate::{
+    auth::tests::auth_info,
+    info::tests::{profile, profile_json},
+    mc_auth::tests::{hit, token_routes},
+    tests::init_dirs,
+  };
+
+  const PROFILE: &str = "GET api.minecraftservices.com/minecraft/profile";
+  const CAPE: &str = "api.minecraftservices.com/minecraft/profile/capes/active";
+
+  fn with_id(id: &str, name: &str) -> ProfileInfo {
+    ProfileInfo {
+      id: id.into(),
+      ..profile(name)
+    }
+  }
+
+  #[test]
+  fn empty_store_has_no_accounts() {
+    init_dirs();
+    let store = AccountStore::new().unwrap();
+    assert!(store.list_profiles().is_empty());
+    assert_eq!((store.active(), store.active_id()), ("", None));
+    assert!(store.mc_token("x").is_none() && store.launch_info("x").is_none());
+  }
+
+  #[test]
+  fn first_added_account_becomes_active_and_persists() {
+    let data = init_dirs();
+    let mut store = AccountStore::new().unwrap();
+    store
+      .add_account(auth_info([true; 4]), with_id("a", "A"))
+      .unwrap();
+    store
+      .add_account(auth_info([true; 4]), with_id("b", "B"))
+      .unwrap();
+    assert_eq!(store.active_id().as_deref(), Some("a"));
+
+    let launch = store.launch_info("b").unwrap();
+    assert_eq!((launch.id.as_str(), launch.name.as_str()), ("b", "B"));
+    assert_eq!(launch.access_token, "old-mc");
+
+    // keys and format stay compatible with old store.json files
+    let json: serde_json::Value =
+      serde_json::from_slice(&std::fs::read(data.join("store.json")).unwrap()).unwrap();
+    assert_eq!(json["active_account"], "a");
+    assert_eq!(json["accounts"]["b"]["profile"]["name"], "B");
+    assert_eq!(json["accounts"]["b"]["auth"]["mc_token"], "old-mc");
+
+    let reloaded = AccountStore::new().unwrap();
+    let mut ids: Vec<_> = reloaded.list_profiles().into_keys().collect();
+    ids.sort();
+    assert_eq!(ids, ["a", "b"]);
+    assert_eq!(reloaded.active(), "a");
+  }
+
+  #[test]
+  fn set_active_remove_and_update_profile() {
+    init_dirs();
+    let mut store = AccountStore::new().unwrap();
+    store
+      .add_account(auth_info([true; 4]), with_id("a", "A"))
+      .unwrap();
+    store.set_active("b".into()).unwrap();
+    // any id is accepted, even one that is not logged in
+    assert_eq!(store.active_id().as_deref(), Some("b"));
+    store.set_active(String::new()).unwrap();
+    assert_eq!(store.active_id(), None);
+
+    store.update_profile(with_id("a", "Renamed")).unwrap();
+    // unknown ids are ignored instead of adding a token-less account
+    store.update_profile(with_id("ghost", "G")).unwrap();
+    let list = store.list_profiles();
+    assert_eq!(list.len(), 1);
+    assert_eq!(list["a"].as_ref().unwrap().name, "Renamed");
+
+    store.remove_account("a").unwrap();
+    store.remove_account("a").unwrap();
+    assert!(AccountStore::new().unwrap().list_profiles().is_empty());
+  }
+
+  #[test]
+  fn refresh_all_updates_profiles_and_expires_dead_logins() {
+    init_dirs();
+    let server = FakeServer::start();
+    token_routes(&server);
+    server.route(
+      "POST",
+      "/login.microsoftonline.com/consumers/oauth2/v2.0/token",
+      400,
+      "",
+    );
+    server.route(
+      "GET",
+      "/api.minecraftservices.com/minecraft/profile",
+      200,
+      profile_json("New"),
+    );
+    let mut store = AccountStore::new().unwrap();
+    store
+      .add_account(auth_info([true; 4]), with_id("ok", "Old"))
+      .unwrap();
+    store
+      .add_account(auth_info([false; 4]), with_id("dead", "D"))
+      .unwrap();
+
+    rt::block_on(store.refresh_all()).unwrap();
+    let list = AccountStore::new().unwrap().list_profiles();
+    assert!(list["dead"].is_none(), "login expired");
+    // the profile endpoint answers with its own id, the stored key stays
+    assert_eq!(list["ok"].as_ref().unwrap().name, "New");
+    assert!(store.mc_token("dead").is_none());
+    assert_eq!(
+      hit(&server.calls())
+        .iter()
+        .filter(|c| *c == PROFILE)
+        .count(),
+      1
+    );
+  }
+
+  #[test]
+  fn refresh_all_keeps_accounts_when_requests_fail() {
+    init_dirs();
+    let server = FakeServer::start();
+    server.route(
+      "GET",
+      "/api.minecraftservices.com/minecraft/profile",
+      503,
+      "",
+    );
+    server.route("POST", "/user.auth.xboxlive.com/user/authenticate", 500, "");
+    let mut store = AccountStore::new().unwrap();
+    store
+      .add_account(auth_info([true; 4]), with_id("a", "A"))
+      .unwrap();
+    store
+      .add_account(auth_info([false, false, false, true]), with_id("b", "B"))
+      .unwrap();
+
+    rt::block_on(store.refresh_all()).unwrap();
+    let list = store.list_profiles();
+    assert_eq!(list["a"].as_ref().unwrap().name, "A");
+    assert_eq!(list["b"].as_ref().unwrap().name, "B");
+    assert_eq!(store.mc_token("b").unwrap(), "old-mc");
+  }
+
+  #[test]
+  fn refresh_auth_of_unknown_or_expired_account_is_a_no_op() {
+    init_dirs();
+    let server = FakeServer::start();
+    let mut store = AccountStore::new().unwrap();
+    rt::block_on(store.refresh_auth("ghost")).unwrap();
+    rt::block_on(store.refresh_auth("")).unwrap();
+    assert!(server.calls().is_empty());
+    assert!(store.list_profiles().is_empty());
+  }
+
+  #[test]
+  fn cape_change_puts_or_deletes_with_the_token() {
+    for (cape, method) in [("c1", "PUT"), (REMOVE_CAPE, "DELETE")] {
+      init_dirs();
+      let server = FakeServer::start();
+      server.route_fn(method, &format!("/{CAPE}"), |_| {
+        Response::new(
+          200,
+          profile_json("Caped").replace("\"id\":\"uuid\"", "\"id\":\"a\""),
+        )
+      });
+      let mut store = AccountStore::new().unwrap();
+      store
+        .add_account(auth_info([true; 4]), with_id("a", "A"))
+        .unwrap();
+
+      rt::block_on(store.select_cape_by_id("a", cape)).unwrap();
+      let calls = server.calls();
+      assert_eq!(hit(&calls), [format!("{method} {CAPE}")]);
+      assert_eq!(calls[0].header("authorization"), Some("Bearer old-mc"));
+      assert_eq!(calls[0].body_str(), format!(r#"{{"capeId":"{cape}"}}"#));
+      let saved = AccountStore::new().unwrap().list_profiles();
+      assert_eq!(saved["a"].as_ref().unwrap().name, "Caped");
+    }
+  }
+
+  #[test]
+  fn cape_change_refreshes_an_expired_token_first() {
+    init_dirs();
+    let server = FakeServer::start();
+    token_routes(&server);
+    server.route("PUT", &format!("/{CAPE}"), 200, profile_json("A"));
+    let mut store = AccountStore::new().unwrap();
+    store
+      .add_account(auth_info([false, true, true, true]), with_id("a", "A"))
+      .unwrap();
+
+    rt::block_on(store.select_cape_by_id("a", "c1")).unwrap();
+    let calls = server.calls();
+    assert_eq!(calls.len(), 2);
+    assert_eq!(calls[1].header("authorization"), Some("Bearer mc"));
+  }
+
+  #[test]
+  fn cape_change_errors_keep_the_profile() {
+    init_dirs();
+    let server = FakeServer::start();
+    let mut store = AccountStore::new().unwrap();
+    store
+      .add_account(auth_info([true; 4]), with_id("a", "A"))
+      .unwrap();
+
+    let err = rt::block_on(store.select_cape_by_id("ghost", "c1")).unwrap_err();
+    assert_eq!(err.to_string(), "Cape change error: unknown account ghost");
+    assert!(server.calls().is_empty());
+
+    for (status, body) in [
+      (400, profile_json("X")),
+      (500, String::new()),
+      (200, "{".into()),
+    ] {
+      server.route("PUT", &format!("/{CAPE}"), status, body);
+      assert!(
+        rt::block_on(store.select_cape_by_id("a", "c1")).is_err(),
+        "{status}"
+      );
+    }
+    assert_eq!(store.list_profiles()["a"].as_ref().unwrap().name, "A");
+  }
 }

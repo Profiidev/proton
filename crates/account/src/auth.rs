@@ -125,3 +125,147 @@ pub async fn refresh_mc_token(client: &Client, mut info: AuthInfo) -> Result<Opt
   debug!("Refresh complete");
   Ok(Some(info))
 }
+
+#[cfg(test)]
+pub(crate) mod tests {
+  use chrono::Duration;
+  use proton_utils::{rt, test_http::FakeServer};
+
+  use super::*;
+  use crate::mc_auth::tests::{hit, token_routes};
+
+  const MS: &str = "POST login.microsoftonline.com/consumers/oauth2/v2.0/token";
+  const XBOX: &str = "POST user.auth.xboxlive.com/user/authenticate";
+  const XSTS: &str = "POST xsts.auth.xboxlive.com/xsts/authorize";
+  const MC: &str = "POST api.minecraftservices.com/authentication/login_with_xbox";
+
+  /// Auth with the tokens up to `valid` (mc, xsts, xbox, ms) still valid, the rest expired
+  pub(crate) fn auth_info(valid: [bool; 4]) -> AuthInfo {
+    let at = |ok: bool| Utc::now() + Duration::hours(if ok { 1 } else { -1 });
+    AuthInfo {
+      mc_token: "old-mc".into(),
+      mc_token_expire: at(valid[0]),
+      user_hash: "old-hash".into(),
+      xbox_security_token: "old-xsts".into(),
+      xbox_security_token_expire: at(valid[1]),
+      xbox_token: "old-xbl".into(),
+      xbox_token_expire: at(valid[2]),
+      ms_access_token: "old-ms".into(),
+      ms_access_token_expire: at(valid[3]),
+      ms_refresh_token: "old-refresh".into(),
+    }
+  }
+
+  #[test]
+  fn refresh_only_renews_expired_tokens() {
+    // the first still valid token in mc -> xsts -> xbox -> ms order decides where to restart
+    let cases: [([bool; 4], &[&str]); 6] = [
+      ([true, true, true, true], &[]),
+      ([true, false, false, false], &[]),
+      ([false, true, false, false], &[MC]),
+      ([false, false, true, false], &[XSTS, MC]),
+      ([false, false, false, true], &[XBOX, XSTS, MC]),
+      ([false, false, false, false], &[MS, XBOX, XSTS, MC]),
+    ];
+    for (valid, want) in cases {
+      let server = FakeServer::start();
+      token_routes(&server);
+      let info = rt::block_on(refresh_mc_token(&Client::new(), auth_info(valid)))
+        .unwrap()
+        .unwrap();
+      assert_eq!(hit(&server.calls()), want, "{valid:?}");
+      let fresh = if want.is_empty() { "old-mc" } else { "mc" };
+      assert_eq!(info.mc_token, fresh, "{valid:?}");
+      assert!(info.mc_token_expire > Utc::now());
+    }
+  }
+
+  #[test]
+  fn full_refresh_chains_the_new_tokens() {
+    let server = FakeServer::start();
+    token_routes(&server);
+    let info = rt::block_on(refresh_mc_token(&Client::new(), auth_info([false; 4])))
+      .unwrap()
+      .unwrap();
+    let calls = server.calls();
+    assert!(calls[0].body_str().contains("refresh_token=old-refresh"));
+    // each step gets the token the previous one just returned
+    assert!(calls[1].body_str().contains(r#""RpsTicket":"d=ms2""#));
+    assert!(calls[2].body_str().contains(r#""UserTokens":["xbl"]"#));
+    assert!(calls[3].body_str().contains("XBL3.0 x=hash;xsts"));
+    assert_eq!(
+      (
+        info.ms_access_token.as_str(),
+        info.ms_refresh_token.as_str(),
+        info.xbox_token.as_str(),
+        info.user_hash.as_str(),
+        info.xbox_security_token.as_str(),
+      ),
+      ("ms2", "r2", "xbl", "hash", "xsts")
+    );
+  }
+
+  #[test]
+  fn partial_refresh_reuses_the_stored_tokens() {
+    let server = FakeServer::start();
+    token_routes(&server);
+    rt::block_on(refresh_mc_token(
+      &Client::new(),
+      auth_info([false, true, false, false]),
+    ))
+    .unwrap();
+    assert!(
+      server.calls()[0]
+        .body_str()
+        .contains("XBL3.0 x=old-hash;old-xsts")
+    );
+  }
+
+  #[test]
+  fn dead_refresh_token_needs_a_new_login() {
+    let server = FakeServer::start();
+    token_routes(&server);
+    server.route(
+      "POST",
+      "/login.microsoftonline.com/consumers/oauth2/v2.0/token",
+      400,
+      r#"{"error":"invalid_grant"}"#,
+    );
+    let res = rt::block_on(refresh_mc_token(&Client::new(), auth_info([false; 4]))).unwrap();
+    assert!(res.is_none());
+    assert_eq!(hit(&server.calls()), [MS]);
+  }
+
+  #[test]
+  fn a_failing_step_stops_the_chain() {
+    let steps = [
+      ("/user.auth.xboxlive.com/user/authenticate", &[MS, XBOX][..]),
+      (
+        "/xsts.auth.xboxlive.com/xsts/authorize",
+        &[MS, XBOX, XSTS][..],
+      ),
+      (
+        "/api.minecraftservices.com/authentication/login_with_xbox",
+        &[MS, XBOX, XSTS, MC][..],
+      ),
+    ];
+    for (path, want) in steps {
+      for status in [401, 500] {
+        let server = FakeServer::start();
+        token_routes(&server);
+        server.route("POST", path, status, "");
+        let res = rt::block_on(refresh_mc_token(&Client::new(), auth_info([false; 4])));
+        assert!(res.is_err(), "{path} {status}");
+        assert_eq!(hit(&server.calls()), want, "{path} {status}");
+      }
+    }
+  }
+
+  #[test]
+  fn auth_info_round_trips_through_json() {
+    let info = auth_info([true, false, true, false]);
+    let back: AuthInfo = serde_json::from_value(serde_json::to_value(&info).unwrap()).unwrap();
+    assert_eq!(back.mc_token_expire, info.mc_token_expire);
+    assert_eq!(back.ms_refresh_token, "old-refresh");
+  }
+}

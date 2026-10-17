@@ -229,3 +229,242 @@ impl AccountsHandle {
     res
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use std::io::Cursor;
+
+  use image::{ImageFormat, RgbaImage};
+  use proton_utils::test_http::FakeServer;
+
+  use super::*;
+  use crate::{
+    auth::tests::auth_info,
+    info::tests::{profile, profile_json},
+    mc_auth::tests::token_routes,
+    store::REMOVE_CAPE,
+    tests::init_dirs,
+  };
+
+  const PROFILE_PATH: &str = "/api.minecraftservices.com/minecraft/profile";
+
+  fn png() -> Vec<u8> {
+    let mut out = Cursor::new(Vec::new());
+    RgbaImage::new(64, 64)
+      .write_to(&mut out, ImageFormat::Png)
+      .unwrap();
+    out.into_inner()
+  }
+
+  /// A saved, logged in account `uuid` named `A`, `valid` like [`auth_info`]
+  fn seed_account(valid: [bool; 4]) {
+    let mut store = AccountStore::new().unwrap();
+    store.add_account(auth_info(valid), profile("A")).unwrap();
+  }
+
+  fn handle() -> (AccountsHandle, flume::Receiver<AccountMsg>) {
+    let (handle, rx, ..) = AccountsHandle::new(OfflineHandle::new().0).unwrap();
+    (handle, rx)
+  }
+
+  fn name_of(msgs: &[AccountMsg]) -> Option<String> {
+    msgs.iter().find_map(|m| match m {
+      AccountMsg::Accounts(list) => list.get("uuid")?.as_ref().map(|p| p.name.clone()),
+      _ => None,
+    })
+  }
+
+  #[test]
+  fn new_returns_the_saved_state() {
+    init_dirs();
+    let (_, _, list, active, skins) = AccountsHandle::new(OfflineHandle::new().0).unwrap();
+    assert!(list.is_empty() && active.is_none() && skins.is_empty());
+
+    seed_account([true; 4]);
+    let skin = rt::block_on(SkinStore::new().unwrap().add_skin(None, &png())).unwrap();
+    let (_, _, list, active, skins) = AccountsHandle::new(OfflineHandle::new().0).unwrap();
+    assert_eq!(list["uuid"], Some(profile("A")));
+    assert_eq!(active.as_deref(), Some("uuid"));
+    assert_eq!(skins, [skin]);
+  }
+
+  #[test]
+  fn mutations_publish_the_accounts_and_active_id() {
+    init_dirs();
+    seed_account([true; 4]);
+    let (handle, rx) = handle();
+
+    rt::block_on(handle.set_active("b")).unwrap();
+    let msgs: Vec<_> = rx.drain().collect();
+    assert_eq!(msgs[1..], [AccountMsg::Active(Some("b".into()))]);
+    assert_eq!(name_of(&msgs).as_deref(), Some("A"));
+
+    rt::block_on(handle.remove("uuid")).unwrap();
+    // removing again still publishes, the listener drops unchanged values
+    rt::block_on(handle.remove("uuid")).unwrap();
+    let empty = AccountMsg::Accounts(HashMap::new());
+    let active = AccountMsg::Active(Some("b".into()));
+    assert_eq!(
+      rx.drain().collect::<Vec<_>>(),
+      [empty.clone(), active.clone(), empty, active]
+    );
+  }
+
+  #[test]
+  fn launch_info_needs_a_logged_in_active_account() {
+    init_dirs();
+    let server = FakeServer::start();
+    let (handle, rx) = handle();
+    assert!(rt::block_on(handle.launch_info()).is_none());
+    assert_eq!(rx.drain().count(), 2);
+
+    seed_account([true; 4]);
+    let (handle, _) = self::handle();
+    let info = rt::block_on(handle.launch_info()).unwrap();
+    assert_eq!((info.id.as_str(), info.name.as_str()), ("uuid", "A"));
+    assert_eq!(info.access_token, "old-mc");
+    assert!(server.calls().is_empty(), "a valid token is not refreshed");
+  }
+
+  #[test]
+  fn launch_info_falls_back_to_the_old_token_when_refresh_fails() {
+    init_dirs();
+    let server = FakeServer::start();
+    server.route(
+      "POST",
+      "/api.minecraftservices.com/authentication/login_with_xbox",
+      503,
+      "",
+    );
+    seed_account([false, true, true, true]);
+    let (handle, _) = handle();
+    assert_eq!(
+      rt::block_on(handle.launch_info()).unwrap().access_token,
+      "old-mc"
+    );
+    assert_eq!(server.calls().len(), 1);
+  }
+
+  #[test]
+  fn launch_info_refreshes_an_expired_token() {
+    init_dirs();
+    let server = FakeServer::start();
+    token_routes(&server);
+    seed_account([false, true, true, true]);
+    let (handle, _) = handle();
+    assert_eq!(
+      rt::block_on(handle.launch_info()).unwrap().access_token,
+      "mc"
+    );
+    // the new token is saved
+    assert_eq!(AccountStore::new().unwrap().mc_token("uuid").unwrap(), "mc");
+  }
+
+  #[test]
+  fn refresh_all_publishes_the_new_profiles() {
+    init_dirs();
+    let server = FakeServer::start();
+    server.route("GET", PROFILE_PATH, 200, profile_json("Fresh"));
+    seed_account([true; 4]);
+    let (handle, rx) = handle();
+    rt::block_on(handle.refresh_all()).unwrap();
+    assert_eq!(
+      name_of(&rx.drain().collect::<Vec<_>>()).as_deref(),
+      Some("Fresh")
+    );
+  }
+
+  #[test]
+  fn cancel_without_a_login_resets_the_state() {
+    init_dirs();
+    let (handle, rx) = handle();
+    handle.cancel_login();
+    handle.cancel_login();
+    let idle = AccountMsg::Login(LoginState::Idle);
+    assert_eq!(rx.drain().collect::<Vec<_>>(), [idle.clone(), idle]);
+  }
+
+  #[test]
+  fn skin_changes_publish_the_skin_list() {
+    init_dirs();
+    let (handle, rx) = handle();
+    let skin = rt::block_on(handle.add_skin(png())).unwrap();
+    assert_eq!(
+      rx.drain().collect::<Vec<_>>(),
+      [AccountMsg::Skins(vec![skin.clone()])]
+    );
+
+    // a failed add still publishes the unchanged list
+    assert!(rt::block_on(handle.add_skin(b"nope".to_vec())).is_err());
+    rt::block_on(handle.remove_skin(&skin.id)).unwrap();
+    assert_eq!(
+      rx.drain().collect::<Vec<_>>(),
+      [AccountMsg::Skins(vec![skin]), AccountMsg::Skins(vec![])]
+    );
+  }
+
+  #[test]
+  fn get_skin_and_cape_cache_the_textures() {
+    init_dirs();
+    let server = FakeServer::start();
+    server.route("GET", "/s.png", 200, png());
+    server.route("GET", "/c.png", 200, b"cape".to_vec());
+    let (handle, _) = handle();
+    let url = |p: &str| Url::parse(&format!("{}/{p}", server.origin())).unwrap();
+    let skin = rt::block_on(handle.get_skin(url("s.png"))).unwrap();
+    let cape = rt::block_on(handle.get_cape(url("c.png"))).unwrap();
+    assert!(skin.data.exists() && cape.data.exists());
+    assert!(rt::block_on(handle.get_skin(url("404.png"))).is_err());
+  }
+
+  #[test]
+  fn change_skin_without_an_active_account_fails() {
+    init_dirs();
+    let server = FakeServer::start();
+    let (handle, _) = handle();
+    let err = rt::block_on(handle.change_skin("x")).unwrap_err();
+    assert_eq!(err.to_string(), "Active account not found");
+    assert!(server.calls().is_empty());
+  }
+
+  #[test]
+  fn change_skin_uploads_and_publishes_the_profile() {
+    init_dirs();
+    let server = FakeServer::start();
+    let changed = profile_json("Skinned");
+    server.route("POST", &format!("{PROFILE_PATH}/skins"), 200, changed);
+    seed_account([true; 4]);
+    let (handle, rx) = handle();
+    let skin = rt::block_on(handle.add_skin(png())).unwrap();
+    rx.drain().for_each(drop);
+
+    rt::block_on(handle.change_skin(&skin.id)).unwrap();
+    assert_eq!(
+      server.calls()[0].header("authorization"),
+      Some("Bearer old-mc")
+    );
+    assert_eq!(
+      name_of(&rx.drain().collect::<Vec<_>>()).as_deref(),
+      Some("Skinned")
+    );
+  }
+
+  #[test]
+  fn change_cape_publishes_the_profile() {
+    init_dirs();
+    let server = FakeServer::start();
+    server.route(
+      "DELETE",
+      &format!("{PROFILE_PATH}/capes/active"),
+      200,
+      profile_json("Bare"),
+    );
+    seed_account([true; 4]);
+    let (handle, rx) = handle();
+    rt::block_on(handle.change_cape(REMOVE_CAPE)).unwrap();
+    assert_eq!(
+      name_of(&rx.drain().collect::<Vec<_>>()).as_deref(),
+      Some("Bare")
+    );
+  }
+}

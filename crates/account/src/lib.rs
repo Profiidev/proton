@@ -110,16 +110,25 @@ impl Accounts {
 }
 
 #[cfg(test)]
-mod tests {
-  use std::{cell::Cell, rc::Rc};
+pub(crate) mod tests {
+  use std::{cell::Cell, path::PathBuf, rc::Rc};
 
   use gpui_kit::{self as gpui, TestAppContext};
 
   use super::*;
 
-  fn init_test(cx: &mut TestAppContext) {
+  /// Temp data dir for the store and the skin files, returns the app data dir
+  pub(crate) fn init_dirs() -> PathBuf {
     let dir = tempfile::tempdir().unwrap().keep();
-    proton_store::init_at(dir.join("store.json"));
+    // nextest runs each test in its own process; skins live under the data dir
+    unsafe { std::env::set_var("XDG_DATA_HOME", &dir) };
+    let data = dir.join("io.profidev.proton");
+    proton_store::init_at(data.join("store.json"));
+    data
+  }
+
+  fn init_test(cx: &mut TestAppContext) {
+    init_dirs();
     cx.update(|cx| {
       proton_config::init(cx);
       init(cx).unwrap();
@@ -150,5 +159,55 @@ mod tests {
       cx.update(|cx| accounts.active_id(cx).cloned()),
       Some("a".into())
     );
+  }
+
+  #[gpui::test]
+  async fn listener_writes_entities_only_on_change(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    init_test(cx);
+    let accounts = cx.update(|cx| cx.accounts().clone());
+    let counts = Rc::new(Cell::new((0, 0, 0)));
+    cx.update(|cx| {
+      let seen = counts.clone();
+      cx.observe(&accounts.skins, move |_, _| {
+        let (s, a, l) = seen.get();
+        seen.set((s + 1, a, l));
+      })
+      .detach();
+      let seen = counts.clone();
+      cx.observe(&accounts.accounts, move |_, _| {
+        let (s, a, l) = seen.get();
+        seen.set((s, a + 1, l));
+      })
+      .detach();
+      let seen = counts.clone();
+      cx.observe(&accounts.login, move |_, _| {
+        let (s, a, l) = seen.get();
+        seen.set((s, a, l + 1));
+      })
+      .detach();
+    });
+
+    let mut png = std::io::Cursor::new(Vec::new());
+    image::RgbaImage::new(64, 64)
+      .write_to(&mut png, image::ImageFormat::Png)
+      .unwrap();
+    let handle = accounts.handle.clone();
+    let skin = rt::spawn(async move { handle.add_skin(png.into_inner()).await })
+      .await
+      .unwrap()
+      .unwrap();
+    cx.run_until_parked();
+    // unknown ids leave the lists as they were
+    accounts.remove_skin("ghost".into()).await.unwrap();
+    accounts.remove("ghost".into()).await.unwrap();
+    // already idle
+    accounts.cancel_login();
+    cx.run_until_parked();
+
+    assert_eq!(counts.get(), (1, 0, 0));
+    assert_eq!(cx.update(|cx| accounts.skins.read(cx).clone()), [skin]);
+    assert_eq!(accounts.launch_info().await.unwrap().map(|i| i.id), None);
+    assert!(accounts.change_skin("ghost".into()).await.is_err());
   }
 }

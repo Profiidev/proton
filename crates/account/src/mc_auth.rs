@@ -16,7 +16,7 @@ use tokio::{
 use tracing::{debug, warn};
 use url::Url;
 
-use proton_utils::CLIENT_ID;
+use proton_utils::{CLIENT_ID, http};
 
 const REDIRECT_URI: &str = "http://localhost:51701";
 const REDIRECT_PORT: u16 = 51701;
@@ -89,7 +89,7 @@ pub async fn get_minecraft_token(
 ) -> Result<Token> {
   debug!("Sending mc token request");
   let res = client
-    .post(MC_TOKEN_URL)
+    .post(&*http::url(MC_TOKEN_URL))
     .json(&MCTokenReq {
       identity_token: format!("XBL3.0 x={user_hash};{xbox_security_token}"),
     })
@@ -147,7 +147,7 @@ struct XboxAuthRes {
 pub async fn get_xbox_security_token(client: &Client, xbox_token: &str) -> Result<Token> {
   debug!("Sending xbox security token request");
   let res = client
-    .post(XBOX_SECURITY_TOKEN_URL)
+    .post(&*http::url(XBOX_SECURITY_TOKEN_URL))
     .json(&XboxAuthReq {
       properties: XboxAuthProps::Security(XboxAuthPropsSecurity {
         sandbox_id: SANDBOX_ID.into(),
@@ -172,7 +172,7 @@ pub async fn get_xbox_security_token(client: &Client, xbox_token: &str) -> Resul
 pub async fn get_xbox_token(client: &Client, ms_access_token: &str) -> Result<TokenUserHash> {
   debug!("Sending xbox token request");
   let res = client
-    .post(XBOX_TOKEN_URL)
+    .post(&*http::url(XBOX_TOKEN_URL))
     .json(&XboxAuthReq {
       properties: XboxAuthProps::Normal(XboxAuthPropsNormal {
         auth_method: XBOX_AUTH_METHOD.into(),
@@ -213,7 +213,7 @@ struct MSTokenRes {
 pub async fn refresh_ms_token(client: &Client, ms_refresh_token: &str) -> Result<Option<MsToken>> {
   debug!("Sending ms token refresh request");
   let res = client
-    .post(MS_TOKEN_URL)
+    .post(&*http::url(MS_TOKEN_URL))
     .form(&vec![
       ("client_id", CLIENT_ID),
       ("scope", SCOPE),
@@ -256,7 +256,7 @@ pub async fn get_ms_token(client: &Client) -> Result<MsToken> {
 
   debug!("Retrieving ms token with code");
   let res = client
-    .post(MS_TOKEN_URL)
+    .post(&*http::url(MS_TOKEN_URL))
     .form(&vec![
       ("client_id", CLIENT_ID),
       ("code", &code),
@@ -279,7 +279,7 @@ pub async fn get_ms_token(client: &Client) -> Result<MsToken> {
 
 pub fn authorize_url(state: &str) -> Result<Url> {
   Ok(Url::parse_with_params(
-    MS_AUTHORIZE_URL,
+    &http::url(MS_AUTHORIZE_URL),
     [
       ("client_id", CLIENT_ID),
       ("response_type", "code"),
@@ -398,10 +398,255 @@ fn parse_redirect(request_line: &str, state: &str) -> Result<Option<String>> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
+  use proton_utils::{
+    rt,
+    test_http::{Call, FakeServer},
+  };
+  use serde_json::{Value, json};
   use tokio::{io::AsyncReadExt, net::TcpStream};
 
   use super::*;
+
+  pub(crate) const XBOX_RES: &str =
+    r#"{"NotAfter":"2099-01-01T00:00:00Z","Token":"xbl","DisplayClaims":{"xui":[{"uhs":"hash"}]}}"#;
+  pub(crate) const XSTS_RES: &str = r#"{"NotAfter":"2099-01-02T00:00:00Z","Token":"xsts","DisplayClaims":{"xui":[{"uhs":"hash"}]}}"#;
+  pub(crate) const MC_RES: &str = r#"{"access_token":"mc","expires_in":86400}"#;
+  pub(crate) const MS_RES: &str =
+    r#"{"expires_in":3600,"access_token":"ms2","refresh_token":"r2"}"#;
+
+  /// Routes every token endpoint to a working answer
+  pub(crate) fn token_routes(server: &FakeServer) {
+    server
+      .route("POST", &FakeServer::path(MS_TOKEN_URL), 200, MS_RES)
+      .route("POST", &FakeServer::path(XBOX_TOKEN_URL), 200, XBOX_RES)
+      .route(
+        "POST",
+        &FakeServer::path(XBOX_SECURITY_TOKEN_URL),
+        200,
+        XSTS_RES,
+      )
+      .route("POST", &FakeServer::path(MC_TOKEN_URL), 200, MC_RES);
+  }
+
+  /// Hosts and paths of the calls, without the leading slash
+  pub(crate) fn hit(calls: &[Call]) -> Vec<String> {
+    calls
+      .iter()
+      .map(|c| format!("{} {}", c.method, &c.path[1..]))
+      .collect()
+  }
+
+  fn json_body(call: &Call) -> Value {
+    serde_json::from_slice(&call.body).unwrap()
+  }
+
+  fn form(call: &Call) -> HashMap<String, String> {
+    url::form_urlencoded::parse(&call.body)
+      .into_owned()
+      .collect()
+  }
+
+  #[test]
+  fn xbox_token_request_and_user_hash() {
+    let server = FakeServer::start();
+    token_routes(&server);
+    let client = Client::new();
+    let res = rt::block_on(get_xbox_token(&client, "ms-ä")).unwrap();
+    assert_eq!(
+      (res.token.as_str(), res.user_hash.as_str()),
+      ("xbl", "hash")
+    );
+    assert_eq!(res.expires.to_rfc3339(), "2099-01-01T00:00:00+00:00");
+
+    let call = &server.calls()[0];
+    assert_eq!(call.header("content-type"), Some("application/json"));
+    assert_eq!(
+      json_body(call),
+      json!({
+        "Properties": {"AuthMethod": "RPS", "SiteName": "user.auth.xboxlive.com", "RpsTicket": "d=ms-ä"},
+        "RelyingParty": "http://auth.xboxlive.com",
+        "TokenType": "JWT",
+      })
+    );
+  }
+
+  #[test]
+  fn xbox_token_without_user_hash_is_invalid() {
+    let cases = [
+      r#"{"NotAfter":"2099-01-01T00:00:00Z","Token":"t","DisplayClaims":{}}"#,
+      r#"{"NotAfter":"2099-01-01T00:00:00Z","Token":"t","DisplayClaims":{"xui":[]}}"#,
+      r#"{"NotAfter":"2099-01-01T00:00:00Z","Token":"t","DisplayClaims":{"xui":[{"other":"x"}]}}"#,
+    ];
+    let server = FakeServer::start();
+    for body in cases {
+      server.route("POST", &FakeServer::path(XBOX_TOKEN_URL), 200, body);
+      let err = rt::block_on(get_xbox_token(&Client::new(), "ms"))
+        .err()
+        .unwrap();
+      assert!(
+        matches!(err.downcast_ref(), Some(AuthError::InvalidRes)),
+        "{body}"
+      );
+    }
+  }
+
+  #[test]
+  fn xsts_and_mc_token_requests() {
+    let server = FakeServer::start();
+    token_routes(&server);
+    let client = Client::new();
+    let xsts = rt::block_on(get_xbox_security_token(&client, "xbl")).unwrap();
+    assert_eq!(xsts.token, "xsts");
+    let before = Utc::now();
+    let mc = rt::block_on(get_minecraft_token(&client, "hash", "xsts")).unwrap();
+    assert_eq!(mc.token, "mc");
+    // expires_in is relative to the response
+    let ttl = mc.expires - before;
+    assert!(ttl >= Duration::seconds(86400) && ttl < Duration::seconds(86460));
+
+    let calls = server.calls();
+    assert_eq!(
+      json_body(&calls[0]),
+      json!({
+        "Properties": {"SandboxId": "RETAIL", "UserTokens": ["xbl"]},
+        "RelyingParty": "rp://api.minecraftservices.com/",
+        "TokenType": "JWT",
+      })
+    );
+    assert_eq!(
+      json_body(&calls[1]),
+      json!({"identityToken": "XBL3.0 x=hash;xsts"})
+    );
+  }
+
+  #[test]
+  fn refresh_ms_token_sends_the_refresh_form() {
+    let server = FakeServer::start();
+    token_routes(&server);
+    let res = rt::block_on(refresh_ms_token(&Client::new(), "r1&x=y"))
+      .unwrap()
+      .unwrap();
+    assert_eq!(
+      (res.access_token.as_str(), res.refresh_token.as_str()),
+      ("ms2", "r2")
+    );
+
+    let call = &server.calls()[0];
+    assert_eq!(
+      call.header("content-type"),
+      Some("application/x-www-form-urlencoded")
+    );
+    let form = form(call);
+    // the token is form encoded, a `&` in it does not split the field
+    assert_eq!(form["refresh_token"], "r1&x=y");
+    assert_eq!(form["grant_type"], "refresh_token");
+    assert_eq!(form["scope"], SCOPE);
+    assert_eq!(form["client_id"], CLIENT_ID);
+  }
+
+  #[test]
+  fn refresh_ms_token_statuses() {
+    // 400/401 mean the refresh token is dead: log in again, not an error
+    let cases = [
+      (400, MS_RES, Some(None)),
+      (401, "", Some(None)),
+      (200, MS_RES, Some(Some("ms2"))),
+      (403, MS_RES, None),
+      (500, MS_RES, None),
+      (200, "{", None),
+      (200, r#"{"access_token":"a","refresh_token":"r"}"#, None),
+    ];
+    let server = FakeServer::start();
+    for (status, body, want) in cases {
+      server.route("POST", &FakeServer::path(MS_TOKEN_URL), status, body);
+      let res = rt::block_on(refresh_ms_token(&Client::new(), "r"));
+      let got = res.ok().map(|t| t.map(|t| t.access_token));
+      assert_eq!(got.as_ref().map(|t| t.as_deref()), want, "{status} {body}");
+    }
+  }
+
+  #[test]
+  fn every_token_step_fails_on_bad_answers() {
+    let bad = [
+      (401, XBOX_RES),
+      (429, XBOX_RES),
+      (503, XBOX_RES),
+      (200, ""),
+      (200, "not json"),
+      (200, r#"{"Token":"t"}"#),
+      (200, r#"{"token":"t","expires_in":1}"#),
+    ];
+    let server = FakeServer::start();
+    let client = Client::new();
+    for (status, body) in bad {
+      for url in [XBOX_TOKEN_URL, XBOX_SECURITY_TOKEN_URL, MC_TOKEN_URL] {
+        server.route("POST", &FakeServer::path(url), status, body);
+      }
+      assert!(
+        rt::block_on(get_xbox_token(&client, "ms")).is_err(),
+        "{status} {body}"
+      );
+      assert!(
+        rt::block_on(get_xbox_security_token(&client, "x")).is_err(),
+        "{status} {body}"
+      );
+      assert!(
+        rt::block_on(get_minecraft_token(&client, "h", "x")).is_err(),
+        "{status} {body}"
+      );
+    }
+  }
+
+  #[test]
+  fn unreachable_server_is_an_error() {
+    // nothing listens on port 1
+    unsafe { std::env::set_var(proton_utils::http::FAKE_ORIGIN, "http://127.0.0.1:1") };
+    assert!(rt::block_on(get_xbox_token(&Client::new(), "ms")).is_err());
+    assert!(rt::block_on(refresh_ms_token(&Client::new(), "r")).is_err());
+  }
+
+  #[test]
+  fn parse_redirect_cases() {
+    let cases: &[(&str, Result<Option<&str>, &str>)] = &[
+      ("GET /?code=c&state=s HTTP/1.1", Ok(Some("c"))),
+      ("GET /?state=s&code=%C3%BC HTTP/1.1", Ok(Some("ü"))),
+      ("GET /?code=&state=s HTTP/1.1", Ok(Some(""))),
+      ("POST /?code=c&state=s HTTP/1.1", Ok(None)),
+      ("GET /favicon.ico HTTP/1.1", Ok(None)),
+      ("GET /other?code=c&state=s HTTP/1.1", Ok(None)),
+      ("GET /?state=s HTTP/1.1", Ok(None)),
+      ("GET  HTTP/1.1", Ok(None)),
+      ("", Ok(None)),
+      (
+        "GET /?code=c HTTP/1.1",
+        Err("Login state mismatch, possible CSRF attempt"),
+      ),
+      (
+        "GET /?code=c&state=S HTTP/1.1",
+        Err("Login state mismatch, possible CSRF attempt"),
+      ),
+      // the error is only trusted with our state
+      (
+        "GET /?error=e HTTP/1.1",
+        Err("Login state mismatch, possible CSRF attempt"),
+      ),
+      (
+        "GET /?error=access_denied&state=s HTTP/1.1",
+        Err("Microsoft login failed: access_denied"),
+      ),
+      // an error wins over a code
+      (
+        "GET /?code=c&error=e&error_description=no&state=s HTTP/1.1",
+        Err("Microsoft login failed: no"),
+      ),
+    ];
+    for (line, want) in cases {
+      let got = parse_redirect(line, "s").map_err(|e| e.to_string());
+      let want = want.map(|c| c.map(String::from)).map_err(String::from);
+      assert_eq!(got, want, "{line}");
+    }
+  }
 
   async fn get(addr: std::net::SocketAddr, target: &str) -> String {
     let mut stream = TcpStream::connect(addr).await.unwrap();
