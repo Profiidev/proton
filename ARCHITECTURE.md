@@ -106,7 +106,7 @@ Read `crates/utils/PATTERNS.md`; it is the source of truth. In short:
   never re-render the header; `Sidebar` (main nav, sliding `Glide` pill, compact below 768px,
   footer from `set_sidebar_footer`); `SimpleSidebar` for the settings/profile sub-navs;
   `DownloadsPanel` (one entity per row). Pages are cached per route (`CACHED_PAGES` = 8, LRU)
-  and fade in on navigation. `ShellData` holds what the shell shows; services push into it.
+  and switch without a transition. `ShellData` holds what the shell shows; services push into it.
 - **`router/`** – `Route` enum (`route.rs`) with `ProfileTab`, `SettingsTab`, `Kind`, `Source`.
   `Route::to_url`/`from_url` speak the old SvelteKit URLs (`/profiles/info/logs?id=x`,
   `tauri://localhost/...`) including the old redirects, so `settings.url` from the Tauri app

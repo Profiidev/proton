@@ -5,14 +5,13 @@ mod header;
 mod pages;
 mod sidebar;
 
-use std::{collections::HashMap, time::Duration};
+use std::collections::HashMap;
 
 use gpui_kit::{
-  Animation, AnimationExt, AnyView, App, AppContext, Context, ElementId, Entity, EventEmitter,
-  Global, InteractiveElement, IntoElement, MouseButton, NavigationDirection, ParentElement, Render,
-  StyleRefinement, Styled, Window, component::ActiveTheme, div, prelude::FluentBuilder, px,
+  AnyView, App, AppContext, Context, Entity, EventEmitter, Global, InteractiveElement, IntoElement,
+  MouseButton, NavigationDirection, ParentElement, Render, StyleRefinement, Styled, Window,
+  component::ActiveTheme, div, prelude::FluentBuilder, px,
 };
-use proton_components::animation::ease_out_cubic;
 
 pub use downloads::{DownloadRowView, DownloadsPanel};
 pub use header::{HEADER_HEIGHT, Header, HeaderActions};
@@ -23,7 +22,6 @@ use crate::router::{Names, Route, RouterExt, SettingsTab};
 
 /// ponytail: a handful of cached pages; bump if switching back feels slow
 const CACHED_PAGES: usize = 8;
-const PAGE_FADE: Duration = Duration::from_millis(150);
 
 /// What the shell shows about the app's data. The services push into it
 /// (`write_changed`), the shell never asks them.
@@ -77,8 +75,6 @@ pub struct Shell {
   /// most recently used last
   pages: Vec<(Route, AnyView)>,
   profile_header: Option<(String, AnyView)>,
-  /// bumps on every navigation, keys the page fade
-  nav_count: usize,
 }
 
 impl Shell {
@@ -86,7 +82,6 @@ impl Shell {
     let router = cx.router();
     let data = cx.shell_data();
     cx.observe(&router, |this, _, cx| {
-      this.nav_count += 1;
       this.sync_navs(cx);
       cx.notify();
     })
@@ -102,7 +97,6 @@ impl Shell {
       profile_nav: cx.new(|_| SimpleSidebar::default()),
       pages: vec![],
       profile_header: None,
-      nav_count: 0,
     };
     this.sync_navs(cx);
     this
@@ -153,18 +147,7 @@ impl Render for Shell {
     // ponytail: the page root renders on every frame, keep page roots shallow and push
     // live parts into cached child views.
     let page = self.page(&route, window, cx);
-    let page = div().relative().size_full().child(page).map(|el| {
-      if cx.reduce_motion() {
-        el.into_any_element()
-      } else {
-        el.with_animation(
-          ElementId::NamedInteger("page".into(), self.nav_count as u64),
-          Animation::new(PAGE_FADE).with_easing(ease_out_cubic),
-          |el, t| el.opacity(t),
-        )
-        .into_any_element()
-      }
-    });
+    let page = div().relative().size_full().child(page);
 
     let content = match &route {
       Route::Settings(tab) => div()
