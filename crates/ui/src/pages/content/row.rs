@@ -213,7 +213,8 @@ impl Render for ContentRow {
       .items_center()
       .gap_3()
       .px_3()
-      .border_b_1()
+      // top separator: a bottom one on the last row pokes past the table's rounded corners
+      .border_t_1()
       .border_color(theme.border)
       .hover(|s| s.bg(theme.accent.opacity(0.4)))
       .when(kind == ContentKind::ResourcePack && entry.enabled, |el| {

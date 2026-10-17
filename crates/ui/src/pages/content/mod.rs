@@ -671,8 +671,6 @@ impl ContentPage {
       .items_center()
       .gap_3()
       .px_3()
-      .border_b_1()
-      .border_color(theme.border)
       .bg(theme.muted.opacity(0.4))
       .when(self.kind == ContentKind::ResourcePack, |el| {
         el.child(div().size_4().flex_none())
@@ -715,6 +713,8 @@ impl ContentPage {
       div()
         .px_3()
         .py_6()
+        .border_t_1()
+        .border_color(theme.border)
         .text_center()
         .text_sm()
         .text_color(theme.muted_foreground)
@@ -758,6 +758,8 @@ impl ContentPage {
         .items_center()
         .gap_3()
         .px_3()
+        .border_t_1()
+        .border_color(theme.border)
         .child(div().size_4().flex_none())
         .child(
           div()
