@@ -501,10 +501,6 @@ async fn settings_rename_on_enter_and_blur_and_toast_when_empty(cx: &mut TestApp
   assert_eq!(toasts(cx, handle), 0);
   set("", InputEvent::Blur, cx);
   assert_eq!(profile(cx, VANILLA).unwrap().name, "Blurred");
-  // ponytail: `toast` from inside a window callback is dropped (the window is borrowed), so
-  // the empty-name toast is checked from outside; see the report on `actions::toast`
-  page.update(cx, |p, cx| p.rename(cx));
-  cx.run_until_parked();
   assert_eq!(toasts(cx, handle), 1);
 }
 

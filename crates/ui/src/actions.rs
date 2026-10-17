@@ -10,9 +10,12 @@ use proton_profiles::{ProfilesExt, config::QuickPlayInfo, store::LaunchInfo};
 /// Shows a toast in the main window
 pub fn toast(note: impl Into<Notification>, cx: &mut App) {
   let note = note.into();
-  if let Some(window) = cx.windows().into_iter().next() {
-    let _ = window.update(cx, |_, window, cx| window.push_notification(note, cx));
-  }
+  // deferred: from a click or event handler the window is mid-update and a nested update fails
+  cx.defer(move |cx| {
+    if let Some(window) = cx.windows().into_iter().next() {
+      let _ = window.update(cx, |_, window, cx| window.push_notification(note, cx));
+    }
+  });
 }
 
 /// Shows an error toast with the message and the error chain
@@ -75,6 +78,14 @@ mod tests {
     cx.update(|cx| toast("early", cx));
     let handle = test_view::open(cx, |_, _| div().into_any_element()).0;
     cx.update(|cx| toast_error("Failed", &anyhow::anyhow!("boom"), cx));
+    assert_eq!(toasts(cx, handle), 1);
+  }
+
+  #[gpui::test]
+  fn toast_from_inside_a_window_callback_is_shown(cx: &mut TestAppContext) {
+    let handle = open(cx);
+    // like a click handler: the window is already being updated
+    cx.update_window(handle, |_, _, cx| toast("inside", cx)).unwrap();
     assert_eq!(toasts(cx, handle), 1);
   }
 

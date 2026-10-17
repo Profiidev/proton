@@ -443,7 +443,6 @@ fn wrong_extensions_warn_and_the_rest_is_added(cx: &mut TestAppContext) {
   let dir = tempfile::tempdir().unwrap();
   let jar = dir.path().join("Upper.JAR");
   std::fs::write(&jar, b"jar").unwrap();
-  // ponytail: called outside the window, a toast from a window callback is dropped (see report)
   page.update(cx, |p, cx| {
     p.add_paths(vec![dir.path().join("pack.zip"), jar.clone()], cx)
   });
