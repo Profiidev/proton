@@ -1,6 +1,7 @@
 use std::{
   io::Read,
   path::{Path, PathBuf},
+  sync::atomic::{AtomicU64, Ordering},
 };
 
 use anyhow::Result;
@@ -54,9 +55,19 @@ pub async fn read_parse_xml_file<R: DeserializeOwned>(path: &PathBuf) -> Result<
   Ok(serde_xml_rs::from_str(&data)?)
 }
 
+/// Writes JSON through a temp file and a rename, so a concurrent reader never sees a cut file
 pub async fn write_file<T: Serialize>(path: &PathBuf, data: &T) -> Result<()> {
+  static NEXT: AtomicU64 = AtomicU64::new(0);
   let data = serde_json::to_string(data)?;
-  fs::write(path, data).await?;
+  // unique per write, two writers never share a temp file
+  let n = NEXT.fetch_add(1, Ordering::Relaxed);
+  let mut tmp = path.clone().into_os_string();
+  tmp.push(format!(".{}.{n}.tmp", std::process::id()));
+  fs::write(&tmp, data).await?;
+  if let Err(e) = fs::rename(&tmp, path).await {
+    let _ = fs::remove_file(&tmp).await;
+    return Err(e.into());
+  }
   Ok(())
 }
 
@@ -153,6 +164,31 @@ mod tests {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("missing/item.json");
     assert!(block_on(write_file(&path, &1)).is_err());
+  }
+
+  #[test]
+  fn concurrent_readers_never_see_a_cut_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("item.json");
+    let big = "x".repeat(1 << 20);
+    block_on(write_file(&path, &big)).unwrap();
+    let writer = {
+      let path = path.clone();
+      let big = big.clone();
+      std::thread::spawn(move || {
+        for _ in 0..50 {
+          block_on(write_file(&path, &big)).unwrap();
+        }
+      })
+    };
+    while !writer.is_finished() {
+      // a plain truncate-then-write shows an empty or short file here
+      let read: String = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+      assert_eq!(read.len(), big.len());
+    }
+    writer.join().unwrap();
+    // no temp files left behind
+    assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
   }
 
   #[test]
