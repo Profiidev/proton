@@ -48,6 +48,8 @@ pub struct InstanceInfo {
   pub version: String,
   pub loader: LoaderType,
   pub account_name: String,
+  /// `-Xmx` in MB the game was launched with
+  pub mem_max: u64,
 }
 
 #[derive(Error, Debug)]
@@ -66,6 +68,7 @@ impl Instance {
     data_dir: &Path,
     profile: &Profile,
     account_name: String,
+    mem_max: u64,
     instances: &Instances,
     tx: &flume::Sender<ProfilesMsg>,
   ) -> Result<()> {
@@ -87,6 +90,7 @@ impl Instance {
       version: profile.version.clone(),
       loader: profile.loader,
       account_name,
+      mem_max,
     };
     debug!("Adding child instance with pid {pid} and id {}", info.id);
     let stop_signal = Arc::new(Notify::new());
@@ -298,7 +302,7 @@ mod tests {
       let (dir, instances, tx, rx) = setup();
       let p = profile("p");
       let msgs = rt::block_on(async {
-        Instance::create(sh(script), &dir, &p, "acc".into(), &instances, &tx)
+        Instance::create(sh(script), &dir, &p, "acc".into(), 2048, &instances, &tx)
           .await
           .unwrap();
         until_runs(&rx).await
@@ -344,6 +348,7 @@ mod tests {
         &dir,
         &p,
         "acc".into(),
+        2048,
         &instances,
         &tx,
       )
@@ -377,6 +382,7 @@ mod tests {
         &dir,
         &p,
         "acc".into(),
+        2048,
         &instances,
         &tx,
       )
@@ -397,9 +403,17 @@ mod tests {
         .stdout(std::process::Stdio::piped())
         .spawn()
         .unwrap();
-      Instance::create(child, &dir, &profile("p"), "acc".into(), &instances, &tx)
-        .await
-        .unwrap_err()
+      Instance::create(
+        child,
+        &dir,
+        &profile("p"),
+        "acc".into(),
+        2048,
+        &instances,
+        &tx,
+      )
+      .await
+      .unwrap_err()
     });
     assert!(matches!(
       err.downcast_ref(),

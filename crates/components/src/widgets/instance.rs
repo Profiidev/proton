@@ -28,7 +28,7 @@ pub struct InstanceRow {
   uptime: SharedString,
   account: Option<SharedString>,
   memory_used: Option<u64>,
-  /// total system memory in MB
+  /// memory limit in MB, the full bar
   memory_total_mb: Option<u64>,
   card: bool,
   on_console: Option<Callback>,

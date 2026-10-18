@@ -219,6 +219,7 @@ impl ProfileStore {
       .clone()
       .and_then(|v| profile.loader.loader_version(profile.version.clone(), v));
 
+    let mem_max = jvm_settings.mem_max as u64;
     let child = launch_minecraft_version(&LaunchArgs {
       access_token: info.access_token,
       launcher_name: LAUNCHER_NAME.into(),
@@ -236,7 +237,7 @@ impl ProfileStore {
     })
     .await?;
 
-    self.add_instance(child, &profile, info.name).await
+    self.add_instance(child, &profile, info.name, mem_max).await
   }
 
   /// Tracks a started game process as an instance of `profile`
@@ -245,12 +246,14 @@ impl ProfileStore {
     child: tokio::process::Child,
     profile: &Profile,
     account_name: String,
+    mem_max: u64,
   ) -> Result<()> {
     Instance::create(
       child,
       &self.data_dir,
       profile,
       account_name,
+      mem_max,
       &self.instances,
       &self.tx,
     )
@@ -662,11 +665,11 @@ mod tests {
       let p = store.profile(&id).await.unwrap();
       assert!(!store.is_running(&id).await);
       store
-        .add_instance(sh("sleep 30"), &p, "acc".into())
+        .add_instance(sh("sleep 30"), &p, "acc".into(), 2048)
         .await
         .unwrap();
       store
-        .add_instance(sh("sleep 30"), &p, "acc".into())
+        .add_instance(sh("sleep 30"), &p, "acc".into(), 2048)
         .await
         .unwrap();
       assert!(store.is_running(&id).await);
