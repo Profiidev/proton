@@ -6,6 +6,7 @@ use gpui_kit::{
 };
 use proton_account::AccountsExt;
 use proton_profiles::{ProfilesExt, config::QuickPlayInfo, store::LaunchInfo};
+use serde::{Deserialize, Serialize};
 
 /// Shows a toast in the main window
 pub fn toast(note: impl Into<Notification>, cx: &mut App) {
@@ -24,14 +25,43 @@ pub fn toast_error(message: &str, err: &anyhow::Error, cx: &mut App) {
   toast(Notification::error(format!("{message}: {err}")), cx);
 }
 
+/// A launch asked for on the command line, sent to the running app as JSON
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct LaunchRequest {
+  pub profile: String,
+  pub quick_play: Option<QuickPlayInfo>,
+  /// Account id, the active account when `None`
+  pub account: Option<String>,
+}
+
 /// Launches a profile (optionally straight into a world/server) with the active account
 pub fn launch(profile: String, quick_play: Option<QuickPlayInfo>, cx: &mut App) {
-  let info = cx.accounts().launch_info();
+  launch_request(
+    LaunchRequest {
+      profile,
+      quick_play,
+      account: None,
+    },
+    cx,
+  );
+}
+
+pub fn launch_request(request: LaunchRequest, cx: &mut App) {
+  let LaunchRequest {
+    profile,
+    quick_play,
+    account,
+  } = request;
+  let missing = match account {
+    Some(_) => "Account is not logged in",
+    None => "No account selected",
+  };
+  let info = cx.accounts().launch_info(account);
   cx.spawn(async move |cx| {
     let auth = match info.await {
       Ok(Some(a)) => a,
       Ok(None) => {
-        cx.update(|cx| toast(Notification::error("No account selected"), cx));
+        cx.update(|cx| toast(Notification::error(missing), cx));
         return;
       }
       Err(e) => {
@@ -103,6 +133,25 @@ mod tests {
         == 1
     });
     // nothing was started
+    assert!(cx.update(|cx| cx.profiles().instances.read(cx).is_empty()));
+    assert_eq!(toasts(cx, handle), 1);
+  }
+
+  #[gpui::test]
+  fn launch_request_with_an_unknown_account_says_so(cx: &mut TestAppContext) {
+    let handle = open(cx);
+    let request = LaunchRequest {
+      profile: VANILLA.into(),
+      quick_play: None,
+      account: Some("ghost".into()),
+    };
+    cx.update(|cx| launch_request(request, cx));
+    poll(cx, |cx| {
+      cx.windows()[0]
+        .update(cx, |_, w, cx| w.notifications(cx).len())
+        .unwrap()
+        == 1
+    });
     assert!(cx.update(|cx| cx.profiles().instances.read(cx).is_empty()));
     assert_eq!(toasts(cx, handle), 1);
   }

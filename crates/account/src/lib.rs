@@ -88,8 +88,9 @@ impl Accounts {
     /// `store::REMOVE_CAPE` removes the cape
     change_cape(id: String) -> (), |h| h.change_cape(&id));
   service_fn!(
-    /// Refreshed launch info of the active account, `None` without one
-    launch_info() -> Option<LaunchInfo>, |h| async move { Ok(h.launch_info().await) });
+    /// Refreshed launch info of `account` (the active one when `None`), `None` without one
+    launch_info(account: Option<AccountId>) -> Option<LaunchInfo>,
+    |h| async move { Ok(h.launch_info(account.as_deref()).await) });
 
   /// Opens the browser login; progress shows in `login`. Resolves when the account was added,
   /// `Ok(())` too when it was cancelled.
@@ -207,7 +208,10 @@ pub(crate) mod tests {
 
     assert_eq!(counts.get(), (1, 0, 0));
     assert_eq!(cx.update(|cx| accounts.skins.read(cx).clone()), [skin]);
-    assert_eq!(accounts.launch_info().await.unwrap().map(|i| i.id), None);
+    assert_eq!(
+      accounts.launch_info(None).await.unwrap().map(|i| i.id),
+      None
+    );
     assert!(accounts.change_skin("ghost".into()).await.is_err());
   }
 }
