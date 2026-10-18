@@ -86,7 +86,9 @@ async fn spawn_instance(profiles: &Profiles, cx: &mut TestAppContext) -> String 
       .spawn()?;
     let store = handle.store.lock().await;
     let profile = store.profile(VANILLA).await?;
-    store.add_instance(child, &profile, "Steve".into()).await
+    store
+      .add_instance(child, &profile, "Steve".into(), 2048)
+      .await
   })
   .await
   .unwrap()
@@ -216,6 +218,7 @@ fn groups_and_summary() {
     version: "1.21".into(),
     loader: LoaderType::Vanilla,
     account_name: String::new(),
+    mem_max: 2048,
   };
   let groups = group_by_profile(&[info("c", "b", 3), info("a", "a", 2), info("x", "b", 1)]);
   let ids: Vec<Vec<&str>> = groups
@@ -447,6 +450,7 @@ fn sibling_labels_add_the_account_when_known() {
     version: "1.21".into(),
     loader: LoaderType::Vanilla,
     account_name: account.into(),
+    mem_max: 2048,
   };
   let siblings = [info("Steve"), info(""), info("Ünïcode")];
   let cases = [

@@ -84,6 +84,7 @@ fn info(id: &str) -> InstanceInfo {
     version: "1.21".into(),
     loader: LoaderType::Vanilla,
     account_name: String::new(),
+    mem_max: 2048,
   }
 }
 
@@ -180,7 +181,9 @@ async fn non_zero_exit_emits_crash(cx: &mut TestAppContext) {
       .spawn()?;
     let store = handle.store.lock().await;
     let profile = store.profile(&profile_id).await?;
-    store.add_instance(child, &profile, "acc".into()).await
+    store
+      .add_instance(child, &profile, "acc".into(), 2048)
+      .await
   })
   .await
   .unwrap()
@@ -524,7 +527,7 @@ async fn instances_stop_one_by_one_or_all_together(cx: &mut TestAppContext) {
       let store = handle.store.lock().await;
       let profile = store.profile(&id).await.unwrap();
       store
-        .add_instance(sh("sleep 30"), &profile, "acc".into())
+        .add_instance(sh("sleep 30"), &profile, "acc".into(), 2048)
         .await
         .unwrap();
     });

@@ -862,7 +862,7 @@ mod tests {
         .unwrap();
       let store = profiles.store.lock().await;
       store
-        .add_instance(child, &profile, "acc".into())
+        .add_instance(child, &profile, "acc".into(), 2048)
         .await
         .unwrap();
     })

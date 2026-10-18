@@ -15,7 +15,6 @@ use gpui_kit::{
 use proton_components::widgets::{
   form::open_destroy_dialog, format::format_duration, instance::InstanceRow,
 };
-use proton_config::settings::system_max_mem;
 use proton_profiles::{ProfilesExt, instance::InstanceInfo};
 use proton_utils::entity::WriteChangedExt;
 
@@ -192,7 +191,7 @@ impl Render for RowView {
 
     InstanceRow::new(SharedString::from(info.id.clone()), self.number, uptime)
       .account(Some(info.account_name.clone().into()))
-      .memory(memory, Some(system_max_mem()))
+      .memory(memory, Some(self.info.mem_max))
       .card(self.card)
       .on_console(move |_, cx| cx.navigate(Route::InstanceLogs { id: id.clone() }))
       .on_stop(move |window, cx| confirm_stop(&info, stop_text.clone(), window, cx))
