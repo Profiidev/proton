@@ -359,6 +359,23 @@ impl ProfileStore {
   }
 }
 
+/// Profiles listed in `store.json`, oldest first, read without watchers or saving (for the
+/// cli next to a running app). Unreadable ones are skipped.
+pub async fn read_profiles(data_dir: &Path) -> Vec<Profile> {
+  let paths: HashMap<String, PathBuf> = proton_store::store()
+    .get_or_default(ProfileStore::PROFILE_KEY)
+    .unwrap_or_default();
+  let mut profiles = Vec::new();
+  for path in paths.into_values() {
+    // old absolute paths stay absolute when joined
+    if let Ok(profile) = read_parse_file(&path!(data_dir, &path, PROFILE_CONFIG)).await {
+      profiles.push(profile);
+    }
+  }
+  profiles.sort_by_key(|p: &Profile| p.created_at);
+  profiles
+}
+
 /// Number of `*.jar` files directly inside `dir`, 0 if it does not exist
 pub fn count_mod_jars(dir: &Path) -> usize {
   let Ok(entries) = std::fs::read_dir(dir) else {
@@ -528,6 +545,12 @@ mod tests {
         .map(|p| p.name)
         .collect();
       assert_eq!(names, ["First", "Second"]);
+      let read: Vec<_> = read_profiles(&data_dir)
+        .await
+        .into_iter()
+        .map(|p| p.name)
+        .collect();
+      assert_eq!(read, names);
       assert_eq!(saved_paths().len(), 2);
       assert_eq!(
         store.get_profile_path(&first).unwrap(),

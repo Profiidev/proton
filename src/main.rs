@@ -5,12 +5,29 @@ use std::sync::Arc;
 
 use proton_ui::app::single_instance;
 
+mod cli;
+
 fn main() {
   proton_utils::dir::migrate();
+  // release windows builds have no console, so list output is not visible there;
+  // attach to the parent console (AttachConsole) if windows users need the cli
+  let launch = match cli::run() {
+    Ok(cli::Start::App) => None,
+    Ok(cli::Start::Launch(request)) => Some(request),
+    Ok(cli::Start::Done) => return,
+    Err(e) => {
+      eprintln!("{e:#}");
+      std::process::exit(1);
+    }
+  };
   proton_utils::log::init();
 
   let path = single_instance::default_path();
-  let mut acquired = single_instance::acquire(&path);
+  let request = launch
+    .as_ref()
+    .map(|r| serde_json::to_vec(r).expect("a launch request serializes"))
+    .unwrap_or_default();
+  let mut acquired = single_instance::acquire(&path, &request);
   // after an update restart the old process may still hold the socket for a moment
   if std::env::var_os(proton_ui::updater::RESTART_ENV).is_some() {
     for _ in 0..50 {
@@ -18,13 +35,13 @@ fn main() {
         break;
       }
       std::thread::sleep(std::time::Duration::from_millis(100));
-      acquired = single_instance::acquire(&path);
+      acquired = single_instance::acquire(&path, &request);
     }
   }
   let listener = match acquired {
     Ok(Some(listener)) => Some(listener),
     Ok(None) => {
-      tracing::info!("Proton is already running, focused its window");
+      tracing::info!("Proton is already running, sent the request to it");
       return;
     }
     Err(e) => {
@@ -50,6 +67,9 @@ fn main() {
       let window = proton_ui::app::start(cx).expect("Failed to open the window");
       if let Some(listener) = listener {
         single_instance::focus_on_request(listener, window, cx);
+      }
+      if let Some(request) = launch {
+        proton_ui::actions::launch_request(request, cx);
       }
     });
 }

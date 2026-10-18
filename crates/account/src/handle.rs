@@ -114,14 +114,14 @@ impl AccountsHandle {
     res
   }
 
-  /// Refreshes the token of the active account (errors only logged, the old token may still
-  /// work) and returns what the game needs. `None` without a logged in active account.
-  pub async fn launch_info(&self) -> Option<LaunchInfo> {
+  /// Refreshes the token of `account` (the active one when `None`; errors only logged, the old
+  /// token may still work) and returns what the game needs. `None` when it is not logged in.
+  pub async fn launch_info(&self, account: Option<&str>) -> Option<LaunchInfo> {
     let mut store = self.store.lock().await;
-    let active = store.active().to_string();
-    let _ = store.refresh_auth(&active).await.log_err();
+    let id = account.unwrap_or(store.active()).to_string();
+    let _ = store.refresh_auth(&id).await.log_err();
     self.publish(&store);
-    store.launch_info(&active)
+    store.launch_info(&id)
   }
 
   /// Starts the browser login on the tokio runtime. Abort the returned task or call
@@ -315,15 +315,19 @@ mod tests {
     init_dirs();
     let server = FakeServer::start();
     let (handle, rx) = handle();
-    assert!(rt::block_on(handle.launch_info()).is_none());
+    assert!(rt::block_on(handle.launch_info(None)).is_none());
     assert_eq!(rx.drain().count(), 2);
 
     seed_account([true; 4]);
     let (handle, _) = self::handle();
-    let info = rt::block_on(handle.launch_info()).unwrap();
+    let info = rt::block_on(handle.launch_info(None)).unwrap();
     assert_eq!((info.id.as_str(), info.name.as_str()), ("uuid", "A"));
     assert_eq!(info.access_token, "old-mc");
     assert!(server.calls().is_empty(), "a valid token is not refreshed");
+    // an explicit account instead of the active one
+    let named = rt::block_on(handle.launch_info(Some("uuid"))).unwrap();
+    assert_eq!(named.name, "A");
+    assert!(rt::block_on(handle.launch_info(Some("ghost"))).is_none());
   }
 
   #[test]
@@ -339,7 +343,7 @@ mod tests {
     seed_account([false, true, true, true]);
     let (handle, _) = handle();
     assert_eq!(
-      rt::block_on(handle.launch_info()).unwrap().access_token,
+      rt::block_on(handle.launch_info(None)).unwrap().access_token,
       "old-mc"
     );
     assert_eq!(server.calls().len(), 1);
@@ -353,7 +357,7 @@ mod tests {
     seed_account([false, true, true, true]);
     let (handle, _) = handle();
     assert_eq!(
-      rt::block_on(handle.launch_info()).unwrap().access_token,
+      rt::block_on(handle.launch_info(None)).unwrap().access_token,
       "mc"
     );
     // the new token is saved
