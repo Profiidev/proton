@@ -76,6 +76,10 @@ pub async fn plan_install<'p>(
     }
   }
   let replaces = &replaces;
+  // ponytail: OptiFine is only on its own site, so it is matched by file name
+  let optifine = entries
+    .iter()
+    .any(|e| e.kind == ContentKind::Mod && e.file_name.to_lowercase().contains("optifine"));
   let installed = |id: &str| {
     !replaces.contains_key(id)
       && entries.iter().any(|e| {
@@ -129,7 +133,7 @@ pub async fn plan_install<'p>(
         continue;
       }
 
-      let version = match supported(project.kind, profile.loader) {
+      let version = match supported(project.kind, profile.loader, optifine) {
         Ok(()) => {
           let loaders = profile_loaders(want.source, project.kind, profile.loader);
           let versions = get(want.source)
@@ -170,7 +174,7 @@ pub async fn plan_install<'p>(
           DependencyKind::Embedded => {}
         }
       }
-      if project.kind == ContentKind::Shader {
+      if project.kind == ContentKind::Shader && !optifine {
         next.push(Want {
           source: Source::Modrinth,
           project_id: IRIS.into(),
@@ -245,12 +249,16 @@ pub async fn plan_install<'p>(
 }
 
 /// Whether the profile loader can run content of this kind
-fn supported(kind: ContentKind, loader: LoaderType) -> std::result::Result<(), ContentError> {
+fn supported(
+  kind: ContentKind,
+  loader: LoaderType,
+  optifine: bool,
+) -> std::result::Result<(), ContentError> {
   match (kind, loader) {
     (ContentKind::Modpack, _) => Err(ContentError::Unsupported),
     (ContentKind::Mod, LoaderType::Vanilla) => Err(ContentError::Incompatible),
-    // Iris runs on Fabric, Quilt and NeoForge
-    (ContentKind::Shader, LoaderType::Vanilla | LoaderType::Forge) => {
+    // Iris runs on Fabric, Quilt and NeoForge, OptiFine anywhere it is installed
+    (ContentKind::Shader, LoaderType::Vanilla | LoaderType::Forge) if !optifine => {
       Err(ContentError::Incompatible)
     }
     _ => Ok(()),
@@ -1012,6 +1020,14 @@ mod tests {
     let mut iris = entry(IRIS_CURSEFORGE);
     iris.source = Some(Source::CurseForge);
     let plan = super::tests::plan(&stub, LoaderType::NeoForge, &[iris], &["s"])
+      .await
+      .unwrap();
+    assert_eq!(ids(&plan), ["s"]);
+
+    let mut optifine = entry("x");
+    optifine.project_id = None;
+    optifine.file_name = "OptiFine_1.12.2_HD_U_G5.jar".into();
+    let plan = super::tests::plan(&stub, LoaderType::Forge, &[optifine], &["s"])
       .await
       .unwrap();
     assert_eq!(ids(&plan), ["s"]);
