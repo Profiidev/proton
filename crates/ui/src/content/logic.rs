@@ -77,15 +77,14 @@ pub fn profile_compat(
   }
   match kind {
     ContentKind::Mod => loader_compatible(profile.loader, loaders),
-    // shaders need Iris
-    ContentKind::Shader
-      if !matches!(
-        profile.loader,
-        LoaderType::Fabric | LoaderType::Quilt | LoaderType::NeoForge
-      ) =>
-    {
-      Compat::no("Shaders need Fabric, Quilt or NeoForge".into())
+    // shaders need Iris, or OptiFine on Forge
+    ContentKind::Shader if profile.loader == LoaderType::Vanilla => {
+      Compat::no("Shaders need a mod loader".into())
     }
+    ContentKind::Shader if profile.loader == LoaderType::Forge => Compat {
+      ok: true,
+      note: Some("Needs OptiFine".into()),
+    },
     _ => Compat::ok(),
   }
 }
@@ -488,7 +487,8 @@ pub(crate) mod tests {
     let shader = (s(&["1.21"]), s(&["iris"]));
     assert!(profile_compat(&p, ContentKind::Shader, &shader.0, &shader.1).ok);
     let forge = profile("f", LoaderType::Forge, None);
-    assert!(!profile_compat(&forge, ContentKind::Shader, &shader.0, &shader.1).ok);
+    assert!(profile_compat(&forge, ContentKind::Shader, &shader.0, &shader.1).ok);
+    assert!(!profile_compat(&vanilla, ContentKind::Shader, &shader.0, &shader.1).ok);
     assert!(profile_compat(&p, ContentKind::Modpack, &s(&["1.8"]), &[]).ok);
   }
 
