@@ -114,8 +114,10 @@ impl VersionSelect {
       let SelectEvent::Confirm(Some(value)) = event else {
         return;
       };
+      // deferred past this update so the handler can read the select; defer_in would lease it again
       if let Some(f) = this.on_change.clone() {
-        f(value, window, cx);
+        let value = value.clone();
+        window.defer(cx, move |window, cx| f(&value, window, cx));
       }
     });
     Self {
@@ -504,7 +506,7 @@ mod tests {
         let entity = select
           .borrow_mut()
           .get_or_insert_with(|| {
-            let picked = picked.clone();
+            let (picked, me) = (picked.clone(), select.clone());
             cx.new(|cx| {
               VersionSelect::new(
                 "Version",
@@ -513,7 +515,11 @@ mod tests {
                 window,
                 cx,
               )
-              .on_change(move |v, _, _| *picked.borrow_mut() = Some(v.clone()))
+              // reads the select back like the create dialog does, panicked while it was leased
+              .on_change(move |_, _, cx| {
+                let me: Entity<VersionSelect> = me.borrow().clone().unwrap();
+                *picked.borrow_mut() = me.read(cx).value(cx);
+              })
             })
           })
           .clone();
