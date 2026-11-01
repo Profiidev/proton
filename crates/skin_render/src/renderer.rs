@@ -1,7 +1,10 @@
 use std::sync::OnceLock;
 
 use anyhow::{Context, Result, anyhow};
-use glam::{Mat4, Vec3};
+use glam::{
+  Vec3,
+  camera::rh::{proj, view},
+};
 use image::RgbaImage;
 use wgpu::util::DeviceExt;
 
@@ -212,8 +215,8 @@ impl Renderer {
         pitch.sin(),
         p.yaw.cos() * pitch.cos(),
       );
-    let mvp = Mat4::perspective_rh(fov, w as f32 / h as f32, 0.1, 2000.0)
-      * Mat4::look_at_rh(eye, Vec3::ZERO, Vec3::Y);
+    let mvp = proj::directx::perspective(fov, w as f32 / h as f32, 0.1, 2000.0)
+      * view::look_at_mat4(eye, Vec3::ZERO, Vec3::Y);
     let mut uniforms = [0f32; 20];
     uniforms[..16].copy_from_slice(&mvp.to_cols_array());
     uniforms[16..19].copy_from_slice(&eye.normalize().to_array());

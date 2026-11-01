@@ -10,9 +10,11 @@ pub const SETTINGS_KEY: &str = "settings";
 /// Total system memory in MB, 8 GB when it cannot be read
 pub fn system_max_mem() -> u64 {
   static MAX_MEM: LazyLock<u64> = LazyLock::new(|| {
-    let mut system = System::new();
-    system.refresh_memory();
-    match system.total_memory() / 1024 / 1024 {
+    let total = System::new().map_or(0, |mut system| {
+      system.refresh_memory();
+      system.total_memory()
+    });
+    match total / 1024 / 1024 {
       0 => 8192,
       mb => mb,
     }

@@ -52,8 +52,11 @@ pub fn java_calls(record: &Path) -> Vec<Vec<String>> {
   let Ok(text) = std::fs::read_to_string(record) else {
     return Vec::new();
   };
-  text
-    .split_terminator("--end\n")
+  // the last part is a call still being written, or empty
+  let mut calls: Vec<_> = text.split("--end\n").collect();
+  calls.pop();
+  calls
+    .into_iter()
     .map(|call| call.lines().map(String::from).collect())
     .collect()
 }
