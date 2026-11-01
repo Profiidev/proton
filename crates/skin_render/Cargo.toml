@@ -10,10 +10,10 @@ bytemuck = { version = "1", features = ["derive"] }
 glam = "0.34"
 gpui-kit = { version = "0.8.0", default-features = false }
 image = { version = "0.25", default-features = false, features = ["png"] }
-pollster = "0.4"
+pollster = "1.0"
 tracing.workspace = true
 # same major + features as gpui-pre-wgpu so the workspace builds a single wgpu
-wgpu = { version = "29", default-features = false, features = [
+wgpu = { version = "30", default-features = false, features = [
   "std",
   "parking_lot",
   "wgsl",
