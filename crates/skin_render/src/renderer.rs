@@ -126,11 +126,11 @@ impl Renderer {
         module: &shader,
         entry_point: Some("vs"),
         compilation_options: Default::default(),
-        buffers: &[wgpu::VertexBufferLayout {
+        buffers: &[Some(wgpu::VertexBufferLayout {
           array_stride: size_of::<Vertex>() as u64,
           step_mode: wgpu::VertexStepMode::Vertex,
           attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x2, 3 => Float32],
-        }],
+        })],
       },
       fragment: Some(wgpu::FragmentState {
         module: &shader,
@@ -346,7 +346,7 @@ impl Renderer {
     d.poll(wgpu::PollType::wait_indefinitely())?;
     rx.recv()??;
 
-    let data = slice.get_mapped_range();
+    let data = slice.get_mapped_range()?;
     let mut out = Vec::with_capacity((w * h * 4) as usize);
     for row in data.chunks(padded as usize) {
       out.extend_from_slice(&row[..(w * 4) as usize]);
