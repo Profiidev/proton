@@ -19,7 +19,7 @@ proton_content = { path = "crates/content" }
 proton_components = { path = "crates/components" }
 proton_reqwest = { path = "crates/reqwest" }
 proton_ui = { path = "crates/ui" }
-gpui-kit = "0.7.3"
+gpui-kit = "0.8.0"
 futures = "0.3.34"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
@@ -61,7 +61,7 @@ async_zip = { version = "0.0.19", features = [
   "deflate64"
 ] }
 tokio-util = { version = "0.7.20", features = ["compat"] }
-sysinfo = "0.39.6"
+sysinfo = "0.40.0"
 futures-util = "0.3.34"
 sha2 = "0.11.1"
 pulldown-cmark = { version = "0.13.4", default-features = false, features = [
