@@ -51,10 +51,13 @@ let
 in
 {
   # oxfmt: json/md/yaml formatting, no node needed
-  packages = buildDeps ++ gpuiLibs ++ mcLibs ++ [
-    pkgs.oxfmt
-    pkgs.cargo-llvm-cov
-  ];
+  packages =
+    buildDeps
+    ++ gpuiLibs
+    ++ mcLibs
+    ++ [
+      pkgs.oxfmt
+    ];
 
   languages = {
     rust = {

@@ -292,7 +292,10 @@ impl ProfileStore {
       .flatten()
       .map(|i| Pid::from_u32(i.pid()))
       .collect();
-    let mut system = System::new();
+    // polled, so no log spam when sysinfo is unsupported
+    let Ok(mut system) = System::new() else {
+      return HashMap::new();
+    };
     system.refresh_processes(ProcessesToUpdate::Some(&pids), true);
 
     instances

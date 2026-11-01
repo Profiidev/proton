@@ -248,7 +248,7 @@ impl Render for LogWindow {
     .size_full()
     .px(px(14.))
     .py_3()
-    .on_scroll_wheel(cx.listener(|_, _, window, cx| {
+    .on_scroll(cx.listener(|_, _, window, cx| {
       // after the list applied the wheel delta
       cx.defer_in(window, |this, _, cx| this.sync_follow(cx));
     }));
