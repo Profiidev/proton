@@ -29,6 +29,7 @@
   udev,
   glfw3-minecraft,
   openal,
+  aws-lc,
 }:
 
 let
@@ -95,6 +96,7 @@ rustPlatform.buildRustPackage {
     freetype
     libxkbcommon
     libxcb
+    aws-lc
   ];
 
   # the gpui tests open windows, CI runs them (tests.yml)
