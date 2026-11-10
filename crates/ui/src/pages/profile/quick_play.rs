@@ -266,6 +266,27 @@ impl QuickPlayPage {
       move |_: &_, _: &mut Window, cx: &mut App| launch(id.clone(), Some(item.clone()), cx)
     };
 
+    let favorite = item.favorite;
+    let favorite_button = {
+      let (id, item) = (id.clone(), item.clone());
+      Button::new("favorite")
+        .cursor_pointer()
+        .outline()
+        .accessibility_label(if favorite {
+          "Remove from favorites"
+        } else {
+          "Add to favorites"
+        })
+        .map(|b| {
+          if favorite {
+            b.icon(Icon::new(IconName::StarFill).text_color(colors::yellow_500()))
+          } else {
+            b.icon(IconName::Star)
+          }
+        })
+        .on_click(move |_, _, cx| set_favorite(id.clone(), item.clone(), !favorite, cx))
+    };
+
     div()
       .id(SharedString::from(format!("entry-{ix}")))
       .flex()
@@ -299,8 +320,6 @@ impl QuickPlayPage {
       )
       .map(|el| {
         if singleplayer {
-          let favorite = item.favorite;
-          let (fav_id, fav_item) = (id.clone(), item.clone());
           let (rm_id, rm_item) = (id.clone(), item.clone());
           el.child(
             filled(icon_label(
@@ -310,26 +329,7 @@ impl QuickPlayPage {
             ))
             .on_click(play),
           )
-          .child(
-            Button::new("favorite")
-              .cursor_pointer()
-              .outline()
-              .accessibility_label(if favorite {
-                "Remove from favorites"
-              } else {
-                "Add to favorites"
-              })
-              .map(|b| {
-                if favorite {
-                  b.icon(Icon::new(IconName::StarFill).text_color(colors::yellow_500()))
-                } else {
-                  b.icon(IconName::Star)
-                }
-              })
-              .on_click(move |_, _, cx| {
-                set_favorite(fav_id.clone(), fav_item.clone(), !favorite, cx)
-              }),
-          )
+          .child(favorite_button)
           .child(
             Button::new("remove")
               .cursor_pointer()
@@ -339,9 +339,11 @@ impl QuickPlayPage {
               .on_click(move |_, window, cx| remove(rm_id.clone(), rm_item.clone(), window, cx)),
           )
         } else {
-          el.children(status).child(
-            filled(Button::new("play").cursor_pointer().primary().label("Join")).on_click(play),
-          )
+          el.children(status)
+            .child(
+              filled(Button::new("play").cursor_pointer().primary().label("Join")).on_click(play),
+            )
+            .child(favorite_button)
         }
       })
       .test_support()
