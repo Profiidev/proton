@@ -25,8 +25,8 @@ use crate::{
 
 pub const ENDPOINT: &str =
   "https://github.com/Profiidev/proton/releases/latest/download/latest.json";
-/// The minisign key of the old Tauri updater, cargo-packager signs and verifies the same way
-pub const PUBKEY: &str = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQ2QzRBNzRCNkZEMEQ5MzEKUldReDJkQnZTNmZFUmd0STI1dnRzYld4ekZsUCtQY3ZKV2dMV3ZsMmNnUTNUTHZJTWdDZm5ZekYK";
+/// The updater's minisign public key, the private half is the `TAURI_SIGNING_PRIVATE_KEY` secret
+pub const PUBKEY: &str = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDZEOTJBOTY2QzlDMzM1RTgKUldUb05jUEpacW1TYmRTUlNqaXYvMkJFdXVlRmREWjUvU01US0p3a1JZMjNZQlJEN2hRaWdyb1AK";
 /// Set on the relaunched process, it waits for the old one to release the single instance socket
 pub const RESTART_ENV: &str = "PROTON_RESTARTED";
 
