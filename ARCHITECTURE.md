@@ -203,8 +203,8 @@ resolution as Tauri's `app_*_dir`):
 
 **Compatibility with the Tauri app must not break:** same identifier and dirs, same
 `store.json` format (pretty JSON, one object), unknown/missing fields default
-(`#[serde(default)]`), old URLs in `settings.url` still parse, updater uses the old minisign key
-and `latest.json` shape, NSIS `publisher` keeps the registry keys. Users upgrade in place.
+(`#[serde(default)]`), old URLs in `settings.url` still parse, updater keeps the
+`latest.json` shape (its minisign key was rotated, older installs reinstall once), NSIS `publisher` keeps the registry keys. Users upgrade in place.
 
 ## Testing
 
