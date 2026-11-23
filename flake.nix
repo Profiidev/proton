@@ -33,6 +33,14 @@
         packages = rec {
           default = proton;
           proton = pkgs.callPackage ./packaging/package.nix { };
+          # PR build check: no fat LTO and no optimization, it only proves the package builds
+          ci = proton.overrideAttrs (old: {
+            env = (old.env or { }) // {
+              CARGO_PROFILE_RELEASE_LTO = "off";
+              CARGO_PROFILE_RELEASE_CODEGEN_UNITS = "16";
+              CARGO_PROFILE_RELEASE_OPT_LEVEL = "0";
+            };
+          });
         };
       }
     );
