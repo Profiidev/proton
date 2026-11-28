@@ -22,12 +22,10 @@
       flake-utils,
       ...
     }:
-    flake-utils.lib.eachDefaultSystem (
+    (flake-utils.lib.eachDefaultSystem (
       system:
       let
-        pkgs = import nixpkgs {
-          inherit system;
-        };
+        pkgs = nixpkgs.legacyPackages.${system};
       in
       {
         packages = rec {
@@ -43,5 +41,10 @@
           });
         };
       }
-    );
+    ))
+    // {
+      overlays.default = final: _: {
+        proton-launcher = final.callPackage ./packaging/package.nix { };
+      };
+    };
 }
