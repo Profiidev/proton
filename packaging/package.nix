@@ -80,7 +80,7 @@ rustPlatform.buildRustPackage {
 
   src = ./..;
 
-  cargoLock.lockFile = ../Cargo.lock;
+  cargoHash = "sha256-kjoiixy3kZFCT6FWAfVZzbRVx2WuIGip2YEaHNqExzg=";
 
   cargoBuildFlags = [
     "--package"
